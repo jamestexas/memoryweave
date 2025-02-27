@@ -13,6 +13,7 @@ dependencies = [
     "huggingface-hub>=0.29.1",
     "matplotlib>=3.10.1",
     "numpy>=2.2.3",
+    "pandas>=2.2.3",
     "pydantic>=2",
     "rich>=13.9.4",
     "rich-click>=1.8.6",
