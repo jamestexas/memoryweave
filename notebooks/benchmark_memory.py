@@ -11,12 +11,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from typing import Dict, List, Tuple, Any
+import os
 
 import torch
 from transformers import AutoModel, AutoTokenizer
 
 from memoryweave.core import ContextualMemory, ContextualRetriever, MemoryEncoder
 from memoryweave.evaluation import coherence_score, context_relevance, response_consistency
+
+# Create output directory if it doesn't exist
+os.makedirs("output", exist_ok=True)
 
 # Helper class for sentence embedding
 class EmbeddingModelWrapper:
@@ -343,14 +347,23 @@ class MemoryBenchmark:
         
         # Save or show the plot
         if output_file:
-            plt.savefig(f"{output_file}_precision_recall.png")
-            print(f"Saved precision-recall plot to {output_file}_precision_recall.png")
+            output_path = f"output/{output_file}_precision_recall.png"
+            plt.savefig(output_path)
+            print(f"Saved precision-recall plot to {output_path}")
             
             # Also save the results data
-            results_df.to_csv(f"{output_file}_results.csv", index=False)
-            print(f"Saved results to {output_file}_results.csv")
+            csv_path = f"output/{output_file}_results.csv"
+            results_df.to_csv(csv_path, index=False)
+            print(f"Saved results to {csv_path}")
         else:
-            plt.show()
+            output_path = "output/benchmark_precision_recall.png"
+            plt.savefig(output_path)
+            print(f"Saved precision-recall plot to {output_path}")
+            
+            # Also save the results data
+            csv_path = "output/benchmark_results.csv"
+            results_df.to_csv(csv_path, index=False)
+            print(f"Saved results to {csv_path}")
             
         # Create a bar chart comparing retrieval times
         plt.figure(figsize=(12, 6))
@@ -365,10 +378,13 @@ class MemoryBenchmark:
         
         # Save or show the plot
         if output_file:
-            plt.savefig(f"{output_file}_retrieval_time.png")
-            print(f"Saved retrieval time plot to {output_file}_retrieval_time.png")
+            output_path = f"output/{output_file}_retrieval_time.png"
+            plt.savefig(output_path)
+            print(f"Saved retrieval time plot to {output_path}")
         else:
-            plt.show()
+            output_path = "output/benchmark_retrieval_time.png"
+            plt.savefig(output_path)
+            print(f"Saved retrieval time plot to {output_path}")
         
         return results_df
 
@@ -464,6 +480,6 @@ def run_benchmark():
 if __name__ == "__main__":
     """
     Run the benchmark with:
-    uv run python benchmark_memory.py
+    python notebooks/benchmark_memory.py
     """
     run_benchmark()
