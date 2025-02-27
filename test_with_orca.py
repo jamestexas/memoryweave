@@ -52,13 +52,13 @@ def format_memories(memories):
         if attributes:
             formatted.append("USER PROFILE:")
             # Format preferences
-            preferences = [f"{k.capitalize()}: {v}" for k, v in attributes.items() 
+            preferences = [f"{k.replace('preference_', '')}: {v}" for k, v in attributes.items() 
                            if k.startswith("preference_")]
             if preferences:
                 formatted.append("Preferences: " + ", ".join(preferences))
                 
             # Format demographics
-            demographics = [f"{k.replace('demographic_', '').capitalize()}: {v}" for k, v in attributes.items() 
+            demographics = [f"{k.replace('demographic_', '')}: {v}" for k, v in attributes.items() 
                             if k.startswith("demographic_")]
             if demographics:
                 formatted.append("Demographics: " + ", ".join(demographics))
@@ -105,7 +105,7 @@ def format_memories(memories):
 
 
 def main():
-    print("Testing MemoryWeave with TinyLlama-1.1B...")
+    print("Testing MemoryWeave with Orca Mini 3B...")
 
     # Load embedding model
     embedding_model_name = "sentence-transformers/all-MiniLM-L6-v2"
@@ -127,8 +127,8 @@ def main():
 
     memory_system = {"memory": memory, "encoder": encoder, "retriever": retriever}
 
-    # Load TinyLlama
-    model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    # Load Orca Mini
+    model_name = "psmathur/orca_mini_3b"
     print(f"Loading language model: {model_name}")
     print("(This may take a minute...)")
     try:
@@ -185,10 +185,10 @@ def main():
             response = adapter.generate(
                 user_input=query,
                 conversation_history=conversation_history,
-                generation_kwargs={"max_new_tokens": 100},
+                generation_kwargs={"max_new_tokens": 150},
             )
 
-            print(f"TinyLlama: {response}")
+            print(f"Orca Mini: {response}")
 
             # Update conversation history
             conversation_history.append({"speaker": "user", "message": query, "response": response})
