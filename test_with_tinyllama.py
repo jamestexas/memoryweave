@@ -51,13 +51,14 @@ def format_memories(memories):
         attributes = personal_attributes.get("attributes", {})
         if attributes:
             formatted.append("USER PROFILE:")
-            # Format preferences
-            preferences = [f"{k.capitalize()}: {v}" for k, v in attributes.items() 
+            
+            # Format preferences (removing the preference_ prefix)
+            preferences = [f"{k.replace('preference_', '').capitalize()}: {v}" for k, v in attributes.items() 
                            if k.startswith("preference_")]
             if preferences:
                 formatted.append("Preferences: " + ", ".join(preferences))
                 
-            # Format demographics
+            # Format demographics (removing the demographic_ prefix)
             demographics = [f"{k.replace('demographic_', '').capitalize()}: {v}" for k, v in attributes.items() 
                             if k.startswith("demographic_")]
             if demographics:

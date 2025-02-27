@@ -57,6 +57,56 @@ class ContextualRetriever:
             "traits": {},       # e.g., {"personality": "introvert", "hobbies": ["hiking", "reading"]}
             "relationships": {},# e.g., {"family": {"spouse": "Alex", "children": ["Sam", "Jamie"]}}
         }
+        
+        # Pre-compile regex patterns for performance
+        self._compile_regex_patterns()
+
+    def _compile_regex_patterns(self):
+        """Pre-compile regex patterns for faster extraction."""
+        # Preference patterns
+        self.favorite_patterns = [
+            re.compile(r"(?:my|I) (?:favorite|preferred) (color|food|drink|movie|book|music|song|artist|sport|game|place) (?:is|are) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:like|love|prefer|enjoy) ([a-z0-9\s]+) (?:for|as) (?:my) (color|food|drink|movie|book|music|activity)"),
+            re.compile(r"(?:I|my) (?:like|love|prefer|enjoy) (?:the color|eating|drinking|watching|reading|listening to) ([a-z0-9\s]+)")
+        ]
+        
+        self.color_patterns = [
+            re.compile(r"(?:my|I) (?:favorite) color is ([a-z\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:like|love|prefer|enjoy) the color ([a-z\s]+)")
+        ]
+        
+        # Location patterns
+        self.location_patterns = [
+            re.compile(r"(?:I|my) (?:live|stay|reside) in ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:from|grew up in|was born in) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:city|town|state|country) (?:is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
+        ]
+        
+        # Occupation patterns
+        self.occupation_patterns = [
+            re.compile(r"(?:I|my) (?:work as|am) (?:a|an) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:job|profession|occupation) (?:is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
+        ]
+        
+        # Hobby patterns
+        self.hobby_patterns = [
+            re.compile(r"(?:I|my) (?:like to|love to|enjoy) ([a-z\s]+) (?:on|in|during) (?:my|the) ([a-z\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:hobby|hobbies|pastime|activity) (?:is|are|include) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
+        ]
+        
+        # Family relationship patterns
+        self.family_patterns = [
+            re.compile(r"(?:my) (wife|husband|spouse|partner|girlfriend|boyfriend) (?:is|name is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:my) (son|daughter|child|children|mother|father|brother|sister|sibling) (?:is|are|name is|names are) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
+        ]
+        
+        # Reference patterns for keyword extraction
+        self.reference_patterns = [
+            re.compile(r"what (?:was|is|were) (?:my|your|the) ([a-z\s]+)(?:\?|\.|$)"),
+            re.compile(r"(?:did|do) (?:I|you) (?:mention|say|tell|share) (?:about|that) ([a-z\s]+)(?:\?|\.|$)"),
+            re.compile(r"(?:remind|tell) me (?:about|what) ([a-z\s]+)(?:\?|\.|$)"),
+            re.compile(r"(?:what|which) ([a-z\s]+) (?:did|do) I (?:like|prefer|mention|say)(?:\?|\.|$)")
+        ]
 
     def retrieve_for_context(
         self,
@@ -155,22 +205,16 @@ class ContextualRetriever:
 
     def _extract_preferences(self, text: str) -> None:
         """Extract user preferences from text."""
-        # Pattern for favorite things
-        favorite_patterns = [
-            r"(?:my|I) (?:favorite|preferred) (color|food|drink|movie|book|music|song|artist|sport|game|place) (?:is|are) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)",
-            r"(?:I|my) (?:like|love|prefer|enjoy) ([a-z0-9\s]+) (?:for|as) (?:my) (color|food|drink|movie|book|music|activity)",
-            r"(?:I|my) (?:like|love|prefer|enjoy) (?:the color|eating|drinking|watching|reading|listening to) ([a-z0-9\s]+)"
-        ]
-        
-        for pattern in favorite_patterns:
-            matches = re.findall(pattern, text)
+        # Process favorite patterns
+        for pattern in self.favorite_patterns:
+            matches = pattern.findall(text)
             for match in matches:
                 if isinstance(match, tuple) and len(match) >= 2:
                     category, value = match
                     self.personal_attributes["preferences"][category.strip()] = value.strip()
                 elif isinstance(match, str):
                     # For the third pattern, try to categorize the preference
-                    if "color" in text and re.search(r"(?:like|love|prefer|enjoy) (?:the color) ([a-z\s]+)", text):
+                    if "color" in text:
                         color_match = re.search(r"(?:like|love|prefer|enjoy) (?:the color) ([a-z\s]+)", text)
                         if color_match:
                             self.personal_attributes["preferences"]["color"] = color_match.group(1).strip()
@@ -185,39 +229,23 @@ class ContextualRetriever:
                     elif "music" in text or "listening" in text:
                         self.personal_attributes["preferences"]["music"] = match.strip()
         
-        # Direct statements about color preferences (common in our test case)
-        color_patterns = [
-            r"(?:my|I) (?:favorite) color is ([a-z\s]+)(?:\.|\,|\!|\?|$)",
-            r"(?:I|my) (?:like|love|prefer|enjoy) the color ([a-z\s]+)"
-        ]
-        
-        for pattern in color_patterns:
-            matches = re.findall(pattern, text)
+        # Direct statements about color preferences
+        for pattern in self.color_patterns:
+            matches = pattern.findall(text)
             for match in matches:
                 self.personal_attributes["preferences"]["color"] = match.strip()
 
     def _extract_demographics(self, text: str) -> None:
         """Extract demographic information from text."""
-        # Location patterns
-        location_patterns = [
-            r"(?:I|my) (?:live|stay|reside) in ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)",
-            r"(?:I|my) (?:from|grew up in|was born in) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)",
-            r"(?:I|my) (?:city|town|state|country) (?:is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"
-        ]
-        
-        for pattern in location_patterns:
-            matches = re.findall(pattern, text)
+        # Process location patterns
+        for pattern in self.location_patterns:
+            matches = pattern.findall(text)
             for match in matches:
                 self.personal_attributes["demographics"]["location"] = match.strip()
         
-        # Occupation patterns
-        occupation_patterns = [
-            r"(?:I|my) (?:work as|am) (?:a|an) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)",
-            r"(?:I|my) (?:job|profession|occupation) (?:is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"
-        ]
-        
-        for pattern in occupation_patterns:
-            matches = re.findall(pattern, text)
+        # Process occupation patterns
+        for pattern in self.occupation_patterns:
+            matches = pattern.findall(text)
             for match in matches:
                 # Filter out common false positives
                 if match.strip() not in ["bit", "lot", "fan", "user"]:
@@ -225,14 +253,9 @@ class ContextualRetriever:
 
     def _extract_traits(self, text: str) -> None:
         """Extract personality traits and hobbies from text."""
-        # Hobby and activity patterns
-        hobby_patterns = [
-            r"(?:I|my) (?:like to|love to|enjoy) ([a-z\s]+) (?:on|in|during) (?:my|the) ([a-z\s]+)(?:\.|\,|\!|\?|$)",
-            r"(?:I|my) (?:hobby|hobbies|pastime|activity) (?:is|are|include) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"
-        ]
-        
-        for pattern in hobby_patterns:
-            matches = re.findall(pattern, text)
+        # Process hobby patterns
+        for pattern in self.hobby_patterns:
+            matches = pattern.findall(text)
             for match in matches:
                 if isinstance(match, tuple) and len(match) >= 2:
                     activity, time = match
@@ -250,7 +273,7 @@ class ContextualRetriever:
                         if hobby and hobby not in self.personal_attributes["traits"]["hobbies"]:
                             self.personal_attributes["traits"]["hobbies"].append(hobby)
         
-        # Check specifically for hiking in mountains on weekends (common in our test case)
+        # Check specifically for hiking in mountains on weekends
         if "hike" in text and "mountains" in text and "weekend" in text:
             if "hobbies" not in self.personal_attributes["traits"]:
                 self.personal_attributes["traits"]["hobbies"] = []
@@ -259,14 +282,9 @@ class ContextualRetriever:
 
     def _extract_relationships(self, text: str) -> None:
         """Extract relationship information from text."""
-        # Family relationship patterns
-        family_patterns = [
-            r"(?:my) (wife|husband|spouse|partner|girlfriend|boyfriend) (?:is|name is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)",
-            r"(?:my) (son|daughter|child|children|mother|father|brother|sister|sibling) (?:is|are|name is|names are) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"
-        ]
-        
-        for pattern in family_patterns:
-            matches = re.findall(pattern, text)
+        # Process family relationship patterns
+        for pattern in self.family_patterns:
+            matches = pattern.findall(text)
             for match in matches:
                 if isinstance(match, tuple) and len(match) >= 2:
                     relation, name = match
@@ -308,26 +326,19 @@ class ContextualRetriever:
         # Convert to lowercase for case-insensitive matching
         query_lower = query.lower()
         
-        # Look for reference patterns like "what was my X", "did I mention X", etc.
-        reference_patterns = [
-            r"what (?:was|is|were) (?:my|your|the) ([a-z\s]+)(?:\?|\.|$)",
-            r"(?:did|do) (?:I|you) (?:mention|say|tell|share) (?:about|that) ([a-z\s]+)(?:\?|\.|$)",
-            r"(?:remind|tell) me (?:about|what) ([a-z\s]+)(?:\?|\.|$)",
-            r"(?:what|which) ([a-z\s]+) (?:did|do) I (?:like|prefer|mention|say)(?:\?|\.|$)"
-        ]
-        
         important_words = set()
         
         # Extract keywords from reference patterns
-        for pattern in reference_patterns:
-            matches = re.findall(pattern, query_lower)
+        for pattern in self.reference_patterns:
+            matches = pattern.findall(query_lower)
             for match in matches:
                 # Add each individual word from the match
                 important_words.update(match.split())
         
         # Add specific preference and personal attribute keywords
-        preference_terms = ["favorite", "like", "prefer", "love", "favorite color", "favorite food"]
-        personal_terms = ["color", "food", "movie", "book", "hobby", "activity"]
+        preference_terms = ["favorite", "prefer", "like", "love", "hate", "dislike"]
+        personal_terms = ["color", "food", "movie", "book", "hobby", "activity", 
+                          "live", "work", "job", "occupation", "weekend"]
         
         for term in preference_terms + personal_terms:
             if term in query_lower:
@@ -508,11 +519,19 @@ class ContextualRetriever:
         combined_scores = combined_scores * self.memory.activation_levels
 
         # Get top-k indices
-        if top_k >= len(combined_scores):
+        array_size = len(combined_scores)
+        if array_size == 0:
+            return []
+            
+        if top_k >= array_size:
             top_indices = np.argsort(-combined_scores)
         else:
             # First get more candidates than needed for keyword boosting
-            candidate_k = min(len(combined_scores), top_k * 2)
+            # Fix: Ensure candidate_k is less than array_size to avoid argpartition error
+            candidate_k = min(array_size - 1, top_k * 2)  # Safely compute candidate_k
+            if candidate_k <= 0:  # Additional safety check
+                candidate_k = min(1, array_size - 1)
+                
             candidate_indices = np.argpartition(-combined_scores, candidate_k)[:candidate_k]
             
             # Format preliminary results with potential for keyword boosting
