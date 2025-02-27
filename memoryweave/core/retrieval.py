@@ -24,6 +24,9 @@ class ContextualRetriever:
         recency_weight: float = 0.3,
         relevance_weight: float = 0.7,
         keyword_boost_weight: float = 0.5,
+        confidence_threshold: float = 0.3,
+        semantic_coherence_check: bool = False,
+        adaptive_retrieval: bool = False,
     ):
         """
         Initialize the contextual retriever.
@@ -35,6 +38,9 @@ class ContextualRetriever:
             recency_weight: Weight given to recency in hybrid retrieval
             relevance_weight: Weight given to relevance in hybrid retrieval
             keyword_boost_weight: Weight given to keyword matching in retrieval
+            confidence_threshold: Minimum similarity score for retrieved memories
+            semantic_coherence_check: Whether to check for semantic coherence among retrieved memories
+            adaptive_retrieval: Whether to adaptively determine number of results to return
         """
         self.memory = memory
         self.embedding_model = embedding_model
@@ -42,6 +48,9 @@ class ContextualRetriever:
         self.recency_weight = recency_weight
         self.relevance_weight = relevance_weight
         self.keyword_boost_weight = keyword_boost_weight
+        self.confidence_threshold = confidence_threshold
+        self.semantic_coherence_check = semantic_coherence_check
+        self.adaptive_retrieval = adaptive_retrieval
 
         # Conversation context tracking
         self.conversation_state = {
@@ -113,6 +122,7 @@ class ContextualRetriever:
         current_input: str,
         conversation_history: Optional[list[dict]] = None,
         top_k: int = 5,
+        confidence_threshold: float = None,
     ) -> list[dict]:
         """
         Retrieve memories relevant to the current conversation context.
@@ -121,6 +131,7 @@ class ContextualRetriever:
             current_input: The current user input
             conversation_history: Recent conversation history
             top_k: Number of memories to retrieve
+            confidence_threshold: Minimum similarity score for memory inclusion (overrides default)
 
         Returns:
             list of relevant memory entries with metadata
@@ -146,13 +157,17 @@ class ContextualRetriever:
         # Also check current input for personal attributes
         self._extract_personal_attributes(current_input)
 
+        # If no confidence threshold is provided, use the default
+        if confidence_threshold is None:
+            confidence_threshold = self.confidence_threshold
+
         # Retrieve memories using the specified strategy
         if self.retrieval_strategy == "similarity":
-            memories = self._retrieve_by_similarity(query_embedding, top_k, important_keywords)
+            memories = self._retrieve_by_similarity(query_embedding, top_k, important_keywords, confidence_threshold)
         elif self.retrieval_strategy == "temporal":
             memories = self._retrieve_by_recency(top_k)
         else:  # hybrid approach
-            memories = self._retrieve_hybrid(query_embedding, top_k, important_keywords)
+            memories = self._retrieve_hybrid(query_embedding, top_k, important_keywords, confidence_threshold)
             
         # Enhance results with personal attributes relevant to the query
         enhanced_memories = self._enhance_with_personal_attributes(memories, current_input)
@@ -455,9 +470,23 @@ class ContextualRetriever:
         
         return enhanced_memories
                 
-    def _retrieve_by_similarity(self, query_embedding: np.ndarray, top_k: int, important_keywords: Set[str] = None) -> list[dict]:
+    def _retrieve_by_similarity(
+        self, 
+        query_embedding: np.ndarray, 
+        top_k: int, 
+        important_keywords: Set[str] = None,
+        confidence_threshold: float = 0.0
+    ) -> list[dict]:
         """Retrieve memories based purely on contextual similarity."""
-        results = self.memory.retrieve_memories(query_embedding, top_k=top_k, activation_boost=True)
+        # Pass the confidence_threshold and additional parameters for enhanced retrieval
+        results = self.memory.retrieve_memories(
+            query_embedding, 
+            top_k=top_k, 
+            activation_boost=True,
+            confidence_threshold=confidence_threshold,
+            semantic_coherence_check=self.semantic_coherence_check,
+            adaptive_retrieval=self.adaptive_retrieval
+        )
 
         # Format results and apply keyword boost if needed
         formatted_results = []
@@ -499,7 +528,13 @@ class ContextualRetriever:
 
         return results
 
-    def _retrieve_hybrid(self, query_embedding: np.ndarray, top_k: int, important_keywords: Set[str] = None) -> list[dict]:
+    def _retrieve_hybrid(
+        self, 
+        query_embedding: np.ndarray, 
+        top_k: int, 
+        important_keywords: Set[str] = None,
+        confidence_threshold: float = 0.0
+    ) -> list[dict]:
         """
         Hybrid retrieval combining similarity, recency, and keyword matching.
         """
@@ -518,13 +553,15 @@ class ContextualRetriever:
         # Apply activation boost
         combined_scores = combined_scores * self.memory.activation_levels
 
-        # Get top-k indices
-        array_size = len(combined_scores)
-        if array_size == 0:
+        # Apply confidence threshold filtering
+        valid_indices = np.where(combined_scores >= confidence_threshold)[0]
+        if len(valid_indices) == 0:
             return []
             
+        # Get top-k indices from valid indices
+        array_size = len(valid_indices)
         if top_k >= array_size:
-            top_indices = np.argsort(-combined_scores)
+            top_relative_indices = np.argsort(-combined_scores[valid_indices])
         else:
             # First get more candidates than needed for keyword boosting
             # Fix: Ensure candidate_k is less than array_size to avoid argpartition error
@@ -532,7 +569,10 @@ class ContextualRetriever:
             if candidate_k <= 0:  # Additional safety check
                 candidate_k = min(1, array_size - 1)
                 
-            candidate_indices = np.argpartition(-combined_scores, candidate_k)[:candidate_k]
+            candidate_indices = np.argpartition(-combined_scores[valid_indices], candidate_k)[:candidate_k]
+            
+            # Convert back to original indices
+            candidate_indices = valid_indices[candidate_indices]
             
             # Format preliminary results with potential for keyword boosting
             candidates = []
@@ -560,11 +600,43 @@ class ContextualRetriever:
             
             # Sort by boosted score and take top-k
             candidates.sort(key=lambda x: x["relevance_score"], reverse=True)
+            
+            # Apply semantic coherence check if enabled
+            if self.semantic_coherence_check and len(candidates) > 1:
+                # Convert to proper format for memory's _apply_coherence_check
+                candidate_tuples = [(c["memory_id"], c["relevance_score"], {k: v for k, v in c.items() 
+                                   if k not in ["memory_id", "relevance_score"]}) 
+                                  for c in candidates]
+                
+                coherent_tuples = self.memory._apply_coherence_check(candidate_tuples, query_embedding)
+                
+                # Convert back to our format
+                coherent_candidates = []
+                for memory_id, score, metadata in coherent_tuples:
+                    coherent_candidates.append({
+                        "memory_id": memory_id,
+                        "relevance_score": score,
+                        **metadata
+                    })
+                
+                candidates = coherent_candidates
+            
+            # Apply adaptive k selection if enabled
+            if self.adaptive_retrieval and len(candidates) > 1:
+                # Find the largest drop in relevance scores
+                scores = np.array([c["relevance_score"] for c in candidates])
+                diffs = np.diff(scores)
+                largest_drop_idx = np.argmin(diffs)
+                
+                # Only use the cut point if there's a significant drop
+                if -diffs[largest_drop_idx] > 0.1 * scores[0]:
+                    candidates = candidates[:largest_drop_idx + 1]
+            
             return candidates[:top_k]
 
         # Format results (if we didn't take the candidate path)
         results = []
-        for idx in top_indices:
+        for idx in valid_indices[top_relative_indices]:
             score = float(combined_scores[idx])
             if score <= 0:  # Skip non-positive scores
                 continue
