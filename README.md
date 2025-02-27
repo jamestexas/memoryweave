@@ -9,7 +9,7 @@ MemoryWeave is an experimental approach to memory management for language models
 - [Installation](#installation)
 - [Basic Usage](#basic-usage)
 - [Architecture](#architecture)
-- [Examples](#examples)
+- [Examples & Notebooks](#examples)
 - [Current Limitations](#current-limitations)
 - [Contributing](#contributing)
 
@@ -43,7 +43,7 @@ This allows for more nuanced and effective memory retrieval during conversations
 
 ```bash
 # Using uv (recommended)
-uv pip install memoryweave
+uv add memoryweave
 
 # Using pip
 pip install memoryweave
@@ -51,44 +51,6 @@ pip install memoryweave
 
 ## Basic Usage
 <a id="basic-usage"></a>
-
-```python
-import torch
-from transformers import AutoModel, AutoTokenizer
-from memoryweave.core import ContextualMemory, MemoryEncoder, ContextualRetriever
-from memoryweave.integrations import HuggingFaceAdapter
-
-# Load models
-tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
-embedding_model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
-llm_model = AutoModelForCausalLM.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-
-# Initialize memory components with ART clustering
-memory = ContextualMemory(
-    embedding_dim=384,
-    use_art_clustering=True,
-    vigilance_threshold=0.85
-) 
-encoder = MemoryEncoder(embedding_model)
-retriever = ContextualRetriever(memory, embedding_model)
-memory_system = {"memory": memory, "encoder": encoder, "retriever": retriever}
-
-# Create adapter
-adapter = HuggingFaceAdapter(
-    memory_system=memory_system,
-    model=llm_model,
-    tokenizer=tokenizer
-)
-
-# Generate with memory augmentation
-response = adapter.generate(
-    user_input="What do you know about neural networks?",
-    conversation_history=[]
-)
-```
-
-<details>
-<summary><strong>More comprehensive example</strong></summary>
 
 ```python
 import torch
@@ -117,53 +79,46 @@ class EmbeddingModelWrapper:
         return mean_pooled.numpy()[0]
 
 # Load models
-emb_tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
-emb_model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
-embedding_model = EmbeddingModelWrapper(emb_model, emb_tokenizer)
+TOKENIZER_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+LLM_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
-# Initialize memory system
+tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
+model = AutoModel.from_pretrained(TOKENIZER_MODEL)
+embedding_model = EmbeddingModelWrapper(model, tokenizer)
+llm_tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL)
+llm_model = AutoModelForCausalLM.from_pretrained(LLM_MODEL)
+
+# Initialize memory components with ART clustering
 from memoryweave.core import ContextualMemory, MemoryEncoder, ContextualRetriever
-embedding_dim = emb_model.config.hidden_size  # 384 for MiniLM-L6
+from memoryweave.integrations import HuggingFaceAdapter
+
 memory = ContextualMemory(
-    embedding_dim=embedding_dim,
+    embedding_dim=384,  # Matches the embedding dimension of MiniLM-L6
     use_art_clustering=True,
     vigilance_threshold=0.85
 )
-encoder = MemoryEncoder(embedding_model)
-retriever = ContextualRetriever(memory=memory, embedding_model=embedding_model)
-memory_system = {"memory": memory, "encoder": encoder, "retriever": retriever}
 
-# Initialize LLM
-lm_tokenizer = AutoTokenizer.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-lm_model = AutoModelForCausalLM.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+encoder = MemoryEncoder(embedding_model)
+retriever = ContextualRetriever(memory, embedding_model)
+memory_system = dict(
+    memory=memory,
+    encoder=encoder,
+    retriever=retriever
+)
 
 # Create adapter
-from memoryweave.integrations import HuggingFaceAdapter
 adapter = HuggingFaceAdapter(
     memory_system=memory_system,
-    model=lm_model,
-    tokenizer=lm_tokenizer
+    model=llm_model,
+    tokenizer=llm_tokenizer
 )
 
-# Run a conversation with memory
-conversation_history = []
-
-# First turn
-response1 = adapter.generate(
-    user_input="My favorite color is blue.",
-    conversation_history=conversation_history,
-    generation_kwargs={"max_new_tokens": 100}
-)
-conversation_history.append({"speaker": "user", "message": "My favorite color is blue.", "response": response1})
-
-# Second turn
-response2 = adapter.generate(
-    user_input="What color did I say I liked?",
-    conversation_history=conversation_history,
-    generation_kwargs={"max_new_tokens": 100}
+# Generate with memory augmentation
+response = adapter.generate(
+    user_input="What do you know about neural networks?",
+    conversation_history=[]
 )
 ```
-</details>
 
 ## Architecture
 <a id="architecture"></a>
@@ -177,45 +132,144 @@ MemoryWeave uses a modular architecture with three main components:
 <details>
 <summary><strong>Architecture diagram</strong></summary>
 
+```mermaid
+flowchart TD
+    LLM["**LLM Framework:**<br>Hugging Face, OpenAI, LangChain"] --> Adapter
+    Adapter["**Adapter Layer**<br>HuggingFaceAdapter, etc."] --> Retriever
+    Retriever[ContextualRetriever] --> Memory
+    Memory["**ContextualMemory**<br>with ART-inspired clustering"] --> Retriever
+    Encoder[MemoryEncoder] --> Memory
+    
+    classDef primary fill:#d0e0ff,stroke:#3080ff,stroke-width:2px
+    classDef secondary fill:#e0f0e0,stroke:#30a030,stroke-width:2px
+    
+    class Memory,Retriever,Encoder primary
+    class LLM,Adapter secondary
 ```
-┌─────────────────────────────────────┐
-│            LLM Framework            │
-│  (Hugging Face, OpenAI, LangChain)  │
-└───────────────┬─────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────┐
-│           Adapter Layer             │
-│    (HuggingFaceAdapter, etc.)       │
-└───────────────┬─────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────┐
-│         ContextualRetriever         │
-└───────────────┬─────────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────┐
-│          ContextualMemory           │
-│     (with ART-inspired clustering)  │
-└─────────────────────────────────────┘
-                ▲
-                │
-┌─────────────────────────────────────┐
-│           MemoryEncoder             │
-└─────────────────────────────────────┘
+
+```mermaid
+flowchart TD
+    subgraph MemoryWeave[MemoryWeave System]
+        Memory[ContextualMemory]
+        Encoder[MemoryEncoder]
+        Retriever[ContextualRetriever]
+    end
+    
+    subgraph Integration[Integration Layer]
+        Adapter[Adapter\nHuggingFace/OpenAI/LangChain]
+    end
+    
+    subgraph LLM[LLM Framework]
+        Model[Language Model]
+    end
+    
+    User[User Input] --> Adapter
+    Adapter --> Model
+    Adapter --> Retriever
+    Retriever --> Memory
+    Memory --> Retriever
+    Encoder --> Memory
+    Model --> Adapter
+    Adapter --> Response[Response to User]
+    
+    classDef primary fill:#d0e0ff,stroke:#3080ff,stroke-width:2px
+    classDef secondary fill:#e0f0e0,stroke:#30a030,stroke-width:2px
+    classDef external fill:#f0e0d0,stroke:#a07030,stroke-width:2px
+    
+    class Memory,Retriever,Encoder primary
+    class Adapter secondary
+    class User,Model,Response external
 ```
 </details>
 
-## Examples
+<details>
+<summary><strong>Memory retrieval mechanism</strong></summary>
+
+```mermaid
+flowchart TD
+    Query[User Query] --> QueryEmbed[Encode Query]
+    QueryEmbed --> RetrievalStrategy{Retrieval<br>Strategy}
+    
+    RetrievalStrategy -->|Similarity| SimilarityRetrieval[Similarity-Based<br>Retrieval]
+    RetrievalStrategy -->|Temporal| TemporalRetrieval[Recency-Based<br>Retrieval]
+    RetrievalStrategy -->|Hybrid| HybridRetrieval[Hybrid<br>Retrieval]
+    
+    SimilarityRetrieval --> ConfidenceFilter[Confidence<br>Thresholding]
+    TemporalRetrieval --> ActivationBoost[Activation<br>Boosting]
+    HybridRetrieval --> KeywordBoost[Keyword<br>Boosting]
+    
+    ConfidenceFilter --> CoherenceCheck{Semantic<br>Coherence Check}
+    ActivationBoost --> AdaptiveK[Adaptive K<br>Selection]
+    KeywordBoost --> PersonalAttributes[Personal Attribute<br>Enhancement]
+    
+    CoherenceCheck -->|Yes| CoherentMemories[Coherent<br>Memories]
+    CoherenceCheck -->|No| BestMemory[Best Single<br>Memory]
+    
+    AdaptiveK --> FinalMemories[Final Retrieved<br>Memories]
+    PersonalAttributes --> FinalMemories
+    CoherentMemories --> FinalMemories
+    BestMemory --> FinalMemories
+    
+    FinalMemories --> PromptAugmentation[Prompt<br>Augmentation]
+    PromptAugmentation --> LLMGeneration[LLM<br>Generation]
+    
+    classDef primary fill:#d0e0ff,stroke:#3080ff,stroke-width:2px
+    classDef secondary fill:#e0f0e0,stroke:#30a030,stroke-width:2px
+    classDef decision fill:#ffe0d0,stroke:#ff8030,stroke-width:2px
+    
+    class Query,QueryEmbed,FinalMemories,PromptAugmentation,LLMGeneration primary
+    class SimilarityRetrieval,TemporalRetrieval,HybridRetrieval,ConfidenceFilter,ActivationBoost,KeywordBoost,CoherentMemories,BestMemory,AdaptiveK,PersonalAttributes secondary
+    class RetrievalStrategy,CoherenceCheck decision
+```
+
+```mermaid
+flowchart TD
+    subgraph ART[ART-Inspired Clustering]
+        Input[New Memory] --> Vigilance{Vigilance<br>Check}
+        Vigilance -->|Match| UpdateCategory[Update Existing<br>Category]
+        Vigilance -->|No Match| CreateCategory[Create New<br>Category]
+        UpdateCategory --> Consolidation{Consolidation<br>Check}
+        CreateCategory --> Consolidation
+        Consolidation -->|Needed| MergeCategories[Merge Similar<br>Categories]
+        Consolidation -->|Not Needed| Done[Done]
+        MergeCategories --> Done
+    end
+    
+    subgraph Retrieval[Category-Based Retrieval]
+        QueryInput[Query] --> CategoryMatch[Find Matching<br>Categories]
+        CategoryMatch --> MemoryRetrieval[Retrieve Memories<br>from Categories]
+        MemoryRetrieval --> Ranking[Rank by<br>Relevance]
+        Ranking --> TopResults[Return Top<br>Results]
+    end
+    
+    classDef primary fill:#d0e0ff,stroke:#3080ff,stroke-width:2px
+    classDef secondary fill:#e0f0e0,stroke:#30a030,stroke-width:2px
+    classDef decision fill:#ffe0d0,stroke:#ff8030,stroke-width:2px
+    
+    class Input,QueryInput,TopResults primary
+    class UpdateCategory,CreateCategory,CategoryMatch,MemoryRetrieval,Ranking,MergeCategories secondary
+    class Vigilance,Consolidation decision
+```
+</details>
+
+## Examples & Notebooks
 <a id="examples"></a>
 
-Check out the following examples to get started:
+Check out the following examples and notebooks to get started:
 
-- `test_memory.py`: Basic memory operations
-- `test_with_tinyllama.py`: Integration with TinyLlama 1.1B
-- `test_with_orca.py`: Integration with Orca Mini 3B
-- `test_art_memory.py`: Demonstration of ART-inspired clustering
+### Examples
+- `memoryweave/examples/basic_usage.py`: Basic memory operations
+- `memoryweave/examples/integration_example.py`: Integration with LLM frameworks
+
+### Notebooks
+- `notebooks/test_memory.py`: Basic memory operations
+- `notebooks/test_confidence_thresholding.py`: Demonstration of confidence thresholding
+- `notebooks/test_category_consolidation.py`: Testing category consolidation
+- `notebooks/test_dynamic_vigilance.py`: Demonstration of dynamic vigilance strategies
+- `notebooks/test_large_memory_clustering.py`: Testing with larger memory collections
+- `notebooks/benchmark_memory.py`: Benchmark different memory configurations
+
+Results from the tests and benchmarks are stored in the `output/` directory.
 
 ## Current Limitations
 <a id="current-limitations"></a>
@@ -253,3 +307,5 @@ uv run python script_name.py
 # Run tests
 uv run python -m pytest
 ```
+
+Check the [ROADMAP.md](ROADMAP.md) file for planned future developments.

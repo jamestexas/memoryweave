@@ -46,6 +46,30 @@ These notebooks demonstrate several key features of MemoryWeave:
 5. **Semantic Coherence Check**: Ensuring retrieved memories form a coherent set
 6. **Adaptive K Selection**: Dynamically selecting how many memories to retrieve
 
+## Architecture Diagrams
+
+### High-Level System Architecture
+
+```mermaid
+flowchart TD
+    User[User Input] --> Adapter
+    Adapter[Adapter Layer] --> Model[Language Model]
+    Adapter --> Retriever[ContextualRetriever]
+    Retriever --> Memory[ContextualMemory]
+    Memory --> Retriever
+    Encoder[MemoryEncoder] --> Memory
+    Model --> Adapter
+    Adapter --> Response[Response to User]
+    
+    classDef primary fill:#d0e0ff,stroke:#3080ff,stroke-width:2px
+    classDef secondary fill:#e0f0e0,stroke:#30a030,stroke-width:2px
+    classDef external fill:#f0e0d0,stroke:#a07030,stroke-width:2px
+    
+    class Memory,Retriever,Encoder primary
+    class Adapter,Model secondary
+    class User,Response external
+```
+
 ## Additional Resources
 
 - [Main MemoryWeave Repository](https://github.com/jamestexas/memoryweave)

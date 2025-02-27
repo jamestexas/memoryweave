@@ -32,3 +32,100 @@ MemoryWeave is a novel approach to memory management for language models that us
 - Install the package in development mode with: `uv pip install -e .`
 - Run Python scripts with: `uv run python script_name.py`
 - Run tests with: `uv run python -m pytest`
+
+## Important Implementation Notes
+- Hugging Face models require a wrapper class that provides an `encode` method, as they don't have this method natively
+- The `EmbeddingModelWrapper` class should be used to wrap Hugging Face models for use with MemoryWeave
+- The wrapper handles tokenization, model inference, and mean pooling to create sentence embeddings
+
+## Architecture Diagrams
+The project architecture can be visualized with the following diagrams:
+
+### High-Level System Architecture
+```mermaid
+flowchart TD
+    User[User Input] --> Adapter
+    Adapter[Adapter Layer] --> Model[Language Model]
+    Adapter --> Retriever[ContextualRetriever]
+    Retriever --> Memory[ContextualMemory]
+    Memory --> Retriever
+    Encoder[MemoryEncoder] --> Memory
+    Model --> Adapter
+    Adapter --> Response[Response to User]
+    
+    classDef primary fill:#d0e0ff,stroke:#3080ff,stroke-width:2px
+    classDef secondary fill:#e0f0e0,stroke:#30a030,stroke-width:2px
+    classDef external fill:#f0e0d0,stroke:#a07030,stroke-width:2px
+    
+    class Memory,Retriever,Encoder primary
+    class Adapter,Model secondary
+    class User,Response external
+```
+
+### Memory Retrieval Mechanism
+```mermaid
+flowchart TD
+    Query[User Query] --> QueryEmbed[Encode Query]
+    QueryEmbed --> RetrievalStrategy{Retrieval\nStrategy}
+    
+    RetrievalStrategy -->|Similarity| SimilarityRetrieval[Similarity-Based\nRetrieval]
+    RetrievalStrategy -->|Temporal| TemporalRetrieval[Recency-Based\nRetrieval]
+    RetrievalStrategy -->|Hybrid| HybridRetrieval[Hybrid\nRetrieval]
+    
+    SimilarityRetrieval --> ConfidenceFilter[Confidence\nThresholding]
+    TemporalRetrieval --> ActivationBoost[Activation\nBoosting]
+    HybridRetrieval --> KeywordBoost[Keyword\nBoosting]
+    
+    ConfidenceFilter --> CoherenceCheck{Semantic\nCoherence Check}
+    ActivationBoost --> AdaptiveK[Adaptive K\nSelection]
+    KeywordBoost --> PersonalAttributes[Personal Attribute\nEnhancement]
+    
+    CoherenceCheck -->|Yes| CoherentMemories[Coherent\nMemories]
+    CoherenceCheck -->|No| BestMemory[Best Single\nMemory]
+    
+    AdaptiveK --> FinalMemories[Final Retrieved\nMemories]
+    PersonalAttributes --> FinalMemories
+    CoherentMemories --> FinalMemories
+    BestMemory --> FinalMemories
+    
+    FinalMemories --> PromptAugmentation[Prompt\nAugmentation]
+    PromptAugmentation --> LLMGeneration[LLM\nGeneration]
+    
+    classDef primary fill:#d0e0ff,stroke:#3080ff,stroke-width:2px
+    classDef secondary fill:#e0f0e0,stroke:#30a030,stroke-width:2px
+    classDef decision fill:#ffe0d0,stroke:#ff8030,stroke-width:2px
+    
+    class Query,QueryEmbed,FinalMemories,PromptAugmentation,LLMGeneration primary
+    class SimilarityRetrieval,TemporalRetrieval,HybridRetrieval,ConfidenceFilter,ActivationBoost,KeywordBoost,CoherentMemories,BestMemory,AdaptiveK,PersonalAttributes secondary
+    class RetrievalStrategy,CoherenceCheck decision
+```
+
+### ART-Inspired Clustering
+```mermaid
+flowchart TD
+    subgraph ART[ART-Inspired Clustering]
+        Input[New Memory] --> Vigilance{Vigilance\nCheck}
+        Vigilance -->|Match| UpdateCategory[Update Existing\nCategory]
+        Vigilance -->|No Match| CreateCategory[Create New\nCategory]
+        UpdateCategory --> Consolidation{Consolidation\nCheck}
+        CreateCategory --> Consolidation
+        Consolidation -->|Needed| MergeCategories[Merge Similar\nCategories]
+        Consolidation -->|Not Needed| Done[Done]
+        MergeCategories --> Done
+    end
+    
+    subgraph Retrieval[Category-Based Retrieval]
+        QueryInput[Query] --> CategoryMatch[Find Matching\nCategories]
+        CategoryMatch --> MemoryRetrieval[Retrieve Memories\nfrom Categories]
+        MemoryRetrieval --> Ranking[Rank by\nRelevance]
+        Ranking --> TopResults[Return Top\nResults]
+    end
+    
+    classDef primary fill:#d0e0ff,stroke:#3080ff,stroke-width:2px
+    classDef secondary fill:#e0f0e0,stroke:#30a030,stroke-width:2px
+    classDef decision fill:#ffe0d0,stroke:#ff8030,stroke-width:2px
+    
+    class Input,QueryInput,TopResults primary
+    class UpdateCategory,CreateCategory,CategoryMatch,MemoryRetrieval,Ranking,MergeCategories secondary
+    class Vigilance,Consolidation decision
+```
