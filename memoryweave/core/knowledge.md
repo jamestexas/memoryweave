@@ -39,6 +39,28 @@ memory = ContextualMemory(
 )
 ```
 
+## Dynamic Vigilance
+The ART-inspired clustering supports dynamic vigilance adjustment strategies:
+
+- **Decreasing Vigilance**: Starts high and gradually decreases, encouraging more merging over time
+- **Increasing Vigilance**: Starts low and gradually increases, creating broader categories first
+- **Category-Based**: Adjusts vigilance based on the number of categories formed
+- **Density-Based**: Adjusts vigilance based on the density of memories in embedding space
+
+To enable dynamic vigilance:
+```python
+memory = ContextualMemory(
+    embedding_dim=768,
+    use_art_clustering=True,
+    vigilance_threshold=0.7,  # Initial threshold
+    dynamic_vigilance=True,
+    vigilance_strategy="decreasing",  # "decreasing", "increasing", "category_based", or "density_based"
+    min_vigilance=0.5,
+    max_vigilance=0.9,
+    target_categories=5  # Target number for category_based strategy
+)
+```
+
 ## Design Principles
 - Biologically-inspired memory management
 - Rich contextual signatures rather than isolated facts

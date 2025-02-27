@@ -2,9 +2,10 @@
 Core implementation of the MemoryWeave contextual fabric.
 """
 
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Literal
 
 import numpy as np
+from scipy.cluster.hierarchy import linkage, fcluster
 
 
 class ContextualMemory:
@@ -22,6 +23,16 @@ class ContextualMemory:
         use_art_clustering: bool = False,
         vigilance_threshold: float = 0.85,
         learning_rate: float = 0.1,
+        dynamic_vigilance: bool = False,
+        vigilance_strategy: Literal["decreasing", "increasing", "category_based", "density_based"] = "decreasing",
+        min_vigilance: float = 0.5,
+        max_vigilance: float = 0.9,
+        target_categories: int = 5,
+        enable_category_consolidation: bool = False,
+        consolidation_threshold: float = 0.7,
+        min_category_size: int = 3,
+        consolidation_frequency: int = 50,
+        hierarchical_method: Literal["single", "complete", "average", "weighted"] = "average",
     ):
         """
         Initialize the contextual memory system.
@@ -31,8 +42,19 @@ class ContextualMemory:
             max_memories: Maximum number of memory traces to maintain
             activation_threshold: Threshold for memory activation
             use_art_clustering: Whether to use ART-inspired clustering
-            vigilance_threshold: Threshold for creating new categories (ART vigilance)
+            vigilance_threshold: Initial threshold for creating new categories (ART vigilance)
             learning_rate: Rate at which category prototypes are updated
+            dynamic_vigilance: Whether to use dynamic vigilance adjustment
+            vigilance_strategy: Strategy for adjusting vigilance ("decreasing", "increasing", 
+                               "category_based", or "density_based")
+            min_vigilance: Minimum vigilance threshold for dynamic adjustment
+            max_vigilance: Maximum vigilance threshold for dynamic adjustment
+            target_categories: Target number of categories for category_based strategy
+            enable_category_consolidation: Whether to enable periodic category consolidation
+            consolidation_threshold: Similarity threshold for merging categories in hierarchical clustering
+            min_category_size: Minimum number of memories per category before considering consolidation
+            consolidation_frequency: How often to run consolidation (every N memories added)
+            hierarchical_method: Method for hierarchical clustering linkage
         """
         self.embedding_dim = embedding_dim
         self.max_memories = max_memories
@@ -40,8 +62,17 @@ class ContextualMemory:
         
         # ART-related parameters
         self.use_art_clustering = use_art_clustering
+        self.initial_vigilance = vigilance_threshold
         self.vigilance_threshold = vigilance_threshold
         self.learning_rate = learning_rate
+        
+        # Dynamic vigilance parameters
+        self.dynamic_vigilance = dynamic_vigilance
+        self.vigilance_strategy = vigilance_strategy
+        self.min_vigilance = min_vigilance
+        self.max_vigilance = max_vigilance
+        self.target_categories = target_categories
+        self.memories_added = 0
 
         # Memory fabric stores both the embeddings and their associated metadata
         self.memory_embeddings = np.zeros((0, embedding_dim), dtype=np.float32)
@@ -62,6 +93,14 @@ class ContextualMemory:
             self.memory_categories = np.zeros(0, dtype=np.int64)
             # Category activation levels
             self.category_activations = np.zeros(0, dtype=np.float32)
+            
+            # Category consolidation parameters
+            self.enable_category_consolidation = enable_category_consolidation
+            self.consolidation_threshold = consolidation_threshold
+            self.min_category_size = min_category_size
+            self.consolidation_frequency = consolidation_frequency
+            self.hierarchical_method = hierarchical_method
+            self.last_consolidation = 0
 
     def add_memory(
         self,
@@ -85,6 +124,7 @@ class ContextualMemory:
 
         # Update time counter
         self.current_time += 1
+        self.memories_added += 1
 
         # Normalize embedding
         embedding = embedding / np.linalg.norm(embedding)
@@ -107,10 +147,21 @@ class ContextualMemory:
         
         # If using ART clustering, assign to a category
         if self.use_art_clustering:
+            # Update vigilance if using dynamic vigilance
+            if self.dynamic_vigilance:
+                self._update_vigilance()
+                
             category_idx = self._assign_to_category(embedding)
             self.memory_categories = np.append(self.memory_categories, category_idx)
             # Update category activation
             self.category_activations[category_idx] = 1.0
+            
+            # Check if it's time to run category consolidation
+            if (self.enable_category_consolidation and 
+                self.memories_added >= self.last_consolidation + self.consolidation_frequency and
+                len(self.category_prototypes) > 1):
+                self._consolidate_categories()
+                self.last_consolidation = self.memories_added
 
         # Manage memory capacity if needed
         if len(self.memory_metadata) > self.max_memories:
@@ -124,6 +175,7 @@ class ContextualMemory:
         top_k: int = 5,
         activation_boost: bool = True,
         use_categories: bool = None,
+        confidence_threshold: float = 0.0,
     ) -> list[tuple[int, float, dict]]:
         """
         Retrieve relevant memories based on contextual similarity.
@@ -133,6 +185,7 @@ class ContextualMemory:
             top_k: Number of memories to retrieve
             activation_boost: Whether to boost by activation level
             use_categories: Whether to use category-based retrieval (defaults to self.use_art_clustering)
+            confidence_threshold: Minimum similarity score threshold for inclusion (0.0 = no threshold)
 
         Returns:
             list of (memory_idx, similarity_score, metadata) tuples
@@ -149,7 +202,12 @@ class ContextualMemory:
 
         # Use category-based retrieval if enabled
         if use_categories and len(self.category_prototypes) > 0:
-            return self._retrieve_with_categories(query_embedding, top_k, activation_boost)
+            return self._retrieve_with_categories(
+                query_embedding, 
+                top_k, 
+                activation_boost,
+                confidence_threshold
+            )
         
         # Standard similarity-based retrieval
         # Compute similarities
@@ -159,12 +217,22 @@ class ContextualMemory:
         if activation_boost:
             similarities = similarities * self.activation_levels
 
+        # Filter by confidence threshold if specified
+        valid_indices = np.where(similarities >= confidence_threshold)[0]
+        if len(valid_indices) == 0:
+            return []
+            
+        valid_similarities = similarities[valid_indices]
+
         # Get top-k indices
-        if top_k >= len(similarities):
-            top_indices = np.argsort(-similarities)
+        if top_k >= len(valid_similarities):
+            top_relative_indices = np.argsort(-valid_similarities)
         else:
-            top_indices = np.argpartition(-similarities, top_k)[:top_k]
-            top_indices = top_indices[np.argsort(-similarities[top_indices])]
+            top_relative_indices = np.argpartition(-valid_similarities, top_k)[:top_k]
+            top_relative_indices = top_relative_indices[np.argsort(-valid_similarities[top_relative_indices])]
+        
+        # Convert back to original indices
+        top_indices = valid_indices[top_relative_indices]
 
         # Update activation levels for retrieved memories
         for idx in top_indices:
@@ -181,11 +249,69 @@ class ContextualMemory:
 
         return results
     
+    def _update_vigilance(self):
+        """
+        Update vigilance threshold based on the selected dynamic strategy.
+        """
+        if not self.dynamic_vigilance:
+            return
+            
+        if self.vigilance_strategy == "decreasing":
+            # Start high, gradually decrease - encourages more merging over time
+            decay_factor = min(1.0, self.memories_added / 100)  # Adjust the divisor to control decay rate
+            self.vigilance_threshold = max(
+                self.min_vigilance,
+                self.initial_vigilance * (1 - decay_factor * 0.5)
+            )
+            
+        elif self.vigilance_strategy == "increasing":
+            # Start low, gradually increase - creates broader categories first
+            growth_factor = min(1.0, self.memories_added / 100)  # Adjust the divisor to control growth rate
+            self.vigilance_threshold = min(
+                self.max_vigilance,
+                self.min_vigilance + (self.max_vigilance - self.min_vigilance) * growth_factor
+            )
+            
+        elif self.vigilance_strategy == "category_based":
+            # Adjust based on number of categories
+            if len(self.category_prototypes) > 0:
+                current_ratio = len(self.category_prototypes) / max(1, self.memories_added)
+                target_ratio = self.target_categories / max(self.max_memories, self.memories_added)
+                
+                if current_ratio > target_ratio * 1.2:  # Too many categories
+                    # Decrease vigilance to encourage merging
+                    self.vigilance_threshold = max(self.min_vigilance, self.vigilance_threshold - 0.01)
+                elif current_ratio < target_ratio * 0.8:  # Too few categories
+                    # Increase vigilance to encourage new categories
+                    self.vigilance_threshold = min(self.max_vigilance, self.vigilance_threshold + 0.01)
+                    
+        elif self.vigilance_strategy == "density_based":
+            # Adjust based on density in embedding space
+            if len(self.memory_embeddings) > 10:  # Need enough memories to compute density
+                # Compute pairwise similarities as a measure of density
+                sample_size = min(50, len(self.memory_embeddings))  # Limit computation for large memories
+                indices = np.random.choice(len(self.memory_embeddings), sample_size, replace=False)
+                sample_embeddings = self.memory_embeddings[indices]
+                similarities = np.dot(sample_embeddings, sample_embeddings.T)
+                
+                # Calculate average similarity (excluding self-similarity)
+                total_sim = similarities.sum() - sample_size  # Subtract diagonal
+                avg_sim = total_sim / (sample_size * (sample_size - 1))
+                
+                # In dense regions (high similarity), increase vigilance for finer distinctions
+                # In sparse regions (low similarity), decrease vigilance to group more
+                density_factor = avg_sim * 2  # Scale factor
+                self.vigilance_threshold = self.min_vigilance + density_factor * (self.max_vigilance - self.min_vigilance)
+                
+                # Ensure boundaries
+                self.vigilance_threshold = max(self.min_vigilance, min(self.max_vigilance, self.vigilance_threshold))
+    
     def _retrieve_with_categories(
         self, 
         query_embedding: np.ndarray, 
         top_k: int, 
-        activation_boost: bool
+        activation_boost: bool,
+        confidence_threshold: float = 0.0
     ) -> list[tuple[int, float, dict]]:
         """
         Retrieve memories using ART-inspired category-based approach.
@@ -194,6 +320,7 @@ class ContextualMemory:
             query_embedding: Embedding of the query context
             top_k: Number of memories to retrieve
             activation_boost: Whether to boost by activation level
+            confidence_threshold: Minimum similarity score threshold
             
         Returns:
             list of (memory_idx, similarity_score, metadata) tuples
@@ -206,11 +333,19 @@ class ContextualMemory:
             category_similarities = category_similarities * self.category_activations
         
         # Get top categories (more than we need to ensure enough memories)
-        num_categories = min(3, len(category_similarities))
+        # Filter by confidence threshold if specified
+        valid_categories = np.where(category_similarities >= confidence_threshold)[0]
+        if len(valid_categories) == 0:
+            return []
+            
+        valid_category_similarities = category_similarities[valid_categories]
+        
+        num_categories = min(3, len(valid_category_similarities))
         if num_categories == 0:
             return []
             
-        top_category_indices = np.argpartition(-category_similarities, num_categories)[:num_categories]
+        top_category_indices_rel = np.argpartition(-valid_category_similarities, num_categories)[:num_categories]
+        top_category_indices = valid_categories[top_category_indices_rel]
         
         # Collect candidate memories from top categories
         candidate_indices = []
@@ -229,15 +364,23 @@ class ContextualMemory:
         if activation_boost:
             candidate_similarities = candidate_similarities * self.activation_levels[candidate_indices]
         
+        # Filter by confidence threshold
+        valid_candidates = np.where(candidate_similarities >= confidence_threshold)[0]
+        if len(valid_candidates) == 0:
+            return []
+            
+        valid_candidate_indices = [candidate_indices[i] for i in valid_candidates]
+        valid_candidate_similarities = candidate_similarities[valid_candidates]
+        
         # Get top-k memories from candidates
-        if top_k >= len(candidate_similarities):
-            top_memory_indices = np.argsort(-candidate_similarities)
+        if top_k >= len(valid_candidate_similarities):
+            top_memory_indices = np.argsort(-valid_candidate_similarities)
         else:
-            top_memory_indices = np.argpartition(-candidate_similarities, top_k)[:top_k]
-            top_memory_indices = top_memory_indices[np.argsort(-candidate_similarities[top_memory_indices])]
+            top_memory_indices = np.argpartition(-valid_candidate_similarities, top_k)[:top_k]
+            top_memory_indices = top_memory_indices[np.argsort(-valid_candidate_similarities[top_memory_indices])]
         
         # Map back to original indices
-        top_indices = [candidate_indices[i] for i in top_memory_indices]
+        top_indices = [valid_candidate_indices[i] for i in top_memory_indices]
         
         # Update activation levels for retrieved memories
         for idx in top_indices:
@@ -251,7 +394,7 @@ class ContextualMemory:
         # Return results with metadata
         results = []
         for i, idx in enumerate(top_indices):
-            similarity = candidate_similarities[top_memory_indices[i]]
+            similarity = valid_candidate_similarities[top_memory_indices[i]]
             # Always include results regardless of threshold
             results.append((int(idx), float(similarity), self.memory_metadata[idx]))
         
@@ -385,6 +528,97 @@ class ContextualMemory:
         self.category_prototypes = np.delete(self.category_prototypes, category_idx, axis=0)
         self.category_activations = np.delete(self.category_activations, category_idx)
     
+    def _consolidate_categories(self) -> None:
+        """
+        Consolidate similar categories using hierarchical clustering.
+        This reduces category fragmentation by merging similar category prototypes.
+        """
+        num_categories = len(self.category_prototypes)
+        if num_categories <= 1:
+            return
+            
+        # Identify small categories that should be merged
+        category_counts = {}
+        for cat_idx in self.memory_categories:
+            category_counts[int(cat_idx)] = category_counts.get(int(cat_idx), 0) + 1
+            
+        # Compute pairwise distances for hierarchical clustering
+        # (using 1-similarity as distance)
+        similarities = np.dot(self.category_prototypes, self.category_prototypes.T)
+        distances = 1.0 - similarities
+        
+        # Replace diagonal with zeros (self-distance)
+        np.fill_diagonal(distances, 0.0)
+        
+        # Convert distance matrix to condensed form for linkage
+        condensed_distances = []
+        for i in range(num_categories):
+            for j in range(i+1, num_categories):
+                condensed_distances.append(distances[i, j])
+                
+        # Perform hierarchical clustering on category prototypes
+        Z = linkage(condensed_distances, method=self.hierarchical_method)
+        
+        # Form flat clusters using the consolidation threshold
+        # Higher threshold = more merging
+        cluster_labels = fcluster(Z, t=1.0-self.consolidation_threshold, criterion='distance')
+        
+        # Count the number of final clusters
+        num_final_clusters = len(np.unique(cluster_labels))
+        
+        # If no consolidation happened, no need to proceed
+        if num_final_clusters == num_categories:
+            return
+            
+        # Create new prototypes for the consolidated categories
+        new_prototypes = np.zeros((num_final_clusters, self.embedding_dim), dtype=np.float32)
+        cluster_sizes = np.zeros(num_final_clusters, dtype=np.int64)
+        
+        # For each original category, contribute to its new cluster's prototype
+        for old_cat_idx, cluster_idx in enumerate(cluster_labels):
+            # Convert to 0-based indexing
+            cluster_idx = cluster_idx - 1
+            
+            # Weight by number of memories in the category
+            weight = category_counts.get(old_cat_idx, 0)
+            if weight == 0:  # Skip empty categories
+                continue
+                
+            # Add weighted prototype to the new cluster's prototype
+            new_prototypes[cluster_idx] += self.category_prototypes[old_cat_idx] * weight
+            cluster_sizes[cluster_idx] += weight
+            
+        # Normalize the new prototypes
+        for cluster_idx in range(num_final_clusters):
+            if cluster_sizes[cluster_idx] > 0:
+                new_prototypes[cluster_idx] /= cluster_sizes[cluster_idx]
+                # Ensure unit length
+                norm = np.linalg.norm(new_prototypes[cluster_idx])
+                if norm > 0:
+                    new_prototypes[cluster_idx] /= norm
+                    
+        # Create mapping from old categories to new ones
+        old_to_new_category = {}
+        for old_cat_idx, cluster_idx in enumerate(cluster_labels):
+            old_to_new_category[old_cat_idx] = cluster_idx - 1  # Convert to 0-based indexing
+            
+        # Create new category activations by taking maximum of merged categories
+        new_activations = np.zeros(num_final_clusters, dtype=np.float32)
+        for old_cat_idx, new_cat_idx in old_to_new_category.items():
+            new_activations[new_cat_idx] = max(
+                new_activations[new_cat_idx],
+                self.category_activations[old_cat_idx]
+            )
+            
+        # Remap memory categories
+        for i in range(len(self.memory_categories)):
+            old_cat = self.memory_categories[i]
+            self.memory_categories[i] = old_to_new_category[old_cat]
+            
+        # Update category prototypes and activations
+        self.category_prototypes = new_prototypes
+        self.category_activations = new_activations
+    
     def get_category_statistics(self) -> dict:
         """
         Get statistics about the current categories.
@@ -409,9 +643,83 @@ class ContextualMemory:
             else:
                 category_avg_activation[cat_idx] = 0.0
                 
+        # Calculate pairwise similarity between category prototypes
+        category_similarities = {}
+        if len(self.category_prototypes) > 1:
+            sim_matrix = np.dot(self.category_prototypes, self.category_prototypes.T)
+            for i in range(len(self.category_prototypes)):
+                for j in range(i+1, len(self.category_prototypes)):
+                    # Only include non-self similarities
+                    if i != j:
+                        category_similarities[(i, j)] = float(sim_matrix[i, j])
+        
+        # Calculate category density (average intra-category similarity)
+        category_density = {}
+        for cat_idx in range(len(self.category_prototypes)):
+            mask = self.memory_categories == cat_idx
+            cat_memories = np.where(mask)[0]
+            
+            if len(cat_memories) > 1:
+                # Calculate pairwise similarities within category
+                cat_embeddings = self.memory_embeddings[cat_memories]
+                similarities = np.dot(cat_embeddings, cat_embeddings.T)
+                
+                # Get upper triangle (excluding diagonal)
+                upper_tri = similarities[np.triu_indices(len(cat_memories), k=1)]
+                
+                if len(upper_tri) > 0:
+                    category_density[cat_idx] = float(np.mean(upper_tri))
+                else:
+                    category_density[cat_idx] = 0.0
+            else:
+                category_density[cat_idx] = 1.0  # Single-memory category is perfectly dense
+                
         return {
             "num_categories": len(self.category_prototypes),
             "memories_per_category": category_counts,
             "category_activations": {i: float(act) for i, act in enumerate(self.category_activations)},
-            "average_memory_activation_per_category": category_avg_activation
+            "average_memory_activation_per_category": category_avg_activation,
+            "category_similarities": category_similarities,
+            "category_density": category_density,
+            "current_vigilance": float(self.vigilance_threshold) if self.dynamic_vigilance else None
         }
+
+    def category_similarity_matrix(self) -> np.ndarray:
+        """
+        Get the similarity matrix between all category prototypes.
+        
+        Returns:
+            2D numpy array of similarity scores
+        """
+        if not self.use_art_clustering or len(self.category_prototypes) < 2:
+            return np.array([])
+            
+        return np.dot(self.category_prototypes, self.category_prototypes.T)
+        
+    def consolidate_categories_manually(self, threshold: float = None) -> int:
+        """
+        Manually trigger category consolidation with an optional custom threshold.
+        
+        Args:
+            threshold: Custom similarity threshold (overrides self.consolidation_threshold if provided)
+            
+        Returns:
+            Number of categories after consolidation
+        """
+        if not self.use_art_clustering:
+            return 0
+            
+        if threshold is not None:
+            # Store original threshold
+            original_threshold = self.consolidation_threshold
+            # Set custom threshold
+            self.consolidation_threshold = threshold
+            
+        # Perform consolidation
+        self._consolidate_categories()
+        
+        # Restore original threshold if needed
+        if threshold is not None:
+            self.consolidation_threshold = original_threshold
+            
+        return len(self.category_prototypes)
