@@ -1,0 +1,51 @@
+[project]
+name = "memoryweave"
+version = "0.1.0"
+description = "A contextual fabric approach to LLM memory management inspired by biological memory systems"
+readme = "README.md"
+authors = [
+    { name = "jamestexas", email = "18285880+jamestexas@users.noreply.github.com" },
+]
+license = { text = "MIT" }
+requires-python = ">=3.12"
+dependencies = [
+    "faiss-cpu>=1.10.0",
+    "huggingface-hub>=0.29.1",
+    "numpy>=2.2.3",
+    "pydantic>=2",
+    "rich>=13.9.4",
+    "rich-click>=1.8.6",
+    "scikit-learn>=1.6.1",
+    "scipy>=1.15.2",
+    "torch>=2.6.0",
+    "transformers>=4.49.0",
+]
+[project.scripts]
+memoryweave = "memoryweave:main"
+
+
+[tool.setuptools]
+py-modules = ['memoryweave']
+
+# [tool.uv.sources]
+# torch = [
+#     { index = "pytorch-xpu", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+# ]
+# torchvision = [
+#     { index = "pytorch-xpu", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+# ]
+# pytorch-triton-xpu = [
+#     { index = "pytorch-xpu", marker = "sys_platform == 'linux'" },
+# ]
+[[tool.uv.index]]
+name = "pytorch-xpu"
+url = "https://download.pytorch.org/whl/xpu"
+explicit = true
+
+
+[dependency-groups]
+dev = ["mypy>=1.15.0", "pytest>=8.3.4", "pytest-cov>=6.0.0", "ruff>=0.9.7"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
