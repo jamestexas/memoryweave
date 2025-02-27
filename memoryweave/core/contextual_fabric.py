@@ -33,6 +33,10 @@ class ContextualMemory:
         min_category_size: int = 3,
         consolidation_frequency: int = 50,
         hierarchical_method: Literal["single", "complete", "average", "weighted"] = "average",
+        default_confidence_threshold: float = 0.0,
+        adaptive_retrieval: bool = False,
+        semantic_coherence_check: bool = False,
+        coherence_threshold: float = 0.2,
     ):
         """
         Initialize the contextual memory system.
@@ -55,6 +59,10 @@ class ContextualMemory:
             min_category_size: Minimum number of memories per category before considering consolidation
             consolidation_frequency: How often to run consolidation (every N memories added)
             hierarchical_method: Method for hierarchical clustering linkage
+            default_confidence_threshold: Default minimum similarity score for memory retrieval
+            adaptive_retrieval: Whether to use adaptive k selection based on relevance distribution
+            semantic_coherence_check: Whether to check semantic coherence of retrieved memories
+            coherence_threshold: Threshold for semantic coherence between memories
         """
         self.embedding_dim = embedding_dim
         self.max_memories = max_memories
@@ -101,6 +109,12 @@ class ContextualMemory:
             self.consolidation_frequency = consolidation_frequency
             self.hierarchical_method = hierarchical_method
             self.last_consolidation = 0
+            
+        # Confidence thresholding parameters
+        self.default_confidence_threshold = default_confidence_threshold
+        self.adaptive_retrieval = adaptive_retrieval
+        self.semantic_coherence_check = semantic_coherence_check
+        self.coherence_threshold = coherence_threshold
 
     def add_memory(
         self,
@@ -175,7 +189,8 @@ class ContextualMemory:
         top_k: int = 5,
         activation_boost: bool = True,
         use_categories: bool = None,
-        confidence_threshold: float = 0.0,
+        confidence_threshold: float = None,
+        max_k_override: bool = False,
     ) -> list[tuple[int, float, dict]]:
         """
         Retrieve relevant memories based on contextual similarity.
@@ -185,13 +200,18 @@ class ContextualMemory:
             top_k: Number of memories to retrieve
             activation_boost: Whether to boost by activation level
             use_categories: Whether to use category-based retrieval (defaults to self.use_art_clustering)
-            confidence_threshold: Minimum similarity score threshold for inclusion (0.0 = no threshold)
+            confidence_threshold: Minimum similarity score threshold for inclusion (overrides default if provided)
+            max_k_override: Whether to return exactly top_k results even if fewer meet the threshold
 
         Returns:
             list of (memory_idx, similarity_score, metadata) tuples
         """
         if len(self.memory_metadata) == 0:
             return []
+
+        # Use default confidence threshold if none provided
+        if confidence_threshold is None:
+            confidence_threshold = self.default_confidence_threshold
 
         # Normalize query
         query_embedding = query_embedding / np.linalg.norm(query_embedding)
@@ -202,14 +222,54 @@ class ContextualMemory:
 
         # Use category-based retrieval if enabled
         if use_categories and len(self.category_prototypes) > 0:
-            return self._retrieve_with_categories(
+            results = self._retrieve_with_categories(
                 query_embedding, 
                 top_k, 
                 activation_boost,
-                confidence_threshold
+                confidence_threshold,
+                max_k_override,
+            )
+        else:
+            # Standard similarity-based retrieval
+            results = self._retrieve_with_similarity(
+                query_embedding,
+                top_k,
+                activation_boost,
+                confidence_threshold,
+                max_k_override,
             )
         
-        # Standard similarity-based retrieval
+        # Apply semantic coherence check if enabled
+        if self.semantic_coherence_check and len(results) > 1:
+            results = self._apply_coherence_check(results, query_embedding)
+            
+        # Apply adaptive k selection if enabled
+        if self.adaptive_retrieval and not max_k_override:
+            results = self._adaptive_k_selection(results)
+            
+        return results
+        
+    def _retrieve_with_similarity(
+        self,
+        query_embedding: np.ndarray,
+        top_k: int,
+        activation_boost: bool,
+        confidence_threshold: float,
+        max_k_override: bool,
+    ) -> list[tuple[int, float, dict]]:
+        """
+        Retrieve memories based on direct similarity comparison.
+        
+        Args:
+            query_embedding: Query embedding vector
+            top_k: Maximum number of memories to retrieve
+            activation_boost: Whether to boost by activation level
+            confidence_threshold: Minimum similarity threshold
+            max_k_override: Whether to return exactly top_k results
+            
+        Returns:
+            list of (memory_idx, similarity_score, metadata) tuples
+        """
         # Compute similarities
         similarities = np.dot(self.memory_embeddings, query_embedding)
 
@@ -241,77 +301,21 @@ class ContextualMemory:
         # Return results with metadata
         results = []
         for idx in top_indices:
-            # Always include at least top_k results, regardless of threshold
-            # This ensures we always get some results
             results.append((int(idx), float(similarities[idx]), self.memory_metadata[idx]))
-            if len(results) >= top_k:
+            # If not using max_k_override, we'll respect the confidence threshold
+            # Otherwise, we'll keep adding results until we hit top_k
+            if len(results) >= top_k and not max_k_override:
                 break
 
         return results
-    
-    def _update_vigilance(self):
-        """
-        Update vigilance threshold based on the selected dynamic strategy.
-        """
-        if not self.dynamic_vigilance:
-            return
-            
-        if self.vigilance_strategy == "decreasing":
-            # Start high, gradually decrease - encourages more merging over time
-            decay_factor = min(1.0, self.memories_added / 100)  # Adjust the divisor to control decay rate
-            self.vigilance_threshold = max(
-                self.min_vigilance,
-                self.initial_vigilance * (1 - decay_factor * 0.5)
-            )
-            
-        elif self.vigilance_strategy == "increasing":
-            # Start low, gradually increase - creates broader categories first
-            growth_factor = min(1.0, self.memories_added / 100)  # Adjust the divisor to control growth rate
-            self.vigilance_threshold = min(
-                self.max_vigilance,
-                self.min_vigilance + (self.max_vigilance - self.min_vigilance) * growth_factor
-            )
-            
-        elif self.vigilance_strategy == "category_based":
-            # Adjust based on number of categories
-            if len(self.category_prototypes) > 0:
-                current_ratio = len(self.category_prototypes) / max(1, self.memories_added)
-                target_ratio = self.target_categories / max(self.max_memories, self.memories_added)
-                
-                if current_ratio > target_ratio * 1.2:  # Too many categories
-                    # Decrease vigilance to encourage merging
-                    self.vigilance_threshold = max(self.min_vigilance, self.vigilance_threshold - 0.01)
-                elif current_ratio < target_ratio * 0.8:  # Too few categories
-                    # Increase vigilance to encourage new categories
-                    self.vigilance_threshold = min(self.max_vigilance, self.vigilance_threshold + 0.01)
-                    
-        elif self.vigilance_strategy == "density_based":
-            # Adjust based on density in embedding space
-            if len(self.memory_embeddings) > 10:  # Need enough memories to compute density
-                # Compute pairwise similarities as a measure of density
-                sample_size = min(50, len(self.memory_embeddings))  # Limit computation for large memories
-                indices = np.random.choice(len(self.memory_embeddings), sample_size, replace=False)
-                sample_embeddings = self.memory_embeddings[indices]
-                similarities = np.dot(sample_embeddings, sample_embeddings.T)
-                
-                # Calculate average similarity (excluding self-similarity)
-                total_sim = similarities.sum() - sample_size  # Subtract diagonal
-                avg_sim = total_sim / (sample_size * (sample_size - 1))
-                
-                # In dense regions (high similarity), increase vigilance for finer distinctions
-                # In sparse regions (low similarity), decrease vigilance to group more
-                density_factor = avg_sim * 2  # Scale factor
-                self.vigilance_threshold = self.min_vigilance + density_factor * (self.max_vigilance - self.min_vigilance)
-                
-                # Ensure boundaries
-                self.vigilance_threshold = max(self.min_vigilance, min(self.max_vigilance, self.vigilance_threshold))
     
     def _retrieve_with_categories(
         self, 
         query_embedding: np.ndarray, 
         top_k: int, 
         activation_boost: bool,
-        confidence_threshold: float = 0.0
+        confidence_threshold: float = 0.0,
+        max_k_override: bool = False,
     ) -> list[tuple[int, float, dict]]:
         """
         Retrieve memories using ART-inspired category-based approach.
@@ -321,6 +325,7 @@ class ContextualMemory:
             top_k: Number of memories to retrieve
             activation_boost: Whether to boost by activation level
             confidence_threshold: Minimum similarity score threshold
+            max_k_override: Whether to return exactly top_k results
             
         Returns:
             list of (memory_idx, similarity_score, metadata) tuples
@@ -395,11 +400,150 @@ class ContextualMemory:
         results = []
         for i, idx in enumerate(top_indices):
             similarity = valid_candidate_similarities[top_memory_indices[i]]
-            # Always include results regardless of threshold
             results.append((int(idx), float(similarity), self.memory_metadata[idx]))
+            if len(results) >= top_k and not max_k_override:
+                break
         
         return results
+        
+    def _apply_coherence_check(
+        self,
+        retrieved_memories: list[tuple[int, float, dict]],
+        query_embedding: np.ndarray,
+    ) -> list[tuple[int, float, dict]]:
+        """
+        Apply semantic coherence check to retrieved memories.
+        
+        Args:
+            retrieved_memories: List of (memory_idx, similarity_score, metadata) tuples
+            query_embedding: Query embedding vector
+            
+        Returns:
+            Filtered list of memories that form a coherent set
+        """
+        if len(retrieved_memories) <= 1:
+            return retrieved_memories
+            
+        # Extract indices and embeddings
+        indices = [idx for idx, _, _ in retrieved_memories]
+        embeddings = self.memory_embeddings[indices]
+        
+        # Calculate pairwise similarities between retrieved memories
+        pairwise_similarities = np.dot(embeddings, embeddings.T)
+        
+        # Find outliers (memories with low average similarity to other memories)
+        avg_similarities = (pairwise_similarities.sum(axis=1) - 1) / (len(indices) - 1)  # Exclude self-similarity
+        
+        # Identify coherent memories (those with avg similarity above threshold)
+        coherent_mask = avg_similarities >= self.coherence_threshold
+        
+        # If all memories are outliers, keep the most relevant one
+        if not np.any(coherent_mask):
+            best_idx = np.argmax([score for _, score, _ in retrieved_memories])
+            return [retrieved_memories[best_idx]]
+            
+        # Filter the retrieved memories
+        coherent_memories = [m for i, m in enumerate(retrieved_memories) if coherent_mask[i]]
+        
+        return coherent_memories
+        
+    def _adaptive_k_selection(
+        self,
+        retrieved_memories: list[tuple[int, float, dict]],
+    ) -> list[tuple[int, float, dict]]:
+        """
+        Adaptively select the number of memories to return based on relevance distribution.
+        
+        Args:
+            retrieved_memories: List of (memory_idx, similarity_score, metadata) tuples
+            
+        Returns:
+            Filtered list with adaptively selected number of memories
+        """
+        if len(retrieved_memories) <= 1:
+            return retrieved_memories
+            
+        # Get similarity scores
+        scores = np.array([score for _, score, _ in retrieved_memories])
+        
+        # Calculate differences between consecutive scores (after sorting)
+        sorted_indices = np.argsort(-scores)
+        sorted_scores = scores[sorted_indices]
+        
+        if len(sorted_scores) <= 1:
+            return retrieved_memories
+            
+        diffs = np.diff(sorted_scores)
+        
+        # Find the largest drop in similarity
+        largest_drop_idx = np.argmin(diffs)
+        
+        # Only use the cut point if there's a significant drop (>10% of the max score)
+        if -diffs[largest_drop_idx] > 0.1 * sorted_scores[0]:
+            # Keep memories up to the largest drop
+            selected_indices = sorted_indices[:largest_drop_idx + 1]
+            return [retrieved_memories[idx] for idx in selected_indices]
+        
+        # Otherwise return all memories
+        return retrieved_memories
 
+    def _update_vigilance(self):
+        """
+        Update vigilance threshold based on the selected dynamic strategy.
+        """
+        if not self.dynamic_vigilance:
+            return
+            
+        if self.vigilance_strategy == "decreasing":
+            # Start high, gradually decrease - encourages more merging over time
+            decay_factor = min(1.0, self.memories_added / 100)  # Adjust the divisor to control decay rate
+            self.vigilance_threshold = max(
+                self.min_vigilance,
+                self.initial_vigilance * (1 - decay_factor * 0.5)
+            )
+            
+        elif self.vigilance_strategy == "increasing":
+            # Start low, gradually increase - creates broader categories first
+            growth_factor = min(1.0, self.memories_added / 100)  # Adjust the divisor to control growth rate
+            self.vigilance_threshold = min(
+                self.max_vigilance,
+                self.min_vigilance + (self.max_vigilance - self.min_vigilance) * growth_factor
+            )
+            
+        elif self.vigilance_strategy == "category_based":
+            # Adjust based on number of categories
+            if len(self.category_prototypes) > 0:
+                current_ratio = len(self.category_prototypes) / max(1, self.memories_added)
+                target_ratio = self.target_categories / max(self.max_memories, self.memories_added)
+                
+                if current_ratio > target_ratio * 1.2:  # Too many categories
+                    # Decrease vigilance to encourage merging
+                    self.vigilance_threshold = max(self.min_vigilance, self.vigilance_threshold - 0.01)
+                elif current_ratio < target_ratio * 0.8:  # Too few categories
+                    # Increase vigilance to encourage new categories
+                    self.vigilance_threshold = min(self.max_vigilance, self.vigilance_threshold + 0.01)
+                    
+        elif self.vigilance_strategy == "density_based":
+            # Adjust based on density in embedding space
+            if len(self.memory_embeddings) > 10:  # Need enough memories to compute density
+                # Compute pairwise similarities as a measure of density
+                sample_size = min(50, len(self.memory_embeddings))  # Limit computation for large memories
+                indices = np.random.choice(len(self.memory_embeddings), sample_size, replace=False)
+                sample_embeddings = self.memory_embeddings[indices]
+                similarities = np.dot(sample_embeddings, sample_embeddings.T)
+                
+                # Calculate average similarity (excluding self-similarity)
+                total_sim = similarities.sum() - sample_size  # Subtract diagonal
+                avg_sim = total_sim / (sample_size * (sample_size - 1))
+                
+                # In dense regions (high similarity), increase vigilance for finer distinctions
+                # In sparse regions (low similarity), decrease vigilance to group more
+                density_factor = avg_sim * 2  # Scale factor
+                self.vigilance_threshold = self.min_vigilance + density_factor * (self.max_vigilance - self.min_vigilance)
+                
+                # Ensure boundaries
+                self.vigilance_threshold = max(self.min_vigilance, min(self.max_vigilance, self.vigilance_threshold))
+    
     def _update_activation(self, memory_idx: int) -> None:
         """
         Update activation level for a memory that's been accessed.

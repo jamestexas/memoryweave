@@ -61,6 +61,53 @@ memory = ContextualMemory(
 )
 ```
 
+## Category Consolidation
+To address category fragmentation, the system supports hierarchical clustering-based category consolidation:
+
+- **Periodic Consolidation**: Automatically merges similar categories after a specified number of memories
+- **Similarity Threshold**: Controls how aggressively categories are merged
+- **Hierarchical Clustering**: Uses various linkage methods to identify category relationships
+- **Manual Consolidation**: Can be triggered on demand with custom thresholds
+
+To enable category consolidation:
+```python
+memory = ContextualMemory(
+    embedding_dim=768,
+    use_art_clustering=True,
+    vigilance_threshold=0.8,  # High vigilance creates more initial categories
+    enable_category_consolidation=True,
+    consolidation_threshold=0.7,  # Higher = less aggressive merging
+    min_category_size=3,  # Categories smaller than this are prioritized for merging
+    consolidation_frequency=50,  # Consolidate every 50 memories
+    hierarchical_method="average"  # "single", "complete", "average", or "weighted"
+)
+```
+
+## Confidence Thresholding
+The system supports filtering out low-confidence retrievals to improve precision:
+
+- **Confidence Threshold**: Minimum similarity score for memory inclusion
+- **Semantic Coherence Check**: Ensures retrieved memories form a coherent set
+- **Adaptive K Selection**: Dynamically determines how many memories to retrieve
+
+To enable confidence thresholding:
+```python
+memory = ContextualMemory(
+    embedding_dim=768,
+    default_confidence_threshold=0.4,  # Minimum similarity score
+    semantic_coherence_check=True,  # Check coherence between memories
+    coherence_threshold=0.2,  # Minimum average similarity between memories
+    adaptive_retrieval=True  # Dynamically determine how many memories to retrieve
+)
+
+# When retrieving, you can override the default threshold
+memories = memory.retrieve_memories(
+    query_embedding,
+    top_k=5,
+    confidence_threshold=0.5  # Override default threshold
+)
+```
+
 ## Design Principles
 - Biologically-inspired memory management
 - Rich contextual signatures rather than isolated facts
