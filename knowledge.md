@@ -9,6 +9,7 @@ MemoryWeave is a novel approach to memory management for language models that us
 - **Episodic Structure**: Memories maintain temporal relationships and episodic anchoring
 - **Non-Structured Memory**: Works with raw LLM outputs without requiring structured formats
 - **Modular Architecture**: Easily integrates with existing LLM inference frameworks
+- **ART-Inspired Clustering**: Optional Adaptive Resonance Theory inspired memory categorization
 
 ## Project Structure
 - `memoryweave/core/`: Core components of the memory system
@@ -25,3 +26,9 @@ MemoryWeave is a novel approach to memory management for language models that us
 - Follow PEP 8 style guidelines
 - Include docstrings for all public functions and classes
 - Write unit tests for new functionality
+
+## Working with this Repository
+- Use `uv` for package management and running Python scripts
+- Install the package in development mode with: `uv pip install -e .`
+- Run Python scripts with: `uv run python script_name.py`
+- Run tests with: `uv run python -m pytest`
