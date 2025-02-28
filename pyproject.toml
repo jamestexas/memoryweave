@@ -10,6 +10,7 @@ license = { text = "MIT" }
 requires-python = ">=3.12"
 dependencies = [
     "accelerate>=1.4.0",
+    "blis>=1.2.0",
     "faiss-cpu>=1.10.0",
     "huggingface-hub>=0.29.1",
     "matplotlib>=3.10.1",
@@ -20,6 +21,8 @@ dependencies = [
     "rich-click>=1.8.6",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.2",
+    "spacy>=3.7.0",
+    "thinc>=8.3.4",
     "torch>=2.6.0",
     "transformers>=4.49.0",
 ]
@@ -45,10 +48,14 @@ name = "pytorch-xpu"
 url = "https://download.pytorch.org/whl/xpu"
 explicit = true
 
+[tool.uv.sources]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
+
 
 [dependency-groups]
 dev = [
     "datasets>=3.3.2",
+    "en-core-web-sm",
     "mypy>=1.15.0",
     "pytest>=8.3.4",
     "pytest-cov>=6.0.0",
