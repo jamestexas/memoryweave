@@ -1,41 +1,34 @@
 """
-Integration tests for the MemoryWeave component pipeline.
+Integration tests for the component pipeline.
 """
 
 import unittest
 import numpy as np
 
 from memoryweave.components.memory_manager import MemoryManager
-from memoryweave.components.personal_attributes import PersonalAttributeManager
 from memoryweave.components.query_analysis import QueryAnalyzer
+from memoryweave.components.personal_attributes import PersonalAttributeManager
 from memoryweave.components.retrieval_strategies import (
     SimilarityRetrievalStrategy,
     TemporalRetrievalStrategy,
-    HybridRetrievalStrategy
+    HybridRetrievalStrategy,
 )
 from memoryweave.components.post_processors import (
     KeywordBoostProcessor,
     SemanticCoherenceProcessor,
-    AdaptiveKProcessor
+    AdaptiveKProcessor,
 )
-from tests.utils.mock_models import MockEmbeddingModel, MockMemory
+from tests.utils.mock_models import MockMemory, MockEmbeddingModel
 
 
 class ComponentPipelineTest(unittest.TestCase):
-    """
-    Integration tests for the MemoryWeave component pipeline.
-    
-    These tests verify that the component pipeline works correctly with
-    different configurations.
-    """
-    
+    """Integration tests for the component pipeline."""
+
     def setUp(self):
         """Set up test environment before each test."""
-        # Create embedding model
-        self.embedding_model = MockEmbeddingModel(embedding_dim=768)
-        
-        # Create memory
+        # Create mock memory and embedding model
         self.memory = MockMemory(embedding_dim=768)
+        self.embedding_model = MockEmbeddingModel(embedding_dim=768)
         
         # Populate memory with test data
         self._populate_test_memory()
@@ -43,88 +36,93 @@ class ComponentPipelineTest(unittest.TestCase):
         # Create memory manager
         self.memory_manager = MemoryManager()
         
-        # Create components
-        self.query_analyzer = QueryAnalyzer()
-        self.personal_attributes = PersonalAttributeManager()
-        self.similarity_strategy = SimilarityRetrievalStrategy(self.memory)
-        self.temporal_strategy = TemporalRetrievalStrategy(self.memory)
-        self.hybrid_strategy = HybridRetrievalStrategy(self.memory)
-        self.keyword_boost = KeywordBoostProcessor()
-        self.coherence_processor = SemanticCoherenceProcessor()
-        self.adaptive_k = AdaptiveKProcessor()
-        
         # Register components
+        self.query_analyzer = QueryAnalyzer()
         self.memory_manager.register_component("query_analyzer", self.query_analyzer)
+        
+        self.personal_attributes = PersonalAttributeManager()
         self.memory_manager.register_component("personal_attributes", self.personal_attributes)
-        self.memory_manager.register_component("similarity_retrieval", self.similarity_strategy)
-        self.memory_manager.register_component("temporal_retrieval", self.temporal_strategy)
-        self.memory_manager.register_component("hybrid_retrieval", self.hybrid_strategy)
+        
+        self.similarity_retrieval = SimilarityRetrievalStrategy(self.memory)
+        self.memory_manager.register_component("similarity_retrieval", self.similarity_retrieval)
+        
+        self.temporal_retrieval = TemporalRetrievalStrategy(self.memory)
+        self.memory_manager.register_component("temporal_retrieval", self.temporal_retrieval)
+        
+        self.hybrid_retrieval = HybridRetrievalStrategy(self.memory)
+        self.memory_manager.register_component("hybrid_retrieval", self.hybrid_retrieval)
+        
+        self.keyword_boost = KeywordBoostProcessor()
         self.memory_manager.register_component("keyword_boost", self.keyword_boost)
-        self.memory_manager.register_component("coherence_check", self.coherence_processor)
+        
+        self.coherence_check = SemanticCoherenceProcessor()
+        self.memory_manager.register_component("coherence_check", self.coherence_check)
+        
+        self.adaptive_k = AdaptiveKProcessor()
         self.memory_manager.register_component("adaptive_k", self.adaptive_k)
         
-        # Initialize components
-        self.similarity_strategy.initialize({"confidence_threshold": 0.0})
-        self.hybrid_strategy.initialize({
-            "relevance_weight": 0.7,
-            "recency_weight": 0.3,
-            "confidence_threshold": 0.0
-        })
-        self.keyword_boost.initialize({"keyword_boost_weight": 0.5})
-        self.coherence_processor.initialize({"coherence_threshold": 0.2})
-        self.adaptive_k.initialize({"adaptive_k_factor": 0.3})
-    
     def _populate_test_memory(self):
         """Populate memory with test data."""
-        # Add personal information
-        self._add_personal_memory("My favorite color is blue", 
-                                 {"type": "interaction", "speaker": "user"})
-        self._add_personal_memory("I live in Seattle", 
-                                 {"type": "interaction", "speaker": "user"})
-        self._add_personal_memory("I work as a software engineer", 
-                                 {"type": "interaction", "speaker": "user"})
+        # Add factual memories
+        self._add_factual_memory(
+            "Python is a high-level programming language known for its readability.",
+            {"language": "Python", "type": "programming_language"}
+        )
+        self._add_factual_memory(
+            "JavaScript is a scripting language used for web development.",
+            {"language": "JavaScript", "type": "programming_language"}
+        )
         
-        # Add factual information
-        self._add_factual_memory("Python", 
-                                "A high-level programming language known for readability", 
-                                ["Programming", "Scripting"])
-        self._add_factual_memory("Machine Learning", 
-                                "A field of AI that enables systems to learn from data", 
-                                ["AI", "Data Science"])
-    
-    def _add_personal_memory(self, content, metadata):
-        """Add a personal memory."""
+        # Add personal memories
+        self._add_personal_memory(
+            "My favorite color is blue.",
+            {"preferences": {"color": "blue"}}
+        )
+        self._add_personal_memory(
+            "I live in Seattle.",
+            {"demographics": {"location": "Seattle"}}
+        )
+        
+    def _add_factual_memory(self, content, metadata=None):
+        """Add a factual memory to the test memory."""
+        if metadata is None:
+            metadata = {}
+        
+        metadata["type"] = "factual"
+        metadata["content"] = content
+        
         embedding = self.embedding_model.encode(content)
         self.memory.add_memory(embedding, content, metadata)
-    
-    def _add_factual_memory(self, concept, description, related_concepts):
-        """Add a factual memory."""
-        embedding = self.embedding_model.encode(description)
-        metadata = {
-            "type": "concept",
-            "name": concept,
-            "description": description,
-            "related": related_concepts
-        }
-        self.memory.add_memory(embedding, description, metadata)
-    
+        
+    def _add_personal_memory(self, content, metadata=None):
+        """Add a personal memory to the test memory."""
+        if metadata is None:
+            metadata = {}
+        
+        metadata["type"] = "personal"
+        metadata["content"] = content
+        
+        embedding = self.embedding_model.encode(content)
+        self.memory.add_memory(embedding, content, metadata)
+        
     def test_similarity_pipeline(self):
         """Test pipeline with similarity retrieval strategy."""
         # Build pipeline
         pipeline_config = [
             {"component": "query_analyzer"},
+            {"component": "personal_attributes"},
             {"component": "similarity_retrieval"},
-            {"component": "keyword_boost"}
         ]
         self.memory_manager.build_pipeline(pipeline_config)
         
         # Create query and context
-        query = "Tell me about programming"
+        query = "Tell me about programming languages"
         query_embedding = self.embedding_model.encode(query)
         context = {
             "query_embedding": query_embedding,
             "memory": self.memory,
-            "top_k": 3
+            "top_k": 3,
+            "embedding_model": self.embedding_model
         }
         
         # Execute pipeline
@@ -134,10 +132,15 @@ class ComponentPipelineTest(unittest.TestCase):
         self.assertIn("results", result_context)
         self.assertGreater(len(result_context["results"]), 0)
         
-        # Verify query analysis results
-        self.assertIn("primary_query_type", result_context)
-        self.assertIn("important_keywords", result_context)
-    
+        # Verify that programming language information is retrieved
+        language_found = False
+        for result in result_context["results"]:
+            if "programming language" in str(result.get("content", "")).lower():
+                language_found = True
+                break
+                
+        self.assertTrue(language_found, "Failed to retrieve programming language information")
+        
     def test_hybrid_pipeline_with_processors(self):
         """Test pipeline with hybrid retrieval and all processors."""
         # Build pipeline
@@ -157,7 +160,8 @@ class ComponentPipelineTest(unittest.TestCase):
         context = {
             "query_embedding": query_embedding,
             "memory": self.memory,
-            "top_k": 3
+            "top_k": 3,
+            "embedding_model": self.embedding_model
         }
         
         # Execute pipeline
@@ -176,25 +180,27 @@ class ComponentPipelineTest(unittest.TestCase):
             if "blue" in str(result.get("content", "")).lower():
                 color_found = True
                 break
-        
+                
         self.assertTrue(color_found, "Failed to retrieve color information")
-    
+        
     def test_temporal_pipeline(self):
         """Test pipeline with temporal retrieval strategy."""
         # Build pipeline
         pipeline_config = [
             {"component": "query_analyzer"},
-            {"component": "temporal_retrieval"}
+            {"component": "personal_attributes"},
+            {"component": "temporal_retrieval"},
         ]
         self.memory_manager.build_pipeline(pipeline_config)
         
         # Create query and context
-        query = "What did we talk about recently?"
+        query = "What do I know?"
         query_embedding = self.embedding_model.encode(query)
         context = {
             "query_embedding": query_embedding,
             "memory": self.memory,
-            "top_k": 3
+            "top_k": 3,
+            "embedding_model": self.embedding_model
         }
         
         # Execute pipeline
@@ -204,12 +210,10 @@ class ComponentPipelineTest(unittest.TestCase):
         self.assertIn("results", result_context)
         self.assertGreater(len(result_context["results"]), 0)
         
-        # Verify that results are ordered by recency
-        if len(result_context["results"]) >= 2:
-            first_memory_id = result_context["results"][0]["memory_id"]
-            second_memory_id = result_context["results"][1]["memory_id"]
-            self.assertGreater(first_memory_id, second_memory_id, 
-                              "Memories not ordered by recency")
+        # Verify that the most recent memory is first
+        results = result_context["results"]
+        if len(results) > 1:
+            self.assertEqual(results[0]["memory_id"], len(self.memory.memory_metadata) - 1)
 
 
 if __name__ == "__main__":

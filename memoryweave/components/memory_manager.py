@@ -45,9 +45,19 @@ class MemoryManager:
             working_context=context.copy(),
             results=[],
         )
+        
         for step in self.pipeline:
             component = step["component"]
+            config = step["config"]
+            
+            # Initialize the component with its configuration
+            component.initialize(config)
+            
+            # Process the query with the component
             step_result = component.process_query(query, pipeline_context)
-            pipeline_context.update(step_result)
+            
+            # Update the pipeline context with the component's results
+            if step_result:
+                pipeline_context.update(step_result)
 
         return pipeline_context

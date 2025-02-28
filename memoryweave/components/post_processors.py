@@ -3,7 +3,7 @@ from typing import Any
 
 import numpy as np
 
-from memoryweave.components.base import PostProcessor
+from memoryweave.components.base import PostProcessor, RetrievalComponent
 
 
 class KeywordBoostProcessor(PostProcessor):
@@ -44,6 +44,25 @@ class KeywordBoostProcessor(PostProcessor):
         boosted_results.sort(key=lambda x: x["relevance_score"], reverse=True)
 
         return boosted_results
+        
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
+        """
+        Process a query by applying post-processing to results.
+        
+        Args:
+            query: The query string
+            context: Context dictionary containing results, etc.
+            
+        Returns:
+            Updated context with processed results
+        """
+        results = context.get("results", [])
+        
+        # Process results
+        processed_results = self.process_results(results, query, context)
+        
+        # Update context with processed results
+        return {"results": processed_results}
 
     def _calculate_keyword_boost(
         self, memory_metadata: dict[str, Any], important_keywords: set[str]
@@ -124,6 +143,25 @@ class SemanticCoherenceProcessor(PostProcessor):
             return [results[0]]
 
         return [results[i] for i in coherent_indices]
+        
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
+        """
+        Process a query by applying post-processing to results.
+        
+        Args:
+            query: The query string
+            context: Context dictionary containing results, etc.
+            
+        Returns:
+            Updated context with processed results
+        """
+        results = context.get("results", [])
+        
+        # Process results
+        processed_results = self.process_results(results, query, context)
+        
+        # Update context with processed results
+        return {"results": processed_results}
 
 
 class AdaptiveKProcessor(PostProcessor):
@@ -156,3 +194,22 @@ class AdaptiveKProcessor(PostProcessor):
             return results[:cut_idx]
 
         return results
+        
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
+        """
+        Process a query by applying post-processing to results.
+        
+        Args:
+            query: The query string
+            context: Context dictionary containing results, etc.
+            
+        Returns:
+            Updated context with processed results
+        """
+        results = context.get("results", [])
+        
+        # Process results
+        processed_results = self.process_results(results, query, context)
+        
+        # Update context with processed results
+        return {"results": processed_results}

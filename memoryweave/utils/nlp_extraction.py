@@ -10,6 +10,42 @@ from collections import Counter
 from typing import Any
 
 
+# Singleton for spaCy model to avoid loading it multiple times
+class SpacyModelSingleton:
+    _instance = None
+    _nlp = None
+    
+    @classmethod
+    def get_instance(cls, model_name="en_core_web_sm"):
+        if cls._instance is None:
+            cls._instance = cls(model_name)
+        return cls._instance
+    
+    def __init__(self, model_name):
+        if SpacyModelSingleton._instance is not None:
+            raise Exception("This class is a singleton!")
+        else:
+            SpacyModelSingleton._instance = self
+            self._load_model(model_name)
+    
+    def _load_model(self, model_name):
+        try:
+            import spacy
+            try:
+                self._nlp = spacy.load(model_name)
+                print(f"Successfully loaded spaCy model: {model_name}")
+            except OSError:
+                print(f"spaCy model '{model_name}' not available")
+                print("Using fallback extraction methods")
+        except ImportError:
+            print("spaCy not available")
+            print("Using fallback extraction methods")
+    
+    @property
+    def nlp(self):
+        return self._nlp
+
+
 class NLPExtractor:
     """NLP-based attribute extractor with enhanced spaCy capabilities."""
 
@@ -20,9 +56,11 @@ class NLPExtractor:
         Args:
             model_name: Name of the spaCy model to use
         """
-        self.nlp = None
+        # Use the singleton to get the spaCy model
+        spacy_singleton = SpacyModelSingleton.get_instance(model_name)
+        self.nlp = spacy_singleton.nlp
         self.model_name = model_name
-        self.is_spacy_available = False
+        self.is_spacy_available = self.nlp is not None
         self.matchers = {}
 
         # Metrics tracking
@@ -33,28 +71,9 @@ class NLPExtractor:
             "extraction_methods": Counter(),
         }
 
-        # Try to load spaCy
-        try:
-            import spacy
-            from spacy.matcher import Matcher, PhraseMatcher
-
-            try:
-                self.nlp = spacy.load(model_name)
-                self.is_spacy_available = True
-                print(f"Successfully loaded spaCy model: {model_name}")
-
-                # set up custom matchers
-                self._setup_spacy_matchers()
-
-                # Add custom attributes to Doc objects
-                if not spacy.tokens.Doc.has_extension("personal_attributes"):
-                    spacy.tokens.Doc.set_extension("personal_attributes", default={})
-            except OSError:
-                print(f"spaCy model '{model_name}' not available")
-                print("Using fallback extraction methods")
-        except ImportError:
-            print("spaCy not available")
-            print("Using fallback extraction methods")
+        # Try to set up matchers if spaCy is available
+        if self.is_spacy_available:
+            self._setup_spacy_matchers()
 
         # Initialize fallback regex patterns
         self._init_fallback_patterns()
@@ -292,7 +311,7 @@ class NLPExtractor:
                 [  # What's your opinion on X?
                     {"LOWER": "what"},
                     {"LOWER": {"IN": ["is", "are", "'s", "s"]}},
-                    {"LOWER": "your"},
+                    {"LOWER": {"IN": ["your"]}},
                     {"LOWER": {"IN": ["opinion", "thoughts", "take", "view"]}},
                 ],
             ]
@@ -598,7 +617,7 @@ class NLPExtractor:
                     if "hobbies" not in attributes["traits"]:
                         attributes["traits"]["hobbies"] = []
                     for hobby in match.split("and"):
-                        hobby = hobby.strip().strip(",.")
+                        hobby = hobby.strip().strip(",")
                         if hobby and hobby not in attributes["traits"]["hobbies"]:
                             attributes["traits"]["hobbies"].append(hobby)
 

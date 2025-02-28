@@ -138,3 +138,18 @@ class MockMemory:
             ))
             
         return results
+        
+    def _apply_coherence_check(self, memory_tuples, query_embedding, threshold=0.2):
+        """
+        Mock for the coherence check method needed by the original retriever.
+        
+        Args:
+            memory_tuples: List of (memory_id, score, metadata) tuples
+            query_embedding: Query embedding
+            threshold: Similarity threshold
+            
+        Returns:
+            Filtered list of tuples
+        """
+        # Simply pass through all memories in this mock implementation
+        return memory_tuples

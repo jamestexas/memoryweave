@@ -1,11 +1,11 @@
 # memoryweave/components/personal_attributes.py
 from typing import Any
 
-from memoryweave.components.base import MemoryComponent
+from memoryweave.components.base import MemoryComponent, RetrievalComponent
 from memoryweave.utils.nlp_extraction import NLPExtractor
 
 
-class PersonalAttributeManager(MemoryComponent):
+class PersonalAttributeManager(RetrievalComponent):
     """
     Manages extraction and storage of personal attributes.
     """

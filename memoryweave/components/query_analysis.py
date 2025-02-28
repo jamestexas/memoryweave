@@ -1,11 +1,11 @@
 # memoryweave/components/query_analysis.py
 from typing import Any
 
-from memoryweave.components.base import Component
+from memoryweave.components.base import RetrievalComponent
 from memoryweave.utils.nlp_extraction import NLPExtractor
 
 
-class QueryAnalyzer(Component):
+class QueryAnalyzer(RetrievalComponent):
     """
     Analyzes queries to determine type and extract important information.
     """

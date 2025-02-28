@@ -30,7 +30,7 @@ class RetrievalComponent(Component):
         pass
 
 
-class RetrievalStrategy(Component):
+class RetrievalStrategy(RetrievalComponent):
     """Base class for retrieval strategies."""
 
     @abstractmethod
@@ -41,7 +41,7 @@ class RetrievalStrategy(Component):
         pass
 
 
-class PostProcessor(Component):
+class PostProcessor(RetrievalComponent):
     """Base class for post-processing retrieved memories."""
 
     @abstractmethod
