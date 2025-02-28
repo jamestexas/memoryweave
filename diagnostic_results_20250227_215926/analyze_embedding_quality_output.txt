@@ -1,0 +1,101 @@
+MemoryWeave Embedding Quality Analysis
+=====================================
+Loading embedding model: sentence-transformers/all-MiniLM-L6-v2
+Running all embedding quality analyses...
+Creating test sets of related and unrelated memories...
+Created 4 test sets with a total of 20 memories
+
+Analyzing intra-set similarity...
+Personal Information:
+  Average similarity: 22.461
+  Min similarity: 11.534
+  Max similarity: 18.340
+Travel Information:
+  Average similarity: 21.137
+  Min similarity: 11.189
+  Max similarity: 17.703
+Technical Information:
+  Average similarity: 20.112
+  Min similarity: 8.098
+  Max similarity: 20.498
+Mixed Topics:
+  Average similarity: 17.853
+  Min similarity: 9.300
+  Max similarity: 14.297
+
+Analyzing inter-set similarity...
+Personal Information vs Travel Information:
+  Average similarity: 7.416
+  Min similarity: 4.475
+  Max similarity: 10.151
+Personal Information vs Technical Information:
+  Average similarity: 8.665
+  Min similarity: 5.274
+  Max similarity: 14.048
+Personal Information vs Mixed Topics:
+  Average similarity: 5.206
+  Min similarity: 2.454
+  Max similarity: 8.701
+Travel Information vs Technical Information:
+  Average similarity: 6.261
+  Min similarity: 3.235
+  Max similarity: 9.766
+Travel Information vs Mixed Topics:
+  Average similarity: 4.437
+  Min similarity: 3.043
+  Max similarity: 7.205
+Technical Information vs Mixed Topics:
+  Average similarity: 6.269
+  Min similarity: 2.688
+  Max similarity: 10.033
+
+Analyzing clustering quality...
+K-means clustering:
+  Silhouette score: 0.192
+  Purity: 1.000
+DBSCAN clustering:
+  Silhouette score: 0.000
+  Purity: 0.000
+  Number of clusters: 0
+  Noise points: 20
+
+Analyzing query retrieval...
+Successfully loaded spaCy model: en_core_web_sm
+Query: "Tell me about personal information"
+  Precision: 0.500
+  Recall: 1.000
+  F1: 0.667
+  Retrieved 10 memories, 5 from expected set
+Query: "Tell me about travel information"
+  Precision: 0.500
+  Recall: 1.000
+  F1: 0.667
+  Retrieved 10 memories, 5 from expected set
+Query: "Tell me about technical information"
+  Precision: 0.500
+  Recall: 1.000
+  F1: 0.667
+  Retrieved 10 memories, 5 from expected set
+Query: "Tell me about mixed topics"
+  Precision: 0.500
+  Recall: 1.000
+  F1: 0.667
+  Retrieved 10 memories, 5 from expected set
+
+=== Key Findings ===
+Average similarity within related sets: 21.237
+Average similarity within unrelated sets: 17.853
+Average similarity between different sets: 6.375
+K-means clustering purity: 1.000
+Average retrieval precision: 0.500
+Average retrieval recall: 1.000
+Average retrieval F1: 0.667
+
+Embedding quality analysis complete. Results saved to diagnostic_output/embedding_quality directory.
+
+
+ERRORS:
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)

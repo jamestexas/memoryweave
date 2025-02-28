@@ -1,0 +1,12 @@
+{
+  "kmeans": {
+    "silhouette_score": 0.19220316410064697,
+    "purity": 1.0
+  },
+  "dbscan": {
+    "silhouette_score": 0.0,
+    "purity": 0.0,
+    "num_clusters": 0,
+    "noise_points": 20
+  }
+}

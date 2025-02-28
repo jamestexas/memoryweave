@@ -1,0 +1,61 @@
+MemoryWeave Diagnostic Analysis
+===============================
+Loading embedding model: sentence-transformers/all-MiniLM-L6-v2
+Successfully loaded spaCy model: en_core_web_sm
+Successfully loaded spaCy model: en_core_web_sm
+Loading test data from datasets/evaluation_queries.json
+Loaded 5 personal queries and 55 factual queries
+Added 60 memories to the system
+Running all diagnostic analyses...
+
+Analyzing query classification...
+Query classification accuracy: 75.00%
+
+Misclassified queries:
+1. Query: "What's my name?"
+   Expected: personal, Detected: factual
+   Scores: {'factual': 0.5, 'personal': 0.5, 'opinion': 0.0, 'instruction': 0.0}
+2. Query: "What's my dog's name and how old is he?"
+   Expected: personal, Detected: factual
+   Scores: {'factual': 0.5, 'personal': 0.5, 'opinion': 0.0, 'instruction': 0.0}
+3. Query: "What is my favorite color?"
+   Expected: personal, Detected: factual
+   Scores: {'factual': 0.5, 'personal': 0.5, 'opinion': 0.0, 'instruction': 0.0}
+4. Query: "When is my birthday?"
+   Expected: personal, Detected: factual
+   Scores: {'factual': 0.5, 'personal': 0.5, 'opinion': 0.0, 'instruction': 0.0}
+5. Query: "What is my occupation?"
+   Expected: personal, Detected: factual
+   Scores: {'factual': 0.5, 'personal': 0.5, 'opinion': 0.0, 'instruction': 0.0}
+
+Analyzing embedding space...
+Performing t-SNE dimensionality reduction...
+Analyzing distances in embedding space...
+Average similarity for personal queries: 11.287
+Average similarity for factual queries: 14.707
+
+Analyzing threshold optimization...
+Optimal thresholds:
+Personal queries: 0.90 (F1: 0.733)
+Factual queries: 0.90 (F1: 0.470)
+Overall: 0.90 (F1: 0.492)
+
+Analyzing failed queries...
+Found 0 failed queries out of 60
+
+=== Key Findings ===
+Query classification accuracy: 75.00%
+Average similarity for personal queries: 11.287
+Average similarity for factual queries: 14.707
+Optimal threshold for personal queries: 0.90 (F1: 0.733)
+Optimal threshold for factual queries: 0.90 (F1: 0.470)
+Failed queries: 0 total (0 personal, 0 factual)
+
+Diagnostic analysis complete. Results saved to diagnostic_output directory.
+
+
+ERRORS:
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)

@@ -1,0 +1,42 @@
+{
+  "100": {
+    "precision": 0.5799999999999998,
+    "recall": 0.95,
+    "f1": 0.6650000000000001,
+    "avg_retrieval_time": 0.016938018798828124,
+    "memory_size": 100,
+    "query_count": 20
+  },
+  "500": {
+    "precision": 0.2341666666666667,
+    "recall": 0.8,
+    "f1": 0.34166666666666673,
+    "avg_retrieval_time": 0.02077479362487793,
+    "memory_size": 500,
+    "query_count": 20
+  },
+  "1000": {
+    "precision": 0.1516666666666667,
+    "recall": 0.65,
+    "f1": 0.2416666666666667,
+    "avg_retrieval_time": 0.01711692810058594,
+    "memory_size": 1000,
+    "query_count": 20
+  },
+  "2000": {
+    "precision": 0.0775,
+    "recall": 0.35,
+    "f1": 0.12666666666666668,
+    "avg_retrieval_time": 0.01758531332015991,
+    "memory_size": 2000,
+    "query_count": 20
+  },
+  "5000": {
+    "precision": 0.0625,
+    "recall": 0.3,
+    "f1": 0.10333333333333335,
+    "avg_retrieval_time": 0.01696455478668213,
+    "memory_size": 5000,
+    "query_count": 20
+  }
+}

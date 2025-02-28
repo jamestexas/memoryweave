@@ -1,2 +1,4 @@
 uv.lock
 LICENSE
+datasets/*.json
+notebooks/*

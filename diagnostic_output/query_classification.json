@@ -1,0 +1,170 @@
+{
+  "accuracy": 0.75,
+  "misclassified": [
+    {
+      "query": "What's my name?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What's my dog's name and how old is he?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my favorite color?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "When is my birthday?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my occupation?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my favorite hobby?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "Who is my best friend?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my favorite movie?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my favorite book?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my preferred programming language?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my favorite sport?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my dream travel destination?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my favorite season?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my favorite beverage?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    },
+    {
+      "query": "What is my middle name?",
+      "expected_type": "personal",
+      "detected_type": "factual",
+      "type_scores": {
+        "factual": 0.5,
+        "personal": 0.5,
+        "opinion": 0.0,
+        "instruction": 0.0
+      }
+    }
+  ]
+}

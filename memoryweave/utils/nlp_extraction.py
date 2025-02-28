@@ -7,7 +7,7 @@ personal attributes, query types, and other information from text using spaCy.
 
 import re
 from collections import Counter
-from typing import Any, Dict, Set
+from typing import Any
 
 
 class NLPExtractor:
@@ -43,7 +43,7 @@ class NLPExtractor:
                 self.is_spacy_available = True
                 print(f"Successfully loaded spaCy model: {model_name}")
 
-                # Set up custom matchers
+                # set up custom matchers
                 self._setup_spacy_matchers()
 
                 # Add custom attributes to Doc objects
@@ -60,7 +60,7 @@ class NLPExtractor:
         self._init_fallback_patterns()
 
     def _setup_spacy_matchers(self):
-        """Set up spaCy rule-based matchers for attribute extraction."""
+        """set up spaCy rule-based matchers for attribute extraction."""
         if not self.is_spacy_available:
             return
 
@@ -387,7 +387,7 @@ class NLPExtractor:
             ),
         ]
 
-    def extract_personal_attributes(self, text: str) -> Dict[str, Any]:
+    def extract_personal_attributes(self, text: str) -> dict[str, Any]:
         """
         Extract personal attributes using available methods.
 
@@ -395,7 +395,7 @@ class NLPExtractor:
             text: Text to analyze
 
         Returns:
-            Dictionary of extracted attributes
+            dictionary of extracted attributes
         """
         attributes = {"preferences": {}, "demographics": {}, "traits": {}, "relationships": {}}
 
@@ -469,13 +469,13 @@ class NLPExtractor:
 
         return attributes
 
-    def _extract_preferences_regex(self, text: str, attributes: Dict) -> None:
+    def _extract_preferences_regex(self, text: str, attributes: dict) -> None:
         """
         Extract preferences using regex patterns.
 
         Args:
             text: Text to analyze
-            attributes: Dictionary to update with extracted preferences
+            attributes: dictionary to update with extracted preferences
         """
         text_lower = text.lower()
 
@@ -534,13 +534,13 @@ class NLPExtractor:
             else:
                 attributes["preferences"]["food"] = "curry"
 
-    def _extract_demographics_regex(self, text: str, attributes: Dict) -> None:
+    def _extract_demographics_regex(self, text: str, attributes: dict) -> None:
         """
         Extract demographic information using regex patterns.
 
         Args:
             text: Text to analyze
-            attributes: Dictionary to update with extracted demographics
+            attributes: dictionary to update with extracted demographics
         """
         text_lower = text.lower()
 
@@ -572,13 +572,13 @@ class NLPExtractor:
             attributes["demographics"]["education"] = "Stanford"
             attributes["demographics"]["field"] = "Computer Science"
 
-    def _extract_traits_regex(self, text: str, attributes: Dict) -> None:
+    def _extract_traits_regex(self, text: str, attributes: dict) -> None:
         """
         Extract personality traits and hobbies using regex patterns.
 
         Args:
             text: Text to analyze
-            attributes: Dictionary to update with extracted traits
+            attributes: dictionary to update with extracted traits
         """
         text_lower = text.lower()
 
@@ -602,13 +602,13 @@ class NLPExtractor:
                         if hobby and hobby not in attributes["traits"]["hobbies"]:
                             attributes["traits"]["hobbies"].append(hobby)
 
-    def _extract_relationships_regex(self, text: str, attributes: Dict) -> None:
+    def _extract_relationships_regex(self, text: str, attributes: dict) -> None:
         """
         Extract relationship information using regex patterns.
 
         Args:
             text: Text to analyze
-            attributes: Dictionary to update with extracted relationships
+            attributes: dictionary to update with extracted relationships
         """
         text_lower = text.lower()
 
@@ -645,7 +645,7 @@ class NLPExtractor:
                         attributes["relationships"]["family"] = {}
                     attributes["relationships"]["family"][relation] = "Unknown"
 
-    def identify_query_type(self, query: str) -> Dict[str, float]:
+    def identify_query_type(self, query: str) -> dict[str, float]:
         """
         Identify the type of query using available techniques.
 
@@ -653,7 +653,7 @@ class NLPExtractor:
             query: The query text
 
         Returns:
-            Dictionary with query type probabilities
+            dictionary with query type probabilities
         """
         # Initialize scores
         scores = {"factual": 0.0, "personal": 0.0, "opinion": 0.0, "instruction": 0.0}
@@ -740,7 +740,7 @@ class NLPExtractor:
 
         return scores
 
-    def extract_important_keywords(self, query: str) -> Set[str]:
+    def extract_important_keywords(self, query: str) -> set[str]:
         """
         Extract important keywords for direct reference matching.
 
@@ -748,7 +748,7 @@ class NLPExtractor:
             query: The user query
 
         Returns:
-            Set of important keywords
+            set of important keywords
         """
         # Convert to lowercase for case-insensitive matching
         query_lower = query.lower()
