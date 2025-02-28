@@ -3,7 +3,7 @@ Similarity and embedding utility functions.
 """
 
 from difflib import SequenceMatcher
-from typing import Any, list, tuple
+from typing import Any, List, Tuple
 
 import numpy as np
 
@@ -47,7 +47,7 @@ def cosine_similarity_batched(
     return similarities
 
 
-def embed_text_batch(texts: list[str], embedding_model: Any, batch_size: int = 32) -> np.ndarray:
+def embed_text_batch(texts: List[str], embedding_model: Any, batch_size: int = 32) -> np.ndarray:
     """
     Create embeddings for a batch of texts.
 
@@ -91,8 +91,8 @@ def embed_text_batch(texts: list[str], embedding_model: Any, batch_size: int = 3
 
 
 def fuzzy_string_match(
-    query: str, references: list[str], threshold: float = 0.7
-) -> list[tuple[int, float]]:
+    query: str, references: List[str], threshold: float = 0.7
+) -> List[Tuple[int, float]]:
     """
     Find fuzzy string matches using sequence matching.
 

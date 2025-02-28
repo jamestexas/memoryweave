@@ -1,81 +1,94 @@
-# MemoryWeave Development Roadmap
+# MemoryWeave Roadmap
 
-This document outlines the planned developments for the MemoryWeave project, focusing on practical applications and demonstrations of its capabilities.
+This document outlines the planned development roadmap for the MemoryWeave project.
 
 ## Current Status
 
-- [ ] Core memory fabric implementation with contextual retrieval ✅
-- [ ] ART-inspired category clustering system ✅
-- [ ] Category consolidation to reduce fragmentation ✅ 
-- [ ] Confidence thresholding for retrieval precision ✅
-- [ ] Semantic coherence checks ✅
-- [ ] Adaptive retrieval selection ✅
+MemoryWeave is in early development with the following components implemented:
 
-## Next Steps
+- Core memory management system with contextual fabric approach
+- ART-inspired clustering for dynamic memory categorization
+- Basic retrieval mechanisms with similarity and recency-based approaches
+- Integration adapters for Hugging Face, OpenAI, and LangChain
+- Evaluation metrics for memory coherence and relevance
+- Enhanced retrieval mechanisms including two-stage retrieval and query type adaptation
 
-### 1. Focused Demo Application
+## Short-Term Goals (1-3 months)
 
-**Priority: High**
+### Memory System Enhancements
+- [x] Implement confidence thresholding for improved precision
+- [x] Add semantic coherence check for retrieved memories
+- [x] Develop adaptive K selection for dynamic result set sizing
+- [x] Implement two-stage retrieval pipeline
+- [x] Add query type adaptation for factual vs. personal queries
+- [x] Implement dynamic threshold adjustment
+- [x] Add memory decay for temporal relevance
+- [ ] Improve personal attribute extraction with more robust patterns
+- [ ] Add support for entity recognition in memory encoding
 
-Create a real-world chatbot demo to showcase MemoryWeave's capabilities in action.
+### Performance Optimization
+- [ ] Optimize vector operations with batched processing
+- [ ] Add support for quantized embeddings to reduce memory footprint
+- [ ] Implement approximate nearest neighbor search for large memory stores
+- [ ] Add caching mechanisms for frequently accessed memories
+- [ ] Optimize memory consolidation for large memory sets
 
-**Implementation Plan:**
-- Build a simple web or CLI interface that allows conversation with an assistant
-- Integrate with a language model (e.g., Llama, Mistral, Claude)
-- Add visualization that shows retrieved memories alongside responses
-- Include functionality to inspect memory categories and activation patterns
-- Implement a "debug mode" that exposes the retrieval decisions
+### Persistence Layer
+- [ ] Add serialization/deserialization for memory storage
+- [ ] Implement disk-based persistence for long-term memory
+- [ ] Add incremental save/load capabilities
+- [ ] Support for memory migration between versions
 
-**Benefits:**
-- Provides concrete evidence of MemoryWeave's advantages
-- Generates compelling examples for presentations/papers
-- Identifies practical limitations that benchmarks might miss
+### Documentation and Examples
+- [ ] Create comprehensive API documentation
+- [ ] Add more usage examples for different scenarios
+- [ ] Create Jupyter notebooks demonstrating key features
+- [ ] Add visualization tools for memory categories and activations
 
-### 2. Specialized Benchmark Scenarios
+## Medium-Term Goals (3-6 months)
 
-**Priority: Medium**
+### Advanced Features
+- [ ] Implement hierarchical memory organization
+- [ ] Add support for multi-modal memories (text + images)
+- [ ] Develop memory summarization capabilities
+- [ ] Add support for explicit memory forgetting/deletion
+- [ ] Implement memory importance scoring for prioritization
+- [ ] Add support for memory reflection and consolidation
 
-Develop benchmarks that specifically target MemoryWeave's unique strengths.
+### Integration Enhancements
+- [ ] Add streaming support for LLM responses
+- [ ] Implement function calling capabilities
+- [ ] Add support for more LLM frameworks
+- [ ] Create standalone API server for memory management
+- [ ] Develop CLI tools for memory inspection and management
 
-**Implementation Plan:**
-- Long-context retrieval: Test information recall across 50+ turns
-- Implicit reference resolution: Measure ability to handle vague references
-- Topic revisitation: Test reconnection to previously discussed topics after digressions
-- Cross-domain knowledge integration: Assess connecting information across domains
+### Evaluation and Benchmarking
+- [ ] Create standardized benchmark suite for memory systems
+- [ ] Implement comparative evaluation against other memory approaches
+- [ ] Add support for human evaluation of memory quality
+- [ ] Develop metrics for memory efficiency and resource usage
 
-### 3. Hierarchical Memory Organization
+## Long-Term Goals (6+ months)
 
-**Priority: Medium**
+### Advanced Memory Architecture
+- [ ] Implement episodic and semantic memory distinction
+- [ ] Add support for procedural memory (how-to knowledge)
+- [ ] Develop working memory simulation for complex reasoning
+- [ ] Implement memory-based planning capabilities
+- [ ] Add support for counterfactual reasoning with memories
 
-Implement a hierarchical structure to better organize memories.
+### Multi-Agent Support
+- [ ] Add support for shared memory between agents
+- [ ] Implement memory-based agent coordination
+- [ ] Develop memory privacy and access control mechanisms
+- [ ] Add support for memory-based agent specialization
 
-**Implementation Plan:**
-- Design a multi-level retrieval system (categories → subcategories → memories)
-- Implement topic modeling for automatic hierarchical organization
-- Create visualization tools for the memory hierarchy
-- Add summarization capabilities to create higher-level memory abstractions
+### Ecosystem Development
+- [ ] Create plugin system for custom memory components
+- [ ] Develop community-contributed memory strategies
+- [ ] Add support for domain-specific memory optimizations
+- [ ] Create educational resources for memory system design
 
-### 4. Continuous Learning Integration
+## Feedback and Contributions
 
-**Priority: Low**
-
-Explore how MemoryWeave can support continuous learning.
-
-**Implementation Plan:**
-- Develop experiments showing how memory structure retains information during model updates
-- Design benchmarks measuring catastrophic forgetting with and without our approach
-- Create a small demo showing conversation coherence maintenance during learning
-
-## Performance Optimizations
-
-- **Hierarchical Retrieval**: Use category-level retrieval first, then retrieve within categories
-- **Recency Boosting**: Weight more recent memories higher but don't neglect thematically relevant older ones
-- **Query Reformulation**: Expand the query with related concepts to improve recall
-- **Memory Consolidation**: Implement periodic review and consolidation of related memories
-
-## Technical Debt & Improvements
-
-- Optimize memory search for larger memory stores
-- Add persistent storage options (SQLite, Vector DB)
-- Improve test coverage and documentation
-- Create proper Python packaging
+We welcome feedback on this roadmap and contributions to help achieve these goals. Please open issues or pull requests on the GitHub repository to suggest changes or contribute code.

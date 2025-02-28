@@ -31,6 +31,13 @@ class ContextualRetriever:
         use_two_stage_retrieval: bool = False,  # New parameter for two-stage retrieval
         first_stage_k: int = 20,  # Number of candidates to retrieve in first stage
         query_type_adaptation: bool = False,  # New parameter for query type adaptation
+        dynamic_threshold_adjustment: bool = False,  # New parameter for dynamic threshold adjustment
+        threshold_adjustment_window: int = 5,  # Window size for dynamic threshold adjustment
+        min_confidence_threshold: float = 0.1,  # Minimum confidence threshold
+        max_confidence_threshold: float = 0.7,  # Maximum confidence threshold
+        memory_decay_enabled: bool = False,  # Whether to apply memory decay
+        memory_decay_rate: float = 0.99,  # Rate at which memory activations decay
+        memory_decay_interval: int = 10,  # Apply decay every N interactions
     ):
         """
         Initialize the contextual retriever.
@@ -65,7 +72,20 @@ class ContextualRetriever:
         self.use_two_stage_retrieval = use_two_stage_retrieval
         self.first_stage_k = first_stage_k
         self.query_type_adaptation = query_type_adaptation
-
+        
+        # Dynamic threshold adjustment parameters
+        self.dynamic_threshold_adjustment = dynamic_threshold_adjustment
+        self.threshold_adjustment_window = threshold_adjustment_window
+        self.min_confidence_threshold = min_confidence_threshold
+        self.max_confidence_threshold = max_confidence_threshold
+        self.recent_retrieval_metrics = []  # Store recent retrieval metrics
+        
+        # Memory decay parameters
+        self.memory_decay_enabled = memory_decay_enabled
+        self.memory_decay_rate = memory_decay_rate
+        self.memory_decay_interval = memory_decay_interval
+        self.interaction_count = 0
+        
         # Conversation context tracking
         self.conversation_state = {
             "recent_topics": [],
@@ -111,6 +131,87 @@ class ContextualRetriever:
                     return True
         
         return False
+
+    def _adjust_threshold_dynamically(self, current_threshold: float) -> float:
+        """
+        Dynamically adjust the confidence threshold based on recent retrieval metrics.
+        
+        Args:
+            current_threshold: Current confidence threshold
+            
+        Returns:
+            Adjusted confidence threshold
+        """
+        if len(self.recent_retrieval_metrics) < self.threshold_adjustment_window:
+            return current_threshold
+            
+        # Calculate average metrics over the window
+        avg_retrieved = np.mean([m["retrieved_count"] for m in self.recent_retrieval_metrics])
+        avg_similarity = np.mean([m["avg_similarity"] for m in self.recent_retrieval_metrics])
+        
+        # Adjust threshold based on metrics
+        if avg_retrieved < 2:  # Too few memories being retrieved
+            # Lower threshold to retrieve more memories
+            new_threshold = max(self.min_confidence_threshold, current_threshold * 0.9)
+        elif avg_retrieved > 8:  # Too many memories being retrieved
+            # Raise threshold to be more selective
+            new_threshold = min(self.max_confidence_threshold, current_threshold * 1.1)
+        elif avg_similarity < 0.3:  # Low quality memories being retrieved
+            # Raise threshold to improve quality
+            new_threshold = min(self.max_confidence_threshold, current_threshold * 1.05)
+        else:
+            # Keep current threshold
+            new_threshold = current_threshold
+            
+        return new_threshold
+
+    def _track_retrieval_metrics(self, query_embedding: np.ndarray, retrieved_memories: list[dict]) -> None:
+        """
+        Track retrieval metrics for dynamic threshold adjustment.
+        
+        Args:
+            query_embedding: Query embedding
+            retrieved_memories: Retrieved memories
+        """
+        # Extract memory IDs
+        memory_ids = [m.get("memory_id") for m in retrieved_memories 
+                     if isinstance(m.get("memory_id"), int)]
+        
+        # Calculate average similarity
+        if memory_ids:
+            similarities = np.dot(self.memory.memory_embeddings[memory_ids], query_embedding)
+            avg_similarity = float(np.mean(similarities))
+        else:
+            avg_similarity = 0.0
+            
+        # Store metrics
+        metrics = {
+            "retrieved_count": len(memory_ids),
+            "avg_similarity": avg_similarity,
+            "threshold_used": self.confidence_threshold,
+        }
+        
+        # Add to recent metrics
+        self.recent_retrieval_metrics.append(metrics)
+        
+        # Keep only the most recent metrics
+        if len(self.recent_retrieval_metrics) > self.threshold_adjustment_window:
+            self.recent_retrieval_metrics.pop(0)
+
+    def _apply_memory_decay(self) -> None:
+        """
+        Apply exponential decay to memory activations.
+        """
+        self.interaction_count += 1
+        
+        # Apply decay every N interactions
+        if self.interaction_count % self.memory_decay_interval == 0:
+            # Apply exponential decay to all activations
+            self.memory.activation_levels *= self.memory_decay_rate
+            
+            # Also decay category activations if using ART clustering
+            if self.memory.use_art_clustering:
+                self.memory.category_activations *= self.memory_decay_rate
 
     def retrieve_for_context(
         self,
@@ -251,6 +352,14 @@ class ContextualRetriever:
             
         # Enhance results with personal attributes relevant to the query
         enhanced_memories = self._enhance_with_personal_attributes(memories, current_input)
+        
+        # Apply memory decay if enabled
+        if self.memory_decay_enabled:
+            self._apply_memory_decay()
+            
+        # Track retrieval metrics for dynamic threshold adjustment
+        if self.dynamic_threshold_adjustment:
+            self._track_retrieval_metrics(query_embedding, enhanced_memories)
         
         return enhanced_memories
 

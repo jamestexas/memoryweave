@@ -114,6 +114,8 @@ The system supports several advanced retrieval strategies to balance precision a
 - **Two-Stage Retrieval**: First retrieves a larger candidate set with lower threshold, then re-ranks
 - **Query Type Adaptation**: Adjusts retrieval parameters based on query type (factual vs. personal)
 - **Minimum Memory Guarantees**: Ensures a minimum number of memories are returned even with strict filtering
+- **Dynamic Threshold Adjustment**: Automatically adjusts thresholds based on retrieval performance
+- **Memory Decay**: Applies exponential decay to memory activations over time
 
 To enable advanced retrieval:
 ```python
@@ -127,9 +129,57 @@ retriever = ContextualRetriever(
     adaptive_k_factor=0.15,  # Lower = more results (less conservative)
     use_two_stage_retrieval=True,  # Enable two-stage retrieval
     first_stage_k=20,  # Number of candidates in first stage
-    query_type_adaptation=True  # Adapt to query type
+    query_type_adaptation=True,  # Adapt to query type
+    dynamic_threshold_adjustment=True,  # Dynamically adjust thresholds
+    threshold_adjustment_window=5,  # Window size for adjustment
+    memory_decay_enabled=True,  # Enable memory decay
+    memory_decay_rate=0.99,  # Rate of decay
+    memory_decay_interval=10  # Apply decay every N interactions
 )
 ```
+
+### Two-Stage Retrieval
+The two-stage retrieval process works as follows:
+
+1. **First Stage**: Retrieve a larger set of candidate memories using a lower confidence threshold
+   - This improves recall by considering more potential matches
+   - Typically retrieves 20-30 candidates instead of just 5-10
+
+2. **Second Stage**: Re-rank and filter the candidates
+   - Apply semantic coherence check to ensure retrieved memories form a coherent set
+   - Use adaptive K selection to dynamically determine how many memories to return
+   - Apply keyword boosting to prioritize memories that match important keywords
+
+This approach significantly improves recall for factual queries while maintaining precision for personal queries.
+
+### Query Type Adaptation
+The system can automatically adapt retrieval parameters based on the type of query:
+
+- **Factual Queries**: Use lower thresholds and less conservative adaptive K selection
+  - Examples: "What is the capital of France?", "Who wrote Hamlet?"
+  - Detection: Pattern matching for question words, absence of personal pronouns
+
+- **Personal Queries**: Maintain higher thresholds for better precision
+  - Examples: "What's my name?", "Where do I live?"
+  - Detection: Presence of personal pronouns and possessives
+
+This adaptation helps balance precision and recall based on the query context.
+
+### Dynamic Threshold Adjustment
+The system can automatically adjust confidence thresholds based on retrieval performance:
+
+- Monitors retrieval metrics over a sliding window of recent interactions
+- Lowers thresholds if too few memories are being retrieved
+- Raises thresholds if too many or low-quality memories are being retrieved
+
+This self-tuning mechanism helps the system adapt to different conversation contexts without manual intervention.
+
+### Memory Decay
+To focus on more recent and contextually relevant memories:
+
+- Applies exponential decay to memory activations over time
+- Older memories naturally become less dominant in retrieval
+- Helps the system focus on recent context without manual consolidation
 
 ## Design Principles
 - Biologically-inspired memory management
