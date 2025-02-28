@@ -6,10 +6,7 @@ MemoryWeave is an experimental approach to memory management for language models
 
 ## Table of Contents
 - [Key Concepts](#key-concepts)
-- [Installation](#installation)
-- [Basic Usage](#basic-usage)
 - [Architecture](#architecture)
-- [Examples & Notebooks](#examples)
 - [Current Limitations](#current-limitations)
 - [Contributing](#contributing)
 
@@ -37,88 +34,6 @@ Traditional LLM memory systems often rely on vector databases with discrete entr
 
 This allows for more nuanced and effective memory retrieval during conversations, especially over long contexts or multiple sessions.
 </details>
-
-## Installation
-<a id="installation"></a>
-
-```bash
-# Using uv (recommended)
-uv add memoryweave
-
-# Using pip
-pip install memoryweave
-```
-
-## Basic Usage
-<a id="basic-usage"></a>
-
-```python
-import torch
-from transformers import AutoModel, AutoTokenizer, AutoModelForCausalLM
-
-# Define a wrapper for embedding model
-class EmbeddingModelWrapper:
-    def __init__(self, model, tokenizer):
-        self.model = model
-        self.tokenizer = tokenizer
-        
-    def encode(self, text):
-        inputs = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-            
-        # Mean pooling
-        attention_mask = inputs["attention_mask"]
-        embeddings = outputs.last_hidden_state
-        mask = attention_mask.unsqueeze(-1).expand(embeddings.size()).float()
-        masked_embeddings = embeddings * mask
-        summed = torch.sum(masked_embeddings, 1)
-        counts = torch.clamp(mask.sum(1), min=1e-9)
-        mean_pooled = summed / counts
-        
-        return mean_pooled.numpy()[0]
-
-# Load models
-TOKENIZER_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-LLM_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-
-tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
-model = AutoModel.from_pretrained(TOKENIZER_MODEL)
-embedding_model = EmbeddingModelWrapper(model, tokenizer)
-llm_tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL)
-llm_model = AutoModelForCausalLM.from_pretrained(LLM_MODEL)
-
-# Initialize memory components with ART clustering
-from memoryweave.core import ContextualMemory, MemoryEncoder, ContextualRetriever
-from memoryweave.integrations import HuggingFaceAdapter
-
-memory = ContextualMemory(
-    embedding_dim=384,  # Matches the embedding dimension of MiniLM-L6
-    use_art_clustering=True,
-    vigilance_threshold=0.85
-)
-
-encoder = MemoryEncoder(embedding_model)
-retriever = ContextualRetriever(memory, embedding_model)
-memory_system = dict(
-    memory=memory,
-    encoder=encoder,
-    retriever=retriever
-)
-
-# Create adapter
-adapter = HuggingFaceAdapter(
-    memory_system=memory_system,
-    model=llm_model,
-    tokenizer=llm_tokenizer
-)
-
-# Generate with memory augmentation
-response = adapter.generate(
-    user_input="What do you know about neural networks?",
-    conversation_history=[]
-)
-```
 
 ## Architecture
 <a id="architecture"></a>
@@ -252,25 +167,6 @@ flowchart TD
 ```
 </details>
 
-## Examples & Notebooks
-<a id="examples"></a>
-
-Check out the following examples and notebooks to get started:
-
-### Examples
-- `memoryweave/examples/basic_usage.py`: Basic memory operations
-- `memoryweave/examples/integration_example.py`: Integration with LLM frameworks
-
-### Notebooks
-- `notebooks/test_memory.py`: Basic memory operations
-- `notebooks/test_confidence_thresholding.py`: Demonstration of confidence thresholding
-- `notebooks/test_category_consolidation.py`: Testing category consolidation
-- `notebooks/test_dynamic_vigilance.py`: Demonstration of dynamic vigilance strategies
-- `notebooks/test_large_memory_clustering.py`: Testing with larger memory collections
-- `notebooks/benchmark_memory.py`: Benchmark different memory configurations
-
-Results from the tests and benchmarks are stored in the `output/` directory.
-
 ## Current Limitations
 <a id="current-limitations"></a>
 
@@ -300,9 +196,6 @@ This project uses `uv` for package management:
 ```bash
 # Install in development mode
 uv pip install -e .
-
-# Run a script
-uv run python script_name.py
 
 # Run tests
 uv run python -m pytest
