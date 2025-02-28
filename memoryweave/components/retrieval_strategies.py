@@ -27,12 +27,16 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         # Get memory from context or instance
         memory = context.get("memory", self.memory)
 
+        # Apply query type adaptation if available
+        adapted_params = context.get("adapted_retrieval_params", {})
+        confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
+
         # Use memory's retrieve_memories with similarity approach
         results = memory.retrieve_memories(
             query_embedding,
             top_k=top_k,
             activation_boost=self.activation_boost,
-            confidence_threshold=self.confidence_threshold,
+            confidence_threshold=confidence_threshold,
         )
 
         # Format results
@@ -77,7 +81,7 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         memory = context.get("memory", self.memory)
 
         # Retrieve memories
-        results = self.retrieve(query_embedding, top_k, {"memory": memory})
+        results = self.retrieve(query_embedding, top_k, context)
 
         # Return results
         return {"results": results}
@@ -139,10 +143,16 @@ class HybridRetrievalStrategy(RetrievalStrategy):
         # Get memory from context or instance
         memory = context.get("memory", self.memory)
 
+        # Apply query type adaptation if available
+        adapted_params = context.get("adapted_retrieval_params", {})
+        confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
+        relevance_weight = adapted_params.get("relevance_weight", self.relevance_weight)
+        recency_weight = adapted_params.get("recency_weight", self.recency_weight)
+
         # For mock memory in tests, use the standard retrieve_memories method
         if hasattr(memory, "retrieve_memories") and callable(memory.retrieve_memories):
             results = memory.retrieve_memories(
-                query_embedding, top_k=top_k, confidence_threshold=self.confidence_threshold
+                query_embedding, top_k=top_k, confidence_threshold=confidence_threshold
             )
 
             # Format results
@@ -170,14 +180,14 @@ class HybridRetrievalStrategy(RetrievalStrategy):
 
         # Combine scores
         combined_scores = (
-            self.relevance_weight * similarities + self.recency_weight * temporal_factors
+            relevance_weight * similarities + recency_weight * temporal_factors
         )
 
         # Apply activation boost
         combined_scores = combined_scores * memory.activation_levels
 
         # Apply confidence threshold filtering
-        valid_indices = np.where(combined_scores >= self.confidence_threshold)[0]
+        valid_indices = np.where(combined_scores >= confidence_threshold)[0]
         if len(valid_indices) == 0:
             return []
 
@@ -263,7 +273,165 @@ class HybridRetrievalStrategy(RetrievalStrategy):
                 return {"results": color_memories}
 
         # Retrieve memories
-        results = self.retrieve(query_embedding, top_k, {"memory": memory})
+        results = self.retrieve(query_embedding, top_k, context)
 
+        # Return results
+        return {"results": results}
+
+
+class TwoStageRetrievalStrategy(RetrievalStrategy):
+    """
+    Two-stage retrieval strategy that retrieves a larger set of candidates with
+    lower threshold in the first stage, then re-ranks in the second stage.
+    """
+    
+    def __init__(self, memory: ContextualMemory, base_strategy: RetrievalStrategy = None, post_processors: list = None):
+        """
+        Initialize the two-stage retrieval strategy.
+        
+        Args:
+            memory: Memory to retrieve from
+            base_strategy: Base retrieval strategy to use (defaults to HybridRetrievalStrategy)
+            post_processors: List of post-processors to apply in second stage
+        """
+        self.memory = memory
+        self.base_strategy = base_strategy or HybridRetrievalStrategy(memory)
+        self.post_processors = post_processors or []
+    
+    def initialize(self, config: dict[str, Any]) -> None:
+        """Initialize with configuration."""
+        # First stage parameters
+        self.first_stage_k = config.get("first_stage_k", 20)
+        self.first_stage_threshold_factor = config.get("first_stage_threshold_factor", 0.7)
+        self.confidence_threshold = config.get("confidence_threshold", 0.0)
+        
+        # Initialize base strategy if it's not already initialized
+        if hasattr(self.base_strategy, "initialize"):
+            self.base_strategy.initialize({
+                **config,
+                "confidence_threshold": self.confidence_threshold * self.first_stage_threshold_factor
+            })
+            
+        # Initialize post-processors
+        for processor in self.post_processors:
+            if hasattr(processor, "initialize") and processor.initialize != self.initialize:
+                processor.initialize(config.get("post_processor_config", {}))
+    
+    def retrieve(self, query_embedding: np.ndarray, top_k: int, context: dict[str, Any]) -> list[dict[str, Any]]:
+        """
+        Retrieve memories using two-stage approach.
+        
+        Args:
+            query_embedding: Query embedding
+            top_k: Number of results to return
+            context: Context containing memory, query type, etc.
+            
+        Returns:
+            List of retrieved memory dicts
+        """
+        # Apply query type adaptation if available
+        adapted_params = context.get("adapted_retrieval_params", {})
+        
+        # Adjust parameters based on query type and adapted parameters
+        first_stage_k = adapted_params.get("first_stage_k", self.first_stage_k)
+        first_stage_threshold_factor = adapted_params.get("first_stage_threshold_factor", self.first_stage_threshold_factor)
+        confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
+        expand_keywords = adapted_params.get("expand_keywords", False)
+        
+        first_stage_threshold = confidence_threshold * first_stage_threshold_factor
+        
+        # Use query type for further adjustments if not already in adapted params
+        if "first_stage_k" not in adapted_params:
+            query_type = context.get("primary_query_type", "default")
+            if query_type == "personal":
+                # Personal queries need higher precision
+                first_stage_threshold = max(first_stage_threshold, 0.2)
+            elif query_type == "factual":
+                # Factual queries need better recall
+                first_stage_threshold = min(first_stage_threshold, 0.15)
+                first_stage_k = max(first_stage_k, 30)  # Get more candidates for factual queries
+        
+        # First stage: Get a larger set of candidates with lower threshold
+        # Update base strategy's confidence threshold for first stage
+        if hasattr(self.base_strategy, "confidence_threshold"):
+            original_threshold = self.base_strategy.confidence_threshold
+            self.base_strategy.confidence_threshold = first_stage_threshold
+        
+        # If expand_keywords is enabled, add expanded keywords to context
+        if expand_keywords and "important_keywords" in context:
+            import re
+            # Simple keyword expansion (in a real system, this would be more sophisticated)
+            original_keywords = context.get("important_keywords", set())
+            expanded_keywords = set(original_keywords)
+            
+            # Add singular/plural forms
+            for keyword in original_keywords:
+                if not keyword.endswith("s"):
+                    expanded_keywords.add(f"{keyword}s")  # Simple pluralization
+                elif len(keyword) > 1:
+                    expanded_keywords.add(keyword[:-1])   # Simple singularization
+            
+            # Add to context with a different key to avoid overwriting
+            context["expanded_keywords"] = expanded_keywords
+            
+            # Temporarily replace important_keywords with expanded set
+            context["original_important_keywords"] = context["important_keywords"]
+            context["important_keywords"] = expanded_keywords
+        
+        # Get candidates using base strategy
+        candidates = self.base_strategy.retrieve(query_embedding, first_stage_k, context)
+        
+        # Restore original threshold
+        if hasattr(self.base_strategy, "confidence_threshold"):
+            self.base_strategy.confidence_threshold = original_threshold
+        
+        # Restore original keywords if they were expanded
+        if expand_keywords and "original_important_keywords" in context:
+            context["important_keywords"] = context["original_important_keywords"]
+            del context["original_important_keywords"]
+        
+        # If no candidates, return empty list
+        if not candidates:
+            return []
+        
+        # Second stage: Re-rank and filter candidates
+        # Apply post-processors with adapted parameters
+        for processor in self.post_processors:
+            # If we have an adapted keyword_boost_weight, set it before processing
+            if hasattr(processor, "keyword_boost_weight") and "keyword_boost_weight" in adapted_params:
+                processor.keyword_boost_weight = adapted_params["keyword_boost_weight"]
+                
+            # If we have an adapted adaptive_k_factor, set it before processing
+            if hasattr(processor, "adaptive_k_factor") and "adaptive_k_factor" in adapted_params:
+                processor.adaptive_k_factor = adapted_params["adaptive_k_factor"]
+                
+            # Process the candidates
+            candidates = processor.process_results(candidates, context.get("query", ""), context)
+        
+        # Sort by relevance score
+        candidates.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+        
+        # Filter by confidence threshold
+        candidates = [c for c in candidates if c.get("relevance_score", 0) >= confidence_threshold]
+        
+        # Return top_k results
+        return candidates[:top_k]
+    
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
+        """Process a query to retrieve relevant memories."""
+        # Get query embedding from context
+        query_embedding = context.get("query_embedding")
+        if query_embedding is None:
+            return {"results": []}
+        
+        # Get top_k from context
+        top_k = context.get("top_k", 5)
+        
+        # Add query to context
+        context["query"] = query
+        
+        # Retrieve memories using two-stage approach
+        results = self.retrieve(query_embedding, top_k, context)
+        
         # Return results
         return {"results": results}

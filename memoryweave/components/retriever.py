@@ -16,11 +16,13 @@ from memoryweave.components.post_processors import (
     KeywordBoostProcessor,
     SemanticCoherenceProcessor,
 )
+from memoryweave.components.query_adapter import QueryTypeAdapter
 from memoryweave.components.query_analysis import QueryAnalyzer
 from memoryweave.components.retrieval_strategies import (
     HybridRetrievalStrategy,
     SimilarityRetrievalStrategy,
     TemporalRetrievalStrategy,
+    TwoStageRetrievalStrategy,
 )
 
 
@@ -46,8 +48,10 @@ class Retriever:
 
         # Default pipeline components
         self.query_analyzer = None
+        self.query_adapter = None
         self.retrieval_strategy = None
         self.post_processors = []
+        self.two_stage_strategy = None
 
         # Default settings
         self.top_k = 5
@@ -55,7 +59,10 @@ class Retriever:
 
         # Advanced features
         self.use_two_stage_retrieval = True
+        self.first_stage_k = 20  # Number of candidates in first stage
+        self.first_stage_threshold_factor = 0.7  # Lower threshold for first stage
         self.query_type_adaptation = True
+        self.adaptation_strength = 1.0  # How strongly to adapt based on query type (0.0-1.0)
         self.dynamic_threshold_adjustment = False
         self.threshold_adjustment_window = 5
         self.recent_retrieval_metrics = []
@@ -73,6 +80,10 @@ class Retriever:
         # Create and initialize query analyzer
         self.query_analyzer = QueryAnalyzer()
         self.memory_manager.register_component("query_analyzer", self.query_analyzer)
+
+        # Create and initialize query adapter
+        self.query_adapter = QueryTypeAdapter()
+        self.memory_manager.register_component("query_adapter", self.query_adapter)
 
         # Create and initialize retrieval strategies
         self.retrieval_strategy = HybridRetrievalStrategy(self.memory)
@@ -97,25 +108,62 @@ class Retriever:
         self.memory_manager.register_component("adaptive_k", adaptive_k)
         self.post_processors.append(adaptive_k)
 
+        # Initialize two-stage retrieval strategy
+        self.two_stage_strategy = TwoStageRetrievalStrategy(
+            self.memory, base_strategy=self.retrieval_strategy, post_processors=self.post_processors
+        )
+        self.memory_manager.register_component("two_stage_retrieval", self.two_stage_strategy)
+
         # Build default pipeline
         self._build_default_pipeline()
 
     def _build_default_pipeline(self):
         """Build the default retrieval pipeline."""
-        pipeline_config = [
-            {"component": "query_analyzer", "config": {}},
-            {
-                "component": "hybrid_retrieval",
-                "config": {
-                    "relevance_weight": 0.7,
-                    "recency_weight": 0.3,
-                    "confidence_threshold": self.minimum_relevance,
+        # Configure query adapter
+        query_adapter_config = {
+            "adaptation_strength": self.adaptation_strength if self.query_type_adaptation else 0.0,
+            "confidence_threshold": self.minimum_relevance,
+            "first_stage_k": self.first_stage_k,
+            "first_stage_threshold_factor": self.first_stage_threshold_factor,
+        }
+
+        if self.use_two_stage_retrieval:
+            # Use two-stage retrieval in the pipeline with query type adaptation
+            pipeline_config = [
+                {"component": "query_analyzer", "config": {}},
+                {"component": "query_adapter", "config": query_adapter_config},
+                {
+                    "component": "two_stage_retrieval",
+                    "config": {
+                        "confidence_threshold": self.minimum_relevance,
+                        "first_stage_k": self.first_stage_k,
+                        "first_stage_threshold_factor": self.first_stage_threshold_factor,
+                        "post_processor_config": {
+                            "keyword_boost_weight": 0.5,
+                            "coherence_threshold": 0.2,
+                            "adaptive_k_factor": 0.3,
+                        },
+                    },
                 },
-            },
-            {"component": "keyword_boost", "config": {"keyword_boost_weight": 0.5}},
-            {"component": "coherence", "config": {"coherence_threshold": 0.2}},
-            {"component": "adaptive_k", "config": {"adaptive_k_factor": 0.3}},
-        ]
+            ]
+        else:
+            # Use standard pipeline without two-stage retrieval
+            # This adds each component separately to the pipeline
+            pipeline_config = [
+                {"component": "query_analyzer", "config": {}},
+                {"component": "query_adapter", "config": query_adapter_config},
+                {
+                    "component": "hybrid_retrieval",
+                    "config": {
+                        "relevance_weight": 0.7,
+                        "recency_weight": 0.3,
+                        "confidence_threshold": self.minimum_relevance,
+                    },
+                },
+                {"component": "keyword_boost", "config": {"keyword_boost_weight": 0.5}},
+                {"component": "coherence", "config": {"coherence_threshold": 0.2}},
+                {"component": "adaptive_k", "config": {"adaptive_k_factor": 0.3}},
+            ]
 
         self.memory_manager.build_pipeline(pipeline_config)
 
@@ -143,7 +191,7 @@ class Retriever:
         Args:
             query: The query string
             top_k: Number of memories to retrieve (overrides self.top_k)
-            strategy: Retrieval strategy to use ("hybrid", "similarity", or "temporal")
+            strategy: Retrieval strategy to use ("hybrid", "similarity", "temporal", or "two_stage")
             minimum_relevance: Minimum relevance score for results
             include_metadata: Whether to include memory metadata in results
             conversation_history: Optional conversation history for context
@@ -165,6 +213,27 @@ class Retriever:
                 if isinstance(step["component"], RetrievalStrategy):
                     step["config"]["confidence_threshold"] = minimum_relevance
 
+        # Generate query embedding
+        query_embedding = None
+        if self.embedding_model:
+            query_embedding = self.embedding_model.encode(query)
+
+        # Prepare context for retrieval
+        query_context = {
+            "query": query,
+            "query_embedding": query_embedding,
+            "memory": self.memory,
+            "top_k": top_k,
+            "conversation_history": self.conversation_history,
+            "conversation_context": self.conversation_context,
+        }
+
+        # Run query analyzer to get query type
+        query_analysis = self.memory_manager.components["query_analyzer"].process_query(
+            query, query_context
+        )
+        query_context.update(query_analysis)
+
         # Use specified strategy or default
         if strategy:
             # Temporarily switch strategy for this query
@@ -179,74 +248,71 @@ class Retriever:
                         component_name = "similarity_retrieval"
                     elif strategy == "temporal":
                         component_name = "temporal_retrieval"
+                    elif strategy == "two_stage":
+                        component_name = "two_stage_retrieval"
                     else:  # Default to hybrid
                         component_name = "hybrid_retrieval"
 
+                    # Get the appropriate component
+                    component = self.memory_manager.components[component_name]
+
+                    # If we're switching to two-stage and the existing isn't,
+                    # ensure it has references to post-processors
+                    if strategy == "two_stage" and not isinstance(
+                        component, TwoStageRetrievalStrategy
+                    ):
+                        # Create a new two-stage strategy with appropriate references
+                        component = TwoStageRetrievalStrategy(
+                            self.memory,
+                            base_strategy=self.retrieval_strategy,
+                            post_processors=self.post_processors,
+                        )
+
                     modified_pipeline[i] = {
-                        "component": self.memory_manager.components[component_name],
-                        "config": {"confidence_threshold": self.minimum_relevance, "top_k": top_k},
+                        "component": component,
+                        "config": {
+                            "confidence_threshold": self.minimum_relevance,
+                            "top_k": top_k,
+                            "first_stage_k": self.first_stage_k,
+                            "first_stage_threshold_factor": self.first_stage_threshold_factor,
+                        },
                     }
 
             # Use the modified pipeline for this query
             self.memory_manager.pipeline = modified_pipeline
 
-            # Execute retrieval
-            result = self._execute_retrieval(query, top_k)
+            # Execute pipeline
+            pipeline_result = self.memory_manager.execute_pipeline(query, query_context)
+
+            # Extract results
+            results = pipeline_result.get("results", [])
+
+            # Apply dynamic threshold adjustment if enabled
+            if self.dynamic_threshold_adjustment:
+                self._adjust_thresholds(results)
+
+            # Update retrieval metrics
+            self._update_retrieval_metrics(results)
 
             # Restore the original pipeline
             self.memory_manager.pipeline = original_pipeline
 
-            return result
+            return results
         else:
             # Use the configured pipeline
-            return self._execute_retrieval(query, top_k)
+            pipeline_result = self.memory_manager.execute_pipeline(query, query_context)
 
-    def _execute_retrieval(self, query: str, top_k: int) -> list[dict[str, Any]]:
-        """
-        Execute the retrieval pipeline.
+            # Extract results
+            results = pipeline_result.get("results", [])
 
-        Args:
-            query: The query string
-            top_k: Number of memories to retrieve
+            # Apply dynamic threshold adjustment if enabled
+            if self.dynamic_threshold_adjustment:
+                self._adjust_thresholds(results)
 
-        Returns:
-            List of retrieved memory dicts
-        """
-        # Generate query embedding if needed
-        query_embedding = None
-        if self.embedding_model:
-            query_embedding = self.embedding_model.encode(query)
+            # Update retrieval metrics
+            self._update_retrieval_metrics(results)
 
-        # Prepare context for pipeline
-        context = {
-            "query": query,
-            "query_embedding": query_embedding,
-            "memory": self.memory,
-            "top_k": top_k,
-            "conversation_history": self.conversation_history,
-            "conversation_context": self.conversation_context,
-        }
-
-        # Execute pipeline
-        pipeline_result = self.memory_manager.execute_pipeline(query, context)
-
-        # Extract results from pipeline context
-        results = pipeline_result.get("results", [])
-
-        # Apply dynamic threshold adjustment if enabled
-        if self.dynamic_threshold_adjustment:
-            self._adjust_thresholds(results)
-
-        # Filter based on minimum relevance if not already done
-        results = [r for r in results if r.get("relevance_score", 0) >= self.minimum_relevance]
-
-        # Sort by relevance score (highest first)
-        results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
-
-        # Update retrieval metrics
-        self._update_retrieval_metrics(results)
-
-        return results[:top_k]
+            return results
 
     def _update_conversation_state(
         self,
@@ -265,9 +331,11 @@ class Retriever:
             self.conversation_history = conversation_history
 
         # Add current input to conversation history
-        self.conversation_history.append(
-            {"role": "user", "content": current_input, "timestamp": np.datetime64("now")}
-        )
+        self.conversation_history.append({
+            "role": "user",
+            "content": current_input,
+            "timestamp": np.datetime64("now"),
+        })
 
         # Limit conversation history length
         max_history = 10
@@ -349,3 +417,58 @@ class Retriever:
         self.dynamic_threshold_adjustment = enable
         self.threshold_adjustment_window = window_size
         self.recent_retrieval_metrics = []
+
+    def configure_two_stage_retrieval(
+        self,
+        enable: bool = True,
+        first_stage_k: int = 20,
+        first_stage_threshold_factor: float = 0.7,
+    ) -> None:
+        """
+        Configure two-stage retrieval.
+
+        Args:
+            enable: Whether to enable two-stage retrieval
+            first_stage_k: Number of candidates to retrieve in first stage
+            first_stage_threshold_factor: Factor to multiply minimum_relevance by for first stage
+        """
+        self.use_two_stage_retrieval = enable
+        self.first_stage_k = first_stage_k
+        self.first_stage_threshold_factor = first_stage_threshold_factor
+
+        # If we already have a two-stage strategy, update its configuration
+        if self.two_stage_strategy:
+            # Update the existing strategy with the new parameters
+            self.two_stage_strategy.initialize({
+                "confidence_threshold": self.minimum_relevance,
+                "first_stage_k": first_stage_k,
+                "first_stage_threshold_factor": first_stage_threshold_factor,
+            })
+
+        # Rebuild pipeline with updated configuration
+        self._build_default_pipeline()
+
+    def configure_query_type_adaptation(
+        self, enable: bool = True, adaptation_strength: float = 1.0
+    ) -> None:
+        """
+        Configure query type adaptation.
+
+        Args:
+            enable: Whether to enable query type adaptation
+            adaptation_strength: How strongly to adapt parameters (0.0-1.0)
+        """
+        self.query_type_adaptation = enable
+        self.adaptation_strength = adaptation_strength
+
+        # Update query adapter configuration
+        if self.query_adapter:
+            self.query_adapter.initialize({
+                "adaptation_strength": adaptation_strength if enable else 0.0,
+                "confidence_threshold": self.minimum_relevance,
+                "first_stage_k": self.first_stage_k,
+                "first_stage_threshold_factor": self.first_stage_threshold_factor,
+            })
+
+        # Rebuild pipeline with updated configuration
+        self._build_default_pipeline()
