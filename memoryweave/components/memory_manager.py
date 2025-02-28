@@ -30,10 +30,12 @@ class MemoryManager:
         for step in pipeline_config:
             component_name = step["component"]
             if component_name in self.components:
-                self.pipeline.append({
-                    "component": self.components[component_name],
-                    "config": step.get("config", {}),
-                })
+                self.pipeline.append(
+                    {
+                        "component": self.components[component_name],
+                        "config": step.get("config", {}),
+                    }
+                )
             else:
                 raise ValueError(f"Component {component_name} not registered")
 
@@ -45,17 +47,17 @@ class MemoryManager:
             working_context=context.copy(),
             results=[],
         )
-        
+
         for step in self.pipeline:
             component = step["component"]
             config = step["config"]
-            
+
             # Initialize the component with its configuration
             component.initialize(config)
-            
+
             # Process the query with the component
             step_result = component.process_query(query, pipeline_context)
-            
+
             # Update the pipeline context with the component's results
             if step_result:
                 pipeline_context.update(step_result)

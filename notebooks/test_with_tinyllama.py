@@ -36,7 +36,7 @@ def format_memories(memories):
         return ""
 
     formatted = []
-    
+
     # First check for personal attributes memory
     personal_attributes = None
     for i, mem in enumerate(memories):
@@ -45,25 +45,31 @@ def format_memories(memories):
             # Remove it from the regular memories list to handle separately
             memories.remove(mem)
             break
-            
+
     # If we have personal attributes, format them first
     if personal_attributes:
         attributes = personal_attributes.get("attributes", {})
         if attributes:
             formatted.append("USER PROFILE:")
-            
+
             # Format preferences (removing the preference_ prefix)
-            preferences = [f"{k.replace('preference_', '').capitalize()}: {v}" for k, v in attributes.items() 
-                           if k.startswith("preference_")]
+            preferences = [
+                f"{k.replace('preference_', '').capitalize()}: {v}"
+                for k, v in attributes.items()
+                if k.startswith("preference_")
+            ]
             if preferences:
                 formatted.append("Preferences: " + ", ".join(preferences))
-                
+
             # Format demographics (removing the demographic_ prefix)
-            demographics = [f"{k.replace('demographic_', '').capitalize()}: {v}" for k, v in attributes.items() 
-                            if k.startswith("demographic_")]
+            demographics = [
+                f"{k.replace('demographic_', '').capitalize()}: {v}"
+                for k, v in attributes.items()
+                if k.startswith("demographic_")
+            ]
             if demographics:
                 formatted.append("Demographics: " + ", ".join(demographics))
-                
+
             # Format traits
             if "trait_hobbies" in attributes:
                 hobbies = attributes["trait_hobbies"]
@@ -71,13 +77,16 @@ def format_memories(memories):
                     formatted.append(f"Hobbies: {', '.join(hobbies)}")
                 else:
                     formatted.append(f"Hobbies: {hobbies}")
-                    
+
             # Format relationships
-            relationships = [f"{k.replace('relationship_', '')}: {v}" for k, v in attributes.items() 
-                             if k.startswith("relationship_")]
+            relationships = [
+                f"{k.replace('relationship_', '')}: {v}"
+                for k, v in attributes.items()
+                if k.startswith("relationship_")
+            ]
             if relationships:
                 formatted.append("Relationships: " + ", ".join(relationships))
-            
+
             formatted.append("")  # Empty line after profile
 
     # Format regular memories
@@ -87,20 +96,26 @@ def format_memories(memories):
             content = mem.get("content", "")
             # Focus on extracting key facts rather than full conversation
             if "favorite color" in content.lower() and "blue" in content.lower():
-                formatted.append(f"MEMORY [{i+1}]: User mentioned their favorite color is blue.")
+                formatted.append(f"MEMORY [{i + 1}]: User mentioned their favorite color is blue.")
             elif "hike" in content.lower() or "hiking" in content.lower():
-                formatted.append(f"MEMORY [{i+1}]: User said they enjoy hiking in the mountains on weekends.")
+                formatted.append(
+                    f"MEMORY [{i + 1}]: User said they enjoy hiking in the mountains on weekends."
+                )
             elif "paint" in content.lower() or "painting" in content.lower():
-                formatted.append(f"MEMORY [{i+1}]: User is considering painting their room.")
+                formatted.append(f"MEMORY [{i + 1}]: User is considering painting their room.")
             else:
                 # Fallback to a generic but concise summary
-                formatted.append(f"MEMORY [{i+1}]: User asked about: {content[:30]}...")
+                formatted.append(f"MEMORY [{i + 1}]: User asked about: {content[:30]}...")
         elif mem.get("type") == "concept":
-            formatted.append(f"MEMORY [{i+1}]: Concept '{mem.get('name', '')}': {mem.get('description', '')[:50]}...")
+            formatted.append(
+                f"MEMORY [{i + 1}]: Concept '{mem.get('name', '')}': {mem.get('description', '')[:50]}..."
+            )
 
     # Add a clear separator and instruction
     if formatted:
-        return "\n".join(formatted) + "\n\nPlease use this information to answer the current question."
+        return (
+            "\n".join(formatted) + "\n\nPlease use this information to answer the current question."
+        )
 
     return ""
 
@@ -121,9 +136,7 @@ def main():
     encoder = MemoryEncoder(embedding_model)
     # Use enhanced retriever with keyword boost
     retriever = ContextualRetriever(
-        memory=memory, 
-        embedding_model=embedding_model,
-        keyword_boost_weight=0.5
+        memory=memory, embedding_model=embedding_model, keyword_boost_weight=0.5
     )
 
     memory_system = {"memory": memory, "encoder": encoder, "retriever": retriever}
@@ -153,7 +166,7 @@ def main():
             "Tell me about a good beginner hike near Seattle.",
             "What was my favorite color again?",
             "Where do I live and what do I do for work?",
-            "What activities do I enjoy on weekends?"
+            "What activities do I enjoy on weekends?",
         ]
 
         # Run the test
@@ -175,7 +188,11 @@ def main():
                         for attr_type, attr_val in mem.get("attributes", {}).items():
                             print(f"  * {attr_type}: {attr_val}")
                     else:
-                        boost_info = f", Boost: {mem.get('keyword_boost', 1.0):.2f}" if mem.get('keyword_boost', 1.0) > 1.0 else ""
+                        boost_info = (
+                            f", Boost: {mem.get('keyword_boost', 1.0):.2f}"
+                            if mem.get("keyword_boost", 1.0) > 1.0
+                            else ""
+                        )
                         print(
                             f"- {mem.get('type', 'unknown')}: {mem.get('text', mem.get('content', 'unknown'))[:50]}... "
                             f"(Score: {mem.get('relevance_score', 0):.2f}{boost_info})"

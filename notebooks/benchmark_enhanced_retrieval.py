@@ -17,7 +17,6 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 
 from memoryweave.core import ContextualMemory, ContextualRetriever, MemoryEncoder
-from memoryweave.utils.analysis import analyze_query_similarities, analyze_retrieval_performance
 
 # Create output directory if it doesn't exist
 os.makedirs("output", exist_ok=True)
@@ -392,25 +391,27 @@ class EnhancedRetrievalBenchmark:
 
         # Get unique categories
         categories = list(self.results["category_metrics"][0].keys())
-        
+
         # Create subplots for each category
         for i, category in enumerate(categories):
             plt.subplot(len(categories), 1, i + 1)
-            
+
             # Extract category metrics for each configuration
-            precisions = [metrics[category]["precision"] for metrics in self.results["category_metrics"]]
+            precisions = [
+                metrics[category]["precision"] for metrics in self.results["category_metrics"]
+            ]
             recalls = [metrics[category]["recall"] for metrics in self.results["category_metrics"]]
             f1s = [metrics[category]["f1"] for metrics in self.results["category_metrics"]]
-            
+
             # Create bar positions
             x = np.arange(len(self.results["configuration"]))
             width = 0.25
-            
+
             # Plot bars
             plt.bar(x - width, precisions, width, label="Precision")
             plt.bar(x, recalls, width, label="Recall")
             plt.bar(x + width, f1s, width, label="F1")
-            
+
             # Add labels and title
             plt.xlabel("Configuration")
             plt.ylabel("Score")
@@ -419,7 +420,7 @@ class EnhancedRetrievalBenchmark:
             plt.legend()
             plt.grid(True, alpha=0.3, axis="y")
             plt.tight_layout()
-        
+
         # Save the plot
         output_path = f"output/{output_file}_category_performance.png"
         plt.savefig(output_path)

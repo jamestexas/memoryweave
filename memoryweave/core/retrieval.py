@@ -429,11 +429,13 @@ class ContextualRetriever:
             # Convert back to our format
             coherent_candidates = []
             for memory_id, score, metadata in coherent_tuples:
-                coherent_candidates.append({
-                    "memory_id": memory_id,
-                    "relevance_score": score,
-                    **metadata,
-                })
+                coherent_candidates.append(
+                    {
+                        "memory_id": memory_id,
+                        "relevance_score": score,
+                        **metadata,
+                    }
+                )
 
             candidates = coherent_candidates
 
@@ -664,11 +666,13 @@ class ContextualRetriever:
             # Convert back to our format
             coherent_candidates = []
             for memory_id, score, metadata in coherent_tuples:
-                coherent_candidates.append({
-                    "memory_id": memory_id,
-                    "relevance_score": score,
-                    **metadata,
-                })
+                coherent_candidates.append(
+                    {
+                        "memory_id": memory_id,
+                        "relevance_score": score,
+                        **metadata,
+                    }
+                )
 
             candidates = coherent_candidates
 
@@ -1198,13 +1202,15 @@ class ContextualRetriever:
 
             boosted_score = score * boost
 
-            formatted_results.append({
-                "memory_id": idx,
-                "relevance_score": boosted_score,
-                "original_score": score,
-                "keyword_boost": boost,
-                **metadata,
-            })
+            formatted_results.append(
+                {
+                    "memory_id": idx,
+                    "relevance_score": boosted_score,
+                    "original_score": score,
+                    "keyword_boost": boost,
+                    **metadata,
+                }
+            )
 
         # Re-sort by boosted score
         formatted_results.sort(key=lambda x: x["relevance_score"], reverse=True)
@@ -1221,11 +1227,13 @@ class ContextualRetriever:
 
         results = []
         for idx in temporal_order:
-            results.append({
-                "memory_id": int(idx),
-                "relevance_score": float(self.memory.activation_levels[idx]),
-                **self.memory.memory_metadata[idx],
-            })
+            results.append(
+                {
+                    "memory_id": int(idx),
+                    "relevance_score": float(self.memory.activation_levels[idx]),
+                    **self.memory.memory_metadata[idx],
+                }
+            )
 
         return results
 
@@ -1297,14 +1305,16 @@ class ContextualRetriever:
                     boost = self._calculate_keyword_boost(metadata, important_keywords)
                     score = score * boost
 
-                candidates.append({
-                    "memory_id": int(idx),
-                    "relevance_score": score,
-                    "similarity": float(similarities[idx]),
-                    "recency": float(temporal_factors[idx]),
-                    "keyword_boost": boost,
-                    **metadata,
-                })
+                candidates.append(
+                    {
+                        "memory_id": int(idx),
+                        "relevance_score": score,
+                        "similarity": float(similarities[idx]),
+                        "recency": float(temporal_factors[idx]),
+                        "keyword_boost": boost,
+                        **metadata,
+                    }
+                )
 
             # Sort by boosted score and take top-k
             candidates.sort(key=lambda x: x["relevance_score"], reverse=True)
@@ -1328,11 +1338,13 @@ class ContextualRetriever:
                 # Convert back to our format
                 coherent_candidates = []
                 for memory_id, score, metadata in coherent_tuples:
-                    coherent_candidates.append({
-                        "memory_id": memory_id,
-                        "relevance_score": score,
-                        **metadata,
-                    })
+                    coherent_candidates.append(
+                        {
+                            "memory_id": memory_id,
+                            "relevance_score": score,
+                            **metadata,
+                        }
+                    )
 
                 candidates = coherent_candidates
 
@@ -1370,14 +1382,16 @@ class ContextualRetriever:
                 boost = self._calculate_keyword_boost(metadata, important_keywords)
                 score = score * boost
 
-            results.append({
-                "memory_id": int(idx),
-                "relevance_score": score,
-                "similarity": float(similarities[idx]),
-                "recency": float(temporal_factors[idx]),
-                "keyword_boost": boost,
-                **metadata,
-            })
+            results.append(
+                {
+                    "memory_id": int(idx),
+                    "relevance_score": score,
+                    "similarity": float(similarities[idx]),
+                    "recency": float(temporal_factors[idx]),
+                    "keyword_boost": boost,
+                    **metadata,
+                }
+            )
 
         # Re-sort by boosted score
         results.sort(key=lambda x: x["relevance_score"], reverse=True)

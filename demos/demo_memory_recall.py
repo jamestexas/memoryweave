@@ -225,13 +225,15 @@ class MemoryRecallDemo:
             print(f"Retrieved memories: {len(memories)}")
             print(f"Correct: {'✓' if is_correct else '✗'}")
 
-            self.results_with_memory.append({
-                "query": query,
-                "response": response,
-                "expected": expected,
-                "correct": is_correct,
-                "retrieved_memories": len(memories),
-            })
+            self.results_with_memory.append(
+                {
+                    "query": query,
+                    "response": response,
+                    "expected": expected,
+                    "correct": is_correct,
+                    "retrieved_memories": len(memories),
+                }
+            )
 
             conversation_history.append({"message": query, "response": response})
 
@@ -278,13 +280,15 @@ class MemoryRecallDemo:
             is_correct = self._check_contains_expected(response, expected)
             print(f"Correct: {'✓' if is_correct else '✗'}")
 
-            self.results_without_memory.append({
-                "query": query,
-                "response": response,
-                "expected": expected,
-                "correct": is_correct,
-                "retrieved_memories": 0,
-            })
+            self.results_without_memory.append(
+                {
+                    "query": query,
+                    "response": response,
+                    "expected": expected,
+                    "correct": is_correct,
+                    "retrieved_memories": 0,
+                }
+            )
 
             conversation_history.append({"message": query, "response": response})
 

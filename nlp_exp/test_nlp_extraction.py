@@ -5,11 +5,12 @@ This script tests the extraction capabilities of the NLPExtractor class,
 which uses NLP techniques with optional spaCy enhancement when available.
 """
 
-from memoryweave.utils.nlp_extraction import NLPExtractor
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
+from memoryweave.utils.nlp_extraction import NLPExtractor
 
 # Initialize rich console
 console = Console()

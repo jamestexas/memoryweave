@@ -276,10 +276,12 @@ class EnhancedRetriever(ContextualRetriever):
 
             # Generate cluster centers by taking the mean of each cluster
             unique_clusters = np.unique(self.memory_to_cluster)
-            self.cluster_centers = np.zeros((
-                len(unique_clusters),
-                self.memory.memory_embeddings.shape[1],
-            ))
+            self.cluster_centers = np.zeros(
+                (
+                    len(unique_clusters),
+                    self.memory.memory_embeddings.shape[1],
+                )
+            )
 
             for i, cluster_id in enumerate(unique_clusters):
                 cluster_indices = np.where(self.memory_to_cluster == cluster_id)[0]
@@ -873,13 +875,15 @@ class EnhancedRetriever(ContextualRetriever):
                 boost = self._calculate_keyword_boost(metadata, important_keywords)
                 score = score * boost
 
-            results.append({
-                "memory_id": int(memory_idx),
-                "relevance_score": score,
-                "original_score": float(valid_similarities[i]),
-                "keyword_boost": boost,
-                **metadata,
-            })
+            results.append(
+                {
+                    "memory_id": int(memory_idx),
+                    "relevance_score": score,
+                    "original_score": float(valid_similarities[i]),
+                    "keyword_boost": boost,
+                    **metadata,
+                }
+            )
 
         # Sort by relevance score
         results.sort(key=lambda x: x["relevance_score"], reverse=True)
@@ -969,11 +973,13 @@ class EnhancedRetriever(ContextualRetriever):
         # Convert back to our format
         coherent_candidates = []
         for memory_id, score, metadata in coherent_tuples:
-            coherent_candidates.append({
-                "memory_id": memory_id,
-                "relevance_score": score,
-                **metadata,
-            })
+            coherent_candidates.append(
+                {
+                    "memory_id": memory_id,
+                    "relevance_score": score,
+                    **metadata,
+                }
+            )
 
         return coherent_candidates
 

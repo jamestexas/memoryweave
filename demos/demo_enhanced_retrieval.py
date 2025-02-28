@@ -10,7 +10,7 @@ import os
 import time
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 from memoryweave.core import ContextualMemory, ContextualRetriever, MemoryEncoder
 
@@ -79,7 +79,7 @@ class EnhancedRetrievalDemo:
             semantic_coherence_check=True,
         )
         self.encoder = MemoryEncoder(self.embedding_model)
-        
+
         # Initialize retriever with basic settings (will be configured later)
         self.retriever = ContextualRetriever(
             memory=self.memory,
@@ -133,7 +133,9 @@ class EnhancedRetrievalDemo:
                 return False
         return True
 
-    def generate_response(self, query, conversation_history, retriever_config, include_memories=True):
+    def generate_response(
+        self, query, conversation_history, retriever_config, include_memories=True
+    ):
         """Generate response with the specified retriever configuration."""
         # Configure retriever
         for param, value in retriever_config.items():
@@ -227,14 +229,16 @@ class EnhancedRetrievalDemo:
                 print(f"Retrieved {len(memories)} memories in {retrieval_time:.3f}s")
                 print(f"Correct: {'✓' if is_correct else '✗'}")
 
-                config_results.append({
-                    "query": query,
-                    "response": response,
-                    "expected": expected,
-                    "correct": is_correct,
-                    "retrieved_memories": len(memories),
-                    "retrieval_time": retrieval_time,
-                })
+                config_results.append(
+                    {
+                        "query": query,
+                        "response": response,
+                        "expected": expected,
+                        "correct": is_correct,
+                        "retrieved_memories": len(memories),
+                        "retrieval_time": retrieval_time,
+                    }
+                )
 
                 conversation_history.append({"message": query, "response": response})
 
@@ -254,8 +258,16 @@ class EnhancedRetrievalDemo:
             results_list = config_results["results"]
             correct_count = sum(1 for r in results_list if r["correct"])
             accuracy = correct_count / len(results_list) if results_list else 0
-            avg_retrieval_time = sum(r["retrieval_time"] for r in results_list) / len(results_list) if results_list else 0
-            avg_memories = sum(r["retrieved_memories"] for r in results_list) / len(results_list) if results_list else 0
+            avg_retrieval_time = (
+                sum(r["retrieval_time"] for r in results_list) / len(results_list)
+                if results_list
+                else 0
+            )
+            avg_memories = (
+                sum(r["retrieved_memories"] for r in results_list) / len(results_list)
+                if results_list
+                else 0
+            )
 
             summary[config_name] = {
                 "accuracy": accuracy,
@@ -275,7 +287,9 @@ class EnhancedRetrievalDemo:
 
         for config_name, metrics in sorted_configs:
             print(f"\n{config_name}:")
-            print(f"  Accuracy: {metrics['accuracy']:.2%} ({metrics['correct_count']}/{metrics['total_queries']})")
+            print(
+                f"  Accuracy: {metrics['accuracy']:.2%} ({metrics['correct_count']}/{metrics['total_queries']})"
+            )
             print(f"  Avg. Retrieval Time: {metrics['avg_retrieval_time']:.3f}s")
             print(f"  Avg. Memories Retrieved: {metrics['avg_memories_retrieved']:.1f}")
 

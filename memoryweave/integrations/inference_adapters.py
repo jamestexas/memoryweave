@@ -220,10 +220,12 @@ class OpenAIAdapter(BaseAdapter):
 
         # Include memory context if available
         if memory_text:
-            messages.append({
-                "role": "system",
-                "content": f"Relevant context from memory: {memory_text}",
-            })
+            messages.append(
+                {
+                    "role": "system",
+                    "content": f"Relevant context from memory: {memory_text}",
+                }
+            )
 
         # Add conversation history
         for turn in conversation_history[-5:]:  # Include last 5 turns

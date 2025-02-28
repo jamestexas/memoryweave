@@ -122,11 +122,13 @@ class MemoryBenchmark:
 
         memories = []
         for item in data:
-            memories.append((
-                item["expected_answer"],
-                item["category"],
-                "general",
-            ))  # Adjust as needed
+            memories.append(
+                (
+                    item["expected_answer"],
+                    item["category"],
+                    "general",
+                )
+            )  # Adjust as needed
 
         return memories
 
@@ -183,10 +185,12 @@ class MemoryBenchmark:
         # Add some cross-category queries
         if len(categories) >= 2:
             categories_list = list(categories)
-            queries.append((
-                f"Compare {categories_list[0]} and {categories_list[1]}",
-                "cross-category",
-            ))
+            queries.append(
+                (
+                    f"Compare {categories_list[0]} and {categories_list[1]}",
+                    "cross-category",
+                )
+            )
 
         return queries
 
@@ -748,7 +752,7 @@ def run_benchmark():
         retrieval_strategy="hybrid",
         adaptive_k_factor=0.05,  # Setting for more recall
     )
-    
+
     # NEW: Test two-stage retrieval pipeline
     benchmark.benchmark_configuration(
         config_name="Two-Stage Retrieval",
@@ -762,7 +766,7 @@ def run_benchmark():
         use_two_stage_retrieval=True,  # Enable two-stage retrieval
         query_type_adaptation=False,
     )
-    
+
     # NEW: Test query type adaptation
     benchmark.benchmark_configuration(
         config_name="Query Type Adaptation",
@@ -776,7 +780,7 @@ def run_benchmark():
         use_two_stage_retrieval=False,
         query_type_adaptation=True,  # Enable query type adaptation
     )
-    
+
     # NEW: Test combined approach (two-stage + query adaptation)
     benchmark.benchmark_configuration(
         config_name="Combined Approach",
@@ -802,7 +806,7 @@ def run_benchmark():
         retrieval_strategy="hybrid",
         adaptive_k_factor=0.1,  # Balanced setting
     )
-    
+
     # NEW: Test query type adaptation
     benchmark.benchmark_configuration(
         config_name="Query Type Adaptation",

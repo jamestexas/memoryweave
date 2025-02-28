@@ -1,7 +1,7 @@
 # memoryweave/components/personal_attributes.py
 from typing import Any
 
-from memoryweave.components.base import MemoryComponent, RetrievalComponent
+from memoryweave.components.base import RetrievalComponent
 from memoryweave.utils.nlp_extraction import NLPExtractor
 
 

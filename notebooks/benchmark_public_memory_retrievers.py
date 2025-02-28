@@ -127,11 +127,13 @@ class MemoryBenchmark:
 
         memories = []
         for item in data:
-            memories.append((
-                item["expected_answer"],
-                item["category"],
-                "general",
-            ))
+            memories.append(
+                (
+                    item["expected_answer"],
+                    item["category"],
+                    "general",
+                )
+            )
         return memories
 
     def _load_queries_from_json(self, queries_file: str) -> list[tuple[str, str]]:
@@ -171,10 +173,12 @@ class MemoryBenchmark:
             queries.append((f"I'm interested in learning more about {category}", category))
         if len(categories) >= 2:
             categories_list = list(categories)
-            queries.append((
-                f"Compare {categories_list[0]} and {categories_list[1]}",
-                "cross-category",
-            ))
+            queries.append(
+                (
+                    f"Compare {categories_list[0]} and {categories_list[1]}",
+                    "cross-category",
+                )
+            )
         return queries
 
     def _generate_synthetic_relevance(self) -> dict[tuple[int, int], float]:

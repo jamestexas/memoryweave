@@ -14,23 +14,24 @@ from typing import Any
 class SpacyModelSingleton:
     _instance = None
     _nlp = None
-    
+
     @classmethod
     def get_instance(cls, model_name="en_core_web_sm"):
         if cls._instance is None:
             cls._instance = cls(model_name)
         return cls._instance
-    
+
     def __init__(self, model_name):
         if SpacyModelSingleton._instance is not None:
             raise Exception("This class is a singleton!")
         else:
             SpacyModelSingleton._instance = self
             self._load_model(model_name)
-    
+
     def _load_model(self, model_name):
         try:
             import spacy
+
             try:
                 self._nlp = spacy.load(model_name)
                 print(f"Successfully loaded spaCy model: {model_name}")
@@ -40,7 +41,7 @@ class SpacyModelSingleton:
         except ImportError:
             print("spaCy not available")
             print("Using fallback extraction methods")
-    
+
     @property
     def nlp(self):
         return self._nlp
