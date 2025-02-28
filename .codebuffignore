@@ -1,4 +1,7 @@
 uv.lock
 LICENSE
+# Exclude all the datasets local to repo
 datasets/*.json
-notebooks/*
+# Exclude any outputs from scripts or functions (from benchmarking)
+test_output/*
+output/*
