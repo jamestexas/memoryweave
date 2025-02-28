@@ -45,3 +45,48 @@ The NLP extraction capabilities are tested in `test_nlp_extraction.py`, which ev
 - Extraction performance depends on the quality of input text
 - spaCy model size affects extraction quality (larger models = better extraction)
 - Future improvements will focus on enhancing extraction accuracy
+
+## Project Roadmap
+
+The project is following a phased development approach:
+
+### 1. Diagnostic Analysis Phase
+- Identify core issues with memory retrieval (high recall but poor precision)
+- Analyze performance differences between personal vs. factual queries
+- Conduct targeted analysis tests with separate test sets
+- Analyze embedding space to understand retrieval failures
+- Examine similarity distributions and threshold optimization
+
+### 2. Retrieval Strategy Overhaul
+- Implement query type detection and specialized retrieval pipelines
+- Enhance base similarity computation with hybrid approaches
+- Apply advanced semantic matching for factual queries
+
+### 3. Memory Organization Enhancement
+- Refine category formation algorithms
+- Implement memory metadata enrichment
+- Apply hierarchical memory organization
+
+### 4. Confidence and Relevance Calculation Improvements
+- Develop calibrated confidence scoring
+- Implement relevance diversity optimization
+- Apply adaptive result count based on query type
+
+### 5. Integration and Context Management
+- Enhance context window management
+- Develop entity and reference tracking
+- Apply temporal coherence enhancement
+
+### 6. Evaluation and Optimization Framework
+- Create comprehensive evaluation suite
+- Build parameter optimization system
+- Establish continuous improvement pipeline
+
+### 7. Integration with LLM Frameworks
+- Enhance prompt construction
+- Implement bidirectional memory-LLM communication
+- Develop framework-specific optimizations
+
+## Current Focus: Diagnostic Analysis Phase
+
+We are currently focused on the Diagnostic Analysis Phase to identify and address core issues with memory retrieval performance.

@@ -188,3 +188,25 @@ To focus on more recent and contextually relevant memories:
 - Temporal relationships and episodic anchoring
 - Self-organizing memory categories
 - Balance between precision and recall through adaptive strategies
+
+## Diagnostic Analysis
+The Diagnostic Analysis Phase has identified several key issues with memory retrieval:
+
+1. **Query Type Differences**: Personal queries and factual queries require different retrieval strategies and thresholds
+   - Personal queries benefit from higher thresholds (0.4-0.6) for better precision
+   - Factual queries need lower thresholds (0.2-0.3) for better recall
+
+2. **Embedding Quality**: The quality of embeddings affects retrieval performance
+   - Related memories should have high intra-set similarity (>0.6)
+   - Unrelated memories should have low inter-set similarity (<0.3)
+   - Current embedding models may not provide sufficient separation
+
+3. **Threshold Optimization**: Different thresholds are optimal for different query types
+   - Using a single threshold for all queries leads to poor overall performance
+   - Dynamic threshold adjustment based on query type can significantly improve F1 scores
+
+4. **Retrieval Pipeline**: A two-stage retrieval pipeline can improve performance
+   - First stage: Retrieve a larger candidate set with lower threshold
+   - Second stage: Re-rank and filter candidates based on relevance and coherence
+
+These findings inform the next phase of development: Retrieval Strategy Overhaul.
