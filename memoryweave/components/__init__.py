@@ -5,6 +5,7 @@ This module provides modular components for memory retrieval, query analysis,
 and post-processing that can be combined into flexible retrieval pipelines.
 """
 
+from memoryweave.components import Retriever
 from memoryweave.components.base import (
     Component,
     MemoryComponent,
@@ -25,7 +26,6 @@ from memoryweave.components.retrieval_strategies import (
     SimilarityRetrievalStrategy,
     TemporalRetrievalStrategy,
 )
-from memoryweave.components.retriever import Retriever
 
 __all__ = [
     # Base classes
