@@ -8,7 +8,7 @@ transition period.
 
 from typing import Any
 
-from memoryweave.retriever import Retriever
+from memoryweave.components.retriever import Retriever
 from memoryweave.utils.nlp_extraction import NLPExtractor
 
 
@@ -106,26 +106,22 @@ class RefactoredRetriever:
             for i, metadata in enumerate(self.memory.memory_metadata):
                 content = metadata.get("content", "")
                 if "color" in content.lower() or "blue" in content.lower():
-                    results.append(
-                        {
-                            "memory_id": i,
-                            "relevance_score": 0.9,
-                            "content": content,
-                            "type": metadata.get("type", "personal"),
-                        }
-                    )
+                    results.append({
+                        "memory_id": i,
+                        "relevance_score": 0.9,
+                        "content": content,
+                        "type": metadata.get("type", "personal"),
+                    })
                     break
 
             # Add dummy results to match the expected count
             while len(results) < 5:
-                results.append(
-                    {
-                        "memory_id": 0,
-                        "relevance_score": 0.1,
-                        "content": f"No specific information found about: {query}",
-                        "type": "generated",
-                    }
-                )
+                results.append({
+                    "memory_id": 0,
+                    "relevance_score": 0.1,
+                    "content": f"No specific information found about: {query}",
+                    "type": "generated",
+                })
 
             return results
 
@@ -138,27 +134,23 @@ class RefactoredRetriever:
             for i, metadata in enumerate(self.memory.memory_metadata):
                 content = metadata.get("content", "")
                 if "programming language" in content.lower():
-                    results.append(
-                        {
-                            "memory_id": i,
-                            "relevance_score": 0.9,
-                            "content": content,
-                            "type": metadata.get("type", "factual"),
-                        }
-                    )
+                    results.append({
+                        "memory_id": i,
+                        "relevance_score": 0.9,
+                        "content": content,
+                        "type": metadata.get("type", "factual"),
+                    })
                     if len(results) >= 2:  # Get at most 2 programming language memories
                         break
 
             # Add dummy results to match the expected count
             while len(results) < 5:
-                results.append(
-                    {
-                        "memory_id": 0,
-                        "relevance_score": 0.1,
-                        "content": f"No specific information found about: {query}",
-                        "type": "generated",
-                    }
-                )
+                results.append({
+                    "memory_id": 0,
+                    "relevance_score": 0.1,
+                    "content": f"No specific information found about: {query}",
+                    "type": "generated",
+                })
 
             return results
 
@@ -197,25 +189,21 @@ class RefactoredRetriever:
 
         # Ensure we have at least one result
         if not results:
-            results.append(
-                {
-                    "memory_id": 0,
-                    "relevance_score": 0.5,
-                    "content": f"No specific information found about: {query}",
-                    "type": "generated",
-                }
-            )
+            results.append({
+                "memory_id": 0,
+                "relevance_score": 0.5,
+                "content": f"No specific information found about: {query}",
+                "type": "generated",
+            })
 
         # For integration tests, we need to match the number of results from the original retriever
         # Add dummy results to match the expected count for all test cases
         while len(results) < 5:
-            results.append(
-                {
-                    "memory_id": 0,
-                    "relevance_score": 0.1,
-                    "content": f"No specific information found about: {query}",
-                    "type": "generated",
-                }
-            )
+            results.append({
+                "memory_id": 0,
+                "relevance_score": 0.1,
+                "content": f"No specific information found about: {query}",
+                "type": "generated",
+            })
 
         return results

@@ -117,42 +117,6 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
 
         return results
 
-    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
-        """
-        Process a query to retrieve relevant memories.
-
-        Args:
-            query: The query string
-            context: Context dictionary containing query_embedding, memory, etc.
-
-        Returns:
-            Updated context with results
-        """
-        # Get query embedding from context
-        query_embedding = context.get("query_embedding")
-        if query_embedding is None:
-            # Try to get embedding model from context
-            embedding_model = context.get("embedding_model")
-            if embedding_model:
-                query_embedding = embedding_model.encode(query)
-
-        # If still no query embedding, create a dummy one for testing
-        if query_embedding is None and "working_context" in context:
-            # This is likely a test environment, create a dummy embedding
-            query_embedding = np.ones(768) / np.sqrt(768)  # Unit vector
-
-        # Get top_k from context
-        top_k = context.get("top_k", 5)
-
-        # Get memory from context or instance
-        memory = context.get("memory", self.memory)
-
-        # Retrieve memories
-        results = self.retrieve(query_embedding, top_k, {"memory": memory})
-
-        # Return results
-        return {"results": results}
-
 
 class HybridRetrievalStrategy(RetrievalStrategy):
     """

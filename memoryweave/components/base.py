@@ -40,6 +40,35 @@ class RetrievalStrategy(RetrievalComponent):
         """Retrieve memories based on query embedding."""
         pass
 
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
+        """
+        Process a query to retrieve relevant memories.
+
+        This adapter method converts the query to embedding and calls retrieve.
+
+        Args:
+            query: The query string
+            context: Context dictionary containing query_embedding, memory, etc.
+
+        Returns:
+            Updated context with results
+        """
+        query_embedding = context.get("query_embedding")
+        top_k = context.get("top_k", 5)
+
+        # If no query embedding is provided, return empty results
+        if query_embedding is None:
+            return {"results": []}
+
+        # Use memory from context or instance
+        memory = context.get("memory", getattr(self, "memory", None))
+
+        # Retrieve memories
+        results = self.retrieve(query_embedding, top_k, {"memory": memory})
+
+        # Return results
+        return {"results": results}
+
 
 class PostProcessor(RetrievalComponent):
     """Base class for post-processing retrieved memories."""
@@ -50,3 +79,22 @@ class PostProcessor(RetrievalComponent):
     ) -> list[dict[str, Any]]:
         """Process retrieved results."""
         pass
+
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
+        """
+        Process a query by applying post-processing to results.
+
+        Args:
+            query: The query string
+            context: Context dictionary containing results, etc.
+
+        Returns:
+            Updated context with processed results
+        """
+        results = context.get("results", [])
+
+        # Process results
+        processed_results = self.process_results(results, query, context)
+
+        # Update context with processed results
+        return {"results": processed_results}

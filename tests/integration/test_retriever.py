@@ -6,6 +6,7 @@ import unittest
 
 from memoryweave.core.refactored_retrieval import RefactoredRetriever
 from memoryweave.core.retrieval import ContextualRetriever
+
 from tests.utils.mock_models import MockEmbeddingModel, MockMemory
 
 
