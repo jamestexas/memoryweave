@@ -28,6 +28,9 @@ class ContextualRetriever:
         semantic_coherence_check: bool = False,
         adaptive_retrieval: bool = False,
         adaptive_k_factor: float = 0.3,  # Added parameter to control adaptive K threshold
+        use_two_stage_retrieval: bool = False,  # New parameter for two-stage retrieval
+        first_stage_k: int = 20,  # Number of candidates to retrieve in first stage
+        query_type_adaptation: bool = False,  # New parameter for query type adaptation
     ):
         """
         Initialize the contextual retriever.
@@ -42,6 +45,10 @@ class ContextualRetriever:
             confidence_threshold: Minimum similarity score for retrieved memories
             semantic_coherence_check: Whether to check for semantic coherence among retrieved memories
             adaptive_retrieval: Whether to adaptively determine number of results to return
+            adaptive_k_factor: Controls conservativeness of adaptive retrieval
+            use_two_stage_retrieval: Whether to use two-stage retrieval pipeline
+            first_stage_k: Number of candidates to retrieve in first stage
+            query_type_adaptation: Whether to adapt retrieval based on query type
         """
         self.memory = memory
         self.embedding_model = embedding_model
@@ -53,6 +60,11 @@ class ContextualRetriever:
         self.semantic_coherence_check = semantic_coherence_check
         self.adaptive_retrieval = adaptive_retrieval
         self.adaptive_k_factor = adaptive_k_factor  # Controls conservativeness of adaptive retrieval
+        
+        # New parameters for enhanced retrieval
+        self.use_two_stage_retrieval = use_two_stage_retrieval
+        self.first_stage_k = first_stage_k
+        self.query_type_adaptation = query_type_adaptation
 
         # Conversation context tracking
         self.conversation_state = {
@@ -71,53 +83,34 @@ class ContextualRetriever:
         
         # Pre-compile regex patterns for performance
         self._compile_regex_patterns()
+        
+        # Patterns for detecting factual queries
+        self.factual_query_patterns = [
+            re.compile(r"what is|who is|where is|when is|why is|how is", re.IGNORECASE),
+            re.compile(r"what are|who are|where are|when are|why are|how are", re.IGNORECASE),
+            re.compile(r"tell me about|explain|describe", re.IGNORECASE),
+            re.compile(r"capital of|author of|wrote|invented|discovered", re.IGNORECASE),
+        ]
 
-    def _compile_regex_patterns(self):
-        """Pre-compile regex patterns for faster extraction."""
-        # Preference patterns
-        self.favorite_patterns = [
-            re.compile(r"(?:my|I) (?:favorite|preferred) (color|food|drink|movie|book|music|song|artist|sport|game|place) (?:is|are) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
-            re.compile(r"(?:I|my) (?:like|love|prefer|enjoy) ([a-z0-9\s]+) (?:for|as) (?:my) (color|food|drink|movie|book|music|activity)"),
-            re.compile(r"(?:I|my) (?:like|love|prefer|enjoy) (?:the color|eating|drinking|watching|reading|listening to) ([a-z0-9\s]+)")
-        ]
+    def _is_factual_query(self, query: str) -> bool:
+        """
+        Determine if a query is factual/general knowledge rather than personal.
         
-        self.color_patterns = [
-            re.compile(r"(?:my|I) (?:favorite) color is ([a-z\s]+)(?:\.|\,|\!|\?|$)"),
-            re.compile(r"(?:I|my) (?:like|love|prefer|enjoy) the color ([a-z\s]+)")
-        ]
+        Args:
+            query: The query text
+            
+        Returns:
+            True if the query appears to be factual, False otherwise
+        """
+        # Check if query matches factual patterns
+        for pattern in self.factual_query_patterns:
+            if pattern.search(query):
+                # Check if it's not a personal query (doesn't contain "my", "I", etc.)
+                personal_indicators = ["my", " i ", "i'm", "i've", "i'll", "i'd", "me", "mine"]
+                if not any(indicator in query.lower() for indicator in personal_indicators):
+                    return True
         
-        # Location patterns
-        self.location_patterns = [
-            re.compile(r"(?:I|my) (?:live|stay|reside) in ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
-            re.compile(r"(?:I|my) (?:from|grew up in|was born in) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
-            re.compile(r"(?:I|my) (?:city|town|state|country) (?:is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
-        ]
-        
-        # Occupation patterns
-        self.occupation_patterns = [
-            re.compile(r"(?:I|my) (?:work as|am) (?:a|an) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
-            re.compile(r"(?:I|my) (?:job|profession|occupation) (?:is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
-        ]
-        
-        # Hobby patterns
-        self.hobby_patterns = [
-            re.compile(r"(?:I|my) (?:like to|love to|enjoy) ([a-z\s]+) (?:on|in|during) (?:my|the) ([a-z\s]+)(?:\.|\,|\!|\?|$)"),
-            re.compile(r"(?:I|my) (?:hobby|hobbies|pastime|activity) (?:is|are|include) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
-        ]
-        
-        # Family relationship patterns
-        self.family_patterns = [
-            re.compile(r"(?:my) (wife|husband|spouse|partner|girlfriend|boyfriend) (?:is|name is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
-            re.compile(r"(?:my) (son|daughter|child|children|mother|father|brother|sister|sibling) (?:is|are|name is|names are) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
-        ]
-        
-        # Reference patterns for keyword extraction
-        self.reference_patterns = [
-            re.compile(r"what (?:was|is|were) (?:my|your|the) ([a-z\s]+)(?:\?|\.|$)"),
-            re.compile(r"(?:did|do) (?:I|you) (?:mention|say|tell|share) (?:about|that) ([a-z\s]+)(?:\?|\.|$)"),
-            re.compile(r"(?:remind|tell) me (?:about|what) ([a-z\s]+)(?:\?|\.|$)"),
-            re.compile(r"(?:what|which) ([a-z\s]+) (?:did|do) I (?:like|prefer|mention|say)(?:\?|\.|$)")
-        ]
+        return False
 
     def retrieve_for_context(
         self,
@@ -162,14 +155,99 @@ class ContextualRetriever:
         # If no confidence threshold is provided, use the default
         if confidence_threshold is None:
             confidence_threshold = self.confidence_threshold
+            
+        # If query type adaptation is enabled, adjust confidence threshold for factual queries
+        if self.query_type_adaptation and self._is_factual_query(current_input):
+            # Use a lower threshold for factual queries to improve recall
+            adjusted_threshold = max(0.1, confidence_threshold * 0.6)
+            # Also use a less conservative adaptive_k_factor for factual queries
+            adjusted_adaptive_k_factor = max(0.05, self.adaptive_k_factor * 0.5)
+        else:
+            adjusted_threshold = confidence_threshold
+            adjusted_adaptive_k_factor = self.adaptive_k_factor
 
-        # Retrieve memories using the specified strategy
-        if self.retrieval_strategy == "similarity":
-            memories = self._retrieve_by_similarity(query_embedding, top_k, important_keywords, confidence_threshold)
-        elif self.retrieval_strategy == "temporal":
-            memories = self._retrieve_by_recency(top_k)
-        else:  # hybrid approach
-            memories = self._retrieve_hybrid(query_embedding, top_k, important_keywords, confidence_threshold)
+        # Use two-stage retrieval if enabled
+        if self.use_two_stage_retrieval:
+            # First stage: Retrieve a larger set of candidates with lower threshold
+            first_stage_threshold = max(0.1, adjusted_threshold * 0.7)  # Lower threshold for first stage
+            
+            if self.retrieval_strategy == "similarity":
+                candidates = self._retrieve_by_similarity(
+                    query_embedding, 
+                    self.first_stage_k, 
+                    important_keywords, 
+                    first_stage_threshold
+                )
+            elif self.retrieval_strategy == "temporal":
+                candidates = self._retrieve_by_recency(self.first_stage_k)
+            else:  # hybrid approach
+                candidates = self._retrieve_hybrid(
+                    query_embedding, 
+                    self.first_stage_k, 
+                    important_keywords, 
+                    first_stage_threshold
+                )
+                
+            # Second stage: Re-rank candidates
+            # Sort by relevance score (already includes keyword boosting)
+            candidates.sort(key=lambda x: x["relevance_score"], reverse=True)
+            
+            # Apply semantic coherence check if enabled
+            if self.semantic_coherence_check and len(candidates) > 1:
+                # Convert to proper format for memory's _apply_coherence_check
+                candidate_tuples = [(c["memory_id"], c["relevance_score"], {k: v for k, v in c.items() 
+                                   if k not in ["memory_id", "relevance_score"]}) 
+                                  for c in candidates]
+                
+                coherent_tuples = self.memory._apply_coherence_check(candidate_tuples, query_embedding)
+                
+                # Convert back to our format
+                coherent_candidates = []
+                for memory_id, score, metadata in coherent_tuples:
+                    coherent_candidates.append({
+                        "memory_id": memory_id,
+                        "relevance_score": score,
+                        **metadata
+                    })
+                
+                candidates = coherent_candidates
+            
+            # Apply adaptive k selection if enabled
+            if self.adaptive_retrieval and len(candidates) > 1:
+                # Use the adjusted adaptive_k_factor
+                scores = np.array([c["relevance_score"] for c in candidates])
+                diffs = np.diff(scores)
+                
+                # Find significant drops
+                significance_threshold = adjusted_adaptive_k_factor * scores[0]
+                significant_drops = np.where((-diffs) > significance_threshold)[0]
+                
+                if len(significant_drops) > 0:
+                    # Use the first significant drop as the cut point
+                    cut_idx = significant_drops[0] + 1
+                    candidates = candidates[:cut_idx]
+            
+            # Take top_k from the re-ranked candidates
+            memories = candidates[:top_k]
+        else:
+            # Use the original retrieval methods with adjusted threshold
+            if self.retrieval_strategy == "similarity":
+                memories = self._retrieve_by_similarity(
+                    query_embedding, 
+                    top_k, 
+                    important_keywords, 
+                    adjusted_threshold
+                )
+            elif self.retrieval_strategy == "temporal":
+                memories = self._retrieve_by_recency(top_k)
+            else:  # hybrid approach
+                memories = self._retrieve_hybrid(
+                    query_embedding, 
+                    top_k, 
+                    important_keywords, 
+                    adjusted_threshold,
+                    adaptive_k_factor=adjusted_adaptive_k_factor
+                )
             
         # Enhance results with personal attributes relevant to the query
         enhanced_memories = self._enhance_with_personal_attributes(memories, current_input)
@@ -353,7 +431,7 @@ class ContextualRetriever:
                 important_words.update(match.split())
         
         # Add specific preference and personal attribute keywords
-        preference_terms = ["favorite", "prefer", "like", "love", "hate", "dislike"]
+        preference_terms = ["favorite", "like", "prefer", "love", "favorite color", "favorite food"]
         personal_terms = ["color", "food", "movie", "book", "hobby", "activity", 
                           "live", "work", "job", "occupation", "weekend"]
         
@@ -535,11 +613,16 @@ class ContextualRetriever:
         query_embedding: np.ndarray, 
         top_k: int, 
         important_keywords: Set[str] = None,
-        confidence_threshold: float = 0.0
+        confidence_threshold: float = 0.0,
+        adaptive_k_factor: float = None
     ) -> list[dict]:
         """
         Hybrid retrieval combining similarity, recency, and keyword matching.
         """
+        # Use the provided adaptive_k_factor or fall back to the instance variable
+        if adaptive_k_factor is None:
+            adaptive_k_factor = self.adaptive_k_factor
+            
         # Get similarity scores
         similarities = np.dot(self.memory.memory_embeddings, query_embedding)
 
@@ -632,7 +715,7 @@ class ContextualRetriever:
                 # Find significant drops
                 # Using adaptive_k_factor to control how conservative the algorithm is
                 # Lower values = less conservative (returns more results)
-                significance_threshold = self.adaptive_k_factor * scores[0]
+                significance_threshold = adaptive_k_factor * scores[0]
                 significant_drops = np.where((-diffs) > significance_threshold)[0]
                 
                 if len(significant_drops) > 0:
@@ -670,3 +753,50 @@ class ContextualRetriever:
         results.sort(key=lambda x: x["relevance_score"], reverse=True)
         
         return results[:top_k]
+
+    def _compile_regex_patterns(self):
+        """Pre-compile regex patterns for faster extraction."""
+        # Preference patterns
+        self.favorite_patterns = [
+            re.compile(r"(?:my|I) (?:favorite|preferred) (color|food|drink|movie|book|music|song|artist|sport|game|place) (?:is|are) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:like|love|prefer|enjoy) ([a-z0-9\s]+) (?:for|as) (?:my) (color|food|drink|movie|book|music|activity)"),
+            re.compile(r"(?:I|my) (?:like|love|prefer|enjoy) (?:the color|eating|drinking|watching|reading|listening to) ([a-z0-9\s]+)")
+        ]
+        
+        self.color_patterns = [
+            re.compile(r"(?:my|I) (?:favorite) color is ([a-z\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:like|love|prefer|enjoy) the color ([a-z\s]+)")
+        ]
+        
+        # Location patterns
+        self.location_patterns = [
+            re.compile(r"(?:I|my) (?:live|stay|reside) in ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:from|grew up in|was born in) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:city|town|state|country) (?:is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
+        ]
+        
+        # Occupation patterns
+        self.occupation_patterns = [
+            re.compile(r"(?:I|my) (?:work as|am) (?:a|an) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:job|profession|occupation) (?:is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
+        ]
+        
+        # Hobby patterns
+        self.hobby_patterns = [
+            re.compile(r"(?:I|my) (?:like to|love to|enjoy) ([a-z\s]+) (?:on|in|during) (?:my|the) ([a-z\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:I|my) (?:hobby|hobbies|pastime|activity) (?:is|are|include) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
+        ]
+        
+        # Family relationship patterns
+        self.family_patterns = [
+            re.compile(r"(?:my) (wife|husband|spouse|partner|girlfriend|boyfriend) (?:is|name is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+            re.compile(r"(?:my) (son|daughter|child|children|mother|father|brother|sister|sibling) (?:is|are|name is|names are) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)")
+        ]
+        
+        # Reference patterns for keyword extraction
+        self.reference_patterns = [
+            re.compile(r"what (?:was|is|were) (?:my|your|the) ([a-z\s]+)(?:\?|\.|$)"),
+            re.compile(r"(?:did|do) (?:I|you) (?:mention|say|tell|share) (?:about|that) ([a-z\s]+)(?:\?|\.|$)"),
+            re.compile(r"(?:remind|tell) me (?:about|what) ([a-z\s]+)(?:\?|\.|$)"),
+            re.compile(r"(?:what|which) ([a-z\s]+) (?:did|do) I (?:like|prefer|mention|say)(?:\?|\.|$)")
+        ]

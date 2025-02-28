@@ -47,7 +47,13 @@ explicit = true
 
 
 [dependency-groups]
-dev = ["mypy>=1.15.0", "pytest>=8.3.4", "pytest-cov>=6.0.0", "ruff>=0.9.7"]
+dev = [
+    "datasets>=3.3.2",
+    "mypy>=1.15.0",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.9.7",
+]
 
 [build-system]
 requires = ["hatchling"]

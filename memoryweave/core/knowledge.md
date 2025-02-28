@@ -108,9 +108,33 @@ memories = memory.retrieve_memories(
 )
 ```
 
+## Advanced Retrieval Strategies
+The system supports several advanced retrieval strategies to balance precision and recall:
+
+- **Two-Stage Retrieval**: First retrieves a larger candidate set with lower threshold, then re-ranks
+- **Query Type Adaptation**: Adjusts retrieval parameters based on query type (factual vs. personal)
+- **Minimum Memory Guarantees**: Ensures a minimum number of memories are returned even with strict filtering
+
+To enable advanced retrieval:
+```python
+retriever = ContextualRetriever(
+    memory=memory,
+    embedding_model=embedding_model,
+    retrieval_strategy="hybrid",
+    confidence_threshold=0.3,
+    semantic_coherence_check=True,
+    adaptive_retrieval=True,
+    adaptive_k_factor=0.15,  # Lower = more results (less conservative)
+    use_two_stage_retrieval=True,  # Enable two-stage retrieval
+    first_stage_k=20,  # Number of candidates in first stage
+    query_type_adaptation=True  # Adapt to query type
+)
+```
+
 ## Design Principles
 - Biologically-inspired memory management
 - Rich contextual signatures rather than isolated facts
 - Dynamic activation patterns for memory retrieval
 - Temporal relationships and episodic anchoring
 - Self-organizing memory categories
+- Balance between precision and recall through adaptive strategies

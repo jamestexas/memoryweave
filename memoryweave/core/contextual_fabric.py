@@ -445,6 +445,19 @@ class ContextualMemory:
         # Filter the retrieved memories
         coherent_memories = [m for i, m in enumerate(retrieved_memories) if coherent_mask[i]]
         
+        # If we filtered out too many memories, add back some of the highest scoring ones
+        # to ensure we don't lose too much recall
+        if len(coherent_memories) < min(3, len(retrieved_memories) // 2):
+            # Sort remaining memories by score
+            remaining = [(i, m) for i, m in enumerate(retrieved_memories) if not coherent_mask[i]]
+            remaining.sort(key=lambda x: x[1][1], reverse=True)  # Sort by similarity score
+            
+            # Add back top memories until we have at least 3 or half of original
+            while (len(coherent_memories) < min(3, len(retrieved_memories) // 2) and 
+                   remaining):
+                _, memory = remaining.pop(0)
+                coherent_memories.append(memory)
+        
         return coherent_memories
         
     def _adaptive_k_selection(
@@ -479,7 +492,8 @@ class ContextualMemory:
         largest_drop_idx = np.argmin(diffs)
         
         # Only use the cut point if there's a significant drop (>10% of the max score)
-        if -diffs[largest_drop_idx] > 0.1 * sorted_scores[0]:
+        # and we're not cutting off too many memories
+        if -diffs[largest_drop_idx] > 0.1 * sorted_scores[0] and largest_drop_idx + 1 >= min(3, len(retrieved_memories) // 2):
             # Keep memories up to the largest drop
             selected_indices = sorted_indices[:largest_drop_idx + 1]
             return [retrieved_memories[idx] for idx in selected_indices]
