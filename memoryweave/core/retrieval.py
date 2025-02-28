@@ -8,6 +8,7 @@ import numpy as np
 import re
 
 from memoryweave.core.contextual_fabric import ContextualMemory
+from memoryweave.utils.nlp_extraction import NLPExtractor
 
 
 class ContextualRetriever:
@@ -38,6 +39,7 @@ class ContextualRetriever:
         memory_decay_enabled: bool = False,  # Whether to apply memory decay
         memory_decay_rate: float = 0.99,  # Rate at which memory activations decay
         memory_decay_interval: int = 10,  # Apply decay every N interactions
+        nlp_model_name: str = "en_core_web_sm",  # spaCy model name for NLP extraction
     ):
         """
         Initialize the contextual retriever.
@@ -85,6 +87,9 @@ class ContextualRetriever:
         self.memory_decay_rate = memory_decay_rate
         self.memory_decay_interval = memory_decay_interval
         self.interaction_count = 0
+        
+        # Initialize NLP extractor for enhanced extraction
+        self.nlp_extractor = NLPExtractor(model_name=nlp_model_name)
         
         # Conversation context tracking
         self.conversation_state = {
@@ -240,29 +245,40 @@ class ContextualRetriever:
         query_embedding = self.embedding_model.encode(query_context)
 
         # Extract important keywords for direct reference matching
-        important_keywords = self._extract_important_keywords(current_input)
+        important_keywords = self.nlp_extractor.extract_important_keywords(current_input)
         
         # Extract and update personal attributes if present in the input or response
         if conversation_history:
             for turn in conversation_history[-3:]:  # Look at recent turns
                 message = turn.get("message", "")
                 response = turn.get("response", "")
-                self._extract_personal_attributes(message)
-                self._extract_personal_attributes(response)
+                extracted_attributes = self.nlp_extractor.extract_personal_attributes(message)
+                self._update_personal_attributes(extracted_attributes)
+                
+                extracted_attributes = self.nlp_extractor.extract_personal_attributes(response)
+                self._update_personal_attributes(extracted_attributes)
         
         # Also check current input for personal attributes
-        self._extract_personal_attributes(current_input)
+        extracted_attributes = self.nlp_extractor.extract_personal_attributes(current_input)
+        self._update_personal_attributes(extracted_attributes)
 
         # If no confidence threshold is provided, use the default
         if confidence_threshold is None:
             confidence_threshold = self.confidence_threshold
             
         # If query type adaptation is enabled, adjust confidence threshold for factual queries
-        if self.query_type_adaptation and self._is_factual_query(current_input):
-            # Use a lower threshold for factual queries to improve recall
-            adjusted_threshold = max(0.1, confidence_threshold * 0.6)
-            # Also use a less conservative adaptive_k_factor for factual queries
-            adjusted_adaptive_k_factor = max(0.05, self.adaptive_k_factor * 0.5)
+        if self.query_type_adaptation:
+            query_types = self.nlp_extractor.identify_query_type(current_input)
+            primary_type = max(query_types.items(), key=lambda x: x[1])[0]
+            
+            if primary_type == "factual":
+                # Use a lower threshold for factual queries to improve recall
+                adjusted_threshold = max(0.1, confidence_threshold * 0.6)
+                # Also use a less conservative adaptive_k_factor for factual queries
+                adjusted_adaptive_k_factor = max(0.05, self.adaptive_k_factor * 0.5)
+            else:
+                adjusted_threshold = confidence_threshold
+                adjusted_adaptive_k_factor = self.adaptive_k_factor
         else:
             adjusted_threshold = confidence_threshold
             adjusted_adaptive_k_factor = self.adaptive_k_factor
@@ -382,6 +398,32 @@ class ContextualRetriever:
                 if "user" in exchange.get("speaker", "").lower():
                     words = exchange.get("message", "").split()
                     self.conversation_state["user_interests"].update(words[:3])
+
+    def _update_personal_attributes(self, extracted_attributes: Dict[str, Any]) -> None:
+        """
+        Update personal attributes with newly extracted attributes.
+        
+        Args:
+            extracted_attributes: Dictionary of extracted attributes
+        """
+        for category, items in extracted_attributes.items():
+            if not items:
+                continue
+                
+            if category not in self.personal_attributes:
+                self.personal_attributes[category] = {}
+                
+            if isinstance(items, dict):
+                for key, value in items.items():
+                    self.personal_attributes[category][key] = value
+            elif isinstance(items, list):
+                if not isinstance(self.personal_attributes[category], list):
+                    self.personal_attributes[category] = []
+                for item in items:
+                    if item not in self.personal_attributes[category]:
+                        self.personal_attributes[category].append(item)
+            else:
+                self.personal_attributes[category] = items
 
     def _extract_personal_attributes(self, text: str) -> None:
         """
@@ -611,6 +653,9 @@ class ContextualRetriever:
         
         # Check for relevant personal attributes based on query keywords
         relevant_attributes = {}
+        
+        # Extract keywords from query using NLP
+        important_keywords = self.nlp_extractor.extract_important_keywords(query)
         
         # Check for preference-related queries
         preference_keywords = ["favorite", "like", "prefer", "love", "favorite color", "favorite food"]
