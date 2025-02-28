@@ -70,6 +70,9 @@ class MemoryBenchmark:
 
         # Results
         self.results = defaultdict(list)
+        
+        # Error analysis tracking
+        self.query_details = defaultdict(list)
 
     def load_test_data(
         self,
@@ -216,6 +219,7 @@ class MemoryBenchmark:
         adaptive_retrieval: bool = False,
         enable_category_consolidation: bool = False,
         retrieval_strategy: str = "hybrid",
+        adaptive_k_factor: float = 0.3,  # Added parameter to control adaptive K conservativeness
     ):
         """
         Benchmark a specific configuration of the memory system.
@@ -228,6 +232,7 @@ class MemoryBenchmark:
             adaptive_retrieval: Whether to adaptively select k
             enable_category_consolidation: Whether to enable category consolidation
             retrieval_strategy: Retrieval strategy to use
+            adaptive_k_factor: Factor to control how conservative adaptive K selection is (lower = more results)
         """
         print(f"\nBenchmarking configuration: {config_name}")
 
@@ -250,6 +255,7 @@ class MemoryBenchmark:
             confidence_threshold=confidence_threshold,
             semantic_coherence_check=semantic_coherence_check,
             adaptive_retrieval=adaptive_retrieval,
+            adaptive_k_factor=adaptive_k_factor,  # Pass the adaptive k factor to the retriever
         )
 
         # Populate memory
@@ -270,7 +276,9 @@ class MemoryBenchmark:
         retrieval_start_time = time.time()
         precision_at_k = []
         recall_at_k = []
+        f1_at_k = []  # Added F1 score tracking
         retrieval_times = []
+        query_results = []  # Track detailed results for each query
 
         for query_idx, (query_text, _query_category) in enumerate(self.test_queries):
             # Time retrieval
@@ -305,15 +313,41 @@ class MemoryBenchmark:
                 )
             else:
                 recall = 1.0  # No relevant items, so perfect recall
+                
+            # Calculate F1 score
+            if precision + recall > 0:
+                f1 = 2 * (precision * recall) / (precision + recall)
+            else:
+                f1 = 0.0
 
             precision_at_k.append(precision)
             recall_at_k.append(recall)
+            f1_at_k.append(f1)  # Store F1 score
+
+            # Detailed tracking for error analysis
+            correct_retrieved = [idx for idx in retrieved_indices if idx in relevant_indices]
+            missed_relevant = [idx for idx in relevant_indices if idx not in retrieved_indices]
+            false_positives = [idx for idx in retrieved_indices if idx not in relevant_indices]
+            
+            query_details = {
+                "query": query_text,
+                "precision": precision,
+                "recall": recall,
+                "f1": f1,
+                "retrieved_count": len(retrieved_indices),
+                "relevant_count": len(relevant_indices),
+                "correct_retrieved": correct_retrieved,
+                "missed_relevant": missed_relevant,
+                "false_positives": false_positives,
+                "retrieval_time": query_time
+            }
+            query_results.append(query_details)
 
             # Print some results
             if query_idx < 3:  # Only print the first few queries to avoid clutter
                 print(f"\nQuery: {query_text}")
                 print(f"Retrieved {len(retrieved)} memories in {query_time:.3f} seconds")
-                print(f"Precision: {precision:.2f}, Recall: {recall:.2f}")
+                print(f"Precision: {precision:.2f}, Recall: {recall:.2f}, F1: {f1:.2f}")
 
                 # Print top 3 retrieved memories
                 for i, mem in enumerate(retrieved[:3]):
@@ -328,16 +362,31 @@ class MemoryBenchmark:
         # Calculate average metrics
         avg_precision = np.mean(precision_at_k)
         avg_recall = np.mean(recall_at_k)
+        avg_f1 = np.mean(f1_at_k)  # Calculate average F1
         avg_retrieval_time = np.mean(retrieval_times)
 
         print(f"Average precision: {avg_precision:.3f}")
         print(f"Average recall: {avg_recall:.3f}")
+        print(f"Average F1 score: {avg_f1:.3f}")
         print(f"Average retrieval time: {avg_retrieval_time:.3f} seconds per query")
+
+        # Find problematic queries (low F1 score)
+        if len(query_results) > 0:
+            print("\nTop 3 Problematic Queries:")
+            sorted_queries = sorted(query_results, key=lambda x: x["f1"])
+            for idx, q in enumerate(sorted_queries[:3]):
+                print(f"  {idx+1}. Query: \"{q['query']}\"")
+                print(f"     Precision: {q['precision']:.2f}, Recall: {q['recall']:.2f}, F1: {q['f1']:.2f}")
+                print(f"     Retrieved: {q['retrieved_count']}, Relevant: {q['relevant_count']}")
+                if q['missed_relevant']:
+                    missed_texts = [self.memory_data[idx][0][:40] + "..." for idx in q['missed_relevant'][:2]]
+                    print(f"     Missed relevant items: {len(q['missed_relevant'])}, e.g.: {', '.join(missed_texts)}")
 
         # Store results
         self.results["configuration"].append(config_name)
         self.results["avg_precision"].append(avg_precision)
         self.results["avg_recall"].append(avg_recall)
+        self.results["avg_f1"].append(avg_f1)  # Store average F1
         self.results["avg_retrieval_time"].append(avg_retrieval_time)
         self.results["memory_time"].append(memory_time)
         self.results["use_art_clustering"].append(use_art_clustering)
@@ -346,6 +395,10 @@ class MemoryBenchmark:
         self.results["adaptive_retrieval"].append(adaptive_retrieval)
         self.results["enable_category_consolidation"].append(enable_category_consolidation)
         self.results["retrieval_strategy"].append(retrieval_strategy)
+        self.results["adaptive_k_factor"].append(adaptive_k_factor if adaptive_retrieval else None)
+        
+        # Store detailed query results for later analysis
+        self.query_details[config_name] = query_results
 
     def generate_report(self, output_file=None):
         """
@@ -364,17 +417,41 @@ class MemoryBenchmark:
         # Print summary table
         print("\n=== Benchmark Results ===")
 
-        # Sort by precision
-        sorted_df = results_df.sort_values("avg_precision", ascending=False)
+        # Sort by F1 score (combining precision and recall)
+        sorted_df = results_df.sort_values("avg_f1", ascending=False)
         print(
             sorted_df[
-                ["configuration", "avg_precision", "avg_recall", "avg_retrieval_time"]
+                ["configuration", "avg_precision", "avg_recall", "avg_f1", "avg_retrieval_time"]
             ].to_string(index=False)
         )
 
-        # Create precision vs. recall plot
-        plt.figure(figsize=(10, 6))
-        plt.scatter(results_df["avg_recall"], results_df["avg_precision"], s=100, alpha=0.7)
+        # Create precision vs. recall plot with F1 contours
+        plt.figure(figsize=(12, 8))
+        
+        # Create F1 score contours
+        x = np.linspace(0.01, 1, 100)
+        y = np.linspace(0.01, 1, 100)
+        X, Y = np.meshgrid(x, y)
+        Z = 2 * X * Y / (X + Y)
+        
+        # Plot F1 contours
+        CS = plt.contour(X, Y, Z, levels=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 
+                         alpha=0.3, linestyles='dashed', colors='gray')
+        plt.clabel(CS, inline=True, fontsize=9)
+        
+        # Plot data points
+        scatter = plt.scatter(
+            results_df["avg_recall"], 
+            results_df["avg_precision"], 
+            s=150, 
+            alpha=0.8,
+            c=results_df["avg_f1"],  # Color by F1 score
+            cmap='viridis'
+        )
+        
+        # Add a colorbar
+        cbar = plt.colorbar(scatter)
+        cbar.set_label('F1 Score')
 
         # Add labels to each point
         for i, config in enumerate(results_df["configuration"]):
@@ -383,6 +460,7 @@ class MemoryBenchmark:
                 (results_df["avg_recall"][i], results_df["avg_precision"][i]),
                 xytext=(7, 0),
                 textcoords="offset points",
+                fontsize=9
             )
 
         plt.xlabel("Average Recall")
@@ -440,8 +518,76 @@ class MemoryBenchmark:
             output_path = "output/benchmark_retrieval_time.png"
             plt.savefig(output_path)
             print(f"Saved retrieval time plot to {output_path}")
+            
+        # Generate a detailed error analysis report for problematic queries
+        self._generate_error_analysis(output_file)
 
         return results_df
+        
+    def _generate_error_analysis(self, output_file=None):
+        """Generate detailed error analysis for problematic queries."""
+        if not self.query_details:
+            return
+            
+        f1_by_query = defaultdict(dict)
+        missing_by_query = defaultdict(dict)
+        
+        # Collect F1 scores and missing items by query across configurations
+        for config_name, query_results in self.query_details.items():
+            for query_result in query_results:
+                query = query_result["query"]
+                f1_by_query[query][config_name] = query_result["f1"]
+                missing_by_query[query][config_name] = len(query_result["missed_relevant"])
+        
+        # Find the most problematic queries across all configurations
+        avg_f1_by_query = {query: np.mean(list(configs.values())) for query, configs in f1_by_query.items()}
+        problematic_queries = sorted(avg_f1_by_query.items(), key=lambda x: x[1])[:10]
+        
+        # Create error analysis report
+        plt.figure(figsize=(14, 8))
+        
+        # Plot F1 scores for problematic queries across configurations
+        query_names = [q[0][:30] + "..." if len(q[0]) > 30 else q[0] for q in problematic_queries]
+        config_names = list(self.results["configuration"])
+        
+        # Create data for heatmap
+        heatmap_data = np.zeros((len(query_names), len(config_names)))
+        for i, (query, _) in enumerate(problematic_queries):
+            for j, config in enumerate(config_names):
+                heatmap_data[i, j] = f1_by_query[query].get(config, 0)
+        
+        # Plot heatmap
+        plt.imshow(heatmap_data, cmap='YlGnBu', aspect='auto')
+        plt.colorbar(label='F1 Score')
+        
+        # Add labels
+        plt.xticks(np.arange(len(config_names)), config_names, rotation=45, ha="right")
+        plt.yticks(np.arange(len(query_names)), query_names)
+        
+        plt.title("F1 Scores for Problematic Queries Across Configurations")
+        plt.tight_layout()
+        
+        # Save or show the plot
+        if output_file:
+            output_path = f"output/{output_file}_error_analysis.png"
+            plt.savefig(output_path)
+            print(f"Saved error analysis to {output_path}")
+            
+            # Save detailed error data
+            error_data = {
+                "problematic_queries": {q: {"avg_f1": f} for q, f in problematic_queries},
+                "f1_by_config": f1_by_query,
+                "missing_items_by_config": missing_by_query
+            }
+            
+            json_path = f"output/{output_file}_error_analysis.json"
+            with open(json_path, 'w') as f:
+                json.dump(error_data, f, indent=2)
+            print(f"Saved detailed error analysis to {json_path}")
+        else:
+            output_path = "output/benchmark_error_analysis.png"
+            plt.savefig(output_path)
+            print(f"Saved error analysis to {output_path}")
 
 
 def run_benchmark():
@@ -484,15 +630,40 @@ def run_benchmark():
         retrieval_strategy="hybrid",
     )
 
-    # Test adaptive retrieval
+    # Test adaptive retrieval with less conservative setting
     benchmark.benchmark_configuration(
-        config_name="Adaptive Retrieval",
+        config_name="Adaptive Retrieval (Conservative)",
         use_art_clustering=False,
         confidence_threshold=0.3,
         semantic_coherence_check=False,
         adaptive_retrieval=True,
         enable_category_consolidation=False,
         retrieval_strategy="hybrid",
+        adaptive_k_factor=0.3,  # Original, more conservative setting
+    )
+    
+    # Test adaptive retrieval with less aggressive filtering
+    benchmark.benchmark_configuration(
+        config_name="Adaptive Retrieval (Balanced)",
+        use_art_clustering=False,
+        confidence_threshold=0.3,
+        semantic_coherence_check=False,
+        adaptive_retrieval=True,
+        enable_category_consolidation=False,
+        retrieval_strategy="hybrid",
+        adaptive_k_factor=0.15,  # Less conservative setting
+    )
+    
+    # Test adaptive retrieval with more aggressive filtering
+    benchmark.benchmark_configuration(
+        config_name="Adaptive Retrieval (Liberal)",
+        use_art_clustering=False,
+        confidence_threshold=0.3,
+        semantic_coherence_check=False,
+        adaptive_retrieval=True,
+        enable_category_consolidation=False,
+        retrieval_strategy="hybrid",
+        adaptive_k_factor=0.05,  # Least conservative setting
     )
 
     # Test ART clustering
@@ -517,15 +688,40 @@ def run_benchmark():
         retrieval_strategy="hybrid",
     )
 
-    # Test full featured configuration
+    # Test original full featured configuration
     benchmark.benchmark_configuration(
-        config_name="Full Features",
+        config_name="Full Features (Conservative)",
         use_art_clustering=True,
         confidence_threshold=0.3,
         semantic_coherence_check=True,
         adaptive_retrieval=True,
         enable_category_consolidation=True,
         retrieval_strategy="hybrid",
+        adaptive_k_factor=0.3,  # Original conservative setting
+    )
+    
+    # Test full featured with balanced settings
+    benchmark.benchmark_configuration(
+        config_name="Full Features (Balanced)",
+        use_art_clustering=True,
+        confidence_threshold=0.2,  # Lower threshold
+        semantic_coherence_check=True,
+        adaptive_retrieval=True,
+        enable_category_consolidation=True,
+        retrieval_strategy="hybrid",
+        adaptive_k_factor=0.15,  # More balanced setting
+    )
+    
+    # Test full featured with more recall-oriented settings
+    benchmark.benchmark_configuration(
+        config_name="Full Features (Recall-Focused)",
+        use_art_clustering=True,
+        confidence_threshold=0.15,  # Lower threshold
+        semantic_coherence_check=True,
+        adaptive_retrieval=True,
+        enable_category_consolidation=True,
+        retrieval_strategy="hybrid",
+        adaptive_k_factor=0.05,  # Setting for more recall
     )
 
     # Generate report

@@ -27,6 +27,7 @@ class ContextualRetriever:
         confidence_threshold: float = 0.3,
         semantic_coherence_check: bool = False,
         adaptive_retrieval: bool = False,
+        adaptive_k_factor: float = 0.3,  # Added parameter to control adaptive K threshold
     ):
         """
         Initialize the contextual retriever.
@@ -51,6 +52,7 @@ class ContextualRetriever:
         self.confidence_threshold = confidence_threshold
         self.semantic_coherence_check = semantic_coherence_check
         self.adaptive_retrieval = adaptive_retrieval
+        self.adaptive_k_factor = adaptive_k_factor  # Controls conservativeness of adaptive retrieval
 
         # Conversation context tracking
         self.conversation_state = {
@@ -398,7 +400,7 @@ class ContextualRetriever:
         # Calculate boost factor (more matches = higher boost)
         if matches > 0:
             # Exponential boost for multiple keyword matches
-            boost = 1.0 + min(2.0, 0.5 * matches)
+            boost = 1.0 + min(2.5, 0.7 * matches)  # More aggressive boosting
             return boost
             
         return 1.0
@@ -623,14 +625,20 @@ class ContextualRetriever:
             
             # Apply adaptive k selection if enabled
             if self.adaptive_retrieval and len(candidates) > 1:
-                # Find the largest drop in relevance scores
+                # Modified adaptive k selection algorithm - less conservative
                 scores = np.array([c["relevance_score"] for c in candidates])
                 diffs = np.diff(scores)
-                largest_drop_idx = np.argmin(diffs)
                 
-                # Only use the cut point if there's a significant drop
-                if -diffs[largest_drop_idx] > 0.1 * scores[0]:
-                    candidates = candidates[:largest_drop_idx + 1]
+                # Find significant drops
+                # Using adaptive_k_factor to control how conservative the algorithm is
+                # Lower values = less conservative (returns more results)
+                significance_threshold = self.adaptive_k_factor * scores[0]
+                significant_drops = np.where((-diffs) > significance_threshold)[0]
+                
+                if len(significant_drops) > 0:
+                    # Use the first significant drop as the cut point
+                    cut_idx = significant_drops[0] + 1
+                    candidates = candidates[:cut_idx]
             
             return candidates[:top_k]
 
