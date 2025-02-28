@@ -369,7 +369,7 @@ class ContextualRetriever:
         self,
         query_embedding: np.ndarray,
         query_type: str,
-        important_keywords: set[str],
+        important_keywords: set,
         top_k: int,
         params: dict[str, Any],
     ) -> list[dict]:
@@ -460,7 +460,7 @@ class ContextualRetriever:
         self,
         query_embedding: np.ndarray,
         query_type: str,
-        important_keywords: set[str],
+        important_keywords: set,
         top_k: int,
         params: dict[str, Any],
     ) -> list[dict]:
@@ -778,7 +778,7 @@ class ContextualRetriever:
     def _update_conversation_state(
         self,
         current_input: str,
-        conversation_history: list[dict[str, Any]] | None = None,
+        conversation_history: Optional[list[dict]] = None,
     ) -> None:
         """
         Update internal conversation state tracking.
