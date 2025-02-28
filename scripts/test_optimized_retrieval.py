@@ -6,6 +6,7 @@ high F1 scores even with large memory sizes.
 """
 
 import os
+import sys
 import json
 import time
 import numpy as np
@@ -17,6 +18,9 @@ import warnings
 import gc
 from typing import List, Dict, Any, Set, Optional
 
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 # Set tokenizers parallelism to avoid warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -25,6 +29,9 @@ from memoryweave.utils.nlp_extraction import NLPExtractor
 
 # Create output directory
 os.makedirs("test_output/optimized", exist_ok=True)
+
+# Global spaCy model for reuse
+global_nlp = None
 
 # Helper class for sentence embedding
 class EmbeddingModelWrapper:
@@ -77,13 +84,16 @@ class OptimizedContextualRetriever(ContextualRetriever):
         self.cluster_centers = None
         self.memory_to_cluster = {}
         
-        # Load spaCy only once
-        self.nlp = None
-        if self.use_prefiltering and self.prefilter_method == "keyword":
+        # Use global spaCy model if available
+        global global_nlp
+        self.nlp = global_nlp
+        if self.use_prefiltering and self.prefilter_method == "keyword" and self.nlp is None:
             try:
                 import spacy
-                self.nlp = spacy.load("en_core_web_sm")
-                print("Loaded spaCy model for keyword extraction")
+                if global_nlp is None:
+                    print("Loading spaCy model for keyword extraction (first time)")
+                    global_nlp = spacy.load("en_core_web_sm")
+                self.nlp = global_nlp
             except:
                 print("Could not load spaCy model, falling back to basic keyword extraction")
     
@@ -659,12 +669,21 @@ def test_retrieval_performance(retriever, queries):
         "retrieval_times": retrieval_times
     }
 
-def compare_retrieval_methods(embedding_model, memory_sizes=[100, 200, 500]):
+def compare_retrieval_methods(embedding_model, memory_sizes=[100, 200, 500, 1000, 5000]):
     """Compare original and optimized retrieval methods."""
     categories = ["personal", "factual", "technical"]
     results = {}
     
     print(f"Comparing retrieval methods with memory sizes: {memory_sizes}")
+    
+    # Initialize spaCy once for all tests
+    try:
+        import spacy
+        global global_nlp
+        print("Loading spaCy model once for all tests")
+        global_nlp = spacy.load("en_core_web_sm")
+    except:
+        print("Could not load spaCy model, will use fallback methods")
     
     for size in memory_sizes:
         print(f"\nTesting with {size} memories...")
@@ -827,7 +846,7 @@ def main():
     # Get memory sizes from command line or use defaults
     import argparse
     parser = argparse.ArgumentParser(description='Test optimized retrieval performance.')
-    parser.add_argument('--sizes', type=int, nargs='+', default=[100, 200, 500],
+    parser.add_argument('--sizes', type=int, nargs='+', default=[100, 200, 500, 1000, 5000],
                         help='Memory sizes to test')
     args = parser.parse_args()
     

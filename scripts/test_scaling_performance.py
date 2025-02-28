@@ -6,6 +6,7 @@ memories increases, measuring precision, recall, F1 scores, and latency.
 """
 
 import os
+import sys
 import json
 import time
 import numpy as np
@@ -13,6 +14,10 @@ import matplotlib.pyplot as plt
 import torch
 from transformers import AutoTokenizer, AutoModel
 from tqdm import tqdm
+import gc
+
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from memoryweave.core import ContextualMemory, ContextualRetriever, MemoryEncoder
 from memoryweave.utils.nlp_extraction import NLPExtractor
@@ -20,13 +25,21 @@ from memoryweave.utils.nlp_extraction import NLPExtractor
 # Create output directory
 os.makedirs("test_output/scaling", exist_ok=True)
 
+# Global spaCy model for reuse
+global_nlp = None
+
 # Helper class for sentence embedding
 class EmbeddingModelWrapper:
     def __init__(self, model, tokenizer):
         self.model = model
         self.tokenizer = tokenizer
+        self.cache = {}  # Simple cache for embeddings
         
     def encode(self, text):
+        # Check cache first
+        if text in self.cache:
+            return self.cache[text]
+            
         inputs = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
         with torch.no_grad():
             outputs = self.model(**inputs)
@@ -40,7 +53,10 @@ class EmbeddingModelWrapper:
         counts = torch.clamp(mask.sum(1), min=1e-9)
         mean_pooled = summed / counts
         
-        return mean_pooled.numpy()[0]
+        # Cache the result
+        embedding = mean_pooled.numpy()[0]
+        self.cache[text] = embedding
+        return embedding
 
 def generate_synthetic_memories(count, categories):
     """Generate synthetic memories for testing."""
@@ -262,6 +278,15 @@ def test_scaling_performance(embedding_model, memory_sizes=[100, 500, 1000, 2000
     
     print(f"Testing scaling performance with memory sizes: {memory_sizes}")
     
+    # Initialize spaCy once for all tests
+    try:
+        import spacy
+        global global_nlp
+        print("Loading spaCy model once for all tests")
+        global_nlp = spacy.load("en_core_web_sm")
+    except:
+        print("Could not load spaCy model, will use fallback methods")
+    
     for size in memory_sizes:
         print(f"\nTesting with {size} memories...")
         
@@ -277,8 +302,9 @@ def test_scaling_performance(embedding_model, memory_sizes=[100, 500, 1000, 2000
         # Populate memory
         populate_memory(memory, encoder, memory_data)
         
-        # Initialize retriever with combined approach
-        retriever = ContextualRetriever(
+        # Test with standard retriever
+        print("Testing standard retrieval performance...")
+        standard_retriever = ContextualRetriever(
             memory=memory,
             embedding_model=embedding_model,
             use_two_stage_retrieval=True,
@@ -290,24 +316,44 @@ def test_scaling_performance(embedding_model, memory_sizes=[100, 500, 1000, 2000
             adaptive_k_factor=0.15
         )
         
-        # Test retrieval performance
-        print("Testing retrieval performance...")
-        performance = test_retrieval_performance(retriever, queries)
+        standard_performance = test_retrieval_performance(standard_retriever, queries)
+        
+        # Test with optimized retriever
+        print("Testing optimized retrieval performance...")
+        # Import the optimized retriever from test_optimized_retrieval
+        from scripts.test_optimized_retrieval import OptimizedContextualRetriever
+        
+        optimized_retriever = OptimizedContextualRetriever(
+            memory=memory,
+            embedding_model=embedding_model,
+            use_two_stage_retrieval=True,
+            query_type_adaptation=True,
+            semantic_coherence_check=True,
+            adaptive_retrieval=True,
+            personal_query_threshold=0.5,
+            factual_query_threshold=0.2,
+            adaptive_k_factor=0.15,
+            use_clustering=True,
+            cluster_count=min(50, size // 20),
+            use_prefiltering=True,
+            prefilter_method="keyword"
+        )
+        
+        optimized_performance = test_retrieval_performance(optimized_retriever, queries)
         
         results[size] = {
-            "precision": performance["precision"],
-            "recall": performance["recall"],
-            "f1": performance["f1"],
-            "avg_retrieval_time": performance["avg_retrieval_time"],
+            "standard": standard_performance,
+            "optimized": optimized_performance,
             "memory_size": size,
             "query_count": len(queries)
         }
         
         print(f"Results for {size} memories:")
-        print(f"  Precision: {performance['precision']:.3f}")
-        print(f"  Recall: {performance['recall']:.3f}")
-        print(f"  F1: {performance['f1']:.3f}")
-        print(f"  Avg retrieval time: {performance['avg_retrieval_time']:.3f} seconds")
+        print(f"  Standard:  Precision={standard_performance['precision']:.3f}, Recall={standard_performance['recall']:.3f}, F1={standard_performance['f1']:.3f}, Time={standard_performance['avg_retrieval_time']:.3f}s")
+        print(f"  Optimized: Precision={optimized_performance['precision']:.3f}, Recall={optimized_performance['recall']:.3f}, F1={optimized_performance['f1']:.3f}, Time={optimized_performance['avg_retrieval_time']:.3f}s")
+        
+        # Clear memory to avoid OOM
+        gc.collect()
     
     # Save results
     with open("test_output/scaling/scaling_results.json", "w") as f:
@@ -317,52 +363,54 @@ def test_scaling_performance(embedding_model, memory_sizes=[100, 500, 1000, 2000
 
 def plot_scaling_results(results):
     """Plot the scaling results."""
-    sizes = []
-    precision_values = []
-    recall_values = []
-    f1_values = []
-    times = []
+    sizes = sorted([int(size) for size in results.keys()])
     
-    for size, metrics in results.items():
-        sizes.append(int(size))
-        precision_values.append(metrics["precision"])
-        recall_values.append(metrics["recall"])
-        f1_values.append(metrics["f1"])
-        times.append(metrics["avg_retrieval_time"])
+    # Create figure
+    plt.figure(figsize=(15, 12))
     
-    # Sort by size
-    sorted_indices = np.argsort(sizes)
-    sizes = [sizes[i] for i in sorted_indices]
-    precision_values = [precision_values[i] for i in sorted_indices]
-    recall_values = [recall_values[i] for i in sorted_indices]
-    f1_values = [f1_values[i] for i in sorted_indices]
-    times = [times[i] for i in sorted_indices]
-    
-    # Create plots
-    plt.figure(figsize=(12, 10))
-    
-    # Plot precision, recall, F1
-    plt.subplot(2, 1, 1)
-    plt.plot(sizes, precision_values, 'o-', label='Precision')
-    plt.plot(sizes, recall_values, 's-', label='Recall')
-    plt.plot(sizes, f1_values, '^-', label='F1')
+    # Plot F1 scores
+    plt.subplot(2, 2, 1)
+    plt.plot(sizes, [results[size]["standard"]["f1"] for size in sizes], 'b-o', label="Standard")
+    plt.plot(sizes, [results[size]["optimized"]["f1"] for size in sizes], 'r-o', label="Optimized")
     plt.xlabel('Memory Size')
-    plt.ylabel('Score')
-    plt.title('Retrieval Performance vs. Memory Size')
+    plt.ylabel('F1 Score')
+    plt.title('F1 Score vs. Memory Size')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    
+    # Plot precision
+    plt.subplot(2, 2, 2)
+    plt.plot(sizes, [results[size]["standard"]["precision"] for size in sizes], 'b-o', label="Standard")
+    plt.plot(sizes, [results[size]["optimized"]["precision"] for size in sizes], 'r-o', label="Optimized")
+    plt.xlabel('Memory Size')
+    plt.ylabel('Precision')
+    plt.title('Precision vs. Memory Size')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    
+    # Plot recall
+    plt.subplot(2, 2, 3)
+    plt.plot(sizes, [results[size]["standard"]["recall"] for size in sizes], 'b-o', label="Standard")
+    plt.plot(sizes, [results[size]["optimized"]["recall"] for size in sizes], 'r-o', label="Optimized")
+    plt.xlabel('Memory Size')
+    plt.ylabel('Recall')
+    plt.title('Recall vs. Memory Size')
     plt.grid(True, alpha=0.3)
     plt.legend()
     
     # Plot retrieval time
-    plt.subplot(2, 1, 2)
-    plt.plot(sizes, times, 'o-')
+    plt.subplot(2, 2, 4)
+    plt.plot(sizes, [results[size]["standard"]["avg_retrieval_time"] for size in sizes], 'b-o', label="Standard")
+    plt.plot(sizes, [results[size]["optimized"]["avg_retrieval_time"] for size in sizes], 'r-o', label="Optimized")
     plt.xlabel('Memory Size')
     plt.ylabel('Average Retrieval Time (seconds)')
     plt.title('Retrieval Time vs. Memory Size')
     plt.grid(True, alpha=0.3)
+    plt.legend()
     
     plt.tight_layout()
     plt.savefig("test_output/scaling/scaling_results.png")
-    plt.show()
+    plt.close()  # Close the figure to free memory
 
 def main():
     """Run the scaling performance test."""

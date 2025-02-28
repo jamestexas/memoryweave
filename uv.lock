@@ -485,6 +485,22 @@ http = [
 ]
 
 [[package]]
+name = "hdbscan"
+version = "0.8.40"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "joblib" },
+    { name = "numpy" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c1/84/6b010387b795f774e1ec695df3c8660c15abd041783647d5e7e4076bfc6b/hdbscan-0.8.40.tar.gz", hash = "sha256:c9e383ff17beee0591075ff65d524bda5b5a35dfb01d218245a7ba30c8d48a17", size = 6904096 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/ff/4739886abb990dc6feb7b02eafb38a7eaf090fffef6336e70a03d693f433/hdbscan-0.8.40-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:353eaa22e42bee69df095744dbb8b29360e516bd9dcb84580dceeeb755f004cc", size = 1497291 },
+    { url = "https://files.pythonhosted.org/packages/c0/cb/6b4254f8a33e075118512e55acf3485c155ea52c6c35d69a985bdc59297c/hdbscan-0.8.40-cp312-cp312-win_amd64.whl", hash = "sha256:1b55a935ed7b329adac52072e1c4028979dfc54312ca08de2deece9c97d6ebb1", size = 726198 },
+]
+
+[[package]]
 name = "huggingface-hub"
 version = "0.29.1"
 source = { registry = "https://pypi.org/simple" }
@@ -753,6 +769,7 @@ dependencies = [
     { name = "accelerate" },
     { name = "blis" },
     { name = "faiss-cpu" },
+    { name = "hdbscan" },
     { name = "huggingface-hub" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -765,6 +782,7 @@ dependencies = [
     { name = "spacy" },
     { name = "thinc" },
     { name = "torch" },
+    { name = "tqdm" },
     { name = "transformers" },
 ]
 
@@ -783,6 +801,7 @@ requires-dist = [
     { name = "accelerate", specifier = ">=1.4.0" },
     { name = "blis", specifier = ">=1.2.0" },
     { name = "faiss-cpu", specifier = ">=1.10.0" },
+    { name = "hdbscan", specifier = ">=0.8.40" },
     { name = "huggingface-hub", specifier = ">=0.29.1" },
     { name = "matplotlib", specifier = ">=3.10.1" },
     { name = "numpy", specifier = ">=2.2.3" },
@@ -795,6 +814,7 @@ requires-dist = [
     { name = "spacy", specifier = ">=3.7.0" },
     { name = "thinc", specifier = ">=8.3.4" },
     { name = "torch", specifier = ">=2.6.0" },
+    { name = "tqdm", specifier = ">=4.67.1" },
     { name = "transformers", specifier = ">=4.49.0" },
 ]
 

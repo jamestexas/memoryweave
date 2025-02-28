@@ -12,6 +12,7 @@ dependencies = [
     "accelerate>=1.4.0",
     "blis>=1.2.0",
     "faiss-cpu>=1.10.0",
+    "hdbscan>=0.8.40",
     "huggingface-hub>=0.29.1",
     "matplotlib>=3.10.1",
     "numpy>=2.2.3",
@@ -24,6 +25,7 @@ dependencies = [
     "spacy>=3.7.0",
     "thinc>=8.3.4",
     "torch>=2.6.0",
+    "tqdm>=4.67.1",
     "transformers>=4.49.0",
 ]
 [project.scripts]
