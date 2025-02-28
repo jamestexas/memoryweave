@@ -1,0 +1,302 @@
+[
+    {
+        "query": "What's my name?",
+        "expected_answer": "Your name is Alex.",
+        "category": "personal"
+    },
+    {
+        "query": "Where do I live?",
+        "expected_answer": "You live in Austin, Texas.",
+        "category": "personal"
+    },
+    {
+        "query": "What’s my favorite food?",
+        "expected_answer": "Your favorite food is sushi.",
+        "category": "personal"
+    },
+    {
+        "query": "What's my dog's name and how old is he?",
+        "expected_answer": "Your dog's name is Buddy and he is 5 years old.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my favorite color?",
+        "expected_answer": "Your favorite color is blue.",
+        "category": "personal"
+    },
+    {
+        "query": "When is my birthday?",
+        "expected_answer": "Your birthday is on January 15.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my occupation?",
+        "expected_answer": "You are a Software Engineer.",
+        "category": "personal"
+    },
+    {
+        "query": "What car do I drive?",
+        "expected_answer": "You drive a Tesla Model 3.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my favorite hobby?",
+        "expected_answer": "Your favorite hobby is cycling.",
+        "category": "personal"
+    },
+    {
+        "query": "Who is my best friend?",
+        "expected_answer": "Your best friend is Sam.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my favorite movie?",
+        "expected_answer": "Your favorite movie is Inception.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my favorite book?",
+        "expected_answer": "Your favorite book is 1984.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my preferred programming language?",
+        "expected_answer": "Your preferred programming language is Python.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my favorite sport?",
+        "expected_answer": "Your favorite sport is basketball.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my dream travel destination?",
+        "expected_answer": "Your dream travel destination is Japan.",
+        "category": "personal"
+    },
+    {
+        "query": "What genre of music do I like?",
+        "expected_answer": "You enjoy rock music.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my favorite season?",
+        "expected_answer": "Your favorite season is autumn.",
+        "category": "personal"
+    },
+    {
+        "query": "What degree do I hold?",
+        "expected_answer": "You have a Bachelor's degree.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my favorite beverage?",
+        "expected_answer": "Your favorite beverage is coffee.",
+        "category": "personal"
+    },
+    {
+        "query": "What is my middle name?",
+        "expected_answer": "Your middle name is Michael.",
+        "category": "personal"
+    },
+    {
+        "query": "What is the capital of France?",
+        "expected_answer": "The capital of France is Paris.",
+        "category": "general"
+    },
+    {
+        "query": "Explain quantum computing.",
+        "expected_answer": "Quantum computing harnesses principles of quantum mechanics to process information at speeds far beyond traditional computers.",
+        "category": "general"
+    },
+    {
+        "query": "What are the main features of Python programming?",
+        "expected_answer": "Python is known for its simplicity, readability, dynamic typing, and extensive standard libraries.",
+        "category": "general"
+    },
+    {
+        "query": "How does photosynthesis work?",
+        "expected_answer": "Photosynthesis converts light energy into chemical energy in plants, producing oxygen and glucose.",
+        "category": "general"
+    },
+    {
+        "query": "What is the tallest mountain in the world?",
+        "expected_answer": "Mount Everest is the tallest mountain in the world.",
+        "category": "general"
+    },
+    {
+        "query": "Who wrote 'Hamlet'?",
+        "expected_answer": "William Shakespeare wrote 'Hamlet'.",
+        "category": "general"
+    },
+    {
+        "query": "What is the process of mitosis?",
+        "expected_answer": "Mitosis is the process of cell division that produces two genetically identical daughter cells.",
+        "category": "general"
+    },
+    {
+        "query": "How do airplanes stay in the air?",
+        "expected_answer": "Airplanes stay aloft by generating lift through their wing design and airfoil shape.",
+        "category": "general"
+    },
+    {
+        "query": "What causes the phases of the moon?",
+        "expected_answer": "The moon's phases are caused by its orbit around Earth and the resulting changes in the illuminated portion visible from our perspective.",
+        "category": "general"
+    },
+    {
+        "query": "Why do we have seasons?",
+        "expected_answer": "Seasons result from the tilt of Earth's axis and its orbit around the sun, which affect the intensity of sunlight.",
+        "category": "general"
+    },
+    {
+        "query": "What is the significance of the theory of relativity?",
+        "expected_answer": "Einstein's theory of relativity revolutionized our understanding of space, time, and gravity, altering modern physics.",
+        "category": "general"
+    },
+    {
+        "query": "What are the benefits of exercise?",
+        "expected_answer": "Exercise improves cardiovascular health, builds strength, enhances mood, and reduces the risk of chronic diseases.",
+        "category": "general"
+    },
+    {
+        "query": "What is blockchain technology?",
+        "expected_answer": "Blockchain is a decentralized ledger technology that provides secure and transparent record-keeping.",
+        "category": "general"
+    },
+    {
+        "query": "How does the human immune system work?",
+        "expected_answer": "The immune system defends the body by detecting, neutralizing, and eliminating pathogens like viruses and bacteria.",
+        "category": "general"
+    },
+    {
+        "query": "What is climate change?",
+        "expected_answer": "Climate change refers to long-term shifts in temperatures and weather patterns, primarily due to human activities.",
+        "category": "general"
+    },
+    {
+        "query": "What are renewable energy sources?",
+        "expected_answer": "Renewable energy sources include solar, wind, hydro, geothermal, and biomass, offering sustainable alternatives to fossil fuels.",
+        "category": "general"
+    },
+    {
+        "query": "What is the internet of things (IoT)?",
+        "expected_answer": "The IoT is a network of interconnected devices that communicate and exchange data over the internet.",
+        "category": "general"
+    },
+    {
+        "query": "What is artificial intelligence?",
+        "expected_answer": "Artificial intelligence involves machines simulating human intelligence processes like learning, reasoning, and problem-solving.",
+        "category": "general"
+    },
+    {
+        "query": "What is the significance of the Mona Lisa?",
+        "expected_answer": "The Mona Lisa is celebrated for its enigmatic expression and masterful technique, making it a Renaissance art masterpiece.",
+        "category": "general"
+    },
+    {
+        "query": "How do vaccines work?",
+        "expected_answer": "Vaccines stimulate the immune system to recognize and combat pathogens, building immunity without causing disease.",
+        "category": "general"
+    },
+    {
+        "query": "What is the Turing Test and why is it important in AI?",
+        "expected_answer": "The Turing Test evaluates a machine's ability to exhibit human-like intelligence and has been pivotal in AI research.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "Who was the first emperor of Rome?",
+        "expected_answer": "Augustus was the first emperor of Rome.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "Explain the significance of the Battle of Hastings.",
+        "expected_answer": "The Battle of Hastings in 1066 led to the Norman conquest of England, fundamentally transforming its culture and governance.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "What are the core principles of Agile methodology in software development?",
+        "expected_answer": "Agile emphasizes iterative development, collaboration, customer feedback, and adaptability to change.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "How did the Renaissance influence modern art?",
+        "expected_answer": "The Renaissance introduced techniques like perspective and realism, profoundly influencing the development of modern art.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "What is the significance of the double helix structure in DNA?",
+        "expected_answer": "The discovery of DNA's double helix structure revealed the molecular basis of heredity and revolutionized genetics.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "Describe the impact of the Industrial Revolution on society.",
+        "expected_answer": "The Industrial Revolution transformed economies through mechanization, leading to urbanization, social changes, and technological innovations.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "What is the role of blockchain in modern finance?",
+        "expected_answer": "Blockchain technology enhances finance by providing secure, decentralized, and transparent transaction records.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "Who composed the Four Seasons?",
+        "expected_answer": "Antonio Vivaldi composed 'The Four Seasons.'",
+        "category": "domain-specific"
+    },
+    {
+        "query": "What are the main differences between classical and operant conditioning?",
+        "expected_answer": "Classical conditioning pairs a neutral stimulus with a response, while operant conditioning uses rewards and punishments to shape behavior.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "How has social media influenced modern communication?",
+        "expected_answer": "Social media has transformed communication by enabling instant global connectivity and widespread sharing of user-generated content.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "What are the challenges of cybersecurity in the digital age?",
+        "expected_answer": "Cybersecurity challenges include data breaches, phishing attacks, and safeguarding privacy in an increasingly interconnected world.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "Explain the significance of quantum entanglement.",
+        "expected_answer": "Quantum entanglement describes how particles remain connected so that the state of one instantly influences another, regardless of distance.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "How do supply chains work in global trade?",
+        "expected_answer": "Supply chains manage the production, shipment, and distribution of goods from manufacturers to consumers on a global scale.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "What is the importance of cultural heritage preservation?",
+        "expected_answer": "Cultural heritage preservation protects artifacts, traditions, and monuments, ensuring that historical identity is maintained for future generations.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "What role did the Silk Road play in historical trade?",
+        "expected_answer": "The Silk Road was a network of trade routes that facilitated economic prosperity and cultural exchange between East and West.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "How does machine learning differ from traditional programming?",
+        "expected_answer": "Unlike traditional programming which follows explicit instructions, machine learning systems learn patterns from data to make predictions.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "What is the impact of 5G technology on communication?",
+        "expected_answer": "5G technology offers faster data speeds, lower latency, and supports a greater number of connected devices, revolutionizing communication.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "How did the Cold War influence global politics?",
+        "expected_answer": "The Cold War led to an ideological divide, arms races, and proxy conflicts that significantly shaped global political dynamics.",
+        "category": "domain-specific"
+    },
+    {
+        "query": "What are the ethical considerations in genetic engineering?",
+        "expected_answer": "Ethical considerations in genetic engineering include potential risks, issues of consent, and the long-term impacts on biodiversity and society.",
+        "category": "domain-specific"
+    }
+]
