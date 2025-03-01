@@ -1,12 +1,11 @@
 """
-Core components of the MemoryWeave memory management system.
+Core module for MemoryWeave.
 
-This module contains the fundamental building blocks of the contextual fabric
-approach to memory management, including memory encoding, storage, and retrieval.
+This module contains the core functionality for the MemoryWeave memory management system.
 """
 
 from memoryweave.core.contextual_fabric import ContextualMemory
 from memoryweave.core.memory_encoding import MemoryEncoder
-from memoryweave.core.retrieval import ContextualRetriever
+from memoryweave.core.retrieval import ContextualRetriever  # This now imports from deprecated
 
 __all__ = ["ContextualMemory", "MemoryEncoder", "ContextualRetriever"]
