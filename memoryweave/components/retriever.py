@@ -12,9 +12,11 @@ import numpy as np
 from memoryweave.components.dynamic_threshold_adjuster import DynamicThresholdAdjuster
 from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.memory_manager import MemoryManager
+from memoryweave.components.personal_attributes import PersonalAttributeManager
 from memoryweave.components.post_processors import (
     AdaptiveKProcessor,
     KeywordBoostProcessor,
+    PersonalAttributeProcessor,
     SemanticCoherenceProcessor,
 )
 from memoryweave.components.query_adapter import QueryTypeAdapter
@@ -53,6 +55,7 @@ class Retriever:
         self.retrieval_strategy = None
         self.post_processors = []
         self.two_stage_strategy = None
+        self.personal_attribute_manager = None
 
         # Default settings
         self.top_k = 5
@@ -82,6 +85,10 @@ class Retriever:
         self.query_analyzer = QueryAnalyzer()
         self.memory_manager.register_component("query_analyzer", self.query_analyzer)
 
+        # Create and initialize personal attribute manager
+        self.personal_attribute_manager = PersonalAttributeManager()
+        self.memory_manager.register_component("personal_attributes", self.personal_attribute_manager)
+
         # Create and initialize query adapter
         self.query_adapter = QueryTypeAdapter()
         self.memory_manager.register_component("query_adapter", self.query_adapter)
@@ -104,6 +111,11 @@ class Retriever:
         coherence_processor = SemanticCoherenceProcessor()
         self.memory_manager.register_component("coherence", coherence_processor)
         self.post_processors.append(coherence_processor)
+
+        # Add personal attribute processor
+        attribute_processor = PersonalAttributeProcessor()
+        self.memory_manager.register_component("attribute_processor", attribute_processor)
+        self.post_processors.append(attribute_processor)
 
         adaptive_k = AdaptiveKProcessor()
         self.memory_manager.register_component("adaptive_k", adaptive_k)
@@ -137,6 +149,7 @@ class Retriever:
         )
         pipeline_steps = [
             dict(component="query_analyzer", config={}),
+            dict(component="personal_attributes", config={}),
             dict(component="query_adapter", config=query_adapter_config),
         ]
 
