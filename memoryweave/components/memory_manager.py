@@ -65,6 +65,10 @@ class MemoryManager:
             results=[],
         )
 
+        # Copy over any existing results from the input context
+        if 'results' in context:
+            pipeline_context['results'] = context['results']
+
         for step in self.pipeline:
             component = step["component"]
             config = step["config"]

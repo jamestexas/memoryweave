@@ -36,13 +36,15 @@ class CoreRetrieverAdapter(RetrievalComponent):
         self.memory = memory
         self.default_top_k = default_top_k
         self.confidence_threshold = confidence_threshold
+        self.activation_boost = True
+        self.use_categories = True
         
     def initialize(self, config: Dict[str, Any]) -> None:
         """Initialize the component with configuration."""
         self.confidence_threshold = config.get('confidence_threshold', self.confidence_threshold)
         self.default_top_k = config.get('top_k', self.default_top_k)
-        self.use_categories = config.get('use_categories', True)
-        self.activation_boost = config.get('activation_boost', True)
+        self.use_categories = config.get('use_categories', self.use_categories)
+        self.activation_boost = config.get('activation_boost', self.activation_boost)
         
     def process_query(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
