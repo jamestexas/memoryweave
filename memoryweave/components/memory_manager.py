@@ -27,7 +27,13 @@ class MemoryManager:
         pipeline_config: list[dict[str, Any]],
     ) -> None:
         """Build a retrieval pipeline from configuration."""
-        parsed_config = PipelineConfig.model_validate(pipeline_config)
+        # Fix for Pydantic validation - convert list to dict with steps field
+        if isinstance(pipeline_config, list):
+            config_dict = {"steps": pipeline_config}
+            parsed_config = PipelineConfig.model_validate(config_dict)
+        else:
+            parsed_config = PipelineConfig.model_validate(pipeline_config)
+
         self.pipeline = []
 
         for step in parsed_config.steps:
