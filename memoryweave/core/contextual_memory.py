@@ -6,19 +6,19 @@ combining the CoreMemory storage, CategoryManager, and MemoryRetriever
 into a cohesive memory system that maintains the original API.
 """
 
-from typing import List, Tuple, Dict, Any, Optional, Literal
+from typing import Literal, Optional
 
 import numpy as np
 
-from memoryweave.core.core_memory import CoreMemory
 from memoryweave.core.category_manager import CategoryManager
+from memoryweave.core.core_memory import CoreMemory
 from memoryweave.core.memory_retriever import MemoryRetriever
 
 
 class ContextualMemory:
     """
     Implements a contextual fabric approach to memory management.
-    
+
     This class combines CoreMemory, CategoryManager, and MemoryRetriever
     to provide a unified interface for memory operations while maintaining
     the original API of the monolithic implementation.
@@ -79,7 +79,7 @@ class ContextualMemory:
             embedding_dim=embedding_dim,
             max_memories=max_memories,
         )
-        
+
         # Initialize the category manager if ART clustering is enabled
         self.category_manager = None
         if use_art_clustering:
@@ -98,7 +98,7 @@ class ContextualMemory:
                 consolidation_frequency=consolidation_frequency,
                 hierarchical_method=hierarchical_method,
             )
-        
+
         # Initialize the memory retriever
         self.memory_retriever = MemoryRetriever(
             core_memory=self.core_memory,
@@ -109,11 +109,11 @@ class ContextualMemory:
             semantic_coherence_check=semantic_coherence_check,
             coherence_threshold=coherence_threshold,
         )
-        
+
         # Store configuration
         self.embedding_dim = embedding_dim
         self.use_art_clustering = use_art_clustering
-        
+
         # Expose key attributes from component classes
         # to maintain the original API
         self._setup_property_proxies()
@@ -127,7 +127,7 @@ class ContextualMemory:
         self.temporal_markers = self.core_memory.temporal_markers
         self.current_time = self.core_memory.current_time
         self.max_memories = self.core_memory.max_memories
-        
+
         # Category manager properties
         if self.category_manager:
             self.category_prototypes = self.category_manager.category_prototypes
@@ -154,15 +154,15 @@ class ContextualMemory:
         """
         # Add memory to core storage
         memory_idx = self.core_memory.add_memory(embedding, text, metadata)
-        
+
         # If using ART clustering, assign to a category
         if self.use_art_clustering and self.category_manager:
             category_idx = self.category_manager.assign_to_category(embedding)
             self.category_manager.add_memory_category_mapping(memory_idx, category_idx)
-        
+
         # Update property proxies
         self._setup_property_proxies()
-        
+
         return memory_idx
 
     def retrieve_memories(
@@ -173,7 +173,7 @@ class ContextualMemory:
         use_categories: bool = None,
         confidence_threshold: float = None,
         max_k_override: bool = False,
-    ) -> List[Tuple[int, float, Dict]]:
+    ) -> list[tuple[int, float, dict]]:
         """
         Retrieve relevant memories based on contextual similarity.
 
@@ -186,21 +186,23 @@ class ContextualMemory:
             max_k_override: Whether to return exactly top_k results
 
         Returns:
-            List of (memory_idx, similarity_score, metadata) tuples
+            list of (memory_idx, similarity_score, metadata) tuples
         """
         # Delegate to the memory retriever
         results = self.memory_retriever.retrieve_memories(
             query_embedding=query_embedding,
             top_k=top_k,
             activation_boost=activation_boost,
-            use_categories=use_categories if use_categories is not None else self.use_art_clustering,
+            use_categories=use_categories
+            if use_categories is not None
+            else self.use_art_clustering,
             confidence_threshold=confidence_threshold,
             max_k_override=max_k_override,
         )
-        
+
         # Update property proxies after retrieval (activation levels may have changed)
         self._setup_property_proxies()
-        
+
         return results
 
     def get_category_statistics(self) -> dict:
@@ -208,17 +210,17 @@ class ContextualMemory:
         Get statistics about the current categories.
 
         Returns:
-            Dictionary with category statistics
+            dictionary with category statistics
         """
         if not self.use_art_clustering or not self.category_manager:
             return {"num_categories": 0}
-            
+
         # Pass necessary data to category manager for statistics
         # This is needed because the category manager doesn't have direct
         # access to activation_levels
         self.category_manager.activation_levels = self.activation_levels
         self.category_manager.memory_embeddings = self.memory_embeddings
-        
+
         return self.category_manager.get_category_statistics()
 
     def category_similarity_matrix(self) -> np.ndarray:
@@ -228,10 +230,16 @@ class ContextualMemory:
         Returns:
             2D numpy array of similarity scores
         """
-        if not self.use_art_clustering or not self.category_manager or len(self.category_manager.category_prototypes) < 2:
+        if (
+            not self.use_art_clustering
+            or not self.category_manager
+            or len(self.category_manager.category_prototypes) < 2
+        ):
             return np.array([])
 
-        return np.dot(self.category_manager.category_prototypes, self.category_manager.category_prototypes.T)
+        return np.dot(
+            self.category_manager.category_prototypes, self.category_manager.category_prototypes.T
+        )
 
     def consolidate_categories_manually(self, threshold: float = None) -> int:
         """
@@ -247,10 +255,10 @@ class ContextualMemory:
             return 0
 
         result = self.category_manager.consolidate_categories_manually(threshold)
-        
+
         # Update property proxies after consolidation
         self._setup_property_proxies()
-        
+
         return result
 
     def _update_activation(self, memory_idx: int) -> None:
@@ -261,6 +269,6 @@ class ContextualMemory:
             memory_idx: Index of the memory to update
         """
         self.core_memory.update_activation(memory_idx)
-        
+
         # Update property proxies
         self._setup_property_proxies()

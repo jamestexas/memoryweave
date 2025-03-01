@@ -118,35 +118,43 @@ class RefactoredRetriever:
             return test_result
 
         # Use the component-based retriever
-        results = self.retriever.retrieve(
-            query=query,
-            top_k=top_k,
-            strategy=self.retrieval_strategy,
-            minimum_relevance=confidence_threshold,
-            conversation_history=conversation_history,
-        )
-
+        try:
+            results = self.retriever.retrieve(
+                query=query,
+                top_k=top_k,
+                strategy=self.retrieval_strategy,
+                minimum_relevance=confidence_threshold,
+                conversation_history=conversation_history,
+            )
+        except Exception as e:
+            # If component-based retriever fails, fall back to direct memory retriever
+            results = []
+            
         # If no results from component-based retriever, fall back to direct memory retriever
         if not results and self.memory and self.embedding_model:
-            query_embedding = self.embedding_model.encode(query)
-            
-            # Use the memory retriever directly
-            memory_results = self.memory_retriever.retrieve_memories(
-                query_embedding=query_embedding,
-                top_k=top_k,
-                confidence_threshold=confidence_threshold or self.confidence_threshold,
-            )
-            
-            # Convert to expected format
-            results = []
-            for idx, score, metadata in memory_results:
-                results.append({
-                    "memory_id": idx,
-                    "relevance_score": score,
-                    "content": metadata.get("text", ""),
-                    "type": metadata.get("type", "generated"),
-                    **{k: v for k, v in metadata.items() if k not in ["text", "type"]}
-                })
+            try:
+                query_embedding = self.embedding_model.encode(query)
+                
+                # Use the memory retriever directly
+                memory_results = self.memory_retriever.retrieve_memories(
+                    query_embedding=query_embedding,
+                    top_k=top_k,
+                    confidence_threshold=confidence_threshold or self.confidence_threshold,
+                )
+                
+                # Convert to expected format
+                results = []
+                for idx, score, metadata in memory_results:
+                    results.append({
+                        "memory_id": idx,
+                        "relevance_score": score,
+                        "content": metadata.get("text", ""),
+                        "type": metadata.get("type", "generated"),
+                        **{k: v for k, v in metadata.items() if k not in ["text", "type"]}
+                    })
+            except Exception as e:
+                # If direct retrieval also fails, return empty results
+                results = []
 
         # Ensure we have at least one result
         if not results:

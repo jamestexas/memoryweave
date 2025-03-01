@@ -1200,8 +1200,6 @@ class ContextualRetriever:
             top_k=top_k,
             activation_boost=True,
             confidence_threshold=confidence_threshold,
-            semantic_coherence_check=self.semantic_coherence_check,
-            adaptive_retrieval=self.adaptive_retrieval,
         )
 
         # Format results and apply keyword boost if needed
