@@ -5,3 +5,5 @@ datasets/*.json
 # Exclude any outputs from scripts or functions (from benchmarking)
 test_output/*
 output/*
+# Exclude deprecated code
+memoryweave/deprecated/*

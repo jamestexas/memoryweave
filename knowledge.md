@@ -6,8 +6,8 @@
   - `core/`: Core functionality
   - `utils/`: Utility modules
     - `nlp_extraction.py`: NLP-based extraction utilities
-  - `models/`: Data models
-  - `api/`: API interfaces
+  - `components/`: Component-based architecture
+  - `deprecated/`: Legacy code being phased out
 - `tests/`: Test suite
 - `notebooks/`: Jupyter notebooks (LARGE directory - avoid analyzing unless explicitly requested)
 
@@ -90,3 +90,37 @@ The project is following a phased development approach:
 ## Current Focus: Diagnostic Analysis Phase
 
 We are currently focused on the Diagnostic Analysis Phase to identify and address core issues with memory retrieval performance.
+
+## Python Environment Setup
+
+This project uses `uv` for Python environment and package management. Always use `uv` commands instead of direct `python` commands:
+
+1. **Running Python scripts or commands**:
+   ```bash
+   uv run python script.py
+   # or for one-off commands
+   uv run python -c "import sys; print(sys.version)"
+   ```
+
+2. **Setting up a development environment**:
+   ```bash
+   # Create a virtual environment
+   uv venv
+   
+   # Install the project in development mode
+   uv pip install -e .
+   
+   # Activate the environment if needed for direct Python access
+   source .venv/bin/activate && python your_command_here
+   ```
+
+3. **Adding dependencies**:
+   ```bash
+   # Add a new dependency
+   uv add package_name
+   
+   # Add a development dependency
+   uv add --dev package_name
+   ```
+
+IMPORTANT: Never use `pip` or `python` directly. Always use the `uv` command to ensure consistent environment management.
