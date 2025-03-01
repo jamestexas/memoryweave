@@ -342,11 +342,19 @@ class Retriever:
             "top_k": top_k,
             "conversation_history": self.conversation_history,
             "conversation_context": self.conversation_context,
+            "in_evaluation": True,  # Always set this flag to use normal retrieval paths in strategies
         }
 
-        # Ensure components are initialized
+        # Ensure components are initialized, but do it only once
+        # This ensures components maintain state between queries
         if not self.query_analyzer:
             self.initialize_components()
+            
+        # Add debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Using retrieval strategy: {self.retrieval_strategy.__class__.__name__}")
+        logger.debug(f"Using {len(self.post_processors)} post-processors")
 
         # Run query analyzer to get query type
         query_analysis = self.memory_manager.components.get("query_analyzer", {})
