@@ -4,25 +4,25 @@ This module provides utilities for loading configurations from various sources,
 such as JSON files, YAML files, and environment variables.
 """
 
-from typing import Dict, List, Any, Optional, Union, Tuple
 import json
-import os
 import logging
+import os
 from pathlib import Path
+from typing import Any, Dict, Optional, Union
 
-from memoryweave.config.validation import validate_config, ConfigValidationError
 from memoryweave.config.options import get_default_config
+from memoryweave.config.validation import ConfigValidationError, validate_config
 
 
 class ConfigLoader:
     """Loader for component configurations."""
-    
+
     def __init__(self):
         """Initialize the config loader."""
         self._logger = logging.getLogger(__name__)
-    
-    def load_from_file(self, 
-                      file_path: Union[str, Path], 
+
+    def load_from_file(self,
+                      file_path: Union[str, Path],
                       component_type: Optional[str] = None) -> Dict[str, Any]:
         """Load configuration from a file.
         
@@ -41,7 +41,7 @@ class ConfigLoader:
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {file_path}")
-        
+
         # Determine file format from extension
         if path.suffix.lower() in ('.json', '.jsonc'):
             config = self._load_json(path)
@@ -49,17 +49,17 @@ class ConfigLoader:
             config = self._load_yaml(path)
         else:
             raise ValueError(f"Unsupported file format: {path.suffix}")
-        
+
         # Validate if component type provided
         if component_type:
             valid, errors = validate_config(config, component_type)
             if not valid:
                 raise ConfigValidationError(errors, component_type)
-        
+
         return config
-    
-    def load_with_defaults(self, 
-                          config: Dict[str, Any], 
+
+    def load_with_defaults(self,
+                          config: Dict[str, Any],
                           component_type: str) -> Dict[str, Any]:
         """Load configuration with default values for missing options.
         
@@ -71,14 +71,14 @@ class ConfigLoader:
             Configuration with defaults applied
         """
         defaults = get_default_config(component_type)
-        
+
         # Merge defaults with user config (user config takes precedence)
         merged = {**defaults, **config}
-        
+
         return merged
-    
-    def load_from_env(self, 
-                     prefix: str, 
+
+    def load_from_env(self,
+                     prefix: str,
                      component_type: Optional[str] = None) -> Dict[str, Any]:
         """Load configuration from environment variables.
         
@@ -93,39 +93,39 @@ class ConfigLoader:
             ConfigValidationError: If the configuration is invalid
         """
         config = {}
-        
+
         # Find all environment variables with the prefix
         for key, value in os.environ.items():
             if key.startswith(prefix):
                 # Remove prefix and convert to lowercase
                 config_key = key[len(prefix):].lower()
-                
+
                 # Convert value to appropriate type
                 config[config_key] = self._convert_env_value(value)
-        
+
         # Validate if component type provided
         if component_type:
             valid, errors = validate_config(config, component_type)
             if not valid:
                 raise ConfigValidationError(errors, component_type)
-        
+
         return config
-    
+
     def _load_json(self, file_path: Path) -> Dict[str, Any]:
         """Load configuration from a JSON file."""
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             return json.load(f)
-    
+
     def _load_yaml(self, file_path: Path) -> Dict[str, Any]:
         """Load configuration from a YAML file."""
         try:
             import yaml
-            with open(file_path, 'r') as f:
+            with open(file_path) as f:
                 return yaml.safe_load(f)
         except ImportError:
             self._logger.error("PyYAML is required to load YAML files. Install with 'pip install pyyaml'")
             raise ImportError("PyYAML is required to load YAML files")
-    
+
     def _convert_env_value(self, value: str) -> Any:
         """Convert environment variable string to appropriate type."""
         # Check for boolean values
@@ -133,7 +133,7 @@ class ConfigLoader:
             return True
         elif value.lower() in ('false', 'no', '0'):
             return False
-        
+
         # Check for numeric values
         try:
             # Try as int first

@@ -4,22 +4,25 @@ This module provides factories for creating memory-related components,
 such as memory stores, vector stores, and activation managers.
 """
 
-from typing import Dict, Any, Optional, Type
+from typing import Any, Dict, Optional
 
+from memoryweave.config.options import get_default_config
+from memoryweave.config.validation import ConfigValidationError, validate_config
 from memoryweave.interfaces.memory import (
-    IMemoryStore, IVectorStore, IActivationManager, ICategoryManager
+    IActivationManager,
+    ICategoryManager,
+    IMemoryStore,
+    IVectorStore,
 )
-from memoryweave.storage.memory_store import MemoryStore
-from memoryweave.storage.vector_store import SimpleVectorStore, ActivationVectorStore
 from memoryweave.storage.activation import ActivationManager, TemporalActivationManager
 from memoryweave.storage.category import CategoryManager
-from memoryweave.config.validation import validate_config, ConfigValidationError
-from memoryweave.config.options import get_default_config
+from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.storage.vector_store import ActivationVectorStore, SimpleVectorStore
 
 
 class MemoryFactory:
     """Factory for creating memory-related components."""
-    
+
     @staticmethod
     def create_memory_store(config: Optional[Dict[str, Any]] = None) -> IMemoryStore:
         """Create a memory store component.
@@ -36,19 +39,19 @@ class MemoryFactory:
         # Use default config if none provided
         if config is None:
             config = {}
-        
+
         # Merge with defaults
         defaults = get_default_config("memory_store")
         merged_config = {**defaults, **config}
-        
+
         # Validate config
         is_valid, errors = validate_config(merged_config, "memory_store")
         if not is_valid:
             raise ConfigValidationError(errors, "memory_store")
-        
+
         # Create memory store
         return MemoryStore()
-    
+
     @staticmethod
     def create_vector_store(config: Optional[Dict[str, Any]] = None) -> IVectorStore:
         """Create a vector store component.
@@ -65,16 +68,16 @@ class MemoryFactory:
         # Use default config if none provided
         if config is None:
             config = {}
-        
+
         # Merge with defaults
         defaults = get_default_config("vector_store")
         merged_config = {**defaults, **config}
-        
+
         # Validate config
         is_valid, errors = validate_config(merged_config, "vector_store")
         if not is_valid:
             raise ConfigValidationError(errors, "vector_store")
-        
+
         # Check if we should use activation-weighted store
         if merged_config.get('activation_weight', 0.0) > 0:
             return ActivationVectorStore(
@@ -82,7 +85,7 @@ class MemoryFactory:
             )
         else:
             return SimpleVectorStore()
-    
+
     @staticmethod
     def create_activation_manager(config: Optional[Dict[str, Any]] = None) -> IActivationManager:
         """Create an activation manager component.
@@ -96,7 +99,7 @@ class MemoryFactory:
         # Use default config if none provided
         if config is None:
             config = {}
-        
+
         # Check if we should use temporal decay
         if config.get('use_temporal_decay', False):
             return TemporalActivationManager(
@@ -111,7 +114,7 @@ class MemoryFactory:
                 max_activation=config.get('max_activation', 10.0),
                 min_activation=config.get('min_activation', -10.0)
             )
-    
+
     @staticmethod
     def create_category_manager(config: Optional[Dict[str, Any]] = None) -> ICategoryManager:
         """Create a category manager component.
@@ -125,7 +128,7 @@ class MemoryFactory:
         # Use default config if none provided
         if config is None:
             config = {}
-        
+
         # Create category manager
         vigilance = config.get('vigilance', 0.85)
         return CategoryManager(vigilance=vigilance)

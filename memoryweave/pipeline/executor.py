@@ -4,10 +4,10 @@ This module provides the executor for running component pipelines,
 including handling execution context, error handling, and metrics.
 """
 
-from typing import Dict, List, Any, Optional, Callable, TypeVar, Generic, Union
-import time
 import logging
+import time
 from dataclasses import dataclass
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
 
 from memoryweave.interfaces.pipeline import IPipeline
 
@@ -28,28 +28,28 @@ U = TypeVar('U')
 
 class PipelineExecutor(Generic[T, U]):
     """Executor for pipeline execution with error handling and metrics."""
-    
+
     def __init__(self):
         """Initialize the pipeline executor."""
         self._logger = logging.getLogger(__name__)
         self._metrics_collectors: List[Callable[[IPipeline, T, U, float], Dict[str, Any]]] = []
-    
-    def execute(self, 
-              pipeline: IPipeline[T, U], 
+
+    def execute(self,
+              pipeline: IPipeline[T, U],
               input_data: T) -> ExecutionResult:
         """Execute a pipeline with error handling and metrics."""
         start_time = time.time()
-        
+
         try:
             # Execute pipeline
             result = pipeline.execute(input_data)
-            
+
             # Calculate execution time
             execution_time = time.time() - start_time
-            
+
             # Collect metrics
             metrics = self._collect_metrics(pipeline, input_data, result, execution_time)
-            
+
             # Return successful result
             return ExecutionResult(
                 success=True,
@@ -57,16 +57,16 @@ class PipelineExecutor(Generic[T, U]):
                 execution_time=execution_time,
                 metrics=metrics
             )
-        
+
         except Exception as e:
             # Log error
             self._logger.exception(
                 f"Error executing pipeline {pipeline.__class__.__name__}: {e}"
             )
-            
+
             # Calculate execution time
             execution_time = time.time() - start_time
-            
+
             # Return error result
             return ExecutionResult(
                 success=False,
@@ -75,23 +75,23 @@ class PipelineExecutor(Generic[T, U]):
                 execution_time=execution_time,
                 metrics={"error": str(e)}
             )
-    
-    def add_metrics_collector(self, 
+
+    def add_metrics_collector(self,
                             collector: Callable[[IPipeline, T, U, float], Dict[str, Any]]) -> None:
         """Add a metrics collector function."""
         self._metrics_collectors.append(collector)
-    
-    def _collect_metrics(self, 
-                       pipeline: IPipeline[T, U], 
-                       input_data: T, 
-                       result: U, 
+
+    def _collect_metrics(self,
+                       pipeline: IPipeline[T, U],
+                       input_data: T,
+                       result: U,
                        execution_time: float) -> Dict[str, Any]:
         """Collect metrics from all registered collectors."""
         metrics = {
             "execution_time": execution_time,
             "pipeline_stages": len(pipeline.get_stages())
         }
-        
+
         # Call each metrics collector
         for collector in self._metrics_collectors:
             try:
@@ -99,21 +99,21 @@ class PipelineExecutor(Generic[T, U]):
                 metrics.update(collector_metrics)
             except Exception as e:
                 self._logger.error(f"Error collecting metrics: {e}")
-        
+
         return metrics
 
 
-def basic_metrics_collector(pipeline: IPipeline, 
-                           input_data: Any, 
-                           result: Any, 
+def basic_metrics_collector(pipeline: IPipeline,
+                           input_data: Any,
+                           result: Any,
                            execution_time: float) -> Dict[str, Any]:
     """Basic metrics collector for pipeline execution."""
     metrics = {
         "execution_time_ms": execution_time * 1000
     }
-    
+
     # Add result size metrics if applicable
     if isinstance(result, list):
         metrics["result_count"] = len(result)
-    
+
     return metrics

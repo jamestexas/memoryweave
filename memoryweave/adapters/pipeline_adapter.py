@@ -4,19 +4,15 @@ This module provides adapters that bridge between the old architecture
 and the new pipeline-based architecture.
 """
 
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 
-from memoryweave.interfaces.retrieval import (
-    IRetrievalStrategy, RetrievalResult, RetrievalParameters, 
-    Query, QueryType, QueryContext
-)
-from memoryweave.interfaces.query import IQueryAnalyzer, IQueryAdapter
-from memoryweave.interfaces.pipeline import (
-    IComponent, ComponentType, ComponentID, IPipeline, IPipelineStage
-)
 from memoryweave.adapters.memory_adapter import LegacyMemoryAdapter
 from memoryweave.adapters.retrieval_adapter import LegacyRetrieverAdapter
+from memoryweave.interfaces.pipeline import ComponentID, IComponent, IPipeline
+from memoryweave.interfaces.query import IQueryAdapter, IQueryAnalyzer
+from memoryweave.interfaces.retrieval import Query, QueryType
 from memoryweave.pipeline.manager import PipelineManager
 
 
@@ -27,9 +23,9 @@ class LegacyToPipelineAdapter:
     This adapter allows using the legacy retriever systems with the new component-based
     pipeline architecture, providing backward compatibility during migration.
     """
-    
-    def __init__(self, 
-                legacy_memory, 
+
+    def __init__(self,
+                legacy_memory,
                 pipeline_manager: Optional[PipelineManager] = None,
                 component_id: str = "legacy_pipeline_adapter"):
         """
@@ -42,36 +38,36 @@ class LegacyToPipelineAdapter:
         """
         self._legacy_memory = legacy_memory
         self._component_id = component_id
-        
+
         # Create pipeline manager if none provided
         self._pipeline_manager = pipeline_manager or PipelineManager()
-        
+
         # Create and register memory adapter
         self._memory_adapter = LegacyMemoryAdapter(legacy_memory)
         self._pipeline_manager.register_component(self._memory_adapter)
-        
+
         # Create and register retriever adapter
         if hasattr(legacy_memory, 'memory_retriever'):
             self._retriever_adapter = LegacyRetrieverAdapter(
-                legacy_memory.memory_retriever, 
+                legacy_memory.memory_retriever,
                 self._memory_adapter
             )
         else:
             self._retriever_adapter = LegacyRetrieverAdapter(
-                legacy_memory, 
+                legacy_memory,
                 self._memory_adapter
             )
         self._pipeline_manager.register_component(self._retriever_adapter)
-        
+
         # Create default retrieval pipeline
         self._pipeline = self._pipeline_manager.create_pipeline(
             name="default_legacy_pipeline",
             stage_ids=[self._retriever_adapter.get_id()]
         )
-    
-    def add_memory(self, 
-                  embedding: np.ndarray, 
-                  text: str, 
+
+    def add_memory(self,
+                  embedding: np.ndarray,
+                  text: str,
                   metadata: Optional[Dict[str, Any]] = None) -> str:
         """
         Add a memory using the new architecture.
@@ -85,9 +81,9 @@ class LegacyToPipelineAdapter:
             Memory ID
         """
         return self._memory_adapter.add(embedding, text, metadata)
-    
-    def retrieve_memories(self, 
-                         query_embedding: np.ndarray, 
+
+    def retrieve_memories(self,
+                         query_embedding: np.ndarray,
                          top_k: int = 5,
                          **kwargs) -> List[Dict[str, Any]]:
         """
@@ -107,7 +103,7 @@ class LegacyToPipelineAdapter:
             'similarity_threshold': kwargs.get('confidence_threshold', 0.0),
             'activation_boost': kwargs.get('activation_boost', True)
         }
-        
+
         # Create a simple Query object
         query = Query(
             text="",  # We don't have the original text
@@ -116,32 +112,32 @@ class LegacyToPipelineAdapter:
             extracted_keywords=[],
             extracted_entities=[]
         )
-        
+
         # Execute pipeline directly with the query embedding and parameters
         results = self._retriever_adapter.retrieve(query_embedding, parameters)
-        
+
         return results
-    
+
     def get_id(self) -> ComponentID:
         """Get the unique identifier for this component."""
         return self._component_id
-    
+
     def get_component(self, component_id: ComponentID) -> Optional[IComponent]:
         """Get a registered component by ID."""
         return self._pipeline_manager.get_component(component_id)
-    
+
     def register_component(self, component: IComponent) -> None:
         """Register a component with the pipeline manager."""
         self._pipeline_manager.register_component(component)
-    
-    def create_pipeline(self, 
-                      name: str, 
+
+    def create_pipeline(self,
+                      name: str,
                       stage_ids: List[ComponentID]) -> Optional[IPipeline]:
         """Create a new pipeline with the given stages."""
         return self._pipeline_manager.create_pipeline(name, stage_ids)
-    
-    def execute_pipeline(self, 
-                       name: str, 
+
+    def execute_pipeline(self,
+                       name: str,
                        input_data: Any) -> Optional[Any]:
         """Execute a pipeline by name."""
         return self._pipeline_manager.execute_pipeline(name, input_data)
@@ -154,8 +150,8 @@ class PipelineToLegacyAdapter:
     This adapter allows using the new component-based pipeline architecture with
     code that expects the legacy retriever interface, providing backward compatibility.
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                 pipeline: IPipeline,
                 query_analyzer: Optional[IQueryAnalyzer] = None,
                 query_adapter: Optional[IQueryAdapter] = None):
@@ -170,10 +166,10 @@ class PipelineToLegacyAdapter:
         self._pipeline = pipeline
         self._query_analyzer = query_analyzer
         self._query_adapter = query_adapter
-    
-    def add_memory(self, 
-                  embedding: np.ndarray, 
-                  text: str, 
+
+    def add_memory(self,
+                  embedding: np.ndarray,
+                  text: str,
                   metadata: Optional[Dict[str, Any]] = None) -> Any:
         """
         Legacy interface for adding a memory.
@@ -193,16 +189,16 @@ class PipelineToLegacyAdapter:
         stages = self._pipeline.get_stages()
         if not stages:
             raise ValueError("Pipeline has no stages")
-        
+
         first_stage = stages[0]
-        
+
         # Check if the stage has an add method
         if hasattr(first_stage, 'add'):
             return first_stage.add(embedding, text, metadata)
         else:
             raise ValueError("First pipeline stage does not support adding memories")
-    
-    def retrieve_for_context(self, 
+
+    def retrieve_for_context(self,
                            query_embedding: np.ndarray,
                            k: int = 5,
                            threshold: float = 0.0,
@@ -223,7 +219,7 @@ class PipelineToLegacyAdapter:
         query_type = QueryType.UNKNOWN
         if self._query_analyzer and 'query_text' in kwargs:
             query_type = self._query_analyzer.analyze(kwargs['query_text'])
-        
+
         query = Query(
             text=kwargs.get('query_text', ""),
             embedding=query_embedding,
@@ -232,21 +228,21 @@ class PipelineToLegacyAdapter:
             extracted_entities=kwargs.get('entities', []),
             context=None
         )
-        
+
         # Get parameters
         parameters = None
         if self._query_adapter:
             parameters = self._query_adapter.adapt_parameters(query)
-        
+
         # Override parameters with explicit values
         if parameters is None:
             parameters = {}
         parameters['max_results'] = k
         parameters['similarity_threshold'] = threshold
-        
+
         # Execute the pipeline
         results = self._pipeline.execute(query)
-        
+
         # Convert results to legacy format
         legacy_results = []
         for result in results:
@@ -256,14 +252,14 @@ class PipelineToLegacyAdapter:
             except (ValueError, TypeError):
                 # If conversion fails, use a hash of the string as a unique index
                 memory_idx = hash(result['memory_id']) % 10000000
-            
+
             # Create legacy result tuple
             legacy_result = (
                 memory_idx,
                 result['relevance_score'],
                 result['metadata']
             )
-            
+
             legacy_results.append(legacy_result)
-        
+
         return legacy_results

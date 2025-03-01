@@ -6,12 +6,9 @@ and the original retriever interface to ensure compatibility during the
 transition period.
 """
 
-from typing import Any, List, Dict, Optional
-
-import numpy as np
+from typing import Any, Dict, List
 
 from memoryweave.components import Retriever
-from memoryweave.core.contextual_memory import ContextualMemory
 from memoryweave.core.memory_retriever import MemoryRetriever
 from memoryweave.utils.nlp_extraction import NLPExtractor
 
@@ -68,14 +65,14 @@ class RefactoredRetriever:
 
         # Configure the retriever
         self.retriever.minimum_relevance = confidence_threshold
-        
+
         if use_two_stage_retrieval:
             self.retriever.configure_two_stage_retrieval(
                 enable=True,
                 first_stage_k=20,
                 first_stage_threshold_factor=0.7,
             )
-            
+
         if query_type_adaptation:
             self.retriever.configure_query_type_adaptation(
                 enable=True,
@@ -126,22 +123,22 @@ class RefactoredRetriever:
                 minimum_relevance=confidence_threshold,
                 conversation_history=conversation_history,
             )
-        except Exception as e:
+        except Exception:
             # If component-based retriever fails, fall back to direct memory retriever
             results = []
-            
+
         # If no results from component-based retriever, fall back to direct memory retriever
         if not results and self.memory and self.embedding_model:
             try:
                 query_embedding = self.embedding_model.encode(query)
-                
+
                 # Use the memory retriever directly
                 memory_results = self.memory_retriever.retrieve_memories(
                     query_embedding=query_embedding,
                     top_k=top_k,
                     confidence_threshold=confidence_threshold or self.confidence_threshold,
                 )
-                
+
                 # Convert to expected format
                 results = []
                 for idx, score, metadata in memory_results:
@@ -152,7 +149,7 @@ class RefactoredRetriever:
                         "type": metadata.get("type", "generated"),
                         **{k: v for k, v in metadata.items() if k not in ["text", "type"]}
                     })
-            except Exception as e:
+            except Exception:
                 # If direct retrieval also fails, return empty results
                 results = []
 

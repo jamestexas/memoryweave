@@ -25,14 +25,14 @@ class KeywordBoostProcessor(PostProcessor):
         # Apply keyword boost
         for result in results:
             content = str(result.get("content", "")).lower()
-            
+
             # Count keyword matches
             keyword_matches = sum(1 for kw in keywords if kw.lower() in content)
-            
+
             # Apply boost proportional to matches and weight
             if keyword_matches > 0:
                 boost = min(self.keyword_boost_weight * keyword_matches / len(keywords), 0.5)
-                
+
                 # Apply boost to relevance score
                 current_score = result.get("relevance_score", 0)
                 new_score = min(current_score + boost * (1.0 - current_score), 1.0)
@@ -57,20 +57,20 @@ class SemanticCoherenceProcessor(PostProcessor):
         """Process retrieved results checking semantic coherence."""
         # Get query type from context
         query_type = context.get("primary_query_type", "factual")
-        
+
         # Penalize incoherent results based on query type
         for result in results:
             # Check for type mismatch
             result_type = result.get("type", "unknown")
-            
+
             if query_type == "personal" and result_type == "factual":
                 # Penalize factual results for personal queries
                 result["relevance_score"] = max(0, result.get("relevance_score", 0) - 0.2)
-            
+
             elif query_type == "factual" and result_type == "personal":
                 # Slightly penalize personal results for factual queries
                 result["relevance_score"] = max(0, result.get("relevance_score", 0) - 0.1)
-        
+
         return results
 
 
@@ -89,13 +89,13 @@ class AdaptiveKProcessor(PostProcessor):
         """Process retrieved results by adjusting the number based on scores."""
         if not results:
             return results
-            
+
         # Get original top_k
         original_k = context.get("top_k", 5)
-        
+
         # Check result quality
         avg_score = sum(r.get("relevance_score", 0) for r in results) / len(results)
-        
+
         # Adjust number of results based on quality
         if avg_score > 0.7:
             # High quality results - keep fewer

@@ -4,16 +4,14 @@ This module provides factories for creating pipeline-related components,
 such as pipelines, managers, and executors.
 """
 
-from typing import Dict, List, Any, Optional, TypeVar, Generic
+from typing import Any, Dict, List, Optional, TypeVar
 
-from memoryweave.interfaces.retrieval import Query, RetrievalResult
-from memoryweave.interfaces.pipeline import IComponent, IPipeline
-from memoryweave.pipeline.manager import PipelineManager
-from memoryweave.pipeline.builder import PipelineBuilder
-from memoryweave.pipeline.executor import PipelineExecutor
-from memoryweave.config.validation import validate_config, ConfigValidationError
 from memoryweave.config.options import get_default_config
-
+from memoryweave.config.validation import ConfigValidationError, validate_config
+from memoryweave.interfaces.pipeline import IComponent, IPipeline
+from memoryweave.interfaces.retrieval import Query, RetrievalResult
+from memoryweave.pipeline.executor import PipelineExecutor
+from memoryweave.pipeline.manager import PipelineManager
 
 T = TypeVar('T')
 U = TypeVar('U')
@@ -21,7 +19,7 @@ U = TypeVar('U')
 
 class PipelineFactory:
     """Factory for creating pipeline-related components."""
-    
+
     @staticmethod
     def create_pipeline_manager() -> PipelineManager:
         """Create a pipeline manager component.
@@ -30,7 +28,7 @@ class PipelineFactory:
             Configured pipeline manager
         """
         return PipelineManager()
-    
+
     @staticmethod
     def create_pipeline_executor() -> PipelineExecutor:
         """Create a pipeline executor component.
@@ -39,7 +37,7 @@ class PipelineFactory:
             Configured pipeline executor
         """
         return PipelineExecutor()
-    
+
     @staticmethod
     def create_pipeline(
         components: List[IComponent],
@@ -60,31 +58,31 @@ class PipelineFactory:
         # Use default config if none provided
         if config is None:
             config = {}
-        
+
         # Merge with defaults
         defaults = get_default_config("pipeline")
         merged_config = {**defaults, **config}
-        
+
         # Validate config
         is_valid, errors = validate_config(merged_config, "pipeline")
         if not is_valid:
             raise ConfigValidationError(errors, "pipeline")
-        
+
         # Create manager and register components
         manager = PipelineFactory.create_pipeline_manager()
         for component in components:
             manager.register_component(component)
-        
+
         # Get component IDs from config
         component_ids = merged_config.get("pipeline_stages", [])
         if not component_ids:
             # Use all registered components if none specified
             component_ids = [component.get_id() for component in components]
-        
+
         # Create pipeline
         pipeline_name = merged_config.get("pipeline_name", "default_pipeline")
         return manager.create_pipeline(pipeline_name, component_ids)
-    
+
     @staticmethod
     def create_retrieval_pipeline(
         components: List[IComponent],

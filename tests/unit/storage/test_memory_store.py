@@ -34,11 +34,11 @@ class TestMemoryStore:
         
         # Retrieve and verify memory
         memory = store.get(memory_id)
-        assert memory["id"] == memory_id
-        assert np.array_equal(memory["embedding"], embedding)
-        assert memory["content"]["text"] == content
-        assert memory["metadata"]["source"] == "test"
-        assert memory["metadata"]["importance"] == 0.8
+        assert memory.id == memory_id
+        assert np.array_equal(memory.embedding, embedding)
+        assert memory.content["text"] == content
+        assert memory.metadata["source"] == "test"
+        assert memory.metadata["importance"] == 0.8
 
     def test_get_memory(self):
         """Test retrieving a memory by ID."""
@@ -53,9 +53,9 @@ class TestMemoryStore:
         memory = store.get(memory_id)
         
         # Verify memory
-        assert memory["id"] == memory_id
-        assert np.array_equal(memory["embedding"], embedding)
-        assert memory["content"]["text"] == content
+        assert memory.id == memory_id
+        assert np.array_equal(memory.embedding, embedding)
+        assert memory.content["text"] == content
         
         # Test non-existent memory
         with pytest.raises(KeyError):
@@ -78,7 +78,7 @@ class TestMemoryStore:
         
         # Verify memories
         assert len(memories) == 5
-        memory_ids = [memory["id"] for memory in memories]
+        memory_ids = [memory.id for memory in memories]
         for memory_id in ids:
             assert memory_id in memory_ids
 
@@ -140,8 +140,8 @@ class TestMemoryStore:
         
         # Verify metadata was updated
         memory = store.get(memory_id)
-        assert memory["metadata"]["initial"] == "value"
-        assert memory["metadata"]["new_key"] == "new_value"
+        assert memory.metadata["initial"] == "value"
+        assert memory.metadata["new_key"] == "new_value"
         
         # Test non-existent memory
         with pytest.raises(KeyError):

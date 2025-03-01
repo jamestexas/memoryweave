@@ -6,7 +6,6 @@ imported from there instead.
 """
 
 import warnings
-from memoryweave.core.contextual_memory import ContextualMemory
 
 warnings.warn(
     "memoryweave.core.contextual_fabric is deprecated. "
