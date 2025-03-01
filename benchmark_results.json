@@ -1,0 +1,192 @@
+{
+  "summary": {
+    "title": "MemoryWeave Advanced Configuration Analysis",
+    "date": "2025-03-01",
+    "key_findings": [
+      "Fixed component state persistence issues to ensure configurations behave distinctly",
+      "Achieved up to 204% improvement in F1 score with optimized precision configuration",
+      "Using lower top_k values (3) with higher confidence thresholds (0.5) maximizes precision",
+      "Two-stage retrieval with 8 results balances performance metrics well",
+      "Recall-optimized configuration with 15 results achieved perfect recall but suffered in precision"
+    ],
+    "issues_identified": [
+      "Components were reinitialized every query, preventing state accumulation",
+      "Special case handling in test code caused identical behavior across configurations",
+      "Fallback to basic similarity retrieval was occurring too often"
+    ],
+    "recommended_configurations": {
+      "general_purpose": {
+        "name": "TwoStage-Balanced",
+        "description": "Good balance of precision and recall with 8 results",
+        "avg_results": 8.0,
+        "f1_score": 0.2595,
+        "semantic_similarity": 0.2273
+      },
+      "high_precision": {
+        "name": "Optimized-Precision",
+        "description": "Best overall performance with just 3 results",
+        "avg_results": 3.0,
+        "f1_score": 0.5003,
+        "semantic_similarity": 0.3635
+      },
+      "high_recall": {
+        "name": "Optimized-Recall",
+        "description": "Perfect recall but low precision with 15 results",
+        "avg_results": 15.0,
+        "f1_score": 0.1523,
+        "semantic_similarity": 0.1574
+      }
+    }
+  },
+  "latest_results": {
+    "Baseline-Simple": {
+      "precision": 0.1739,
+      "recall": 0.1609,
+      "f1_score": 0.1646,
+      "semantic_similarity": 0.4733,
+      "overall_score": 0.2881,
+      "avg_retrieval_count": 0.83
+    },
+    "Hybrid-Basic": {
+      "precision": 0.2435,
+      "recall": 0.9804,
+      "f1_score": 0.3557,
+      "semantic_similarity": 0.2857,
+      "overall_score": 0.3277,
+      "avg_retrieval_count": 5.0
+    },
+    "TwoStage-Balanced": {
+      "precision": 0.1630,
+      "recall": 1.0000,
+      "f1_score": 0.2595,
+      "semantic_similarity": 0.2273,
+      "overall_score": 0.2466,
+      "avg_retrieval_count": 8.0
+    },
+    "Optimized-Precision": {
+      "precision": 0.3913,
+      "recall": 0.9717,
+      "f1_score": 0.5003,
+      "semantic_similarity": 0.3635,
+      "overall_score": 0.4456,
+      "avg_retrieval_count": 3.0
+    },
+    "Optimized-Recall": {
+      "precision": 0.0870,
+      "recall": 1.0000,
+      "f1_score": 0.1523,
+      "semantic_similarity": 0.1574,
+      "overall_score": 0.1543,
+      "avg_retrieval_count": 15.0
+    }
+  },
+  "optimization_results": {
+    "baseline_to_best_improvement": {
+      "f1_score_percent": 204.0,
+      "overall_score_percent": 54.7
+    },
+    "precision_recall_tradeoff": {
+      "best_f1_configuration": "Optimized-Precision",
+      "best_f1_score": 0.5003,
+      "precision": 0.3913,
+      "recall": 0.9717
+    }
+  },
+  "previous_results": {
+    "Legacy-Basic": {
+      "config": {
+        "name": "Legacy-Basic",
+        "retriever_type": "legacy",
+        "confidence_threshold": 0.3,
+        "use_art_clustering": false,
+        "semantic_coherence_check": false,
+        "adaptive_retrieval": false,
+        "use_two_stage_retrieval": false,
+        "query_type_adaptation": false
+      },
+      "setup_time": 1.4478652477264404,
+      "avg_query_time": 0.012723655700683593,
+      "precision": 0.008,
+      "recall": 0.02333333333333333,
+      "f1_score": 0.011868131868131869,
+      "memory_usage": 0.0,
+      "avg_retrieval_count": 10.0
+    },
+    "Legacy-Advanced": {
+      "config": {
+        "name": "Legacy-Advanced",
+        "retriever_type": "legacy",
+        "confidence_threshold": 0.3,
+        "use_art_clustering": false,
+        "semantic_coherence_check": true,
+        "adaptive_retrieval": true,
+        "use_two_stage_retrieval": true,
+        "query_type_adaptation": true
+      },
+      "setup_time": 0.7028391361236572,
+      "avg_query_time": 0.013023600578308106,
+      "precision": 0.008,
+      "recall": 0.02333333333333333,
+      "f1_score": 0.011868131868131869,
+      "memory_usage": 0.0,
+      "avg_retrieval_count": 10.0
+    },
+    "Components-Basic": {
+      "config": {
+        "name": "Components-Basic",
+        "retriever_type": "components",
+        "confidence_threshold": 0.3,
+        "use_art_clustering": false,
+        "semantic_coherence_check": false,
+        "adaptive_retrieval": false,
+        "use_two_stage_retrieval": false,
+        "query_type_adaptation": false
+      },
+      "setup_time": 0.7162680625915527,
+      "avg_query_time": 0.012849063873291015,
+      "precision": 0.008,
+      "recall": 0.02333333333333333,
+      "f1_score": 0.011868131868131869,
+      "memory_usage": 0.0,
+      "avg_retrieval_count": 10.0
+    },
+    "Components-Advanced": {
+      "config": {
+        "name": "Components-Advanced",
+        "retriever_type": "components",
+        "confidence_threshold": 0.3,
+        "use_art_clustering": false,
+        "semantic_coherence_check": true,
+        "adaptive_retrieval": true,
+        "use_two_stage_retrieval": true,
+        "query_type_adaptation": true
+      },
+      "setup_time": 0.714789867401123,
+      "avg_query_time": 0.012834005355834961,
+      "precision": 0.008,
+      "recall": 0.02333333333333333,
+      "f1_score": 0.011868131868131869,
+      "memory_usage": 0.0,
+      "avg_retrieval_count": 10.0
+    },
+    "Optimized-Performance": {
+      "config": {
+        "name": "Optimized-Performance",
+        "retriever_type": "components",
+        "confidence_threshold": 0.1,
+        "use_art_clustering": false,
+        "semantic_coherence_check": true,
+        "adaptive_retrieval": true,
+        "use_two_stage_retrieval": true,
+        "query_type_adaptation": true
+      },
+      "setup_time": 0.7163658142089844,
+      "avg_query_time": 0.012819609642028808,
+      "precision": 0.008,
+      "recall": 0.02333333333333333,
+      "f1_score": 0.011868131868131869,
+      "memory_usage": 0.0,
+      "avg_retrieval_count": 10.0
+    }
+  }
+}
