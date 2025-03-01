@@ -37,6 +37,33 @@
 
 The new component-based architecture now performs at parity with the legacy implementation. While these metrics might seem low, they are consistent across all implementations and provide a baseline for future improvements.
 
+## Implemented Features
+
+We've made significant progress in implementing features that were missing from the component architecture:
+
+1. **Personal Attributes Management**
+   - Created PersonalAttributeProcessor to boost results based on personal attributes
+   - Implemented sophisticated attribute extraction from text
+   - Added synthetic memory creation for direct attribute questions
+   - Integrated with the retrieval pipeline
+
+2. **Memory Decay**
+   - Created MemoryDecayComponent to handle memory activation decay
+   - Implemented configurable decay rate and interval
+   - Added support for both component-based and legacy memory formats
+   - Supported ART clustering decay via category_activations
+
+3. **Keyword Expansion**
+   - Created KeywordExpander component for sophisticated keyword expansion
+   - Implemented support for irregular plurals and comprehensive synonym handling
+   - Built extensive synonym dictionary for common terms
+   - Enhanced TwoStageRetrievalStrategy to use expanded keywords
+
+4. **Minimum Result Guarantee**
+   - Created MinimumResultGuaranteeProcessor to ensure queries always get responses
+   - Implemented fallback retrieval with lower threshold when not enough results are found
+   - Added flexible configuration options for fallback behavior
+
 ## Remaining Issues
 
 1. **ART-Clustering Support**
