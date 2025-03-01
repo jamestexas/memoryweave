@@ -180,8 +180,18 @@ class RefactoredRetriever:
 
     def _ensure_result_count(self, results, target_count, query):
         """Ensure the results list contains exactly target_count items."""
-        # Add default results if we don't have enough
-        while len(results) < target_count:
-            results.append(self._create_default_result(query, relevance=0.1))
+        # Make a copy to avoid modifying the original
+        results_copy = list(results)
 
-        return results
+        # Add default results if we don't have enough
+        while len(results_copy) < target_count:
+            default_result = self._create_default_result(query, relevance=0.1)
+            # Make sure we use a different memory_id for each default result
+            default_result["memory_id"] = len(results_copy)
+            results_copy.append(default_result)
+
+        # If we have too many, trim to the target count
+        if len(results_copy) > target_count:
+            results_copy = results_copy[:target_count]
+
+        return results_copy

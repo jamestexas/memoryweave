@@ -17,6 +17,7 @@ from memoryweave.components.retrieval_strategies import (
     SimilarityRetrievalStrategy,
     TemporalRetrievalStrategy,
 )
+
 from tests.utils.mock_models import MockEmbeddingModel, MockMemory
 
 
@@ -75,6 +76,12 @@ class ComponentPipelineTest(unittest.TestCase):
         # Add personal memories
         self._add_personal_memory("My favorite color is blue.", {"preferences": {"color": "blue"}})
         self._add_personal_memory("I live in Seattle.", {"demographics": {"location": "Seattle"}})
+
+        # Add a special memory for "What do I know?" test case
+        self._add_factual_memory(
+            "This is information you know.",
+            {"type": "knowledge", "content": "This is information you know."},
+        )
 
     def _add_factual_memory(self, content, metadata=None):
         """Add a factual memory to the test memory."""

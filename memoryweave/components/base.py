@@ -56,27 +56,30 @@ class RetrievalStrategy(RetrievalComponent):
         Returns:
             Updated context with results
         """
+        # Get query embedding from context
+        query_embedding = context.get("query_embedding")
+
+        # If no query embedding, try to get embedding model and encode
+        if query_embedding is None:
+            embedding_model = context.get("embedding_model")
+            if embedding_model:
+                query_embedding = embedding_model.encode(query)
+
+        # If still no query embedding, return empty results
+        if query_embedding is None:
+            return {"results": []}
+
+        # Get top_k from context
         top_k = context.get("top_k", 5)
 
-        # If no query embedding is provided, return empty results
-        if (query_embedding := context.get("query_embedding", None)) is None:
-            return dict(results=[])
-
         # Use memory from context or instance
-        memory = context.get(
-            "memory",
-            getattr(self, "memory", None),
-        )
+        memory = context.get("memory", getattr(self, "memory", None))
 
         # Retrieve memories
-        results = self.retrieve(
-            results=query_embedding,
-            query=top_k,
-            context=dict(memory=memory),
-        )
+        results = self.retrieve(query_embedding, top_k, {"memory": memory, **context})
 
         # Return results
-        return dict(results=results)
+        return {"results": results}
 
 
 class PostProcessor(RetrievalComponent):
