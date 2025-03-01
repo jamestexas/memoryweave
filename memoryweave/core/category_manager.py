@@ -2,7 +2,7 @@
 Implementation of the ART-inspired category management for MemoryWeave.
 """
 
-from typing import Literal, Optional, List, Dict, Any, Tuple
+from typing import List, Literal
 
 import numpy as np
 from scipy.cluster.hierarchy import fcluster, linkage
@@ -64,7 +64,7 @@ class CategoryManager:
         self.min_vigilance = min_vigilance
         self.max_vigilance = max_vigilance
         self.target_categories = target_categories
-        
+
         # Category structures
         self.category_prototypes = np.zeros((0, embedding_dim), dtype=np.float32)
         self.memory_categories = np.zeros(0, dtype=np.int64)
@@ -76,11 +76,11 @@ class CategoryManager:
         self.min_category_size = min_category_size
         self.consolidation_frequency = consolidation_frequency
         self.hierarchical_method = hierarchical_method
-        
+
         # Tracking variables
         self.memories_added = 0
         self.last_consolidation = 0
-        
+
         # For compatibility with tests
         self.activation_levels = None
         self.memory_embeddings = None
@@ -96,11 +96,11 @@ class CategoryManager:
             Index of the assigned category
         """
         self.memories_added += 1
-        
+
         # Update vigilance if using dynamic vigilance
         if self.dynamic_vigilance:
             self._update_vigilance()
-            
+
         if len(self.category_prototypes) == 0:
             # Create the first category
             self.category_prototypes = np.vstack([self.category_prototypes, embedding])
@@ -120,7 +120,7 @@ class CategoryManager:
             # Create new category
             self.category_prototypes = np.vstack([self.category_prototypes, embedding])
             self.category_activations = np.append(self.category_activations, 1.0)
-            
+
             # Check if it's time to run category consolidation
             if (
                 self.enable_category_consolidation
@@ -129,7 +129,7 @@ class CategoryManager:
             ):
                 self._consolidate_categories()
                 self.last_consolidation = self.memories_added
-                
+
             return len(self.category_prototypes) - 1
 
     def add_memory_category_mapping(self, memory_idx: int, category_idx: int) -> None:
@@ -149,10 +149,10 @@ class CategoryManager:
             if len(self.memory_categories) > 0:
                 new_categories[:len(self.memory_categories)] = self.memory_categories
             self.memory_categories = new_categories
-        
+
         # Set the category for the memory
         self.memory_categories[memory_idx] = category_idx
-        
+
         # Update category activation
         self.update_category_activation(category_idx)
 
@@ -287,7 +287,7 @@ class CategoryManager:
         for i in range(num_categories):
             for j in range(i + 1, num_categories):
                 condensed_distances.append(distances[i, j])
-                
+
         # If we don't have enough categories to consolidate, return
         if len(condensed_distances) == 0:
             return
@@ -434,9 +434,9 @@ class CategoryManager:
         """
         if memory_idx < 0 or memory_idx >= len(self.memory_categories):
             raise IndexError(f"Memory index {memory_idx} out of range")
-            
+
         return int(self.memory_categories[memory_idx])
-        
+
     def get_memories_for_category(self, category_idx: int) -> List[int]:
         """
         Get all memory indices for a category.
@@ -448,7 +448,7 @@ class CategoryManager:
             List of memory indices in the category
         """
         return np.where(self.memory_categories == category_idx)[0].tolist()
-        
+
     def consolidate_categories_manually(self, threshold: float = None) -> int:
         """
         Manually trigger category consolidation with an optional custom threshold.

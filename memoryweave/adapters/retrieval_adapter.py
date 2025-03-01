@@ -4,14 +4,17 @@ This module provides adapters that bridge between the old retrieval architecture
 and the new component-based architecture.
 """
 
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 
-from memoryweave.interfaces.retrieval import (
-    IRetrievalStrategy, RetrievalResult, RetrievalParameters, Query, QueryType
-)
-from memoryweave.interfaces.pipeline import IComponent, ComponentType, ComponentID
 from memoryweave.adapters.memory_adapter import LegacyMemoryAdapter
+from memoryweave.interfaces.pipeline import ComponentID, ComponentType
+from memoryweave.interfaces.retrieval import (
+    IRetrievalStrategy,
+    RetrievalParameters,
+    RetrievalResult,
+)
 
 
 class LegacyRetrieverAdapter(IRetrievalStrategy):
@@ -21,7 +24,7 @@ class LegacyRetrieverAdapter(IRetrievalStrategy):
     This adapter allows using a legacy retriever where a new IRetrievalStrategy
     is expected, providing backward compatibility during migration.
     """
-    
+
     def __init__(self, legacy_retriever, memory_adapter: LegacyMemoryAdapter,
                  component_id: str = "legacy_retriever_adapter"):
         """
@@ -43,26 +46,26 @@ class LegacyRetrieverAdapter(IRetrievalStrategy):
             'keyword_weight': 0.0,
             'min_results': 0
         }
-    
-    def retrieve(self, 
-                query_embedding: np.ndarray, 
+
+    def retrieve(self,
+                query_embedding: np.ndarray,
                 parameters: Optional[RetrievalParameters] = None) -> List[RetrievalResult]:
         """Retrieve memories based on a query embedding."""
         # Merge parameters with defaults
         params = self._default_params.copy()
         if parameters:
             params.update(parameters)
-        
+
         # Extract parameters for legacy retriever
         top_k = params.get('max_results', 5)
         activation_boost = params.get('activation_boost', True)
         confidence_threshold = params.get('similarity_threshold', 0.0)
-        
+
         # Determine if we're using categories
         use_categories = None
         if 'use_categories' in params:
             use_categories = params['use_categories']
-        
+
         # Check the type of legacy retriever
         if hasattr(self._legacy_retriever, 'retrieve_memories'):
             # This is a MemoryRetriever
@@ -84,7 +87,7 @@ class LegacyRetrieverAdapter(IRetrievalStrategy):
         else:
             # Unknown retriever type
             raise TypeError("Unknown legacy retriever type")
-        
+
         # Convert legacy results to RetrievalResult format
         results = []
         for legacy_item in legacy_results:
@@ -100,19 +103,19 @@ class LegacyRetrieverAdapter(IRetrievalStrategy):
             else:
                 # Unknown format
                 continue
-            
+
             # Find the new memory ID for this legacy index
             memory_id = None
             for new_id, idx in self._memory_adapter._memory_id_map.items():
                 if idx == legacy_idx:
                     memory_id = new_id
                     break
-            
+
             if memory_id is None:
                 # Create a new ID for this memory if not found
                 memory_id = str(len(self._memory_adapter._memory_id_map))
                 self._memory_adapter._memory_id_map[memory_id] = legacy_idx
-            
+
             # Extract text content
             if 'text' in metadata:
                 content = metadata['text']
@@ -124,7 +127,7 @@ class LegacyRetrieverAdapter(IRetrievalStrategy):
                 except (KeyError, AttributeError):
                     # If all else fails, use empty string
                     content = ""
-            
+
             # Create RetrievalResult
             result = RetrievalResult(
                 memory_id=memory_id,
@@ -132,32 +135,32 @@ class LegacyRetrieverAdapter(IRetrievalStrategy):
                 metadata=metadata,
                 relevance_score=float(similarity)
             )
-            
+
             results.append(result)
-        
+
         return results
-    
+
     def configure(self, config: Dict[str, Any]) -> None:
         """Configure the retrieval strategy."""
         # Update default parameters with configuration
         for key in self._default_params:
             if key in config:
                 self._default_params[key] = config[key]
-    
+
     # IComponent interface methods
-    
+
     def get_id(self) -> ComponentID:
         """Get the unique identifier for this component."""
         return self._component_id
-    
+
     def get_type(self) -> ComponentType:
         """Get the type of this component."""
         return ComponentType.RETRIEVAL_STRATEGY
-    
+
     def initialize(self, config: Dict[str, Any]) -> None:
         """Initialize the component with configuration."""
         self.configure(config)
-    
+
     def get_dependencies(self) -> List[ComponentID]:
         """Get the IDs of components this component depends on."""
         return [self._memory_adapter.get_id()]
@@ -170,7 +173,7 @@ class NewToLegacyRetrieverAdapter:
     This adapter allows using the new retrieval components with code that
     expects the legacy retriever interface, providing backward compatibility.
     """
-    
+
     def __init__(self, retrieval_strategy: IRetrievalStrategy):
         """
         Initialize the adapter.
@@ -179,8 +182,8 @@ class NewToLegacyRetrieverAdapter:
             retrieval_strategy: The new retrieval strategy to adapt
         """
         self._retrieval_strategy = retrieval_strategy
-    
-    def retrieve_for_context(self, 
+
+    def retrieve_for_context(self,
                            query_embedding: np.ndarray,
                            k: int = 5,
                            threshold: float = 0.0,
@@ -202,16 +205,16 @@ class NewToLegacyRetrieverAdapter:
             'max_results': k,
             'similarity_threshold': threshold
         }
-        
+
         # Add additional parameters
         if 'activation_boost' in kwargs:
             parameters['activation_boost'] = kwargs['activation_boost']
         if 'use_categories' in kwargs:
             parameters['use_categories'] = kwargs['use_categories']
-        
+
         # Retrieve using new strategy
         results = self._retrieval_strategy.retrieve(query_embedding, parameters)
-        
+
         # Convert to legacy format
         legacy_results = []
         for result in results:
@@ -221,14 +224,14 @@ class NewToLegacyRetrieverAdapter:
             except (ValueError, TypeError):
                 # If conversion fails, use a hash of the string as a unique index
                 memory_idx = hash(result['memory_id']) % 10000000
-            
+
             # Create legacy result tuple
             legacy_result = (
                 memory_idx,
                 result['relevance_score'],
                 result['metadata']
             )
-            
+
             legacy_results.append(legacy_result)
-        
+
         return legacy_results

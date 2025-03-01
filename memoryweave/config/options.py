@@ -4,9 +4,9 @@ This module defines the configuration options for MemoryWeave components,
 including defaults, validation rules, and documentation.
 """
 
-from typing import Dict, List, Any, Optional, Union, Set
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Union
 
 
 class ConfigValueType(Enum):
@@ -275,7 +275,7 @@ def get_default_config(component_type: str) -> Dict[str, Any]:
     config = get_component_config(component_type)
     if not config:
         return {}
-    
+
     return {
         option.name: option.default_value
         for option in config.options

@@ -20,12 +20,13 @@ class TestSimilarityRetrievalStrategy:
         
         # Configure the mock to return test data
         def mock_get(memory_id):
-            return {
-                "id": memory_id,
-                "embedding": np.array([0.1, 0.2, 0.3]),
-                "content": {"text": f"Memory {memory_id}"},
-                "metadata": {"source": "test", "importance": 0.8}
-            }
+            from memoryweave.interfaces.memory import Memory
+            return Memory(
+                id=memory_id,
+                embedding=np.array([0.1, 0.2, 0.3]),
+                content={"text": f"Memory {memory_id}"},
+                metadata={"source": "test", "importance": 0.8}
+            )
         
         mock_store.get.side_effect = mock_get
         return mock_store
@@ -67,9 +68,15 @@ class TestSimilarityRetrievalStrategy:
         
         # Verify the correct methods were called
         mock_vector_store.search.assert_called_once()
-        assert mock_vector_store.search.call_args[0][0] is query_embedding
-        assert mock_vector_store.search.call_args[0][1] == 10  # max_results
-        assert mock_vector_store.search.call_args[1]['threshold'] == 0.6  # similarity_threshold
+        
+        # Check call arguments more carefully
+        call_args = mock_vector_store.search.call_args
+        # Check that search was called with the right arguments
+        mock_vector_store.search.assert_called_with(
+            query_vector=query_embedding,
+            k=10,
+            threshold=0.6
+        )
         
         # Verify the correct memories were retrieved
         assert len(results) == 3
@@ -98,8 +105,13 @@ class TestSimilarityRetrievalStrategy:
         
         # Verify the correct parameters were used
         mock_vector_store.search.assert_called_once()
-        assert mock_vector_store.search.call_args[0][1] == 2  # max_results
-        assert mock_vector_store.search.call_args[1]['threshold'] == 0.8  # similarity_threshold
+        
+        # Check that search was called with the right arguments
+        mock_vector_store.search.assert_called_with(
+            query_vector=query_embedding,
+            k=2,
+            threshold=0.8
+        )
         
         # Verify the correct number of results
         assert len(results) == 2

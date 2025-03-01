@@ -2,7 +2,7 @@
 Core memory storage implementation for MemoryWeave.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -124,16 +124,16 @@ class CoreMemory:
         self.memory_embeddings = np.delete(self.memory_embeddings, least_important_idx, axis=0)
         self.activation_levels = np.delete(self.activation_levels, least_important_idx)
         self.temporal_markers = np.delete(self.temporal_markers, least_important_idx)
-        
+
         # Remove metadata
         del self.memory_metadata[least_important_idx]
-        
+
         return least_important_idx
 
     def get_memory_count(self) -> int:
         """Get the current number of memories stored."""
         return len(self.memory_metadata)
-    
+
     def get_memory(self, idx: int) -> tuple[np.ndarray, dict]:
         """
         Get memory embedding and metadata by index.
@@ -146,9 +146,9 @@ class CoreMemory:
         """
         if idx < 0 or idx >= len(self.memory_metadata):
             raise IndexError(f"Memory index {idx} out of range")
-            
+
         return self.memory_embeddings[idx], self.memory_metadata[idx]
-    
+
     def get_all_memories(self) -> List[Dict[str, Any]]:
         """
         Get all memories with their metadata and indices.

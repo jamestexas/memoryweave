@@ -2,10 +2,10 @@
 Factory functions for creating and configuring memory components.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Dict
 
-from memoryweave.components.memory_adapter import MemoryAdapter
 from memoryweave.components.adapters import CoreRetrieverAdapter
+from memoryweave.components.memory_adapter import MemoryAdapter
 from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.core.contextual_memory import ContextualMemory
 
@@ -24,11 +24,11 @@ def create_memory_system(config: Dict[str, Any] = None) -> Dict[str, Any]:
         Dictionary containing the memory, adapters, and manager
     """
     config = config or {}
-    
+
     # Create the core memory system
     memory_config = config.get('memory', {})
     memory = ContextualMemory(**memory_config)
-    
+
     # Create adapters
     memory_adapter = MemoryAdapter(memory=memory)
     retriever_adapter = CoreRetrieverAdapter(
@@ -36,14 +36,14 @@ def create_memory_system(config: Dict[str, Any] = None) -> Dict[str, Any]:
         default_top_k=config.get('default_top_k', 5),
         confidence_threshold=config.get('confidence_threshold', 0.0),
     )
-    
+
     # Create memory manager
     manager = MemoryManager()
-    
+
     # Register components
     manager.register_component('memory', memory_adapter)
     manager.register_component('core_retriever', retriever_adapter)
-    
+
     # Return all created objects
     return {
         'memory': memory,
@@ -82,7 +82,7 @@ def configure_memory_pipeline(
             }
         ]
         manager.build_pipeline(pipeline_config)
-        
+
     elif pipeline_type == 'advanced':
         # Configure an advanced pipeline with more components
         pipeline_config = [

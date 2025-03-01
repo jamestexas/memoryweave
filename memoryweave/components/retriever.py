@@ -108,7 +108,7 @@ class Retriever:
         adaptive_k = AdaptiveKProcessor()
         self.memory_manager.register_component("adaptive_k", adaptive_k)
         self.post_processors.append(adaptive_k)
-        
+
         # Register the new dynamic threshold adjuster if dynamic thresholding is enabled
         if self.dynamic_threshold_adjustment:
             self.dynamic_threshold_adjuster = dynamic_threshold_adjuster()
@@ -184,7 +184,7 @@ class Retriever:
                     ),
                 ],
             )
-        
+
         # Check for missing components before building the pipeline
         missing_components = [
             step["component"]
@@ -194,13 +194,13 @@ class Retriever:
         if missing_components:
             print(f"Warning: Missing registered components: {missing_components}")
             # Don't raise an error here, just warn and continue with available components
-        
+
         # Filter out missing components
         pipeline_steps = [
-            step for step in pipeline_steps 
+            step for step in pipeline_steps
             if step["component"] in self.memory_manager.components
         ]
-        
+
         if pipeline_steps:
             self.memory_manager.build_pipeline(pipeline_steps)
         else:

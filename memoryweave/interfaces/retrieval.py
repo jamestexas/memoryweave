@@ -4,12 +4,11 @@ This module defines the core interfaces for memory retrieval,
 including protocols, data models, and base classes for retrieval components.
 """
 
-from typing import Protocol, TypedDict, List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum, auto
-import numpy as np
+from typing import Any, Dict, List, Optional, Protocol, TypedDict
 
-from memoryweave.interfaces.memory import MemoryID, EmbeddingVector, Memory
+from memoryweave.interfaces.memory import EmbeddingVector, MemoryID
 
 
 class QueryType(Enum):
@@ -63,13 +62,13 @@ class RetrievalParameters(TypedDict, total=False):
 
 class IRetrievalStrategy(Protocol):
     """Interface for memory retrieval strategies."""
-    
-    def retrieve(self, 
-                query_embedding: EmbeddingVector, 
+
+    def retrieve(self,
+                query_embedding: EmbeddingVector,
                 parameters: RetrievalParameters) -> List[RetrievalResult]:
         """Retrieve memories based on a query embedding."""
         ...
-        
+
     def configure(self, config: Dict[str, Any]) -> None:
         """Configure the retrieval strategy."""
         ...
@@ -77,14 +76,14 @@ class IRetrievalStrategy(Protocol):
 
 class IPostProcessor(Protocol):
     """Interface for post-processing retrieval results."""
-    
-    def process(self, 
-               results: List[RetrievalResult], 
-               query: Query, 
+
+    def process(self,
+               results: List[RetrievalResult],
+               query: Query,
                context: QueryContext) -> List[RetrievalResult]:
         """Process retrieval results."""
         ...
-        
+
     def configure(self, config: Dict[str, Any]) -> None:
         """Configure the post-processor."""
         ...
@@ -92,19 +91,19 @@ class IPostProcessor(Protocol):
 
 class IRetrievalPipeline(Protocol):
     """Interface for retrieval pipeline."""
-    
+
     def add_retrieval_strategy(self, strategy: IRetrievalStrategy) -> None:
         """Add a retrieval strategy to the pipeline."""
         ...
-        
+
     def add_post_processor(self, processor: IPostProcessor) -> None:
         """Add a post-processor to the pipeline."""
         ...
-        
+
     def retrieve(self, query: Query) -> List[RetrievalResult]:
         """Execute the retrieval pipeline."""
         ...
-        
+
     def configure(self, config: Dict[str, Any]) -> None:
         """Configure the retrieval pipeline."""
         ...
