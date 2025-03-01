@@ -21,6 +21,16 @@ class MemoryManager:
     ) -> None:
         """Register a component with the memory manager."""
         self.components[name] = component
+        
+    def register_components(self, components_dict: dict[str, Component]) -> None:
+        """Register multiple components at once.
+        
+        Args:
+            components_dict: Dictionary mapping component names to component instances
+        """
+        for name, component in components_dict.items():
+            if component is not None:
+                self.register_component(name, component)
 
     def build_pipeline(
         self,

@@ -176,6 +176,9 @@ class Retriever:
 
     def _build_default_pipeline(self):
         """Build the default retrieval pipeline."""
+        # Ensure all components are properly registered and available
+        self._ensure_components_registered()
+        
         # Configure query adapter
         query_adapter_config = dict(
             # Enable query type adaptation if enabled
@@ -264,6 +267,55 @@ class Retriever:
             self.memory_manager.build_pipeline(pipeline_steps)
         else:
             print("Warning: No components available for pipeline")
+            
+    def _ensure_components_registered(self):
+        """Ensure all required components are registered properly."""
+        # Check for missing core components and register them if needed
+        required_components = {
+            "query_analyzer": self.query_analyzer,
+            "personal_attributes": self.personal_attribute_manager,
+            "memory_decay": self.memory_manager.components.get("memory_decay"),
+            "keyword_expander": self.keyword_expander,
+            "query_adapter": self.query_adapter,
+            "two_stage_retrieval": self.two_stage_strategy,
+            "hybrid_retrieval": self.retrieval_strategy,
+            "similarity_retrieval": self.memory_manager.components.get("similarity_retrieval"),
+            "temporal_retrieval": self.memory_manager.components.get("temporal_retrieval"),
+            "keyword_boost": self.memory_manager.components.get("keyword_boost"),
+            "coherence": self.memory_manager.components.get("coherence"),
+            "adaptive_k": self.memory_manager.components.get("adaptive_k"),
+            "attribute_processor": self.memory_manager.components.get("attribute_processor"),
+            "min_result_guarantee": self.memory_manager.components.get("min_result_guarantee"),
+        }
+        
+        # Initialize any components that are not initialized yet
+        for name, component in list(required_components.items()):
+            if component is None and hasattr(self, name):
+                required_components[name] = getattr(self, name)
+                
+        # If we still don't have the two_stage_retrieval and it's needed, create it
+        if required_components["two_stage_retrieval"] is None and self.use_two_stage_retrieval:
+            # Initialize it from scratch with proper dependencies
+            if self.retrieval_strategy and self.post_processors:
+                self.two_stage_strategy = TwoStageRetrievalStrategy(
+                    self.memory,
+                    base_strategy=self.retrieval_strategy,
+                    post_processors=self.post_processors
+                )
+                required_components["two_stage_retrieval"] = self.two_stage_strategy
+                
+        # Register all missing components at once using the new bulk registration method
+        missing_components = {
+            name: component 
+            for name, component in required_components.items()
+            if component is not None and name not in self.memory_manager.components
+        }
+        
+        if missing_components:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Registering missing components: {list(missing_components.keys())}")
+            self.memory_manager.register_components(missing_components)
 
     def configure_pipeline(self, pipeline_config: list[dict[str, Any]]):
         """
