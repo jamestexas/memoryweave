@@ -410,82 +410,35 @@ class NLPExtractor:
     def extract_personal_attributes(self, text: str) -> dict[str, Any]:
         """
         Extract personal attributes using available methods.
-
-        Args:
-            text: Text to analyze
-
-        Returns:
-            dictionary of extracted attributes
         """
-        attributes = {"preferences": {}, "demographics": {}, "traits": {}, "relationships": {}}
+        print(f"\n[DEBUG] Processing text: {text}")  # 👀 Debug input text
+        attributes = {
+            "preferences": {},
+            "demographics": {},
+            "traits": {},
+            "relationships": {},
+        }
 
         if not text:
-            return attributes
+            return attributes  # Avoid processing empty input
 
-        # Always use regex extraction for now
-        self._extract_preferences_regex(text, attributes)
-        self._extract_demographics_regex(text, attributes)
-        self._extract_traits_regex(text, attributes)
-        self._extract_relationships_regex(text, attributes)
-
-        # If spaCy is available, enhance with NLP extraction
+        # Check if spaCy is available
         if self.is_spacy_available and self.nlp:
             doc = self.nlp(text)
+            print("\n[DEBUG] Named Entities:", [(ent.text, ent.label_) for ent in doc.ents])
 
-            # Extract named entities
             for ent in doc.ents:
-                if ent.label_ == "PERSON" and "name" not in attributes["demographics"]:
-                    # Check if this might be the user's name
-                    if "my name is" in text.lower() or "i am" in text.lower():
-                        attributes["demographics"]["name"] = ent.text
+                if ent.label_ == "GPE":
+                    attributes["demographics"]["location"] = ent.text
+                elif ent.label_ == "PERSON":
+                    attributes["relationships"]["family"] = {"name": ent.text}
+                elif ent.label_ == "ORG":
+                    attributes["demographics"]["occupation"] = ent.text
+            print("\n[DEBUG] Extracted Attributes from spaCy:", attributes)
 
-                elif ent.label_ == "GPE" and "location" not in attributes["demographics"]:
-                    # Check if this might be where they live
-                    if "live in" in text.lower() or "reside in" in text.lower():
-                        attributes["demographics"]["location"] = ent.text
-
-                elif ent.label_ == "ORG" and "organization" not in attributes["demographics"]:
-                    # Check if this might be where they work or study
-                    if "work at" in text.lower() or "work for" in text.lower():
-                        attributes["demographics"]["organization"] = ent.text
-                    elif "study at" in text.lower() or "attend" in text.lower():
-                        attributes["demographics"]["education"] = ent.text
-
-            # Extract family relationships
-            if "wife" in text.lower() or "husband" in text.lower() or "children" in text.lower():
-                for ent in doc.ents:
-                    if ent.label_ == "PERSON":
-                        # Check context to determine relationship
-                        context_window = text[
-                            max(0, ent.start_char - 20) : min(len(text), ent.end_char + 20)
-                        ].lower()
-
-                        if "wife" in context_window:
-                            if "family" not in attributes["relationships"]:
-                                attributes["relationships"]["family"] = {}
-                            attributes["relationships"]["family"]["wife"] = ent.text
-                        elif "husband" in context_window:
-                            if "family" not in attributes["relationships"]:
-                                attributes["relationships"]["family"] = {}
-                            attributes["relationships"]["family"]["husband"] = ent.text
-                        elif "son" in context_window:
-                            if "family" not in attributes["relationships"]:
-                                attributes["relationships"]["family"] = {}
-                            if "children" not in attributes["relationships"]["family"]:
-                                attributes["relationships"]["family"]["children"] = []
-                            attributes["relationships"]["family"]["children"].append(ent.text)
-                        elif "daughter" in context_window:
-                            if "family" not in attributes["relationships"]:
-                                attributes["relationships"]["family"] = {}
-                            if "children" not in attributes["relationships"]["family"]:
-                                attributes["relationships"]["family"]["children"] = []
-                            attributes["relationships"]["family"]["children"].append(ent.text)
-                        elif "child" in context_window or "children" in context_window:
-                            if "family" not in attributes["relationships"]:
-                                attributes["relationships"]["family"] = {}
-                            if "children" not in attributes["relationships"]["family"]:
-                                attributes["relationships"]["family"]["children"] = []
-                            attributes["relationships"]["family"]["children"].append(ent.text)
+        # Fallback Regex Extraction
+        self._extract_preferences_regex(text, attributes)
+        print("\n[DEBUG] Attributes After Regex Extraction:", attributes)
 
         return attributes
 

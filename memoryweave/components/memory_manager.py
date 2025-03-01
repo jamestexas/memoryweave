@@ -2,6 +2,7 @@
 from typing import Any
 
 from memoryweave.components.base import Component
+from memoryweave.components.pipeline_config import PipelineConfig
 
 
 class MemoryManager:
@@ -11,7 +12,7 @@ class MemoryManager:
 
     def __init__(self):
         self.components = {}
-        self.pipeline = []
+        self.pipeline: list[PipelineConfig] = []
 
     def register_component(
         self,
@@ -26,18 +27,19 @@ class MemoryManager:
         pipeline_config: list[dict[str, Any]],
     ) -> None:
         """Build a retrieval pipeline from configuration."""
+        parsed_config = PipelineConfig.model_validate(pipeline_config)
         self.pipeline = []
-        for step in pipeline_config:
-            component_name = step["component"]
-            if component_name in self.components:
+
+        for step in parsed_config.steps:
+            if step.component in self.components:
                 self.pipeline.append(
-                    {
-                        "component": self.components[component_name],
-                        "config": step.get("config", {}),
-                    }
+                    dict(
+                        component=self.components[step.component],
+                        config=step.config,
+                    )
                 )
             else:
-                raise ValueError(f"Component {component_name} not registered")
+                raise ValueError(f"Component {step.component} not registered")
 
     def execute_pipeline(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """Execute the retrieval pipeline."""

@@ -14,6 +14,7 @@ dependencies = [
     "faiss-cpu>=1.10.0",
     "hdbscan>=0.8.40",
     "huggingface-hub>=0.29.1",
+    "ipython>=9.0.0",
     "matplotlib>=3.10.1",
     "numpy>=2.2.3",
     "pandas>=2.2.3",
@@ -58,6 +59,7 @@ en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/dow
 dev = [
     "datasets>=3.3.2",
     "en-core-web-sm",
+    "ipython>=9.0.0",
     "mypy>=1.15.0",
     "pytest>=8.3.4",
     "pytest-cov>=6.0.0",

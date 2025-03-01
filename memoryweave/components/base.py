@@ -35,7 +35,10 @@ class RetrievalStrategy(RetrievalComponent):
 
     @abstractmethod
     def retrieve(
-        self, query_embedding: Any, top_k: int, context: dict[str, Any]
+        self,
+        query_embedding: Any,
+        top_k: int,
+        context: dict[str, Any],
     ) -> list[dict[str, Any]]:
         """Retrieve memories based on query embedding."""
         pass
@@ -53,21 +56,27 @@ class RetrievalStrategy(RetrievalComponent):
         Returns:
             Updated context with results
         """
-        query_embedding = context.get("query_embedding")
         top_k = context.get("top_k", 5)
 
         # If no query embedding is provided, return empty results
-        if query_embedding is None:
-            return {"results": []}
+        if (query_embedding := context.get("query_embedding", None)) is None:
+            return dict(results=[])
 
         # Use memory from context or instance
-        memory = context.get("memory", getattr(self, "memory", None))
+        memory = context.get(
+            "memory",
+            getattr(self, "memory", None),
+        )
 
         # Retrieve memories
-        results = self.retrieve(query_embedding, top_k, {"memory": memory})
+        results = self.retrieve(
+            results=query_embedding,
+            query=top_k,
+            context=dict(memory=memory),
+        )
 
         # Return results
-        return {"results": results}
+        return dict(results=results)
 
 
 class PostProcessor(RetrievalComponent):
@@ -75,7 +84,10 @@ class PostProcessor(RetrievalComponent):
 
     @abstractmethod
     def process_results(
-        self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
+        self,
+        results: list[dict[str, Any]],
+        query: str,
+        context: dict[str, Any],
     ) -> list[dict[str, Any]]:
         """Process retrieved results."""
         pass
@@ -94,7 +106,11 @@ class PostProcessor(RetrievalComponent):
         results = context.get("results", [])
 
         # Process results
-        processed_results = self.process_results(results, query, context)
+        processed_results = self.process_results(
+            results=results,
+            query=query,
+            context=context,
+        )
 
         # Update context with processed results
-        return {"results": processed_results}
+        return dict(results=processed_results)

@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 
+from memoryweave.components import dynamic_threshold_adjuster
 from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.components.post_processors import (
@@ -107,6 +108,12 @@ class Retriever:
         adaptive_k = AdaptiveKProcessor()
         self.memory_manager.register_component("adaptive_k", adaptive_k)
         self.post_processors.append(adaptive_k)
+        # Register the new dynamic threshold adjuster if dynamic thresholding is enabled
+        if self.dynamic_threshold_adjustment:
+            self.dynamic_threshold_adjuster = dynamic_threshold_adjuster()
+            self.memory_manager.register_component(
+                "dynamic_threshold", self.dynamic_threshold_adjuster
+            )
 
         # Initialize two-stage retrieval strategy
         self.two_stage_strategy = TwoStageRetrievalStrategy(
@@ -120,52 +127,70 @@ class Retriever:
     def _build_default_pipeline(self):
         """Build the default retrieval pipeline."""
         # Configure query adapter
-        query_adapter_config = {
-            "adaptation_strength": self.adaptation_strength if self.query_type_adaptation else 0.0,
-            "confidence_threshold": self.minimum_relevance,
-            "first_stage_k": self.first_stage_k,
-            "first_stage_threshold_factor": self.first_stage_threshold_factor,
-        }
+        query_adapter_config = dict(
+            # Enable query type adaptation if enabled
+            adaptation_strength=(self.adaptation_strength if self.query_type_adaptation else 0.0),
+            confidence_threshold=self.minimum_relevance,
+            first_stage_k=self.first_stage_k,
+            first_stage_threshold_factor=self.first_stage_threshold_factor,
+        )
+        pipeline_steps = [
+            dict(component="query_analyzer", config={}),
+            dict(component="query_adapter", config=query_adapter_config),
+        ]
 
         if self.use_two_stage_retrieval:
             # Use two-stage retrieval in the pipeline with query type adaptation
-            pipeline_config = [
-                {"component": "query_analyzer", "config": {}},
-                {"component": "query_adapter", "config": query_adapter_config},
-                {
-                    "component": "two_stage_retrieval",
-                    "config": {
-                        "confidence_threshold": self.minimum_relevance,
-                        "first_stage_k": self.first_stage_k,
-                        "first_stage_threshold_factor": self.first_stage_threshold_factor,
-                        "post_processor_config": {
-                            "keyword_boost_weight": 0.5,
-                            "coherence_threshold": 0.2,
-                            "adaptive_k_factor": 0.3,
-                        },
-                    },
-                },
-            ]
+            pipeline_steps.append(
+                dict(
+                    component="two_stage_retrieval",
+                    config=dict(
+                        confidence_threshold=self.minimum_relevance,
+                        first_stage_k=self.first_stage_k,
+                        first_stage_threshold_factor=self.first_stage_threshold_factor,
+                        post_processor_config=dict(
+                            keyword_boost_weight=0.5,
+                            coherence_threshold=0.2,
+                            adaptive_k_factor=0.3,
+                        ),
+                    ),
+                ),
+            )
         else:
             # Use standard pipeline without two-stage retrieval
             # This adds each component separately to the pipeline
-            pipeline_config = [
-                {"component": "query_analyzer", "config": {}},
-                {"component": "query_adapter", "config": query_adapter_config},
-                {
-                    "component": "hybrid_retrieval",
-                    "config": {
-                        "relevance_weight": 0.7,
-                        "recency_weight": 0.3,
-                        "confidence_threshold": self.minimum_relevance,
-                    },
-                },
-                {"component": "keyword_boost", "config": {"keyword_boost_weight": 0.5}},
-                {"component": "coherence", "config": {"coherence_threshold": 0.2}},
-                {"component": "adaptive_k", "config": {"adaptive_k_factor": 0.3}},
-            ]
-
-        self.memory_manager.build_pipeline(pipeline_config)
+            pipeline_steps.extend(
+                [
+                    dict(
+                        component="hybrid_retrieval",
+                        config=dict(
+                            relevance_weight=0.7,
+                            recency_weight=0.3,
+                            confidence_threshold=self.minimum_relevance,
+                        ),
+                    ),
+                    dict(
+                        component="keyword_boost",
+                        config=dict(keyword_boost_weight=0.5),
+                    ),
+                    dict(
+                        component="coherence",
+                        config=dict(coherence_threshold=0.2),
+                    ),
+                    dict(
+                        component="adaptive_k",
+                        config=dict(adaptive_k_factor=0.3),
+                    ),
+                ],
+            )
+        missing_components = [
+            step["component"]
+            for step in pipeline_steps
+            if step["component"] not in self.memory_manager.components
+        ]
+        if missing_components:
+            raise ValueError(f"Missing registered components: {missing_components}")
+        self.memory_manager.build_pipeline(pipeline_steps)
 
     def configure_pipeline(self, pipeline_config: list[dict[str, Any]]):
         """

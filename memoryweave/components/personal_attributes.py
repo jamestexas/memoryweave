@@ -1,4 +1,3 @@
-# memoryweave/components/personal_attributes.py
 from typing import Any
 
 from memoryweave.components.base import RetrievalComponent
@@ -10,8 +9,8 @@ class PersonalAttributeManager(RetrievalComponent):
     Manages extraction and storage of personal attributes.
     """
 
-    def __init__(self, nlp_model_name: str = "en_core_web_sm"):
-        self.nlp_extractor = NLPExtractor(model_name=nlp_model_name)
+    def __init__(self):
+        self.nlp_extractor = NLPExtractor()  # Shared NLP instance for efficiency
         self.personal_attributes = {
             "preferences": {},
             "demographics": {},
@@ -26,7 +25,7 @@ class PersonalAttributeManager(RetrievalComponent):
 
     def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """Process text data to extract attributes."""
-        text = data.get("text", "")
+        text = data.get("text", "").strip()
         if not text:
             return {"personal_attributes": self.personal_attributes}
 
@@ -37,11 +36,9 @@ class PersonalAttributeManager(RetrievalComponent):
 
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """Process a query to identify and extract personal attributes."""
-        # Extract attributes from query
         extracted_attributes = self.nlp_extractor.extract_personal_attributes(query)
         self._update_attributes(extracted_attributes)
 
-        # Extract relevant attributes for the query
         relevant_attributes = self._get_relevant_attributes(query)
 
         return {
@@ -50,40 +47,49 @@ class PersonalAttributeManager(RetrievalComponent):
         }
 
     def _update_attributes(self, attributes: dict[str, Any]) -> None:
-        """Update stored attributes with new information."""
+        """Ensure extracted attributes are properly stored and merged."""
         for category, items in attributes.items():
             if not items:
-                continue
+                continue  # Skip empty attributes
 
+            # Ensure category exists
             if category not in self.personal_attributes:
                 self.personal_attributes[category] = {}
 
             if isinstance(items, dict):
-                for key, value in items.items():
-                    self.personal_attributes[category][key] = value
+                for sub_key, sub_value in items.items():
+                    if sub_key not in self.personal_attributes[category]:
+                        self.personal_attributes[category][sub_key] = sub_value
+                    else:
+                        existing_value = self.personal_attributes[category][sub_key]
+                        if isinstance(existing_value, list):
+                            if sub_value not in existing_value:
+                                existing_value.append(sub_value)
+                        elif isinstance(existing_value, str) and existing_value != sub_value:
+                            self.personal_attributes[category][sub_key] = sub_value
+
             elif isinstance(items, list):
                 if not isinstance(self.personal_attributes[category], list):
                     self.personal_attributes[category] = []
-                for item in items:
-                    if item not in self.personal_attributes[category]:
-                        self.personal_attributes[category].append(item)
+                self.personal_attributes[category] = list(
+                    set(self.personal_attributes[category] + items)
+                )
+
             else:
                 self.personal_attributes[category] = items
 
     def _get_relevant_attributes(self, query: str) -> dict[str, Any]:
-        """Get attributes relevant to the query."""
+        """Retrieve attributes relevant to the query dynamically."""
         query_lower = query.lower()
         relevant_attributes = {}
 
-        # Check for preference-related queries
-        preference_keywords = ["favorite", "like", "prefer", "love"]
-        if any(keyword in query_lower for keyword in preference_keywords):
-            for category, value in self.personal_attributes["preferences"].items():
-                if category in query_lower or any(
-                    keyword in query_lower for keyword in preference_keywords
+        for category, attributes in self.personal_attributes.items():
+            for attr_key, attr_value in attributes.items():
+                if attr_key in query_lower:
+                    relevant_attributes[f"{category}_{attr_key}"] = attr_value
+                elif isinstance(attr_value, list) and any(
+                    term in query_lower for term in attr_value
                 ):
-                    relevant_attributes[f"preference_{category}"] = value
-
-        # Similar logic for other attribute types...
+                    relevant_attributes[f"{category}_{attr_key}"] = attr_value
 
         return relevant_attributes
