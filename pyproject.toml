@@ -23,6 +23,7 @@ dependencies = [
     "rich-click>=1.8.6",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.2",
+    "sentence-transformers>=3.4.1",
     "spacy>=3.7.0",
     "thinc>=8.3.4",
     "torch>=2.6.0",
