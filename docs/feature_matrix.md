@@ -82,7 +82,7 @@ This document tracks the implementation status of features from the original `Co
 | 3 | Create factory methods | ✅ | Implemented memory, retrieval, and pipeline factories |
 | 4 | Create adapters | ✅ | Implemented memory, retrieval, and pipeline adapters |
 | 4 | Migrate feature implementations | 🔄 | Added component migration utility |
-| 4 | Update tests | ❌ | Not started |
+| 4 | Update tests | 🔄 | Added unit tests for storage, retrieval, query, pipeline, and adapter components |
 | 5 | Remove deprecated code | ❌ | Not started |
 | 5 | Update documentation | ✅ | Architecture ADR added, feature matrix updated |
-| 5 | Update examples | ❌ | Not started |
+| 5 | Update examples | ✅ | Added migration example demonstrating all migration approaches |
