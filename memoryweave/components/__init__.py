@@ -19,6 +19,7 @@ from memoryweave.components.personal_attributes import PersonalAttributeManager
 from memoryweave.components.post_processors import (
     AdaptiveKProcessor,
     KeywordBoostProcessor,
+    MinimumResultGuaranteeProcessor,
     PersonalAttributeProcessor,
     SemanticCoherenceProcessor,
 )
@@ -55,6 +56,7 @@ __all__ = [
     # Post-processors
     "AdaptiveKProcessor",
     "KeywordBoostProcessor",
+    "MinimumResultGuaranteeProcessor",
     "PersonalAttributeProcessor",
     "SemanticCoherenceProcessor",
 ]

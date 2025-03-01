@@ -113,6 +113,79 @@ class AdaptiveKProcessor(PostProcessor):
             ]
 
 
+class MinimumResultGuaranteeProcessor(PostProcessor):
+    """
+    Ensures a minimum number of results are returned even if they don't meet the confidence threshold.
+    
+    This processor implements a fallback retrieval strategy when the initial retrieval
+    doesn't return enough results, ensuring that queries always receive a response.
+    """
+    
+    def initialize(self, config: dict[str, Any]) -> None:
+        """Initialize with configuration."""
+        self.min_results = config.get("min_results", 1)
+        self.fallback_threshold_factor = config.get("fallback_threshold_factor", 0.5)
+        self.min_fallback_threshold = config.get("min_fallback_threshold", 0.05)
+        self.memory = config.get("memory", None)
+        
+    def process_results(
+        self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Process retrieved results by ensuring a minimum number of results."""
+        # If we already have enough results, no action needed
+        if len(results) >= self.min_results:
+            return results
+            
+        # Check if we have access to the necessary components to perform fallback retrieval
+        if not self.memory or "query_embedding" not in context:
+            return results
+            
+        # Get the original confidence threshold used
+        original_threshold = context.get("confidence_threshold", 0.0)
+        
+        # Calculate fallback threshold - lower than original but with a minimum
+        fallback_threshold = max(
+            self.min_fallback_threshold, 
+            original_threshold * self.fallback_threshold_factor
+        )
+        
+        # Get existing memory IDs to avoid duplicates
+        existing_ids = {r.get("id") for r in results if "id" in r}
+        
+        # Try to get additional results with lower threshold
+        try:
+            # If memory has a direct similarity search method
+            if hasattr(self.memory, "search_by_embedding"):
+                # Calculate how many more results we need
+                additional_count = self.min_results - len(results)
+                
+                # Get query embedding
+                query_embedding = context["query_embedding"]
+                
+                # Get additional results with lower threshold
+                fallback_results = self.memory.search_by_embedding(
+                    query_embedding, 
+                    k=additional_count + len(existing_ids),  # Request extra to account for duplicates
+                    threshold=fallback_threshold
+                )
+                
+                # Filter out existing IDs
+                fallback_results = [
+                    r for r in fallback_results if r.get("id") not in existing_ids
+                ]
+                
+                # Add to the original results until min_results is reached
+                for result in fallback_results[:additional_count]:
+                    result["from_fallback"] = True
+                    results.append(result)
+                    
+        except Exception as e:
+            # Log error but don't fail
+            print(f"Error in minimum result guarantee fallback: {str(e)}")
+            
+        return results
+
+
 class PersonalAttributeProcessor(PostProcessor):
     """
     Enhances retrieval results based on personal attributes from the query.
