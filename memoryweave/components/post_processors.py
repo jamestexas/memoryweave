@@ -1,5 +1,5 @@
 # memoryweave/components/post_processors.py
-from typing import Any
+from typing import Any, Dict, List
 
 from memoryweave.components.base import PostProcessor
 
@@ -111,3 +111,122 @@ class AdaptiveKProcessor(PostProcessor):
             return sorted(results, key=lambda x: x.get("relevance_score", 0), reverse=True)[
                 :original_k
             ]
+
+
+class PersonalAttributeProcessor(PostProcessor):
+    """
+    Enhances retrieval results based on personal attributes from the query.
+    
+    This processor analyzes the query for personal attribute references and boosts
+    results that contain relevant attributes. It can also generate synthetic
+    attribute memory entries for direct attribute questions.
+    """
+    
+    def initialize(self, config: dict[str, Any]) -> None:
+        """Initialize with configuration."""
+        self.attribute_boost_factor = config.get("attribute_boost_factor", 0.6)
+        self.add_direct_responses = config.get("add_direct_responses", True)
+        self.min_relevance_threshold = config.get("min_relevance_threshold", 0.3)
+    
+    def process_results(
+        self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Process retrieved results by incorporating personal attributes."""
+        # Check if personal attributes are available in context
+        if "personal_attributes" not in context:
+            return results
+            
+        personal_attributes = context.get("personal_attributes", {})
+        relevant_attributes = context.get("relevant_attributes", {})
+        
+        if not relevant_attributes:
+            return results
+            
+        # Create a copy of results to modify
+        enhanced_results = list(results)
+        
+        # 1. Boost existing results that contain relevant attributes
+        for result in enhanced_results:
+            content = str(result.get("content", "")).lower()
+            
+            # Check for attribute matches in content
+            attribute_matches = 0
+            for attr_type, attr_value in relevant_attributes.items():
+                if isinstance(attr_value, str) and attr_value.lower() in content:
+                    attribute_matches += 1
+                elif isinstance(attr_value, list):
+                    for value in attr_value:
+                        if value.lower() in content:
+                            attribute_matches += 1
+            
+            # Apply boost based on matches
+            if attribute_matches > 0:
+                boost = min(self.attribute_boost_factor * attribute_matches / len(relevant_attributes), 0.8)
+                current_score = result.get("relevance_score", 0)
+                new_score = min(current_score + boost * (1.0 - current_score), 1.0)
+                result["relevance_score"] = new_score
+                result["attribute_boost_applied"] = True
+        
+        # 2. For direct attribute questions, create a synthetic result if needed
+        if self.add_direct_responses and relevant_attributes:
+            # Check if query is likely a direct question about an attribute
+            direct_query_types = ["what is my", "where do i", "who is my", "tell me my", "what's my"]
+            is_direct_query = any(query.lower().startswith(prefix) for prefix in direct_query_types)
+            
+            # If direct query and no high relevance results exist, create synthetic response
+            has_high_relevance = any(r.get("relevance_score", 0) > self.min_relevance_threshold for r in enhanced_results)
+            
+            if is_direct_query and (not has_high_relevance or not enhanced_results):
+                # Create synthetic attribute response
+                attribute_memory = self._create_attribute_memory(query, relevant_attributes)
+                if attribute_memory:
+                    # Add as highest relevance result
+                    enhanced_results.insert(0, attribute_memory)
+        
+        return enhanced_results
+    
+    def _create_attribute_memory(self, query: str, relevant_attributes: dict[str, Any]) -> dict[str, Any]:
+        """Create a synthetic memory entry from personal attributes relevant to the query."""
+        if not relevant_attributes:
+            return None
+            
+        # Determine which attribute is most relevant to query
+        attr_key = next(iter(relevant_attributes.keys()))
+        attr_value = relevant_attributes[attr_key]
+        
+        # Format depends on attribute type
+        attr_category = attr_key.split("_")[0] if "_" in attr_key else "attribute"
+        attr_type = attr_key.split("_")[1] if "_" in attr_key else attr_key
+        
+        # Generate content based on attribute type
+        if attr_category == "preferences":
+            content = f"Your favorite {attr_type} is {attr_value}."
+        elif attr_category == "demographic":
+            if attr_type == "location":
+                content = f"You live in {attr_value}."
+            elif attr_type == "occupation":
+                content = f"You work as a {attr_value}."
+            else:
+                content = f"Your {attr_type} is {attr_value}."
+        elif attr_category == "relationship":
+            content = f"Your {attr_type} is {attr_value}."
+        elif attr_category == "trait":
+            if attr_type == "hobbies" and isinstance(attr_value, list):
+                hobbies_str = ", ".join(attr_value)
+                content = f"Your hobbies include {hobbies_str}."
+            else:
+                content = f"Your {attr_type} is {attr_value}."
+        else:
+            content = f"Your {attr_type} is {attr_value}."
+        
+        # Create memory entry
+        return {
+            "content": content,
+            "relevance_score": 1.0,  # Highest relevance
+            "type": "attribute",
+            "source": "personal_attribute",
+            "embedding": None,
+            "id": f"attribute-{attr_key}",
+            "timestamp": None,
+            "is_synthetic": True
+        }

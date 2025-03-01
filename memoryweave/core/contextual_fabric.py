@@ -15,3 +15,4 @@ warnings.warn(
 )
 
 # Re-export ContextualMemory for backward compatibility
+from memoryweave.core.contextual_memory import ContextualMemory
