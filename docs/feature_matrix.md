@@ -80,8 +80,8 @@ This document tracks the implementation status of features from the original `Co
 | 3 | Create pipeline architecture | ✅ | Implemented registry, builder, manager, and executor |
 | 3 | Create configuration system | ✅ | Implemented options, validation, and loaders |
 | 3 | Create factory methods | ✅ | Implemented memory, retrieval, and pipeline factories |
-| 4 | Create adapters | ❌ | Not started |
-| 4 | Migrate feature implementations | ❌ | Not started |
+| 4 | Create adapters | ✅ | Implemented memory, retrieval, and pipeline adapters |
+| 4 | Migrate feature implementations | 🔄 | Added component migration utility |
 | 4 | Update tests | ❌ | Not started |
 | 5 | Remove deprecated code | ❌ | Not started |
 | 5 | Update documentation | ✅ | Architecture ADR added, feature matrix updated |
