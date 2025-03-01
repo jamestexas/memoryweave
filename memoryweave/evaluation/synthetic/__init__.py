@@ -12,4 +12,20 @@ from memoryweave.evaluation.synthetic.generators import (
     SyntheticQueryGenerator,
 )
 
-__all__ = ["SyntheticMemoryGenerator", "SyntheticQueryGenerator"]
+from memoryweave.evaluation.synthetic.semantic_generator import (
+    SemanticDataGenerator,
+    generate_semantic_dataset,
+    MemoryRelationship,
+    MemorySeries,
+    SemanticMemory,
+)
+
+__all__ = [
+    "SyntheticMemoryGenerator",
+    "SyntheticQueryGenerator",
+    "SemanticDataGenerator",
+    "generate_semantic_dataset",
+    "MemoryRelationship",
+    "MemorySeries",
+    "SemanticMemory",
+]

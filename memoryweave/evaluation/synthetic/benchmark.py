@@ -250,7 +250,10 @@ class SyntheticBenchmark:
         retriever.minimum_relevance = config.confidence_threshold
         retriever.top_k = config.top_k
         
-        # Configure features
+        # First initialize components to ensure everything is registered
+        retriever.initialize_components()
+        
+        # Then configure features
         if config.semantic_coherence_check:
             retriever.configure_semantic_coherence(enable=True)
         
@@ -270,8 +273,8 @@ class SyntheticBenchmark:
             except AttributeError:
                 logger.warning("Memory decay not available in this version of the retriever")
         
-        # Initialize components
-        retriever.initialize_components()
+        # Rebuild the pipeline with updated configurations
+        retriever._build_default_pipeline()
         
         return memory, retriever
     
