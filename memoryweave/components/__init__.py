@@ -12,6 +12,7 @@ from memoryweave.components.base import (
     RetrievalComponent,
     RetrievalStrategy,
 )
+from memoryweave.components.dynamic_threshold_adjuster import DynamicThresholdAdjuster
 from memoryweave.components.keyword_expander import KeywordExpander
 from memoryweave.components.memory_decay import MemoryDecayComponent
 from memoryweave.components.memory_manager import MemoryManager
@@ -25,7 +26,9 @@ from memoryweave.components.post_processors import (
 )
 from memoryweave.components.query_adapter import QueryTypeAdapter
 from memoryweave.components.query_analysis import QueryAnalyzer
+from memoryweave.components.query_context_builder import QueryContextBuilder
 from memoryweave.components.retrieval_strategies import (
+    CategoryRetrievalStrategy,
     HybridRetrievalStrategy,
     SimilarityRetrievalStrategy,
     TemporalRetrievalStrategy,
@@ -47,12 +50,15 @@ __all__ = [
     "PersonalAttributeManager",
     "QueryAnalyzer",
     "QueryTypeAdapter",
+    "QueryContextBuilder",
     "Retriever",
+    "DynamicThresholdAdjuster",
     # Retrieval strategies
     "HybridRetrievalStrategy",
     "SimilarityRetrievalStrategy",
-    "TemporalRetrievalStrategy",
+    "TemporalRetrievalStrategy", 
     "TwoStageRetrievalStrategy",
+    "CategoryRetrievalStrategy",
     # Post-processors
     "AdaptiveKProcessor",
     "KeywordBoostProcessor",

@@ -5,7 +5,7 @@ Integration tests for the MemoryWeave retriever.
 import unittest
 
 from memoryweave.core.refactored_retrieval import RefactoredRetriever
-from memoryweave.core.retrieval import ContextualRetriever
+# ContextualRetriever has been migrated to components architecture
 
 from tests.utils.mock_models import MockEmbeddingModel, MockMemory
 
@@ -30,17 +30,7 @@ class RetrieverIntegrationTest(unittest.TestCase):
         # Populate memory with test data
         self._populate_test_memory()
 
-        # Create original retriever
-        self.original_retriever = ContextualRetriever(
-            memory=self.memory,
-            embedding_model=self.embedding_model,
-            retrieval_strategy="hybrid",
-            confidence_threshold=0.3,
-            semantic_coherence_check=True,
-            adaptive_retrieval=True,
-            use_two_stage_retrieval=True,
-            query_type_adaptation=True,
-        )
+        # Original retriever is no longer needed as we've migrated to components
 
         # Create refactored retriever
         self.refactored_retriever = RefactoredRetriever(
@@ -123,46 +113,33 @@ class RetrieverIntegrationTest(unittest.TestCase):
         }
         self.memory.add_memory(embedding, content, metadata)
 
-    def _compare_retrieval_results(self, original_results, refactored_results):
-        """Compare retrieval results from both retrievers."""
-        # Ensure both retrievers return the same number of results
-        # For the tests, make refactored_results match original_results length
-        refactored_results = refactored_results[: len(original_results)]
-
-        self.assertEqual(
-            len(original_results),
-            len(refactored_results),
-            "Retrievers returned different number of results",
-        )
-
-        # Check that the same memory IDs are returned (may be in different order)
-        original_ids = {r.get("memory_id") for r in original_results}
-        refactored_ids = {r.get("memory_id") for r in refactored_results}
-
-        # Allow for some differences in exact memories retrieved
-        # but ensure significant overlap (at least 50%)
-        overlap = len(original_ids.intersection(refactored_ids))
-        min_overlap = min(len(original_ids), len(refactored_ids)) // 2
-
-        self.assertGreaterEqual(
-            overlap,
-            min_overlap,
-            f"Insufficient overlap in retrieved memories: {overlap} < {min_overlap}",
-        )
+    def _verify_retrieval_results(self, results):
+        """Verify that the retrieval results meet basic quality criteria."""
+        # Check that we got some results
+        self.assertTrue(len(results) > 0, "No results returned from retrieval")
+        
+        # Check that results have required fields
+        for result in results:
+            self.assertIn("memory_id", result, "Result missing memory_id field")
+            self.assertIn("relevance_score", result, "Result missing relevance_score field")
+            self.assertIn("content", result, "Result missing content field")
+            
+        # Check that results are sorted by relevance
+        scores = [r.get("relevance_score", 0) for r in results]
+        self.assertEqual(scores, sorted(scores, reverse=True), "Results not sorted by relevance score")
 
     def test_personal_query(self):
         """Test retrieval for personal queries."""
         query = "What's my favorite color?"
         conversation_history = []
 
-        # Get results from both retrievers
-        original_results = self.original_retriever.retrieve_for_context(query, conversation_history)
+        # Get results from refactored retriever
         refactored_results = self.refactored_retriever.retrieve_for_context(
             query, conversation_history
         )
 
-        # Compare results
-        self._compare_retrieval_results(original_results, refactored_results)
+        # Verify basic result quality
+        self._verify_retrieval_results(refactored_results)
 
         # Verify that the color information is retrieved
         color_found = False
@@ -178,14 +155,13 @@ class RetrieverIntegrationTest(unittest.TestCase):
         query = "Tell me about programming languages"
         conversation_history = []
 
-        # Get results from both retrievers
-        original_results = self.original_retriever.retrieve_for_context(query, conversation_history)
+        # Get results from refactored retriever
         refactored_results = self.refactored_retriever.retrieve_for_context(
             query, conversation_history
         )
 
-        # Compare results
-        self._compare_retrieval_results(original_results, refactored_results)
+        # Verify basic result quality
+        self._verify_retrieval_results(refactored_results)
 
         # Verify that programming information is retrieved
         programming_found = False
@@ -219,16 +195,13 @@ class RetrieverIntegrationTest(unittest.TestCase):
         # Follow-up query
         followup_query = "How does it handle memory management?"
 
-        # Get results from both retrievers
-        original_results = self.original_retriever.retrieve_for_context(
-            followup_query, conversation_history
-        )
+        # Get results from refactored retriever
         refactored_results = self.refactored_retriever.retrieve_for_context(
             followup_query, conversation_history
         )
 
-        # Compare results
-        self._compare_retrieval_results(original_results, refactored_results)
+        # Verify basic result quality
+        self._verify_retrieval_results(refactored_results)
 
         # Verify that memory management or Python information is retrieved
         relevant_found = False
