@@ -66,6 +66,31 @@ class MemoryDecayComponent(Component):
         data["interaction_count"] = self.interaction_count
         
         return data
+        
+    def process_query(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process a query by applying memory decay and returning updated context.
+        
+        Args:
+            query: The query string
+            context: The processing context
+            
+        Returns:
+            Updated context with decay information
+        """
+        # Get memory from context if not already set
+        if not self.memory and "memory" in context:
+            self.memory = context["memory"]
+            
+        # Apply decay
+        self._apply_memory_decay()
+        
+        # Add decay info to context
+        context["memory_decay_applied"] = self.interaction_count % self.memory_decay_interval == 0
+        context["memory_decay_rate"] = self.memory_decay_rate
+        context["interaction_count"] = self.interaction_count
+        
+        return context
     
     def _apply_memory_decay(self) -> None:
         """Apply decay to memory activations based on configured parameters."""
