@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 
 from memoryweave.components import Retriever
 from memoryweave.core.memory_retriever import MemoryRetriever
-from memoryweave.utils.nlp_extraction import NLPExtractor
+from memoryweave.nlp.extraction import NLPExtractor
 
 
 class RefactoredRetriever:

@@ -44,33 +44,299 @@ class KeywordBoostProcessor(PostProcessor):
 
 class SemanticCoherenceProcessor(PostProcessor):
     """
-    Adjusts relevance scores based on semantic coherence with query.
+    Adjusts relevance scores based on semantic coherence between retrieved results and the query.
+    
+    This processor analyzes both the query-result coherence and the inter-result coherence,
+    ensuring that the set of retrieved memories forms a semantically coherent whole.
     """
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
         self.coherence_threshold = config.get("coherence_threshold", 0.2)
+        self.enable_query_type_filtering = config.get("enable_query_type_filtering", True)
+        self.enable_pairwise_coherence = config.get("enable_pairwise_coherence", True)
+        self.enable_clustering = config.get("enable_clustering", False)
+        self.min_cluster_size = config.get("min_cluster_size", 2)
+        self.max_penalty = config.get("max_penalty", 0.3)
+        self.boost_coherent_results = config.get("boost_coherent_results", True)
+        self.coherence_boost_factor = config.get("coherence_boost_factor", 0.2)
+        self.top_k_outlier_detection = config.get("top_k_outlier_detection", 10)
+        
+        # Dictionary of query type compatibility
+        self.query_type_compatibility = {
+            "personal": {"personal": 1.0, "factual": 0.5, "temporal": 0.7, "conceptual": 0.6},
+            "factual": {"personal": 0.7, "factual": 1.0, "temporal": 0.8, "conceptual": 0.9},
+            "temporal": {"personal": 0.8, "factual": 0.8, "temporal": 1.0, "conceptual": 0.7},
+            "conceptual": {"personal": 0.6, "factual": 0.9, "temporal": 0.7, "conceptual": 1.0},
+            "default": {"personal": 0.8, "factual": 0.8, "temporal": 0.8, "conceptual": 0.8}
+        }
 
     def process_results(
         self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        """Process retrieved results checking semantic coherence."""
+        """
+        Process retrieved results checking semantic coherence.
+        
+        This method:
+        1. Applies query type filtering to penalize type mismatches
+        2. Calculates pairwise coherence between results
+        3. Identifies and penalizes outlier results
+        4. Boosts coherent result clusters
+        5. Updates result scores based on coherence
+        
+        Args:
+            results: List of retrieved results
+            query: Original query string
+            context: Context dictionary containing query analysis
+            
+        Returns:
+            Updated list of results with adjusted relevance scores
+        """
+        if len(results) <= 1:
+            return results
+            
         # Get query type from context
-        query_type = context.get("primary_query_type", "factual")
-
-        # Penalize incoherent results based on query type
+        query_type = context.get("primary_query_type", "default")
+        
+        # Make a copy of results to modify
+        processed_results = list(results)
+        
+        # 1. Apply query type filtering if enabled
+        if self.enable_query_type_filtering:
+            processed_results = self._apply_query_type_filtering(processed_results, query_type)
+            
+        # 2. Calculate pairwise coherence if enabled
+        if self.enable_pairwise_coherence and len(processed_results) > 1:
+            processed_results = self._apply_pairwise_coherence(processed_results, context)
+            
+        # 3. Perform clustering and outlier detection if enabled
+        if self.enable_clustering and len(processed_results) >= self.min_cluster_size:
+            processed_results = self._apply_clustering(processed_results, context)
+            
+        # 4. Final sort by adjusted relevance score
+        processed_results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+        
+        return processed_results
+        
+    def _apply_query_type_filtering(
+        self, 
+        results: list[dict[str, Any]], 
+        query_type: str
+    ) -> list[dict[str, Any]]:
+        """Apply penalties for type mismatches between query and results."""
+        # Get compatibility matrix for this query type
+        compatibility = self.query_type_compatibility.get(query_type, self.query_type_compatibility["default"])
+        
         for result in results:
             # Check for type mismatch
             result_type = result.get("type", "unknown")
-
-            if query_type == "personal" and result_type == "factual":
-                # Penalize factual results for personal queries
-                result["relevance_score"] = max(0, result.get("relevance_score", 0) - 0.2)
-
-            elif query_type == "factual" and result_type == "personal":
-                # Slightly penalize personal results for factual queries
-                result["relevance_score"] = max(0, result.get("relevance_score", 0) - 0.1)
-
+            
+            # If result type is unknown or not in compatibility matrix, use default
+            if result_type not in compatibility:
+                result_type = "factual"  # Default to factual
+                
+            # Get compatibility score
+            compat_score = compatibility.get(result_type, 0.7)  # Default to 0.7 if not specified
+            
+            # Apply penalty based on compatibility
+            if compat_score < 1.0:
+                penalty = (1.0 - compat_score) * self.max_penalty
+                result["relevance_score"] = max(0, result.get("relevance_score", 0) - penalty)
+                result["type_coherence_applied"] = True
+                
+        return results
+        
+    def _apply_pairwise_coherence(
+        self, 
+        results: list[dict[str, Any]], 
+        context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Calculate and apply coherence scores between pairs of results."""
+        # This requires embeddings to calculate coherence
+        embedding_model = context.get("embedding_model")
+        
+        # Limit pairwise calculation to top-k most relevant results
+        top_k = min(self.top_k_outlier_detection, len(results))
+        top_results = sorted(results, key=lambda x: x.get("relevance_score", 0), reverse=True)[:top_k]
+        
+        # If we have embeddings in results, use those
+        has_embeddings = all("embedding" in r and r["embedding"] is not None for r in top_results)
+        
+        if has_embeddings:
+            # Get embeddings from results
+            embeddings = [r["embedding"] for r in top_results]
+            coherence_scores = self._calculate_pairwise_coherence(embeddings)
+        elif embedding_model:
+            # Generate embeddings from content
+            try:
+                contents = [str(r.get("content", "")) for r in top_results]
+                embeddings = embedding_model.encode(contents)
+                coherence_scores = self._calculate_pairwise_coherence(embeddings)
+            except Exception:
+                # If embedding fails, assign default coherence scores
+                coherence_scores = {i: 0.5 for i in range(len(top_results))}
+        else:
+            # No way to calculate embeddings, assign default coherence scores
+            coherence_scores = {i: 0.5 for i in range(len(top_results))}
+            
+        # Apply coherence scores to results
+        for i, result in enumerate(top_results):
+            if i in coherence_scores:
+                coherence = coherence_scores[i]
+                
+                # Apply penalty for incoherent results
+                if coherence < self.coherence_threshold:
+                    penalty = (self.coherence_threshold - coherence) * self.max_penalty
+                    result["relevance_score"] = max(0, result.get("relevance_score", 0) - penalty)
+                    result["coherence_penalty_applied"] = True
+                    
+                # Apply boost for highly coherent results
+                elif self.boost_coherent_results and coherence > (1.0 - self.coherence_threshold):
+                    boost = coherence * self.coherence_boost_factor
+                    current_score = result.get("relevance_score", 0)
+                    result["relevance_score"] = min(1.0, current_score + boost * (1.0 - current_score))
+                    result["coherence_boost_applied"] = True
+                    
+                # Store coherence score
+                result["coherence_score"] = coherence
+                
+        # Update the original results list
+        result_ids = {id(r) for r in top_results}
+        for i, result in enumerate(results):
+            if id(result) in result_ids:
+                # This result was processed, find its updated version
+                for updated in top_results:
+                    if id(updated) == id(result):
+                        results[i] = updated
+                        break
+                        
+        return results
+        
+    def _calculate_pairwise_coherence(self, embeddings) -> dict[int, float]:
+        """
+        Calculate coherence scores for each result based on similarity to other results.
+        
+        Args:
+            embeddings: List of embedding vectors
+            
+        Returns:
+            Dictionary mapping result index to coherence score
+        """
+        import numpy as np
+        
+        if len(embeddings) <= 1:
+            return {0: 1.0} if embeddings else {}
+            
+        # Convert to numpy array if not already
+        if not isinstance(embeddings, np.ndarray):
+            embeddings = np.array(embeddings)
+            
+        # Normalize embeddings
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        norms[norms == 0] = 1e-10  # Avoid division by zero
+        normalized_embeddings = embeddings / norms
+        
+        # Calculate pairwise similarities
+        similarities = np.dot(normalized_embeddings, normalized_embeddings.T)
+        
+        # Exclude self-similarity
+        np.fill_diagonal(similarities, 0)
+        
+        # Calculate average similarity for each result (coherence score)
+        coherence_scores = {}
+        for i in range(len(embeddings)):
+            # Average similarity to all other results
+            coherence_scores[i] = float(np.sum(similarities[i]) / (len(embeddings) - 1))
+            
+        return coherence_scores
+        
+    def _apply_clustering(
+        self, 
+        results: list[dict[str, Any]], 
+        context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """
+        Apply clustering to identify coherent groups and outliers.
+        
+        This is a more sophisticated approach that uses clustering
+        algorithms to identify coherent groups of results.
+        """
+        try:
+            # This requires embeddings and sklearn
+            import numpy as np
+            from sklearn.cluster import DBSCAN
+            
+            # Get embeddings
+            embedding_model = context.get("embedding_model")
+            
+            if embedding_model:
+                # Generate embeddings from content
+                contents = [str(r.get("content", "")) for r in results]
+                embeddings = embedding_model.encode(contents)
+            else:
+                # Try to get embeddings from results
+                embeddings = []
+                for r in results:
+                    if "embedding" in r and r["embedding"] is not None:
+                        embeddings.append(r["embedding"])
+                    else:
+                        # If any result is missing embedding, can't proceed
+                        return results
+                        
+            # Convert to numpy array
+            embeddings = np.array(embeddings)
+            
+            # Normalize embeddings
+            norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+            norms[norms == 0] = 1e-10  # Avoid division by zero
+            normalized_embeddings = embeddings / norms
+            
+            # Calculate pairwise distances (cosine distance = 1 - cosine similarity)
+            similarities = np.dot(normalized_embeddings, normalized_embeddings.T)
+            distances = 1 - similarities
+            
+            # Perform DBSCAN clustering
+            eps = 1 - self.coherence_threshold  # Convert coherence threshold to distance
+            min_samples = min(self.min_cluster_size, len(results) // 2)
+            db = DBSCAN(eps=eps, min_samples=min_samples, metric='precomputed').fit(distances)
+            
+            # Get cluster labels (-1 indicates outliers)
+            labels = db.labels_
+            
+            # Count clusters
+            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+            
+            # Apply adjustments based on clustering
+            for i, result in enumerate(results):
+                if i < len(labels):
+                    cluster_id = labels[i]
+                    result["cluster_id"] = int(cluster_id)
+                    
+                    if cluster_id == -1:
+                        # Outlier - apply penalty
+                        penalty = self.max_penalty
+                        result["relevance_score"] = max(0, result.get("relevance_score", 0) - penalty)
+                        result["outlier_penalty_applied"] = True
+                    else:
+                        # In a cluster - count cluster size
+                        cluster_size = np.sum(labels == cluster_id)
+                        
+                        # Boost based on cluster size - larger clusters are more coherent
+                        if self.boost_coherent_results:
+                            size_factor = min(cluster_size / len(results), 0.8)
+                            boost = size_factor * self.coherence_boost_factor
+                            current_score = result.get("relevance_score", 0)
+                            result["relevance_score"] = min(1.0, current_score + boost * (1.0 - current_score))
+                            result["cluster_boost_applied"] = True
+                            result["cluster_size"] = int(cluster_size)
+                
+        except (ImportError, Exception) as e:
+            # If clustering fails, fall back to pairwise coherence
+            import logging
+            logging.warning(f"Clustering failed with error: {str(e)}. Falling back to pairwise coherence.")
+            if not any("coherence_score" in r for r in results):
+                results = self._apply_pairwise_coherence(results, context)
+                
         return results
 
 

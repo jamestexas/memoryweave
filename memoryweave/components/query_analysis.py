@@ -2,7 +2,7 @@
 from typing import Any
 
 from memoryweave.components.base import RetrievalComponent
-from memoryweave.utils.nlp_extraction import NLPExtractor
+from memoryweave.nlp.extraction import NLPExtractor
 
 
 class QueryAnalyzer(RetrievalComponent):
@@ -10,8 +10,8 @@ class QueryAnalyzer(RetrievalComponent):
     Analyzes queries to determine type and extract important information.
     """
 
-    def __init__(self, nlp_model_name: str = "en_core_web_sm"):
-        self.nlp_extractor = NLPExtractor(model_name=nlp_model_name)
+    def __init__(self):
+        self.nlp_extractor = NLPExtractor()
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""

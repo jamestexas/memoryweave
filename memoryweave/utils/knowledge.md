@@ -6,7 +6,6 @@ The utils module provides utility functions used throughout the MemoryWeave syst
 ## Key Components
 - `similarity.py`: Functions for calculating similarity between embeddings and texts
 - `analysis.py`: Tools for analyzing memory retrieval performance and distributions
-- `nlp_extraction.py`: NLP-based extraction utilities for personal attributes and query types
 
 ## Key Functions
 
@@ -74,7 +73,7 @@ for idx, sim, boosted_sim in results["below_threshold"]:
 
 ### Example: Using NLP Extraction
 ```python
-from memoryweave.utils.nlp_extraction import NLPExtractor
+from memoryweave.nlp.extraction import NLPExtractor
 
 # Initialize extractor
 extractor = NLPExtractor()
