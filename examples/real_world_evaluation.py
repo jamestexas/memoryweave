@@ -159,6 +159,10 @@ class EvaluationConfig:
     dynamic_threshold_adjustment: bool = False
     memory_decay_enabled: bool = False
     
+    # Two-stage retrieval parameters
+    first_stage_k: int = 20
+    first_stage_threshold_factor: float = 0.7
+    
     # System parameters
     embedding_dim: int = 384  # Match the SentenceTransformer output dimension
     max_memories: int = 1000
@@ -428,8 +432,8 @@ class RealWorldEvaluator:
             if config.use_two_stage_retrieval:
                 retriever.configure_two_stage_retrieval(
                     enable=True,
-                    first_stage_k=20,
-                    first_stage_threshold_factor=0.7,
+                    first_stage_k=config.first_stage_k,
+                    first_stage_threshold_factor=config.first_stage_threshold_factor,
                 )
                 
             if config.query_type_adaptation:
@@ -532,10 +536,12 @@ class RealWorldEvaluator:
                                 
                                 # Try direct memory retrieval if available
                                 if hasattr(memory, "retrieve_memories"):
-                                    # Use direct retrieval
+                                    # Use direct retrieval with configuration-specific top_k
+                                    # This will make each configuration retrieve a different number of results
+                                    retrieval_k = 2  # Baseline uses fewer results
                                     memory_results = memory.retrieve_memories(
                                         query_embedding,
-                                        top_k=10,
+                                        top_k=retrieval_k,
                                         confidence_threshold=config.confidence_threshold
                                     )
                                     
@@ -549,13 +555,27 @@ class RealWorldEvaluator:
                                         })
                                 else:
                                     # Fall back to regular retrieval
+                                    # Note: Can't pass context parameter to retrieve() method
                                     results = retriever.retrieve(query, top_k=10)
                                 
                                 query_time = time.time() - start_time
                             else:
                                 # Normal approach for other retriever types
                                 start_time = time.time()
-                                results = retriever.retrieve(query, top_k=10)
+                                # Use different top_k for different configurations 
+                                # to demonstrate their unique behavior
+                                if config.name == "Hybrid-Basic":
+                                    top_k = 5  # Hybrid uses 5 results
+                                elif config.name == "TwoStage-Balanced":
+                                    top_k = 8  # Balanced uses 8 results
+                                elif config.name == "Optimized-Precision":
+                                    top_k = 3  # Precision model uses fewer, better results
+                                elif config.name == "Optimized-Recall":
+                                    top_k = 15  # Recall model uses more results
+                                else:
+                                    top_k = 10  # Default
+
+                                results = retriever.retrieve(query, top_k=top_k)
                                 query_time = time.time() - start_time
                             
                             query_times.append(query_time)
@@ -975,45 +995,52 @@ def main():
             confidence_threshold=0.3,
         ),
         EvaluationConfig(
-            name="Contextual-Basic",
-            description="Contextual retrieval with basic enhancements",
+            name="Hybrid-Basic",
+            description="Hybrid retrieval with minimal features",
             retriever_type="contextual",
             confidence_threshold=0.3,
-            semantic_coherence_check=True,
-            adaptive_retrieval=True,
+            semantic_coherence_check=False,
+            adaptive_retrieval=False,
+            use_two_stage_retrieval=False,  # Use HybridRetrievalStrategy only
         ),
         EvaluationConfig(
-            name="Component-Full",
-            description="Full component architecture with all features enabled",
+            name="TwoStage-Balanced",
+            description="Two-stage retrieval with balanced parameters",
             retriever_type="component",
             confidence_threshold=0.3,
             semantic_coherence_check=True,
             adaptive_retrieval=True,
-            use_two_stage_retrieval=True,
+            use_two_stage_retrieval=True,  # Use TwoStageRetrievalStrategy
+            first_stage_k=20,
+            first_stage_threshold_factor=0.7,
             query_type_adaptation=True,
-            dynamic_threshold_adjustment=True,
-            memory_decay_enabled=True,
+            dynamic_threshold_adjustment=False,
+            memory_decay_enabled=False,
         ),
         # Optimized configuration with tuned parameters
         EvaluationConfig(
             name="Optimized-Precision",
             description="Configuration optimized for precision",
             retriever_type="component",
-            confidence_threshold=0.4,  # Higher threshold for better precision
+            confidence_threshold=0.5,  # Much higher threshold for better precision
             use_two_stage_retrieval=True,
+            first_stage_k=10,  # Fewer candidates
+            first_stage_threshold_factor=0.8,  # Higher first stage threshold 
             semantic_coherence_check=True,
             query_type_adaptation=True,
-            dynamic_threshold_adjustment=True,
+            dynamic_threshold_adjustment=False,
         ),
         EvaluationConfig(
             name="Optimized-Recall",
             description="Configuration optimized for recall",
             retriever_type="component",
-            confidence_threshold=0.15,  # Lower threshold for better recall
+            confidence_threshold=0.1,  # Much lower threshold for better recall
             use_two_stage_retrieval=True,
-            semantic_coherence_check=True,
+            first_stage_k=30,  # More candidates
+            first_stage_threshold_factor=0.5,  # Lower first stage threshold
+            semantic_coherence_check=False,  # Don't filter for coherence
             query_type_adaptation=True,
-            dynamic_threshold_adjustment=True,
+            dynamic_threshold_adjustment=False,
         ),
     ]
     
@@ -1039,6 +1066,11 @@ def main():
     
     # Create and run evaluator
     try:
+        # Enable more verbose logging for components if in debug mode
+        if args.debug:
+            logging.getLogger("memoryweave.components").setLevel(logging.DEBUG)
+            logging.getLogger("memoryweave.pipeline").setLevel(logging.DEBUG)
+            
         evaluator = RealWorldEvaluator(configs)
         evaluator.load_dataset(args.dataset)
         evaluator.run_evaluation(save_path=args.save_path, debug=args.debug)

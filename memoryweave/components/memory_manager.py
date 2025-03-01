@@ -35,9 +35,12 @@ class MemoryManager:
 
             for step in parsed_config.steps:
                 if step.component in self.components:
+                    component = self.components[step.component]
+                    # Initialize the component with its configuration when building the pipeline
+                    component.initialize(step.config)
                     self.pipeline.append(
                         dict(
-                            component=self.components[step.component],
+                            component=component,
                             config=step.config,
                         )
                     )
@@ -49,9 +52,12 @@ class MemoryManager:
             for step in pipeline_config:
                 component_name = step.get("component")
                 if component_name in self.components:
+                    component = self.components[component_name]
+                    # Initialize the component with its configuration when building the pipeline
+                    component.initialize(step.get("config", {}))
                     self.pipeline.append(
                         {
-                            "component": self.components[component_name],
+                            "component": component,
                             "config": step.get("config", {}),
                         }
                     )
@@ -73,12 +79,10 @@ class MemoryManager:
 
         for step in self.pipeline:
             component = step["component"]
-            config = step["config"]
-
-            # Initialize the component with its configuration
-            component.initialize(config)
-
+            
             # Process the query with the component
+            # Note: We no longer reinitialize the component on each query
+            # This allows components to maintain state between queries
             step_result = component.process_query(query, pipeline_context)
 
             # Update the pipeline context with the component's results
