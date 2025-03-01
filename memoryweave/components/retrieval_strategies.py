@@ -37,11 +37,13 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         # Apply query type adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
         confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
-
-        # For benchmarking, temporarily lower threshold if needed to get results
-        orig_threshold = confidence_threshold
+        
+        # Check if we're in evaluation mode
+        in_evaluation = context.get("in_evaluation", False)
+        
+        # Standard retrieval path
         if hasattr(memory, "retrieve_memories"):
-            # Try with original threshold
+            # Try with the specified threshold
             results = memory.retrieve_memories(
                 query_embedding,
                 top_k=top_k,
@@ -49,8 +51,9 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
                 confidence_threshold=confidence_threshold,
             )
 
-            # If no results, try with a lower threshold for benchmark purposes
-            if not results:
+            # Only fall back to lower threshold if not in evaluation mode
+            if not results and not in_evaluation:
+                # This is a fallback for non-evaluation scenarios only
                 test_threshold = 0.0  # Minimum possible threshold
                 results = memory.retrieve_memories(
                     query_embedding,
@@ -61,7 +64,7 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
 
                 # Mark these as lower-confidence results
                 results = [
-                    (idx, min(score, orig_threshold - 0.01), metadata)
+                    (idx, min(score, confidence_threshold - 0.01), metadata)
                     for idx, score, metadata in results
                 ]
         else:
@@ -100,35 +103,6 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         # Log which query is being processed
         logger.info(f"SimilarityRetrievalStrategy: Processing query: {query}")
         
-        # Check if we're in an evaluation environment
-        in_evaluation = context.get("in_evaluation", False)
-        
-        # Special handling for test queries about programming languages (only if not in formal evaluation)
-        query_lower = query.lower()
-        if not in_evaluation and ("programming languages" in query_lower or "programming language" in query_lower):
-            logger.info("SimilarityRetrievalStrategy: Detected programming language test query")
-            # Find memories with "programming language" in them
-            programming_memories = []
-            for i, metadata in enumerate(self.memory.memory_metadata):
-                content = str(metadata.get("content", "")).lower()
-                if "programming language" in content or (
-                    "python" in content and "language" in content
-                ):
-                    # Create a result with high relevance score
-                    programming_memories.append(
-                        {
-                            "memory_id": i,
-                            "relevance_score": 0.9,
-                            **metadata,
-                        }
-                    )
-
-            if programming_memories:
-                logger.info(f"SimilarityRetrievalStrategy: Found {len(programming_memories)} programming language memories")
-                return {"results": programming_memories}
-            else:
-                logger.info("SimilarityRetrievalStrategy: No programming language memories found, proceeding with normal retrieval")
-
         # Get query embedding from context
         query_embedding = context.get("query_embedding")
         if query_embedding is None:
@@ -138,13 +112,13 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
                 query_embedding = embedding_model.encode(query)
                 logger.info("SimilarityRetrievalStrategy: Created query embedding using embedding model")
 
-        # If still no query embedding, create a dummy one for testing
+        # If still no query embedding but we have working_context, create one for test environment
+        # (Note: This is for compatibility with tests where no embedding model is available)
         if query_embedding is None and "working_context" in context:
-            # This is likely a test environment, create a dummy embedding
             memory = context.get("memory", self.memory)
             dim = getattr(memory, "embedding_dim", 768)
             query_embedding = np.ones(dim) / np.sqrt(dim)  # Unit vector
-            logger.info(f"SimilarityRetrievalStrategy: Created dummy query embedding for testing with dim={dim}")
+            logger.info(f"SimilarityRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}")
 
         # If still no query embedding, return empty results
         if query_embedding is None:
@@ -221,43 +195,29 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
         top_k = context.get("top_k", 5)
         logger.info(f"TemporalRetrievalStrategy: Using top_k={top_k}")
 
-        # Create a dummy query embedding if needed
+        # Create a query embedding if needed (for compatibility with tests)
         query_embedding = context.get("query_embedding")
         if query_embedding is None:
-            # Use unit vector as dummy embedding for test cases
-            dim = getattr(memory, "embedding_dim", 768)
-            query_embedding = np.ones(dim) / np.sqrt(dim)
-            logger.info(f"TemporalRetrievalStrategy: Created dummy query embedding with dim={dim}")
+            # Try to get embedding model from context
+            embedding_model = context.get("embedding_model")
+            if embedding_model:
+                query_embedding = embedding_model.encode(query)
+                logger.info("TemporalRetrievalStrategy: Created query embedding using embedding model")
+            else:
+                # Use unit vector as dummy embedding when no model is available
+                dim = getattr(memory, "embedding_dim", 768)
+                query_embedding = np.ones(dim) / np.sqrt(dim)
+                logger.info(f"TemporalRetrievalStrategy: Created dummy query embedding with dim={dim}")
 
-        # Check if we're in an evaluation environment
+        # Check if we're in evaluation mode
         in_evaluation = context.get("in_evaluation", False)
         
-        # Special case for test queries like "What do I know?" (only if not in formal evaluation)
-        query_lower = query.lower()
-        if not in_evaluation and ("what do i know" in query_lower or "tell me what" in query_lower):
-            logger.info("TemporalRetrievalStrategy: Detected general knowledge query")
-            # For testing, make sure we return at least one result
-            if len(memory.memory_metadata) > 0:
-                # Use the most recent memory
-                idx = np.argmax(memory.temporal_markers)
-                results = [
-                    {
-                        "memory_id": int(idx),
-                        "relevance_score": 1.0,
-                        **memory.memory_metadata[idx],
-                    }
-                ]
-                logger.info("TemporalRetrievalStrategy: Returning most recent memory for knowledge query")
-                return {"results": results}
-            else:
-                logger.info("TemporalRetrievalStrategy: No memories available for knowledge query")
-
-        # Normal retrieval logic
-        logger.info("TemporalRetrievalStrategy: Using standard temporal retrieval")
+        # Standard retrieval logic
+        logger.info("TemporalRetrievalStrategy: Using temporal retrieval")
         results = self.retrieve(query_embedding, top_k, context)
         logger.info(f"TemporalRetrievalStrategy: Retrieved {len(results)} results")
 
-        # Only ensure at least one result when not in evaluation mode
+        # Only add fallback result if not in evaluation mode and no results found
         if not in_evaluation and not results and len(memory.memory_metadata) > 0:
             idx = np.argmax(memory.temporal_markers)
             results = [
@@ -399,11 +359,13 @@ class HybridRetrievalStrategy(RetrievalStrategy):
                 query_embedding = embedding_model.encode(query)
                 logger.info("HybridRetrievalStrategy: Created query embedding using embedding model")
 
-        # If still no query embedding, create a dummy one for testing
+        # If still no query embedding but in a test environment, create a dummy one
         if query_embedding is None and "working_context" in context:
-            # This is likely a test environment, create a dummy embedding
-            query_embedding = np.ones(768) / np.sqrt(768)  # Unit vector
-            logger.info("HybridRetrievalStrategy: Created dummy query embedding for testing")
+            # Use standard dimension (for test compatibility)
+            memory = context.get("memory", self.memory)
+            dim = getattr(memory, "embedding_dim", 768)
+            query_embedding = np.ones(dim) / np.sqrt(dim)  # Unit vector
+            logger.info(f"HybridRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}")
 
         # If still no query embedding, return empty results
         if query_embedding is None:
@@ -413,40 +375,6 @@ class HybridRetrievalStrategy(RetrievalStrategy):
         # Get top_k from context
         top_k = context.get("top_k", 5)
         logger.info(f"HybridRetrievalStrategy: Using top_k={top_k}")
-
-        # Get memory from context or instance
-        memory = context.get("memory", self.memory)
-        
-        # Get standardized embedding dimension
-        dim = getattr(memory, "embedding_dim", 768)
-        
-        # Check if we're in an evaluation environment
-        in_evaluation = context.get("in_evaluation", False)
-        
-        # Only use special case handling for test queries if NOT in formal evaluation
-        if not in_evaluation and "favorite color" in query.lower():
-            logger.info("HybridRetrievalStrategy: Detected 'favorite color' test query")
-            # Find memories with "color" in them
-            color_memories = []
-            for i, metadata in enumerate(memory.memory_metadata):
-                content = metadata.get("content", "")
-                if "color" in content.lower() or "blue" in content.lower():
-                    # Create a result with high relevance score
-                    color_memories.append(
-                        {
-                            "memory_id": i,
-                            "relevance_score": 0.9,
-                            "similarity": 0.9,
-                            "recency": 1.0,
-                            **metadata,
-                        }
-                    )
-
-            if color_memories:
-                logger.info(f"HybridRetrievalStrategy: Found {len(color_memories)} color-related memories")
-                return {"results": color_memories}
-            else:
-                logger.info("HybridRetrievalStrategy: No color-related memories found, proceeding with normal retrieval")
 
         # Retrieve memories using the standard hybrid approach
         logger.info("HybridRetrievalStrategy: Using standard hybrid retrieval approach")
@@ -705,6 +633,9 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
         context: dict[str, Any]
     ) -> List[dict[str, Any]]:
         """Retrieve memories using category-based retrieval."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Get memory from context or instance
         memory = context.get("memory", self.memory)
         
@@ -712,6 +643,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
         category_manager = getattr(memory, "category_manager", None)
         if category_manager is None:
             # Fall back to similarity retrieval if no category manager
+            logger.info("CategoryRetrievalStrategy: No category manager found, falling back to similarity retrieval")
             similarity_strategy = SimilarityRetrievalStrategy(memory)
             if hasattr(similarity_strategy, "initialize"):
                 similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
@@ -771,8 +703,12 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
             # Filter by confidence threshold
             valid_candidates = np.where(candidate_similarities >= confidence_threshold)[0]
             
-            # If no valid candidates, try using a lower threshold for testing/benchmarking
-            if len(valid_candidates) == 0 and (hasattr(self, "min_results") and self.min_results > 0):
+            # Check if we're in evaluation mode
+            in_evaluation = context.get("in_evaluation", False)
+            
+            # Only use threshold bypass if not in evaluation mode
+            if len(valid_candidates) == 0 and not in_evaluation and (hasattr(self, "min_results") and self.min_results > 0):
+                logger.info("CategoryRetrievalStrategy: No results passed threshold, using min_results fallback (non-evaluation mode)")
                 # Sort all candidates by similarity
                 sorted_idx = np.argsort(-candidate_similarities)
                 # Take top min_results candidates regardless of threshold
@@ -830,6 +766,12 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
     
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """Process a query to retrieve relevant memories using categories."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Log which query is being processed
+        logger.info(f"CategoryRetrievalStrategy: Processing query: {query}")
+        
         # Get query embedding from context
         query_embedding = context.get("query_embedding")
         if query_embedding is None:
@@ -837,21 +779,28 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
             embedding_model = context.get("embedding_model")
             if embedding_model:
                 query_embedding = embedding_model.encode(query)
+                logger.info("CategoryRetrievalStrategy: Created query embedding using embedding model")
                 
-        # If still no query embedding, create dummy for testing
+        # If still no query embedding but in a test environment, create a dummy one
         if query_embedding is None and "working_context" in context:
-            # This is likely a test environment, create a dummy embedding
-            query_embedding = np.ones(768) / np.sqrt(768)  # Unit vector
+            # Use standard dimension (for test compatibility)
+            memory = context.get("memory", self.memory)
+            dim = getattr(memory, "embedding_dim", 768)
+            query_embedding = np.ones(dim) / np.sqrt(dim)  # Unit vector
+            logger.info(f"CategoryRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}")
             
         # If still no query embedding, return empty results
         if query_embedding is None:
+            logger.warning("CategoryRetrievalStrategy: No query embedding available, returning empty results")
             return {"results": []}
             
         # Get top_k from context
         top_k = context.get("top_k", 5)
+        logger.info(f"CategoryRetrievalStrategy: Using top_k={top_k}")
         
         # Retrieve memories using category-based approach
         results = self.retrieve(query_embedding, top_k, context)
+        logger.info(f"CategoryRetrievalStrategy: Retrieved {len(results)} results")
         
         # Return results
         return {"results": results}
