@@ -26,13 +26,13 @@ class MemoryFactory:
     @staticmethod
     def create_memory_store(config: Optional[Dict[str, Any]] = None) -> IMemoryStore:
         """Create a memory store component.
-        
+
         Args:
             config: Optional configuration for the memory store
-            
+
         Returns:
             Configured memory store
-            
+
         Raises:
             ConfigValidationError: If the configuration is invalid
         """
@@ -55,13 +55,13 @@ class MemoryFactory:
     @staticmethod
     def create_vector_store(config: Optional[Dict[str, Any]] = None) -> IVectorStore:
         """Create a vector store component.
-        
+
         Args:
             config: Optional configuration for the vector store
-            
+
         Returns:
             Configured vector store
-            
+
         Raises:
             ConfigValidationError: If the configuration is invalid
         """
@@ -79,20 +79,18 @@ class MemoryFactory:
             raise ConfigValidationError(errors, "vector_store")
 
         # Check if we should use activation-weighted store
-        if merged_config.get('activation_weight', 0.0) > 0:
-            return ActivationVectorStore(
-                activation_weight=merged_config['activation_weight']
-            )
+        if merged_config.get("activation_weight", 0.0) > 0:
+            return ActivationVectorStore(activation_weight=merged_config["activation_weight"])
         else:
             return SimpleVectorStore()
 
     @staticmethod
     def create_activation_manager(config: Optional[Dict[str, Any]] = None) -> IActivationManager:
         """Create an activation manager component.
-        
+
         Args:
             config: Optional configuration for the activation manager
-            
+
         Returns:
             Configured activation manager
         """
@@ -101,27 +99,27 @@ class MemoryFactory:
             config = {}
 
         # Check if we should use temporal decay
-        if config.get('use_temporal_decay', False):
+        if config.get("use_temporal_decay", False):
             return TemporalActivationManager(
-                initial_activation=config.get('initial_activation', 0.0),
-                max_activation=config.get('max_activation', 10.0),
-                min_activation=config.get('min_activation', -10.0),
-                half_life_days=config.get('half_life_days', 7.0)
+                initial_activation=config.get("initial_activation", 0.0),
+                max_activation=config.get("max_activation", 10.0),
+                min_activation=config.get("min_activation", -10.0),
+                half_life_days=config.get("half_life_days", 7.0),
             )
         else:
             return ActivationManager(
-                initial_activation=config.get('initial_activation', 0.0),
-                max_activation=config.get('max_activation', 10.0),
-                min_activation=config.get('min_activation', -10.0)
+                initial_activation=config.get("initial_activation", 0.0),
+                max_activation=config.get("max_activation", 10.0),
+                min_activation=config.get("min_activation", -10.0),
             )
 
     @staticmethod
     def create_category_manager(config: Optional[Dict[str, Any]] = None) -> ICategoryManager:
         """Create a category manager component.
-        
+
         Args:
             config: Optional configuration for the category manager
-            
+
         Returns:
             Configured category manager
         """
@@ -130,5 +128,5 @@ class MemoryFactory:
             config = {}
 
         # Create category manager
-        vigilance = config.get('vigilance', 0.85)
+        vigilance = config.get("vigilance", 0.85)
         return CategoryManager(vigilance=vigilance)

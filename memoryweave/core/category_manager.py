@@ -11,7 +11,7 @@ from scipy.cluster.hierarchy import fcluster, linkage
 class CategoryManager:
     """
     Implements Adaptive Resonance Theory (ART) inspired category management.
-    
+
     This class handles the categorization of memories, including dynamic
     category formation, prototype updates, and category consolidation.
     """
@@ -147,7 +147,7 @@ class CategoryManager:
             new_categories = np.zeros(new_size, dtype=np.int64)
             # Copy existing data
             if len(self.memory_categories) > 0:
-                new_categories[:len(self.memory_categories)] = self.memory_categories
+                new_categories[: len(self.memory_categories)] = self.memory_categories
             self.memory_categories = new_categories
 
         # Set the category for the memory
@@ -246,7 +246,9 @@ class CategoryManager:
 
                 # Calculate average similarity (excluding self-similarity)
                 total_sim = similarities.sum() - len(self.category_prototypes)  # Subtract diagonal
-                avg_sim = total_sim / (len(self.category_prototypes) * (len(self.category_prototypes) - 1))
+                avg_sim = total_sim / (
+                    len(self.category_prototypes) * (len(self.category_prototypes) - 1)
+                )
 
                 # In dense regions (high similarity), increase vigilance for finer distinctions
                 # In sparse regions (low similarity), decrease vigilance to group more
@@ -374,7 +376,11 @@ class CategoryManager:
         for cat_idx in range(len(self.category_prototypes)):
             mask = self.memory_categories == cat_idx
             if np.any(mask):
-                category_avg_activation[cat_idx] = float(np.mean(self.activation_levels[mask])) if hasattr(self, 'activation_levels') and self.activation_levels is not None else 0.0
+                category_avg_activation[cat_idx] = (
+                    float(np.mean(self.activation_levels[mask]))
+                    if hasattr(self, "activation_levels") and self.activation_levels is not None
+                    else 0.0
+                )
             else:
                 category_avg_activation[cat_idx] = 0.0
 
@@ -393,7 +399,11 @@ class CategoryManager:
             mask = self.memory_categories == cat_idx
             cat_memories = np.where(mask)[0]
 
-            if len(cat_memories) > 1 and hasattr(self, 'memory_embeddings') and self.memory_embeddings is not None:
+            if (
+                len(cat_memories) > 1
+                and hasattr(self, "memory_embeddings")
+                and self.memory_embeddings is not None
+            ):
                 # Calculate pairwise similarities within category
                 cat_embeddings = self.memory_embeddings[cat_memories]
                 similarities = np.dot(cat_embeddings, cat_embeddings.T)
@@ -425,10 +435,10 @@ class CategoryManager:
     def get_category_for_memory(self, memory_idx: int) -> int:
         """
         Get the category index for a memory.
-        
+
         Args:
             memory_idx: Index of the memory
-            
+
         Returns:
             Category index for the memory
         """
@@ -440,10 +450,10 @@ class CategoryManager:
     def get_memories_for_category(self, category_idx: int) -> List[int]:
         """
         Get all memory indices for a category.
-        
+
         Args:
             category_idx: Index of the category
-            
+
         Returns:
             List of memory indices in the category
         """

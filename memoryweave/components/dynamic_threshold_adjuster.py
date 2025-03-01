@@ -76,10 +76,12 @@ class DynamicThresholdAdjuster(PostProcessor):
 
         # Ensure minimum result guarantee: if results are too few, append a default entry.
         while len(results) < self.min_result_count:
-            results.append({
-                "memory_id": 0,
-                "relevance_score": 0.1,
-                "content": f"No specific information found about: {query}",
-                "type": "default",
-            })
+            results.append(
+                {
+                    "memory_id": 0,
+                    "relevance_score": 0.1,
+                    "content": f"No specific information found about: {query}",
+                    "type": "default",
+                }
+            )
         return results

@@ -7,13 +7,14 @@ including protocols, data models, and base classes for pipeline components.
 from enum import Enum, auto
 from typing import Any, Dict, Generic, List, Optional, Protocol, TypeVar
 
-T = TypeVar('T')
-U = TypeVar('U')
+T = TypeVar("T")
+U = TypeVar("U")
 ComponentID = str
 
 
 class ComponentType(Enum):
     """Types of pipeline components."""
+
     MEMORY_STORE = auto()
     VECTOR_STORE = auto()
     RETRIEVAL_STRATEGY = auto()
@@ -78,11 +79,11 @@ class IPipelineStage(Generic[T, U], Protocol):
 class IPipelineBuilder(Protocol):
     """Interface for building component pipelines."""
 
-    def add_stage(self, stage: IPipelineStage) -> 'IPipelineBuilder':
+    def add_stage(self, stage: IPipelineStage) -> "IPipelineBuilder":
         """Add a stage to the pipeline."""
         ...
 
-    def build(self) -> 'IPipeline[T, U]':
+    def build(self) -> "IPipeline[T, U]":
         """Build the pipeline."""
         ...
 

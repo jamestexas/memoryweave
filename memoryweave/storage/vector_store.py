@@ -13,7 +13,7 @@ from memoryweave.interfaces.memory import EmbeddingVector, IVectorStore, MemoryI
 
 class SimpleVectorStore(IVectorStore):
     """Simple in-memory vector store implementation using numpy.
-    
+
     This implementation is suitable for small to medium-sized memory sets.
     For larger memory sets, consider using an optimized vector database.
     """
@@ -31,10 +31,9 @@ class SimpleVectorStore(IVectorStore):
         self._vectors[id] = vector
         self._dirty = True
 
-    def search(self,
-              query_vector: EmbeddingVector,
-              k: int,
-              threshold: Optional[float] = None) -> List[Tuple[MemoryID, float]]:
+    def search(
+        self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
+    ) -> List[Tuple[MemoryID, float]]:
         """Search for similar vectors."""
         if not self._vectors:
             return []
@@ -117,14 +116,14 @@ class SimpleVectorStore(IVectorStore):
 
 class ActivationVectorStore(IVectorStore):
     """Vector store that combines similarity with activation levels.
-    
+
     This implementation enhances similarity search with activation levels,
     making recently accessed or important memories more likely to be retrieved.
     """
 
     def __init__(self, activation_weight: float = 0.2):
         """Initialize the vector store.
-        
+
         Args:
             activation_weight: Weight of activation in final similarity score (0-1)
         """
@@ -137,10 +136,9 @@ class ActivationVectorStore(IVectorStore):
         self._vector_store.add(id, vector)
         self._activations[id] = 0.0
 
-    def search(self,
-              query_vector: EmbeddingVector,
-              k: int,
-              threshold: Optional[float] = None) -> List[Tuple[MemoryID, float]]:
+    def search(
+        self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
+    ) -> List[Tuple[MemoryID, float]]:
         """Search for similar vectors with activation boost."""
         # Get similarity results
         similarity_results = self._vector_store.search(
@@ -159,9 +157,8 @@ class ActivationVectorStore(IVectorStore):
 
             # Combine similarity and activation
             combined_score = (
-                (1 - self._activation_weight) * similarity +
-                self._activation_weight * normalized_activation
-            )
+                1 - self._activation_weight
+            ) * similarity + self._activation_weight * normalized_activation
 
             boosted_results.append((memory_id, combined_score))
 

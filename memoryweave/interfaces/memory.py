@@ -17,6 +17,7 @@ EmbeddingVector = np.ndarray
 
 class MemoryContent(TypedDict):
     """Content of a memory."""
+
     text: str
     metadata: Dict[str, Any]
 
@@ -24,6 +25,7 @@ class MemoryContent(TypedDict):
 @dataclass
 class Memory:
     """Data model for a memory in the system."""
+
     id: MemoryID
     embedding: EmbeddingVector
     content: MemoryContent
@@ -32,6 +34,7 @@ class Memory:
 
 class MemoryType(Enum):
     """Types of memories that can be stored."""
+
     INTERACTION = auto()
     FACT = auto()
     CONCEPT = auto()
@@ -42,10 +45,9 @@ class MemoryType(Enum):
 class IMemoryStore(Protocol):
     """Interface for memory storage component."""
 
-    def add(self,
-            embedding: EmbeddingVector,
-            content: str,
-            metadata: Optional[Dict[str, Any]] = None) -> MemoryID:
+    def add(
+        self, embedding: EmbeddingVector, content: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> MemoryID:
         """Add a memory and return its ID."""
         ...
 
@@ -83,7 +85,7 @@ class IMemoryStore(Protocol):
 
     def consolidate(self, max_memories: int) -> List[MemoryID]:
         """Consolidate memories to stay within capacity.
-        
+
         Returns:
             List of memory IDs that were removed during consolidation.
         """
@@ -97,17 +99,16 @@ class IVectorStore(Protocol):
         """Add a vector to the store."""
         ...
 
-    def search(self,
-               query_vector: EmbeddingVector,
-               k: int,
-               threshold: Optional[float] = None) -> List[tuple[MemoryID, float]]:
+    def search(
+        self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
+    ) -> List[tuple[MemoryID, float]]:
         """Search for similar vectors.
-        
+
         Args:
             query_vector: The query vector to search for
             k: Maximum number of results to return
             threshold: Minimum similarity threshold
-            
+
         Returns:
             List of tuples containing (memory_id, similarity_score)
         """
@@ -163,7 +164,7 @@ class ICategoryManager(Protocol):
 
     def consolidate_categories(self, similarity_threshold: float) -> List[int]:
         """Merge similar categories.
-        
+
         Returns:
             List of category IDs that were consolidated.
         """
@@ -177,16 +178,14 @@ class IMemoryEncoder(Protocol):
         """Encode text into an embedding vector."""
         ...
 
-    def encode_interaction(self,
-                          query: str,
-                          response: str,
-                          metadata: Optional[Dict[str, Any]] = None) -> EmbeddingVector:
+    def encode_interaction(
+        self, query: str, response: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> EmbeddingVector:
         """Encode a query-response interaction into an embedding vector."""
         ...
 
-    def encode_concept(self,
-                       concept: str,
-                       definition: str,
-                       examples: Optional[List[str]] = None) -> EmbeddingVector:
+    def encode_concept(
+        self, concept: str, definition: str, examples: Optional[List[str]] = None
+    ) -> EmbeddingVector:
         """Encode a concept into an embedding vector."""
         ...

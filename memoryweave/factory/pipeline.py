@@ -13,8 +13,8 @@ from memoryweave.interfaces.retrieval import Query, RetrievalResult
 from memoryweave.pipeline.executor import PipelineExecutor
 from memoryweave.pipeline.manager import PipelineManager
 
-T = TypeVar('T')
-U = TypeVar('U')
+T = TypeVar("T")
+U = TypeVar("U")
 
 
 class PipelineFactory:
@@ -23,7 +23,7 @@ class PipelineFactory:
     @staticmethod
     def create_pipeline_manager() -> PipelineManager:
         """Create a pipeline manager component.
-        
+
         Returns:
             Configured pipeline manager
         """
@@ -32,7 +32,7 @@ class PipelineFactory:
     @staticmethod
     def create_pipeline_executor() -> PipelineExecutor:
         """Create a pipeline executor component.
-        
+
         Returns:
             Configured pipeline executor
         """
@@ -40,18 +40,17 @@ class PipelineFactory:
 
     @staticmethod
     def create_pipeline(
-        components: List[IComponent],
-        config: Optional[Dict[str, Any]] = None
+        components: List[IComponent], config: Optional[Dict[str, Any]] = None
     ) -> Optional[IPipeline]:
         """Create a pipeline from components.
-        
+
         Args:
             components: List of components to include in the pipeline
             config: Optional configuration for the pipeline
-            
+
         Returns:
             Configured pipeline, or None if creation fails
-            
+
         Raises:
             ConfigValidationError: If the configuration is invalid
         """
@@ -85,18 +84,17 @@ class PipelineFactory:
 
     @staticmethod
     def create_retrieval_pipeline(
-        components: List[IComponent],
-        config: Optional[Dict[str, Any]] = None
+        components: List[IComponent], config: Optional[Dict[str, Any]] = None
     ) -> Optional[IPipeline[Query, List[RetrievalResult]]]:
         """Create a retrieval pipeline from components.
-        
+
         Args:
             components: List of components to include in the pipeline
             config: Optional configuration for the pipeline
-            
+
         Returns:
             Configured retrieval pipeline, or None if creation fails
-            
+
         Raises:
             ConfigValidationError: If the configuration is invalid
         """

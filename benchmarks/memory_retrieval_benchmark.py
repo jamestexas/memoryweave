@@ -24,7 +24,7 @@ from memoryweave.components.retrieval_strategies import (
     SimilarityRetrievalStrategy,
     HybridRetrievalStrategy,
     TemporalRetrievalStrategy,
-    TwoStageRetrievalStrategy
+    TwoStageRetrievalStrategy,
 )
 from memoryweave.core.contextual_memory import ContextualMemory
 
@@ -223,39 +223,35 @@ class MemoryRetrievalBenchmark:
         if config.retriever_type == "legacy":
             # For legacy mode, we'll still use the component architecture
             # but configured to mimic the original behavior
-            retriever = Retriever(
-                memory=memory, 
-                embedding_model=embedding_model
-            )
+            retriever = Retriever(memory=memory, embedding_model=embedding_model)
             retriever.minimum_relevance = config.confidence_threshold
-            
+
             # Use similarity-first strategy to mimic legacy behavior
             retriever.retrieval_strategy = SimilarityRetrievalStrategy(memory)
             # Configure it
-            if hasattr(retriever.retrieval_strategy, 'initialize'):
-                retriever.retrieval_strategy.initialize({
-                    "confidence_threshold": config.confidence_threshold,
-                    "activation_boost": True
-                })
-            
+            if hasattr(retriever.retrieval_strategy, "initialize"):
+                retriever.retrieval_strategy.initialize(
+                    {"confidence_threshold": config.confidence_threshold, "activation_boost": True}
+                )
+
             # Configure based on settings
-            if hasattr(retriever, 'configure_semantic_coherence'):
+            if hasattr(retriever, "configure_semantic_coherence"):
                 retriever.configure_semantic_coherence(enable=config.semantic_coherence_check)
-            if hasattr(retriever, 'configure_query_type_adaptation'):
+            if hasattr(retriever, "configure_query_type_adaptation"):
                 retriever.configure_query_type_adaptation(enable=config.query_type_adaptation)
-            if hasattr(retriever, 'configure_two_stage_retrieval'):
+            if hasattr(retriever, "configure_two_stage_retrieval"):
                 retriever.configure_two_stage_retrieval(enable=config.use_two_stage_retrieval)
-            if hasattr(retriever, 'enable_dynamic_threshold_adjustment'):
+            if hasattr(retriever, "enable_dynamic_threshold_adjustment"):
                 retriever.enable_dynamic_threshold_adjustment(enable=config.adaptive_retrieval)
-            
+
             # Initialize with legacy config
-            if hasattr(retriever, 'initialize_components'):
+            if hasattr(retriever, "initialize_components"):
                 retriever.initialize_components()
         elif config.retriever_type == "components":
             # Modern component-based architecture
             retriever = Retriever(memory=memory, embedding_model=embedding_model)
             retriever.minimum_relevance = config.confidence_threshold
-            
+
             # Configure based on settings
             if config.use_two_stage_retrieval:
                 retriever.configure_two_stage_retrieval(
@@ -278,7 +274,7 @@ class MemoryRetrievalBenchmark:
                     enable=True,
                     window_size=5,
                 )
-                
+
             # Force initialization of components
             retriever.initialize_components()
         else:
@@ -531,7 +527,7 @@ def main():
             dynamic_threshold_adjustment=True,
         ),
     )
-    
+
     # Run the benchmark
     benchmark = MemoryRetrievalBenchmark(configs)
     benchmark.generate_test_data(num_memories=args.num_memories, num_queries=args.num_queries)

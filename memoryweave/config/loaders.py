@@ -21,18 +21,18 @@ class ConfigLoader:
         """Initialize the config loader."""
         self._logger = logging.getLogger(__name__)
 
-    def load_from_file(self,
-                      file_path: Union[str, Path],
-                      component_type: Optional[str] = None) -> Dict[str, Any]:
+    def load_from_file(
+        self, file_path: Union[str, Path], component_type: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Load configuration from a file.
-        
+
         Args:
             file_path: Path to the configuration file
             component_type: Optional component type for validation
-            
+
         Returns:
             Loaded configuration
-            
+
         Raises:
             FileNotFoundError: If the file doesn't exist
             ValueError: If the file format is invalid
@@ -43,9 +43,9 @@ class ConfigLoader:
             raise FileNotFoundError(f"Config file not found: {file_path}")
 
         # Determine file format from extension
-        if path.suffix.lower() in ('.json', '.jsonc'):
+        if path.suffix.lower() in (".json", ".jsonc"):
             config = self._load_json(path)
-        elif path.suffix.lower() in ('.yaml', '.yml'):
+        elif path.suffix.lower() in (".yaml", ".yml"):
             config = self._load_yaml(path)
         else:
             raise ValueError(f"Unsupported file format: {path.suffix}")
@@ -58,15 +58,13 @@ class ConfigLoader:
 
         return config
 
-    def load_with_defaults(self,
-                          config: Dict[str, Any],
-                          component_type: str) -> Dict[str, Any]:
+    def load_with_defaults(self, config: Dict[str, Any], component_type: str) -> Dict[str, Any]:
         """Load configuration with default values for missing options.
-        
+
         Args:
             config: User-provided configuration
             component_type: Component type for defaults
-            
+
         Returns:
             Configuration with defaults applied
         """
@@ -77,18 +75,16 @@ class ConfigLoader:
 
         return merged
 
-    def load_from_env(self,
-                     prefix: str,
-                     component_type: Optional[str] = None) -> Dict[str, Any]:
+    def load_from_env(self, prefix: str, component_type: Optional[str] = None) -> Dict[str, Any]:
         """Load configuration from environment variables.
-        
+
         Args:
             prefix: Prefix for environment variables (e.g., 'MEMORYWEAVE_')
             component_type: Optional component type for validation
-            
+
         Returns:
             Loaded configuration
-            
+
         Raises:
             ConfigValidationError: If the configuration is invalid
         """
@@ -98,7 +94,7 @@ class ConfigLoader:
         for key, value in os.environ.items():
             if key.startswith(prefix):
                 # Remove prefix and convert to lowercase
-                config_key = key[len(prefix):].lower()
+                config_key = key[len(prefix) :].lower()
 
                 # Convert value to appropriate type
                 config[config_key] = self._convert_env_value(value)
@@ -120,18 +116,21 @@ class ConfigLoader:
         """Load configuration from a YAML file."""
         try:
             import yaml
+
             with open(file_path) as f:
                 return yaml.safe_load(f)
         except ImportError:
-            self._logger.error("PyYAML is required to load YAML files. Install with 'pip install pyyaml'")
+            self._logger.error(
+                "PyYAML is required to load YAML files. Install with 'pip install pyyaml'"
+            )
             raise ImportError("PyYAML is required to load YAML files")
 
     def _convert_env_value(self, value: str) -> Any:
         """Convert environment variable string to appropriate type."""
         # Check for boolean values
-        if value.lower() in ('true', 'yes', '1'):
+        if value.lower() in ("true", "yes", "1"):
             return True
-        elif value.lower() in ('false', 'no', '0'):
+        elif value.lower() in ("false", "no", "0"):
             return False
 
         # Check for numeric values

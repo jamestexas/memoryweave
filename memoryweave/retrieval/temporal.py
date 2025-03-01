@@ -20,23 +20,22 @@ class TemporalRetrievalStrategy(IRetrievalStrategy):
 
     def __init__(self, memory_store: IMemoryStore, activation_manager: IActivationManager):
         """Initialize the temporal retrieval strategy.
-        
+
         Args:
             memory_store: Memory store to retrieve memory content
             activation_manager: Activation manager for memory activations
         """
         self._memory_store = memory_store
         self._activation_manager = activation_manager
-        self._default_params = {
-            'max_results': 10,
-            'recency_window_days': 7.0
-        }
+        self._default_params = {"max_results": 10, "recency_window_days": 7.0}
 
-    def retrieve(self,
-                query_embedding: Optional[EmbeddingVector] = None,
-                parameters: Optional[RetrievalParameters] = None) -> List[RetrievalResult]:
+    def retrieve(
+        self,
+        query_embedding: Optional[EmbeddingVector] = None,
+        parameters: Optional[RetrievalParameters] = None,
+    ) -> List[RetrievalResult]:
         """Retrieve memories based on temporal factors.
-        
+
         Note:
             The query_embedding is optional for this strategy, as it relies
             on temporal factors rather than vector similarity.
@@ -47,8 +46,8 @@ class TemporalRetrievalStrategy(IRetrievalStrategy):
             params.update(parameters)
 
         # Get parameters
-        max_results = params.get('max_results', 10)
-        recency_window_days = params.get('recency_window_days', 7.0)
+        max_results = params.get("max_results", 10)
+        recency_window_days = params.get("recency_window_days", 7.0)
 
         # Get most active memories
         active_memories = self._activation_manager.get_most_active(max_results)
@@ -60,7 +59,7 @@ class TemporalRetrievalStrategy(IRetrievalStrategy):
             memory = self._memory_store.get(memory_id)
 
             # Use creation time as additional metadata
-            creation_time = memory.metadata.get('created_at', 0)
+            creation_time = memory.metadata.get("created_at", 0)
             current_time = time.time()
 
             # Convert activation to a relevance score (0-1)
@@ -74,30 +73,29 @@ class TemporalRetrievalStrategy(IRetrievalStrategy):
             # Create result
             result = RetrievalResult(
                 memory_id=memory_id,
-                content=memory.content['text'],
+                content=memory.content["text"],
                 metadata=memory.metadata,
-                relevance_score=float(relevance_score)
+                relevance_score=float(relevance_score),
             )
 
             results.append(result)
 
         # Sort by relevance score (descending)
-        results.sort(key=lambda x: x['relevance_score'], reverse=True)
+        results.sort(key=lambda x: x["relevance_score"], reverse=True)
 
         return results
 
     def configure(self, config: Dict[str, Any]) -> None:
         """Configure the retrieval strategy."""
-        if 'max_results' in config:
-            self._default_params['max_results'] = config['max_results']
+        if "max_results" in config:
+            self._default_params["max_results"] = config["max_results"]
 
-        if 'recency_window_days' in config:
-            self._default_params['recency_window_days'] = config['recency_window_days']
+        if "recency_window_days" in config:
+            self._default_params["recency_window_days"] = config["recency_window_days"]
 
-    def _calculate_recency_factor(self,
-                                 creation_time: float,
-                                 current_time: float,
-                                 recency_window_days: float) -> float:
+    def _calculate_recency_factor(
+        self, creation_time: float, current_time: float, recency_window_days: float
+    ) -> float:
         """Calculate a recency factor (0-1) based on memory age."""
         # Calculate age in seconds
         age_seconds = current_time - creation_time

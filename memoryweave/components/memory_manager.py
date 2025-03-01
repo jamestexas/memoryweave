@@ -49,10 +49,12 @@ class MemoryManager:
             for step in pipeline_config:
                 component_name = step.get("component")
                 if component_name in self.components:
-                    self.pipeline.append({
-                        "component": self.components[component_name],
-                        "config": step.get("config", {}),
-                    })
+                    self.pipeline.append(
+                        {
+                            "component": self.components[component_name],
+                            "config": step.get("config", {}),
+                        }
+                    )
                 else:
                     raise ValueError(f"Component {component_name} not registered") from e
 
@@ -66,8 +68,8 @@ class MemoryManager:
         )
 
         # Copy over any existing results from the input context
-        if 'results' in context:
-            pipeline_context['results'] = context['results']
+        if "results" in context:
+            pipeline_context["results"] = context["results"]
 
         for step in self.pipeline:
             component = step["component"]

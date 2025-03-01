@@ -15,7 +15,7 @@ from memoryweave.interfaces.pipeline import ComponentID, ComponentType
 class LegacyMemoryAdapter(IMemoryStore):
     """
     Adapter that bridges a legacy ContextualMemory to the new IMemoryStore interface.
-    
+
     This adapter allows using a legacy ContextualMemory where a new IMemoryStore
     is expected, providing backward compatibility while migrating to the new architecture.
     """
@@ -23,7 +23,7 @@ class LegacyMemoryAdapter(IMemoryStore):
     def __init__(self, legacy_memory, component_id: str = "legacy_memory_adapter"):
         """
         Initialize the legacy memory adapter.
-        
+
         Args:
             legacy_memory: A legacy ContextualMemory object
             component_id: ID for this component
@@ -33,10 +33,9 @@ class LegacyMemoryAdapter(IMemoryStore):
         self._memory_id_map = {}  # Maps new memory IDs to old memory indices
         self._next_id = 0
 
-    def add(self,
-            embedding: np.ndarray,
-            content: str,
-            metadata: Optional[Dict[str, Any]] = None) -> MemoryID:
+    def add(
+        self, embedding: np.ndarray, content: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> MemoryID:
         """Add a memory and return its ID."""
         # Add to legacy memory
         if metadata is None:
@@ -44,8 +43,8 @@ class LegacyMemoryAdapter(IMemoryStore):
 
         # Add text to metadata for legacy compatibility
         metadata_with_text = metadata.copy()
-        if 'text' not in metadata_with_text:
-            metadata_with_text['text'] = content
+        if "text" not in metadata_with_text:
+            metadata_with_text["text"] = content
 
         # Call legacy add_memory
         legacy_idx = self._legacy_memory.add_memory(embedding, content, metadata_with_text)
@@ -71,14 +70,14 @@ class LegacyMemoryAdapter(IMemoryStore):
         metadata = self._legacy_memory.memory_metadata[legacy_idx]
 
         # Extract text content from metadata
-        text = metadata.get('text', '')
+        text = metadata.get("text", "")
 
         # Construct memory object
         memory = {
-            'id': memory_id,
-            'embedding': embedding,
-            'content': {'text': text, 'metadata': metadata},
-            'metadata': metadata
+            "id": memory_id,
+            "embedding": embedding,
+            "content": {"text": text, "metadata": metadata},
+            "metadata": metadata,
         }
 
         return memory
@@ -103,14 +102,18 @@ class LegacyMemoryAdapter(IMemoryStore):
         legacy_idx = self._memory_id_map[memory_id]
 
         # Update activation in legacy memory
-        if hasattr(self._legacy_memory, '_update_activation'):
+        if hasattr(self._legacy_memory, "_update_activation"):
             self._legacy_memory._update_activation(legacy_idx)
-        elif hasattr(self._legacy_memory, 'core_memory') and hasattr(self._legacy_memory.core_memory, 'update_activation'):
+        elif hasattr(self._legacy_memory, "core_memory") and hasattr(
+            self._legacy_memory.core_memory, "update_activation"
+        ):
             self._legacy_memory.core_memory.update_activation(legacy_idx)
         else:
             # Fallback if no update_activation method exists
             current_activation = self._legacy_memory.activation_levels[legacy_idx]
-            self._legacy_memory.activation_levels[legacy_idx] = current_activation + activation_delta
+            self._legacy_memory.activation_levels[legacy_idx] = (
+                current_activation + activation_delta
+            )
 
     def update_metadata(self, memory_id: MemoryID, metadata: Dict[str, Any]) -> None:
         """Update metadata of a memory."""
@@ -164,16 +167,20 @@ class LegacyMemoryAdapter(IMemoryStore):
 class LegacyVectorStoreAdapter(IVectorStore):
     """
     Adapter that bridges a legacy ContextualMemory to the new IVectorStore interface.
-    
+
     This adapter allows using a legacy ContextualMemory where a new IVectorStore
     is expected, providing backward compatibility during migration.
     """
 
-    def __init__(self, legacy_memory, memory_adapter: LegacyMemoryAdapter,
-                 component_id: str = "legacy_vector_store_adapter"):
+    def __init__(
+        self,
+        legacy_memory,
+        memory_adapter: LegacyMemoryAdapter,
+        component_id: str = "legacy_vector_store_adapter",
+    ):
         """
         Initialize the legacy vector store adapter.
-        
+
         Args:
             legacy_memory: A legacy ContextualMemory object
             memory_adapter: The memory adapter for ID mapping
@@ -189,17 +196,16 @@ class LegacyVectorStoreAdapter(IVectorStore):
         # This is a no-op as the vector should already be in the legacy memory
         pass
 
-    def search(self,
-               query_vector: np.ndarray,
-               k: int,
-               threshold: Optional[float] = None) -> List[Tuple[MemoryID, float]]:
+    def search(
+        self, query_vector: np.ndarray, k: int, threshold: Optional[float] = None
+    ) -> List[Tuple[MemoryID, float]]:
         """Search for similar vectors."""
         # Use the legacy memory's retrieve_memories method
         legacy_results = self._legacy_memory.retrieve_memories(
             query_embedding=query_vector,
             top_k=k,
             activation_boost=False,  # Don't apply activation boost for pure similarity search
-            confidence_threshold=threshold or 0.0
+            confidence_threshold=threshold or 0.0,
         )
 
         # Convert legacy results to the expected format
@@ -250,16 +256,20 @@ class LegacyVectorStoreAdapter(IVectorStore):
 class LegacyActivationManagerAdapter(IActivationManager):
     """
     Adapter that bridges a legacy ContextualMemory to the new IActivationManager interface.
-    
+
     This adapter allows using a legacy ContextualMemory where a new IActivationManager
     is expected, providing backward compatibility during migration.
     """
 
-    def __init__(self, legacy_memory, memory_adapter: LegacyMemoryAdapter,
-                 component_id: str = "legacy_activation_manager_adapter"):
+    def __init__(
+        self,
+        legacy_memory,
+        memory_adapter: LegacyMemoryAdapter,
+        component_id: str = "legacy_activation_manager_adapter",
+    ):
         """
         Initialize the legacy activation manager adapter.
-        
+
         Args:
             legacy_memory: A legacy ContextualMemory object
             memory_adapter: The memory adapter for ID mapping
@@ -285,7 +295,7 @@ class LegacyActivationManagerAdapter(IActivationManager):
         """Apply decay to all memory activations."""
         # Legacy memory doesn't have a direct decay method
         # Apply decay manually
-        self._legacy_memory.activation_levels *= (1.0 - decay_factor)
+        self._legacy_memory.activation_levels *= 1.0 - decay_factor
 
     def get_most_active(self, k: int) -> List[Tuple[MemoryID, float]]:
         """Get the k most active memories."""

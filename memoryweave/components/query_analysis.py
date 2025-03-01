@@ -138,41 +138,49 @@ class QueryAnalyzer(RetrievalComponent):
         # Adapt based on query type
         if primary_type == "personal":
             # Personal queries need higher precision
-            recommendations.update({
-                "confidence_threshold": 0.4,  # Higher threshold for better precision
-                "adaptive_k_factor": 0.4,  # More conservative K selection
-                "first_stage_k": 15,  # Smaller candidate set
-                "first_stage_threshold_factor": 0.8,  # Less aggressive first stage
-                "keyword_boost_weight": 0.6,  # Higher keyword boost
-                "expand_keywords": False,  # Don't expand keywords for personal queries
-            })
+            recommendations.update(
+                {
+                    "confidence_threshold": 0.4,  # Higher threshold for better precision
+                    "adaptive_k_factor": 0.4,  # More conservative K selection
+                    "first_stage_k": 15,  # Smaller candidate set
+                    "first_stage_threshold_factor": 0.8,  # Less aggressive first stage
+                    "keyword_boost_weight": 0.6,  # Higher keyword boost
+                    "expand_keywords": False,  # Don't expand keywords for personal queries
+                }
+            )
         elif primary_type == "factual":
             # Factual queries need better recall
-            recommendations.update({
-                "confidence_threshold": 0.2,  # Lower threshold for better recall
-                "adaptive_k_factor": 0.15,  # Less conservative K selection
-                "first_stage_k": 30,  # Larger candidate set
-                "first_stage_threshold_factor": 0.6,  # More aggressive first stage
-                "keyword_boost_weight": 0.4,  # Lower keyword boost
-                "expand_keywords": True,  # Expand keywords for factual queries
-            })
+            recommendations.update(
+                {
+                    "confidence_threshold": 0.2,  # Lower threshold for better recall
+                    "adaptive_k_factor": 0.15,  # Less conservative K selection
+                    "first_stage_k": 30,  # Larger candidate set
+                    "first_stage_threshold_factor": 0.6,  # More aggressive first stage
+                    "keyword_boost_weight": 0.4,  # Lower keyword boost
+                    "expand_keywords": True,  # Expand keywords for factual queries
+                }
+            )
         elif primary_type == "opinion":
             # Opinion queries need balanced approach with emphasis on recency
-            recommendations.update({
-                "confidence_threshold": 0.25,  # Moderate threshold
-                "adaptive_k_factor": 0.25,  # Moderate K selection
-                "recency_weight": 0.4,  # Higher recency weight
-                "relevance_weight": 0.6,  # Lower relevance weight
-                "expand_keywords": False,  # Don't expand keywords
-            })
+            recommendations.update(
+                {
+                    "confidence_threshold": 0.25,  # Moderate threshold
+                    "adaptive_k_factor": 0.25,  # Moderate K selection
+                    "recency_weight": 0.4,  # Higher recency weight
+                    "relevance_weight": 0.6,  # Lower relevance weight
+                    "expand_keywords": False,  # Don't expand keywords
+                }
+            )
         elif primary_type == "instruction":
             # Instruction queries often need precise, factual responses
-            recommendations.update({
-                "confidence_threshold": 0.35,  # Higher threshold
-                "adaptive_k_factor": 0.3,  # Standard K selection
-                "keyword_boost_weight": 0.6,  # Higher keyword boost
-                "expand_keywords": True,  # Expand keywords for better recall
-            })
+            recommendations.update(
+                {
+                    "confidence_threshold": 0.35,  # Higher threshold
+                    "adaptive_k_factor": 0.3,  # Standard K selection
+                    "keyword_boost_weight": 0.6,  # Higher keyword boost
+                    "expand_keywords": True,  # Expand keywords for better recall
+                }
+            )
 
         # Adjust further based on certainty of classification
         primary_score = query_types.get(primary_type, 0.0)

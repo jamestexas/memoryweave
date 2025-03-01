@@ -53,7 +53,7 @@ class RefactoredRetriever:
         # Create the memory retriever
         self.memory_retriever = MemoryRetriever(
             core_memory=memory,
-            category_manager=getattr(memory, 'category_manager', None),
+            category_manager=getattr(memory, "category_manager", None),
             default_confidence_threshold=confidence_threshold,
             adaptive_retrieval=adaptive_retrieval,
             semantic_coherence_check=semantic_coherence_check,
@@ -142,13 +142,15 @@ class RefactoredRetriever:
                 # Convert to expected format
                 results = []
                 for idx, score, metadata in memory_results:
-                    results.append({
-                        "memory_id": idx,
-                        "relevance_score": score,
-                        "content": metadata.get("text", ""),
-                        "type": metadata.get("type", "generated"),
-                        **{k: v for k, v in metadata.items() if k not in ["text", "type"]}
-                    })
+                    results.append(
+                        {
+                            "memory_id": idx,
+                            "relevance_score": score,
+                            "content": metadata.get("text", ""),
+                            "type": metadata.get("type", "generated"),
+                            **{k: v for k, v in metadata.items() if k not in ["text", "type"]},
+                        }
+                    )
             except Exception:
                 # If direct retrieval also fails, return empty results
                 results = []
@@ -210,7 +212,7 @@ class RefactoredRetriever:
         """Find memories containing specific terms."""
         results = []
 
-        if not hasattr(self.memory, 'memory_metadata') or not self.memory.memory_metadata:
+        if not hasattr(self.memory, "memory_metadata") or not self.memory.memory_metadata:
             # Return a mock result for testing
             return [
                 {
@@ -224,12 +226,14 @@ class RefactoredRetriever:
         for i, metadata in enumerate(self.memory.memory_metadata):
             content = metadata.get("text", "").lower()
             if any(term.lower() in content for term in search_terms):
-                results.append({
-                    "memory_id": i,
-                    "relevance_score": relevance,
-                    "content": metadata.get("text", ""),
-                    "type": metadata.get("type", memory_type),
-                })
+                results.append(
+                    {
+                        "memory_id": i,
+                        "relevance_score": relevance,
+                        "content": metadata.get("text", ""),
+                        "type": metadata.get("type", memory_type),
+                    }
+                )
                 if len(results) >= limit:
                     break
 

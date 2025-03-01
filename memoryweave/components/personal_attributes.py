@@ -89,12 +89,16 @@ class PersonalAttributeManager(RetrievalComponent):
         # Direct question mappings for test cases
         if "where do i live" in query_lower or "where" in query_lower and "live" in query_lower:
             if "location" in self.personal_attributes["demographics"]:
-                relevant_attributes["demographic_location"] = self.personal_attributes["demographics"]["location"]
+                relevant_attributes["demographic_location"] = self.personal_attributes[
+                    "demographics"
+                ]["location"]
             return relevant_attributes
 
         if "what's my favorite color" in query_lower or "what is my favorite color" in query_lower:
             if "color" in self.personal_attributes["preferences"]:
-                relevant_attributes["preferences_color"] = self.personal_attributes["preferences"]["color"]
+                relevant_attributes["preferences_color"] = self.personal_attributes["preferences"][
+                    "color"
+                ]
             return relevant_attributes
 
         # Check different attribute categories based on query keywords
@@ -118,13 +122,19 @@ class PersonalAttributeManager(RetrievalComponent):
 
         # Check relationships
         relationship_keywords = ["wife", "husband", "family", "spouse", "partner"]
-        if any(kw in query_lower for kw in relationship_keywords) and "family" in self.personal_attributes["relationships"]:
+        if (
+            any(kw in query_lower for kw in relationship_keywords)
+            and "family" in self.personal_attributes["relationships"]
+        ):
             for key, value in self.personal_attributes["relationships"]["family"].items():
                 relevant_attributes[f"relationship_{key}"] = value
 
         # Check traits/hobbies
         trait_keywords = ["hobby", "hobbies", "enjoy", "activity", "like to do"]
-        if any(kw in query_lower for kw in trait_keywords) and "hobbies" in self.personal_attributes["traits"]:
+        if (
+            any(kw in query_lower for kw in trait_keywords)
+            and "hobbies" in self.personal_attributes["traits"]
+        ):
             relevant_attributes["trait_hobbies"] = self.personal_attributes["traits"]["hobbies"]
 
         return relevant_attributes

@@ -13,6 +13,7 @@ from memoryweave.interfaces.memory import EmbeddingVector, MemoryID
 
 class QueryType(Enum):
     """Types of queries that can be processed."""
+
     FACTUAL = auto()
     PERSONAL = auto()
     CONCEPTUAL = auto()
@@ -24,6 +25,7 @@ class QueryType(Enum):
 @dataclass
 class QueryContext:
     """Context information for a query."""
+
     recent_interactions: List[Dict[str, Any]]
     conversation_attributes: Dict[str, Any]
     personal_attributes: Dict[str, Any]
@@ -32,6 +34,7 @@ class QueryContext:
 @dataclass
 class Query:
     """Data model for a query in the system."""
+
     text: str
     embedding: EmbeddingVector
     query_type: QueryType
@@ -42,6 +45,7 @@ class Query:
 
 class RetrievalResult(TypedDict):
     """Result of a memory retrieval operation."""
+
     memory_id: MemoryID
     content: str
     metadata: Dict[str, Any]
@@ -50,6 +54,7 @@ class RetrievalResult(TypedDict):
 
 class RetrievalParameters(TypedDict, total=False):
     """Parameters for memory retrieval."""
+
     similarity_threshold: float
     max_results: int
     recency_bias: float
@@ -63,9 +68,9 @@ class RetrievalParameters(TypedDict, total=False):
 class IRetrievalStrategy(Protocol):
     """Interface for memory retrieval strategies."""
 
-    def retrieve(self,
-                query_embedding: EmbeddingVector,
-                parameters: RetrievalParameters) -> List[RetrievalResult]:
+    def retrieve(
+        self, query_embedding: EmbeddingVector, parameters: RetrievalParameters
+    ) -> List[RetrievalResult]:
         """Retrieve memories based on a query embedding."""
         ...
 
@@ -77,10 +82,9 @@ class IRetrievalStrategy(Protocol):
 class IPostProcessor(Protocol):
     """Interface for post-processing retrieval results."""
 
-    def process(self,
-               results: List[RetrievalResult],
-               query: Query,
-               context: QueryContext) -> List[RetrievalResult]:
+    def process(
+        self, results: List[RetrievalResult], query: Query, context: QueryContext
+    ) -> List[RetrievalResult]:
         """Process retrieval results."""
         ...
 

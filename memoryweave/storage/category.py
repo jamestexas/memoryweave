@@ -16,7 +16,7 @@ class CategoryManager(ICategoryManager):
 
     def __init__(self, vigilance: float = 0.85):
         """Initialize the category manager.
-        
+
         Args:
             vigilance: Threshold for category matching (0-1)
                 Higher values create more specific categories
@@ -129,10 +129,9 @@ class CategoryManager(ICategoryManager):
 
         return category_id
 
-    def _update_category(self,
-                        category_id: int,
-                        memory_id: MemoryID,
-                        embedding: EmbeddingVector) -> None:
+    def _update_category(
+        self, category_id: int, memory_id: MemoryID, embedding: EmbeddingVector
+    ) -> None:
         """Update an existing category with a new memory."""
         # Add memory to category
         self._members[category_id].add(memory_id)
@@ -164,10 +163,9 @@ class CategoryManager(ICategoryManager):
         total_size = target_size + source_size
 
         # Weighted average of prototypes
-        new_prototype = (
-            (target_size / total_size) * target_prototype +
-            (source_size / total_size) * source_prototype
-        )
+        new_prototype = (target_size / total_size) * target_prototype + (
+            source_size / total_size
+        ) * source_prototype
 
         # Normalize prototype
         norm = np.linalg.norm(new_prototype)

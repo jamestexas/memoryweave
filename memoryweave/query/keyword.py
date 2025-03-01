@@ -16,7 +16,7 @@ class KeywordExpander(IQueryExpander):
 
     def __init__(self, word_embeddings: Optional[Dict[str, List[float]]] = None):
         """Initialize the keyword expander.
-        
+
         Args:
             word_embeddings: Optional dictionary mapping words to embedding vectors
         """
@@ -30,9 +30,9 @@ class KeywordExpander(IQueryExpander):
 
         # Default configuration
         self._config = {
-            'expansion_count': 3,  # Number of keywords to add per original keyword
-            'min_similarity': 0.7,  # Minimum similarity for expansion
-            'use_embeddings': bool(self._word_embeddings)  # Use embeddings if available
+            "expansion_count": 3,  # Number of keywords to add per original keyword
+            "min_similarity": 0.7,  # Minimum similarity for expansion
+            "use_embeddings": bool(self._word_embeddings),  # Use embeddings if available
         }
 
     def expand(self, query: Query) -> Query:
@@ -47,18 +47,16 @@ class KeywordExpander(IQueryExpander):
             query_type=query.query_type,
             extracted_keywords=query.extracted_keywords.copy(),
             extracted_entities=query.extracted_entities,
-            context=query.context
+            context=query.context,
         )
 
         # Expand each keyword
-        expansion_count = self._config['expansion_count']
+        expansion_count = self._config["expansion_count"]
         expanded_keywords = set(expanded_query.extracted_keywords)
 
         for keyword in expanded_query.extracted_keywords:
             related_keywords = self._find_related_keywords(
-                keyword,
-                expansion_count,
-                self._config['min_similarity']
+                keyword, expansion_count, self._config["min_similarity"]
             )
             expanded_keywords.update(related_keywords)
 
@@ -69,34 +67,30 @@ class KeywordExpander(IQueryExpander):
 
     def configure(self, config: Dict[str, Any]) -> None:
         """Configure the keyword expander."""
-        if 'expansion_count' in config:
-            self._config['expansion_count'] = config['expansion_count']
+        if "expansion_count" in config:
+            self._config["expansion_count"] = config["expansion_count"]
 
-        if 'min_similarity' in config:
-            self._config['min_similarity'] = config['min_similarity']
+        if "min_similarity" in config:
+            self._config["min_similarity"] = config["min_similarity"]
 
-        if 'use_embeddings' in config:
-            self._config['use_embeddings'] = config['use_embeddings']
+        if "use_embeddings" in config:
+            self._config["use_embeddings"] = config["use_embeddings"]
 
         # Add word relationships (for use when embeddings not available)
-        if 'word_relationships' in config:
-            for word, related in config['word_relationships'].items():
+        if "word_relationships" in config:
+            for word, related in config["word_relationships"].items():
                 self._word_relationships[word] = related
 
-    def _find_related_keywords(self,
-                             keyword: str,
-                             count: int,
-                             min_similarity: float) -> List[str]:
+    def _find_related_keywords(self, keyword: str, count: int, min_similarity: float) -> List[str]:
         """Find related keywords for a given keyword."""
-        if self._config['use_embeddings'] and keyword in self._word_embeddings:
+        if self._config["use_embeddings"] and keyword in self._word_embeddings:
             return self._find_related_by_embedding(keyword, count, min_similarity)
         else:
             return self._find_related_by_relationships(keyword, count)
 
-    def _find_related_by_embedding(self,
-                                  keyword: str,
-                                  count: int,
-                                  min_similarity: float) -> List[str]:
+    def _find_related_by_embedding(
+        self, keyword: str, count: int, min_similarity: float
+    ) -> List[str]:
         """Find related keywords using word embeddings."""
         if not self._word_embeddings or keyword not in self._word_embeddings:
             return []

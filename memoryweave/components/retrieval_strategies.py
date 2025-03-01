@@ -19,7 +19,7 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         """Initialize with configuration."""
         self.confidence_threshold = config.get("confidence_threshold", 0.0)
         self.activation_boost = config.get("activation_boost", True)
-        
+
         # Set minimum k for testing/benchmarking, but don't go below 1
         self.min_results = max(1, config.get("min_results", 5))
 
@@ -36,10 +36,10 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         # Apply query type adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
         confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
-        
+
         # For benchmarking, temporarily lower threshold if needed to get results
         orig_threshold = confidence_threshold
-        if hasattr(memory, 'retrieve_memories'):
+        if hasattr(memory, "retrieve_memories"):
             # Try with original threshold
             results = memory.retrieve_memories(
                 query_embedding,
@@ -47,7 +47,7 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
                 activation_boost=self.activation_boost,
                 confidence_threshold=confidence_threshold,
             )
-            
+
             # If no results, try with a lower threshold for benchmark purposes
             if not results:
                 test_threshold = 0.0  # Minimum possible threshold
@@ -57,9 +57,12 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
                     activation_boost=self.activation_boost,
                     confidence_threshold=test_threshold,
                 )
-                
+
                 # Mark these as lower-confidence results
-                results = [(idx, min(score, orig_threshold - 0.01), metadata) for idx, score, metadata in results]
+                results = [
+                    (idx, min(score, orig_threshold - 0.01), metadata)
+                    for idx, score, metadata in results
+                ]
         else:
             # If memory doesn't have retrieve_memories, return empty results
             results = []
@@ -68,12 +71,14 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         formatted_results = []
         for idx, score, metadata in results:
             # Add all results but mark if they're below threshold
-            formatted_results.append({
-                "memory_id": idx, 
-                "relevance_score": score,
-                "below_threshold": score < confidence_threshold,
-                **metadata
-            })
+            formatted_results.append(
+                {
+                    "memory_id": idx,
+                    "relevance_score": score,
+                    "below_threshold": score < confidence_threshold,
+                    **metadata,
+                }
+            )
 
         return formatted_results
 
@@ -99,11 +104,13 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
                     "python" in content and "language" in content
                 ):
                     # Create a result with high relevance score
-                    programming_memories.append({
-                        "memory_id": i,
-                        "relevance_score": 0.9,
-                        **metadata,
-                    })
+                    programming_memories.append(
+                        {
+                            "memory_id": i,
+                            "relevance_score": 0.9,
+                            **metadata,
+                        }
+                    )
 
             if programming_memories:
                 return {"results": programming_memories}
@@ -162,11 +169,13 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
 
         results = []
         for idx in temporal_order:
-            results.append({
-                "memory_id": int(idx),
-                "relevance_score": float(memory.activation_levels[idx]),
-                **memory.memory_metadata[idx],
-            })
+            results.append(
+                {
+                    "memory_id": int(idx),
+                    "relevance_score": float(memory.activation_levels[idx]),
+                    **memory.memory_metadata[idx],
+                }
+            )
 
         return results
 
@@ -262,13 +271,15 @@ class HybridRetrievalStrategy(RetrievalStrategy):
             # Format results
             formatted_results = []
             for idx, score, metadata in results:
-                formatted_results.append({
-                    "memory_id": idx,
-                    "relevance_score": score,
-                    "similarity": score,
-                    "recency": 1.0,
-                    **metadata,
-                })
+                formatted_results.append(
+                    {
+                        "memory_id": idx,
+                        "relevance_score": score,
+                        "similarity": score,
+                        "recency": 1.0,
+                        **metadata,
+                    }
+                )
 
             return formatted_results
 
@@ -305,13 +316,15 @@ class HybridRetrievalStrategy(RetrievalStrategy):
         results = []
         for idx in valid_indices[top_relative_indices]:
             score = float(combined_scores[idx])
-            results.append({
-                "memory_id": int(idx),
-                "relevance_score": score,
-                "similarity": float(similarities[idx]),
-                "recency": float(temporal_factors[idx]),
-                **memory.memory_metadata[idx],
-            })
+            results.append(
+                {
+                    "memory_id": int(idx),
+                    "relevance_score": score,
+                    "similarity": float(similarities[idx]),
+                    "recency": float(temporal_factors[idx]),
+                    **memory.memory_metadata[idx],
+                }
+            )
 
         return results[:top_k]
 
@@ -357,13 +370,15 @@ class HybridRetrievalStrategy(RetrievalStrategy):
                 content = metadata.get("content", "")
                 if "color" in content.lower() or "blue" in content.lower():
                     # Create a result with high relevance score
-                    color_memories.append({
-                        "memory_id": i,
-                        "relevance_score": 0.9,
-                        "similarity": 0.9,
-                        "recency": 1.0,
-                        **metadata,
-                    })
+                    color_memories.append(
+                        {
+                            "memory_id": i,
+                            "relevance_score": 0.9,
+                            "similarity": 0.9,
+                            "recency": 1.0,
+                            **metadata,
+                        }
+                    )
 
             if color_memories:
                 return {"results": color_memories}
@@ -408,11 +423,13 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
 
         # Initialize base strategy if it's not already initialized
         if hasattr(self.base_strategy, "initialize"):
-            self.base_strategy.initialize({
-                **config,
-                "confidence_threshold": self.confidence_threshold
-                * self.first_stage_threshold_factor,
-            })
+            self.base_strategy.initialize(
+                {
+                    **config,
+                    "confidence_threshold": self.confidence_threshold
+                    * self.first_stage_threshold_factor,
+                }
+            )
 
         # Initialize post-processors
         for processor in self.post_processors:

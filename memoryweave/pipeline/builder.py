@@ -9,8 +9,8 @@ from typing import Generic, List, TypeVar
 
 from memoryweave.interfaces.pipeline import IPipeline, IPipelineBuilder, IPipelineStage
 
-T = TypeVar('T')
-U = TypeVar('U')
+T = TypeVar("T")
+U = TypeVar("U")
 
 
 class Pipeline(Generic[T, U], IPipeline[T, U]):
@@ -18,7 +18,7 @@ class Pipeline(Generic[T, U], IPipeline[T, U]):
 
     def __init__(self, stages: List[IPipelineStage], name: str = "pipeline"):
         """Initialize the pipeline.
-        
+
         Args:
             stages: List of pipeline stages to execute
             name: Name of the pipeline
@@ -36,7 +36,7 @@ class Pipeline(Generic[T, U], IPipeline[T, U]):
 
         # Execute each stage in sequence
         for i, stage in enumerate(self._stages):
-            self._logger.debug(f"Executing stage {i+1}/{len(self._stages)}")
+            self._logger.debug(f"Executing stage {i + 1}/{len(self._stages)}")
             current_data = stage.process(current_data)
 
         # Return the final result
@@ -52,7 +52,7 @@ class PipelineBuilder(IPipelineBuilder, Generic[T, U]):
 
     def __init__(self, name: str = "pipeline"):
         """Initialize the pipeline builder.
-        
+
         Args:
             name: Name of the pipeline
         """
@@ -60,7 +60,7 @@ class PipelineBuilder(IPipelineBuilder, Generic[T, U]):
         self._name = name
         self._logger = logging.getLogger(__name__)
 
-    def add_stage(self, stage: IPipelineStage) -> 'PipelineBuilder':
+    def add_stage(self, stage: IPipelineStage) -> "PipelineBuilder":
         """Add a stage to the pipeline."""
         self._stages.append(stage)
         return self
@@ -70,12 +70,12 @@ class PipelineBuilder(IPipelineBuilder, Generic[T, U]):
         self._logger.debug(f"Building pipeline '{self._name}' with {len(self._stages)} stages")
         return Pipeline[T, U](self._stages, self._name)
 
-    def clear(self) -> 'PipelineBuilder':
+    def clear(self) -> "PipelineBuilder":
         """Clear all stages from the builder."""
         self._stages.clear()
         return self
 
-    def set_name(self, name: str) -> 'PipelineBuilder':
+    def set_name(self, name: str) -> "PipelineBuilder":
         """Set the name of the pipeline."""
         self._name = name
         return self

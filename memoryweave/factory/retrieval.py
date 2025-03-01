@@ -29,20 +29,20 @@ class RetrievalFactory:
         memory_store: IMemoryStore,
         vector_store: IVectorStore,
         activation_manager: Optional[IActivationManager] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ) -> IRetrievalStrategy:
         """Create a retrieval strategy component.
-        
+
         Args:
             strategy_type: Type of retrieval strategy to create
             memory_store: Memory store component
             vector_store: Vector store component
             activation_manager: Optional activation manager component
             config: Optional configuration for the retrieval strategy
-            
+
         Returns:
             Configured retrieval strategy
-            
+
         Raises:
             ValueError: If the strategy_type is invalid
             ConfigValidationError: If the configuration is invalid
@@ -83,7 +83,7 @@ class RetrievalFactory:
                     memory_store,
                     vector_store,
                     activation_manager,
-                    merged_config["first_stage_config"]
+                    merged_config["first_stage_config"],
                 )
 
             if "second_stage_config" in merged_config:
@@ -93,14 +93,11 @@ class RetrievalFactory:
                     memory_store,
                     vector_store,
                     activation_manager,
-                    merged_config["second_stage_config"]
+                    merged_config["second_stage_config"],
                 )
 
             strategy = TwoStageRetrievalStrategy(
-                memory_store,
-                vector_store,
-                first_stage,
-                second_stage
+                memory_store, vector_store, first_stage, second_stage
             )
         else:
             raise ValueError(f"Unknown retrieval strategy type: {strategy_type}")
@@ -113,13 +110,13 @@ class RetrievalFactory:
     @staticmethod
     def create_query_analyzer(config: Optional[Dict[str, Any]] = None) -> IQueryAnalyzer:
         """Create a query analyzer component.
-        
+
         Args:
             config: Optional configuration for the query analyzer
-            
+
         Returns:
             Configured query analyzer
-            
+
         Raises:
             ConfigValidationError: If the configuration is invalid
         """
@@ -147,13 +144,13 @@ class RetrievalFactory:
     @staticmethod
     def create_query_adapter(config: Optional[Dict[str, Any]] = None) -> IQueryAdapter:
         """Create a query adapter component.
-        
+
         Args:
             config: Optional configuration for the query adapter
-            
+
         Returns:
             Configured query adapter
-            
+
         Raises:
             ConfigValidationError: If the configuration is invalid
         """
@@ -181,14 +178,14 @@ class RetrievalFactory:
     @staticmethod
     def create_query_expander(
         word_embeddings: Optional[Dict[str, List[float]]] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
     ) -> IQueryExpander:
         """Create a query expander component.
-        
+
         Args:
             word_embeddings: Optional word embeddings for expansion
             config: Optional configuration for the query expander
-            
+
         Returns:
             Configured query expander
         """

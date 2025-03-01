@@ -10,8 +10,8 @@ import numpy as np
 class CoreMemory:
     """
     Implements core memory storage and basic operations.
-    
-    This class is responsible for the fundamental storage and management of 
+
+    This class is responsible for the fundamental storage and management of
     memory embeddings, metadata, activation levels, and temporal markers.
     """
 
@@ -137,10 +137,10 @@ class CoreMemory:
     def get_memory(self, idx: int) -> tuple[np.ndarray, dict]:
         """
         Get memory embedding and metadata by index.
-        
+
         Args:
             idx: Index of the memory to retrieve
-            
+
         Returns:
             Tuple of (embedding, metadata)
         """
@@ -152,17 +152,19 @@ class CoreMemory:
     def get_all_memories(self) -> List[Dict[str, Any]]:
         """
         Get all memories with their metadata and indices.
-        
+
         Returns:
             List of dictionaries containing memory information
         """
         memories = []
         for i in range(len(self.memory_metadata)):
-            memories.append({
-                "index": i,
-                "embedding": self.memory_embeddings[i],
-                "metadata": self.memory_metadata[i],
-                "activation": float(self.activation_levels[i]),
-                "temporal_marker": int(self.temporal_markers[i])
-            })
+            memories.append(
+                {
+                    "index": i,
+                    "embedding": self.memory_embeddings[i],
+                    "metadata": self.memory_metadata[i],
+                    "activation": float(self.activation_levels[i]),
+                    "temporal_marker": int(self.temporal_markers[i]),
+                }
+            )
         return memories

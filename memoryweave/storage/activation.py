@@ -14,12 +14,14 @@ from memoryweave.interfaces.memory import IActivationManager, MemoryID
 class ActivationManager(IActivationManager):
     """Implementation of memory activation management."""
 
-    def __init__(self,
-                 initial_activation: float = 0.0,
-                 max_activation: float = 10.0,
-                 min_activation: float = -10.0):
+    def __init__(
+        self,
+        initial_activation: float = 0.0,
+        max_activation: float = 10.0,
+        min_activation: float = -10.0,
+    ):
         """Initialize the activation manager.
-        
+
         Args:
             initial_activation: Default activation level for new memories
             max_activation: Maximum activation level
@@ -72,11 +74,7 @@ class ActivationManager(IActivationManager):
             return []
 
         # Sort by activation (descending)
-        sorted_activations = sorted(
-            self._activations.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
+        sorted_activations = sorted(self._activations.items(), key=lambda x: x[1], reverse=True)
 
         # Return top k
         return sorted_activations[:k]
@@ -84,18 +82,20 @@ class ActivationManager(IActivationManager):
 
 class TemporalActivationManager(IActivationManager):
     """Implementation of memory activation with temporal decay.
-    
+
     This implementation applies continuous decay to activations based on time,
     making memories gradually less active as time passes without access.
     """
 
-    def __init__(self,
-                 initial_activation: float = 0.0,
-                 max_activation: float = 10.0,
-                 min_activation: float = -10.0,
-                 half_life_days: float = 7.0):
+    def __init__(
+        self,
+        initial_activation: float = 0.0,
+        max_activation: float = 10.0,
+        min_activation: float = -10.0,
+        half_life_days: float = 7.0,
+    ):
         """Initialize the temporal activation manager.
-        
+
         Args:
             initial_activation: Default activation level for new memories
             max_activation: Maximum activation level
@@ -137,7 +137,7 @@ class TemporalActivationManager(IActivationManager):
 
     def decay_activations(self, decay_factor: float) -> None:
         """Apply additional manual decay to all memory activations.
-        
+
         This is in addition to the continuous temporal decay.
         """
         current_time = time.time()
@@ -168,11 +168,7 @@ class TemporalActivationManager(IActivationManager):
         }
 
         # Sort by activation (descending)
-        sorted_activations = sorted(
-            current_activations.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
+        sorted_activations = sorted(current_activations.items(), key=lambda x: x[1], reverse=True)
 
         # Return top k
         return sorted_activations[:k]
