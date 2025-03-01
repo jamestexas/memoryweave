@@ -22,12 +22,14 @@ from memoryweave.interfaces.retrieval import (
 class HybridRetrievalStrategy(IRetrievalStrategy):
     """Retrieval strategy combining similarity and temporal factors."""
 
-    def __init__(self,
-                memory_store: IMemoryStore,
-                vector_store: IVectorStore,
-                activation_manager: IActivationManager):
+    def __init__(
+        self,
+        memory_store: IMemoryStore,
+        vector_store: IVectorStore,
+        activation_manager: IActivationManager,
+    ):
         """Initialize the hybrid retrieval strategy.
-        
+
         Args:
             memory_store: Memory store to retrieve memory content
             vector_store: Vector store for similarity search
@@ -37,15 +39,15 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
         self._vector_store = vector_store
         self._activation_manager = activation_manager
         self._default_params = {
-            'similarity_threshold': 0.6,
-            'max_results': 10,
-            'recency_bias': 0.3,
-            'activation_boost': 0.2
+            "similarity_threshold": 0.6,
+            "max_results": 10,
+            "recency_bias": 0.3,
+            "activation_boost": 0.2,
         }
 
-    def retrieve(self,
-                query_embedding: EmbeddingVector,
-                parameters: Optional[RetrievalParameters] = None) -> List[RetrievalResult]:
+    def retrieve(
+        self, query_embedding: EmbeddingVector, parameters: Optional[RetrievalParameters] = None
+    ) -> List[RetrievalResult]:
         """Retrieve memories using a hybrid approach."""
         # Merge parameters with defaults
         params = self._default_params.copy()
@@ -53,17 +55,17 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
             params.update(parameters)
 
         # Get parameters
-        similarity_threshold = params.get('similarity_threshold', 0.6)
-        max_results = params.get('max_results', 10)
-        recency_bias = params.get('recency_bias', 0.3)
-        activation_boost = params.get('activation_boost', 0.2)
+        similarity_threshold = params.get("similarity_threshold", 0.6)
+        max_results = params.get("max_results", 10)
+        recency_bias = params.get("recency_bias", 0.3)
+        activation_boost = params.get("activation_boost", 0.2)
 
         # Get similarity matches (with a lower threshold to get more candidates)
         initial_max = max(max_results * 2, 20)  # Get more candidates for re-ranking
         similar_vectors = self._vector_store.search(
             query_vector=query_embedding,
             k=initial_max,
-            threshold=similarity_threshold * 0.8  # Lower threshold for more candidates
+            threshold=similarity_threshold * 0.8,  # Lower threshold for more candidates
         )
 
         # Create initial results
@@ -81,8 +83,8 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
 
             # Add recency bias if metadata has created_at
             memory = self._memory_store.get(memory_id)
-            if 'created_at' in memory.metadata:
-                recency_score = self._calculate_recency_score(memory.metadata['created_at'])
+            if "created_at" in memory.metadata:
+                recency_score = self._calculate_recency_score(memory.metadata["created_at"])
                 combined_score += recency_bias * recency_score
 
             # Add activation boost
@@ -94,35 +96,31 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
             # Create result
             result = RetrievalResult(
                 memory_id=memory_id,
-                content=memory.content['text'],
+                content=memory.content["text"],
                 metadata=memory.metadata,
-                relevance_score=float(final_score)
+                relevance_score=float(final_score),
             )
 
             initial_results.append(result)
 
         # Sort by combined score and take top k
-        ranked_results = sorted(
-            initial_results,
-            key=lambda x: x['relevance_score'],
-            reverse=True
-        )
+        ranked_results = sorted(initial_results, key=lambda x: x["relevance_score"], reverse=True)
 
         return ranked_results[:max_results]
 
     def configure(self, config: Dict[str, Any]) -> None:
         """Configure the retrieval strategy."""
-        if 'similarity_threshold' in config:
-            self._default_params['similarity_threshold'] = config['similarity_threshold']
+        if "similarity_threshold" in config:
+            self._default_params["similarity_threshold"] = config["similarity_threshold"]
 
-        if 'max_results' in config:
-            self._default_params['max_results'] = config['max_results']
+        if "max_results" in config:
+            self._default_params["max_results"] = config["max_results"]
 
-        if 'recency_bias' in config:
-            self._default_params['recency_bias'] = config['recency_bias']
+        if "recency_bias" in config:
+            self._default_params["recency_bias"] = config["recency_bias"]
 
-        if 'activation_boost' in config:
-            self._default_params['activation_boost'] = config['activation_boost']
+        if "activation_boost" in config:
+            self._default_params["activation_boost"] = config["activation_boost"]
 
     def _calculate_recency_score(self, created_at: float) -> float:
         """Calculate a recency score (0-1) based on creation time."""

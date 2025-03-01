@@ -15,6 +15,7 @@ from memoryweave.interfaces.pipeline import IPipeline
 @dataclass
 class ExecutionResult:
     """Result of a pipeline execution."""
+
     success: bool
     result: Any
     error: Optional[Exception] = None
@@ -22,8 +23,8 @@ class ExecutionResult:
     metrics: Dict[str, Any] = None
 
 
-T = TypeVar('T')
-U = TypeVar('U')
+T = TypeVar("T")
+U = TypeVar("U")
 
 
 class PipelineExecutor(Generic[T, U]):
@@ -34,9 +35,7 @@ class PipelineExecutor(Generic[T, U]):
         self._logger = logging.getLogger(__name__)
         self._metrics_collectors: List[Callable[[IPipeline, T, U, float], Dict[str, Any]]] = []
 
-    def execute(self,
-              pipeline: IPipeline[T, U],
-              input_data: T) -> ExecutionResult:
+    def execute(self, pipeline: IPipeline[T, U], input_data: T) -> ExecutionResult:
         """Execute a pipeline with error handling and metrics."""
         start_time = time.time()
 
@@ -52,17 +51,12 @@ class PipelineExecutor(Generic[T, U]):
 
             # Return successful result
             return ExecutionResult(
-                success=True,
-                result=result,
-                execution_time=execution_time,
-                metrics=metrics
+                success=True, result=result, execution_time=execution_time, metrics=metrics
             )
 
         except Exception as e:
             # Log error
-            self._logger.exception(
-                f"Error executing pipeline {pipeline.__class__.__name__}: {e}"
-            )
+            self._logger.exception(f"Error executing pipeline {pipeline.__class__.__name__}: {e}")
 
             # Calculate execution time
             execution_time = time.time() - start_time
@@ -73,24 +67,20 @@ class PipelineExecutor(Generic[T, U]):
                 result=None,
                 error=e,
                 execution_time=execution_time,
-                metrics={"error": str(e)}
+                metrics={"error": str(e)},
             )
 
-    def add_metrics_collector(self,
-                            collector: Callable[[IPipeline, T, U, float], Dict[str, Any]]) -> None:
+    def add_metrics_collector(
+        self, collector: Callable[[IPipeline, T, U, float], Dict[str, Any]]
+    ) -> None:
         """Add a metrics collector function."""
         self._metrics_collectors.append(collector)
 
-    def _collect_metrics(self,
-                       pipeline: IPipeline[T, U],
-                       input_data: T,
-                       result: U,
-                       execution_time: float) -> Dict[str, Any]:
+    def _collect_metrics(
+        self, pipeline: IPipeline[T, U], input_data: T, result: U, execution_time: float
+    ) -> Dict[str, Any]:
         """Collect metrics from all registered collectors."""
-        metrics = {
-            "execution_time": execution_time,
-            "pipeline_stages": len(pipeline.get_stages())
-        }
+        metrics = {"execution_time": execution_time, "pipeline_stages": len(pipeline.get_stages())}
 
         # Call each metrics collector
         for collector in self._metrics_collectors:
@@ -103,14 +93,11 @@ class PipelineExecutor(Generic[T, U]):
         return metrics
 
 
-def basic_metrics_collector(pipeline: IPipeline,
-                           input_data: Any,
-                           result: Any,
-                           execution_time: float) -> Dict[str, Any]:
+def basic_metrics_collector(
+    pipeline: IPipeline, input_data: Any, result: Any, execution_time: float
+) -> Dict[str, Any]:
     """Basic metrics collector for pipeline execution."""
-    metrics = {
-        "execution_time_ms": execution_time * 1000
-    }
+    metrics = {"execution_time_ms": execution_time * 1000}
 
     # Add result size metrics if applicable
     if isinstance(result, list):

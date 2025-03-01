@@ -197,8 +197,7 @@ class Retriever:
 
         # Filter out missing components
         pipeline_steps = [
-            step for step in pipeline_steps
-            if step["component"] in self.memory_manager.components
+            step for step in pipeline_steps if step["component"] in self.memory_manager.components
         ]
 
         if pipeline_steps:
@@ -214,18 +213,18 @@ class Retriever:
             pipeline_config: List of pipeline step configurations
         """
         self.memory_manager.build_pipeline(pipeline_config)
-        
+
     def configure_semantic_coherence(self, enable: bool = True):
         """
         Configure semantic coherence checking.
-        
+
         Args:
             enable: Whether to enable semantic coherence checking
         """
         # Create semantic coherence processor if it doesn't exist
-        if not hasattr(self, 'semantic_coherence_processor'):
+        if not hasattr(self, "semantic_coherence_processor"):
             self.semantic_coherence_processor = SemanticCoherenceProcessor()
-            
+
         # Add to post-processors if enabled and not already there
         if enable and self.semantic_coherence_processor not in self.post_processors:
             self.post_processors.append(self.semantic_coherence_processor)
@@ -361,9 +360,9 @@ class Retriever:
                         query_embedding,
                         top_k=top_k,
                         confidence_threshold=0.0,  # No threshold for benchmarking
-                        activation_boost=False  # Pure similarity
+                        activation_boost=False,  # Pure similarity
                     )
-                    
+
                     # Use these results but mark them as below threshold
                     for idx, score, metadata in benchmark_results:
                         result_dict = {
@@ -372,20 +371,26 @@ class Retriever:
                             "below_threshold": True,  # Mark as below threshold
                             "benchmark_fallback": True,
                             "content": str(metadata.get("content", "Unknown")),
-                            **metadata
+                            **metadata,
                         }
                         results.append(result_dict)
                 # If that didn't work and we have memory metadata, add one placeholder
-                elif hasattr(self.memory, "memory_metadata") and len(self.memory.memory_metadata) > 0:
+                elif (
+                    hasattr(self.memory, "memory_metadata") and len(self.memory.memory_metadata) > 0
+                ):
                     # Add a mock result for benchmarking
-                    results = [{
-                        "memory_id": 0,  # Use first memory
-                        "relevance_score": 0.1,  # Low score
-                        "below_threshold": True,
-                        "benchmark_fallback": True,
-                        "content": str(self.memory.memory_metadata[0].get("content", "Unknown")),
-                        **self.memory.memory_metadata[0]
-                    }]
+                    results = [
+                        {
+                            "memory_id": 0,  # Use first memory
+                            "relevance_score": 0.1,  # Low score
+                            "below_threshold": True,
+                            "benchmark_fallback": True,
+                            "content": str(
+                                self.memory.memory_metadata[0].get("content", "Unknown")
+                            ),
+                            **self.memory.memory_metadata[0],
+                        }
+                    ]
 
             # Apply dynamic threshold adjustment if enabled
             if self.dynamic_threshold_adjustment:
@@ -415,9 +420,9 @@ class Retriever:
                         query_embedding,
                         top_k=top_k,
                         confidence_threshold=0.0,  # No threshold for benchmarking
-                        activation_boost=False  # Pure similarity
+                        activation_boost=False,  # Pure similarity
                     )
-                    
+
                     # Use these results but mark them as below threshold
                     for idx, score, metadata in benchmark_results:
                         result_dict = {
@@ -426,20 +431,26 @@ class Retriever:
                             "below_threshold": True,  # Mark as below threshold
                             "benchmark_fallback": True,
                             "content": str(metadata.get("content", "Unknown")),
-                            **metadata
+                            **metadata,
                         }
                         results.append(result_dict)
                 # If that didn't work and we have memory metadata, add one placeholder
-                elif hasattr(self.memory, "memory_metadata") and len(self.memory.memory_metadata) > 0:
+                elif (
+                    hasattr(self.memory, "memory_metadata") and len(self.memory.memory_metadata) > 0
+                ):
                     # Add a mock result for benchmarking
-                    results = [{
-                        "memory_id": 0,  # Use first memory
-                        "relevance_score": 0.1,  # Low score
-                        "below_threshold": True,
-                        "benchmark_fallback": True,
-                        "content": str(self.memory.memory_metadata[0].get("content", "Unknown")),
-                        **self.memory.memory_metadata[0]
-                    }]
+                    results = [
+                        {
+                            "memory_id": 0,  # Use first memory
+                            "relevance_score": 0.1,  # Low score
+                            "below_threshold": True,
+                            "benchmark_fallback": True,
+                            "content": str(
+                                self.memory.memory_metadata[0].get("content", "Unknown")
+                            ),
+                            **self.memory.memory_metadata[0],
+                        }
+                    ]
 
             # Apply dynamic threshold adjustment if enabled
             if self.dynamic_threshold_adjustment:
@@ -467,11 +478,13 @@ class Retriever:
             self.conversation_history = conversation_history
 
         # Add current input to conversation history
-        self.conversation_history.append({
-            "role": "user",
-            "content": current_input,
-            "timestamp": np.datetime64("now"),
-        })
+        self.conversation_history.append(
+            {
+                "role": "user",
+                "content": current_input,
+                "timestamp": np.datetime64("now"),
+            }
+        )
 
         # Limit conversation history length
         max_history = 10
@@ -575,11 +588,13 @@ class Retriever:
         # If we already have a two-stage strategy, update its configuration
         if self.two_stage_strategy:
             # Update the existing strategy with the new parameters
-            self.two_stage_strategy.initialize({
-                "confidence_threshold": self.minimum_relevance,
-                "first_stage_k": first_stage_k,
-                "first_stage_threshold_factor": first_stage_threshold_factor,
-            })
+            self.two_stage_strategy.initialize(
+                {
+                    "confidence_threshold": self.minimum_relevance,
+                    "first_stage_k": first_stage_k,
+                    "first_stage_threshold_factor": first_stage_threshold_factor,
+                }
+            )
 
         # Rebuild pipeline with updated configuration
         self._build_default_pipeline()
@@ -599,12 +614,14 @@ class Retriever:
 
         # Update query adapter configuration
         if self.query_adapter:
-            self.query_adapter.initialize({
-                "adaptation_strength": adaptation_strength if enable else 0.0,
-                "confidence_threshold": self.minimum_relevance,
-                "first_stage_k": self.first_stage_k,
-                "first_stage_threshold_factor": self.first_stage_threshold_factor,
-            })
+            self.query_adapter.initialize(
+                {
+                    "adaptation_strength": adaptation_strength if enable else 0.0,
+                    "confidence_threshold": self.minimum_relevance,
+                    "first_stage_k": self.first_stage_k,
+                    "first_stage_threshold_factor": self.first_stage_threshold_factor,
+                }
+            )
 
         # Rebuild pipeline with updated configuration
         self._build_default_pipeline()

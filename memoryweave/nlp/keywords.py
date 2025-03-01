@@ -11,18 +11,17 @@ from typing import Dict, List, Optional, Set, Tuple
 from memoryweave.nlp.patterns import STOPWORDS
 
 
-def extract_keywords(text: str,
-                    stopwords: Optional[Set[str]] = None,
-                    min_length: int = 3,
-                    max_keywords: int = 10) -> List[str]:
+def extract_keywords(
+    text: str, stopwords: Optional[Set[str]] = None, min_length: int = 3, max_keywords: int = 10
+) -> List[str]:
     """Extract keywords from text.
-    
+
     Args:
         text: The text to extract keywords from
         stopwords: Optional set of stopwords to filter out
         min_length: Minimum length of keywords to include
         max_keywords: Maximum number of keywords to return
-        
+
     Returns:
         List of extracted keywords
     """
@@ -35,8 +34,7 @@ def extract_keywords(text: str,
 
     # Filter stopwords and short words
     filtered_tokens = [
-        token for token in tokens
-        if token.lower() not in stopwords and len(token) >= min_length
+        token for token in tokens if token.lower() not in stopwords and len(token) >= min_length
     ]
 
     # Count frequencies
@@ -52,17 +50,17 @@ def extract_keywords(text: str,
 def tokenize(text: str) -> List[str]:
     """Tokenize text into words."""
     # Remove punctuation and split by whitespace
-    words = re.findall(r'\b\w+\b', text.lower())
+    words = re.findall(r"\b\w+\b", text.lower())
     return words
 
 
 def rank_keywords(keywords: List[str], text: str) -> List[Tuple[str, float]]:
     """Rank keywords by importance in the text.
-    
+
     Args:
         keywords: List of keywords to rank
         text: The text to analyze
-        
+
     Returns:
         List of (keyword, score) tuples, sorted by descending score
     """
@@ -70,7 +68,7 @@ def rank_keywords(keywords: List[str], text: str) -> List[Tuple[str, float]]:
     keyword_counts = {}
     for keyword in keywords:
         # Use regex with word boundaries to count occurrences
-        pattern = re.compile(r'\b' + re.escape(keyword) + r'\b', re.IGNORECASE)
+        pattern = re.compile(r"\b" + re.escape(keyword) + r"\b", re.IGNORECASE)
         keyword_counts[keyword] = len(pattern.findall(text))
 
     # Calculate TF (term frequency)
@@ -78,10 +76,7 @@ def rank_keywords(keywords: List[str], text: str) -> List[Tuple[str, float]]:
     if total_words == 0:
         total_words = 1  # Avoid division by zero
 
-    term_frequencies = {
-        keyword: count / total_words
-        for keyword, count in keyword_counts.items()
-    }
+    term_frequencies = {keyword: count / total_words for keyword, count in keyword_counts.items()}
 
     # Calculate score based on TF and position in text
     scores = []
@@ -90,7 +85,7 @@ def rank_keywords(keywords: List[str], text: str) -> List[Tuple[str, float]]:
         tf = term_frequencies.get(keyword, 0)
 
         # Get first position
-        pattern = re.compile(r'\b' + re.escape(keyword) + r'\b', re.IGNORECASE)
+        pattern = re.compile(r"\b" + re.escape(keyword) + r"\b", re.IGNORECASE)
         match = pattern.search(text)
         position_score = 0
         if match:
@@ -106,16 +101,16 @@ def rank_keywords(keywords: List[str], text: str) -> List[Tuple[str, float]]:
     return sorted(scores, key=lambda x: x[1], reverse=True)
 
 
-def expand_keywords(keywords: List[str],
-                  word_relationships: Dict[str, List[str]],
-                  expansion_count: int = 3) -> List[str]:
+def expand_keywords(
+    keywords: List[str], word_relationships: Dict[str, List[str]], expansion_count: int = 3
+) -> List[str]:
     """Expand keywords with related terms.
-    
+
     Args:
         keywords: List of keywords to expand
         word_relationships: Dictionary mapping words to related words
         expansion_count: Number of related words to add per keyword
-        
+
     Returns:
         List of original and expanded keywords
     """

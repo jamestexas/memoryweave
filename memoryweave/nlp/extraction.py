@@ -14,6 +14,7 @@ from memoryweave.nlp.patterns import PERSONAL_ATTRIBUTE_PATTERNS
 @dataclass
 class ExtractedEntity:
     """A named entity extracted from text."""
+
     text: str
     label: str
     start: int
@@ -23,6 +24,7 @@ class ExtractedEntity:
 @dataclass
 class ExtractedAttribute:
     """A personal attribute extracted from text."""
+
     attribute: str
     value: str
     confidence: float
@@ -42,17 +44,16 @@ class NLPExtractor:
 
         # Entity extraction patterns
         self._entity_patterns = {
-            'PERSON': re.compile(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b'),
-            'LOCATION': re.compile(r'\b([A-Z][a-z]+(?:,\s+[A-Z][a-z]+)*)\b'),
-            'ORGANIZATION': re.compile(r'\b([A-Z][a-z]*(?:\s+[A-Z][a-z]*)+)\b'),
-            'DATE': re.compile(r'\b(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\b|\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:[a-z]*)?(?:,\s+\d{4})?)\b')
+            "PERSON": re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b"),
+            "LOCATION": re.compile(r"\b([A-Z][a-z]+(?:,\s+[A-Z][a-z]+)*)\b"),
+            "ORGANIZATION": re.compile(r"\b([A-Z][a-z]*(?:\s+[A-Z][a-z]*)+)\b"),
+            "DATE": re.compile(
+                r"\b(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})\b|\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:[a-z]*)?(?:,\s+\d{4})?)\b"
+            ),
         }
 
         # Default configuration
-        self._config = {
-            'confidence_threshold': 0.7,
-            'max_entities': 10
-        }
+        self._config = {"confidence_threshold": 0.7, "max_entities": 10}
 
     def extract_personal_attributes(self, text: str) -> List[ExtractedAttribute]:
         """Extract personal attributes from text."""
@@ -82,13 +83,11 @@ class NLPExtractor:
 
                     # Create attribute
                     attribute = ExtractedAttribute(
-                        attribute=attr_type,
-                        value=value.strip(),
-                        confidence=confidence
+                        attribute=attr_type, value=value.strip(), confidence=confidence
                     )
 
                     # Add to results if confidence exceeds threshold
-                    if confidence >= self._config['confidence_threshold']:
+                    if confidence >= self._config["confidence_threshold"]:
                         results.append(attribute)
 
         return results
@@ -106,12 +105,7 @@ class NLPExtractor:
                 entity_text = match.group(0)
 
                 # Create entity
-                entity = ExtractedEntity(
-                    text=entity_text,
-                    label=entity_type,
-                    start=start,
-                    end=end
-                )
+                entity = ExtractedEntity(text=entity_text, label=entity_type, start=start, end=end)
 
                 results.append(entity)
 
@@ -122,7 +116,7 @@ class NLPExtractor:
         filtered_results = self._remove_overlapping_entities(results)
 
         # Limit to max entities
-        return filtered_results[:self._config['max_entities']]
+        return filtered_results[: self._config["max_entities"]]
 
     def extract_keywords(self, text: str, stopwords: Optional[Set[str]] = None) -> List[str]:
         """Extract keywords from text."""
@@ -147,16 +141,16 @@ class NLPExtractor:
                 # Check if they are close enough (within 50 characters)
                 if entity2.start - entity1.end <= 50:
                     # Extract the text between them
-                    relation_text = text[entity1.end:entity2.start].strip()
+                    relation_text = text[entity1.end : entity2.start].strip()
 
                     # If there's meaningful text between them, consider it a relationship
                     if len(relation_text) >= 3:
                         relationship = {
-                            'entity1': entity1.text,
-                            'entity1_type': entity1.label,
-                            'entity2': entity2.text,
-                            'entity2_type': entity2.label,
-                            'relation': relation_text
+                            "entity1": entity1.text,
+                            "entity1_type": entity1.label,
+                            "entity2": entity2.text,
+                            "entity2_type": entity2.label,
+                            "relation": relation_text,
                         }
                         relationships.append(relationship)
 
@@ -164,13 +158,15 @@ class NLPExtractor:
 
     def configure(self, config: Dict[str, Any]) -> None:
         """Configure the NLP extractor."""
-        if 'confidence_threshold' in config:
-            self._config['confidence_threshold'] = config['confidence_threshold']
+        if "confidence_threshold" in config:
+            self._config["confidence_threshold"] = config["confidence_threshold"]
 
-        if 'max_entities' in config:
-            self._config['max_entities'] = config['max_entities']
+        if "max_entities" in config:
+            self._config["max_entities"] = config["max_entities"]
 
-    def _remove_overlapping_entities(self, entities: List[ExtractedEntity]) -> List[ExtractedEntity]:
+    def _remove_overlapping_entities(
+        self, entities: List[ExtractedEntity]
+    ) -> List[ExtractedEntity]:
         """Remove overlapping entities, keeping the longest ones."""
         if not entities:
             return []

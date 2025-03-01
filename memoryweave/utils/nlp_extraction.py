@@ -49,18 +49,28 @@ OCCUPATION_PATTERNS = [
 ]
 
 HOBBY_PATTERNS = [
-    re.compile(r"(?:I|my) (?:like to|love to|enjoy) ([a-z\s]+) (?:on|in|during) (?:my|the) ([a-z\s]+)(?:\.|\,|\!|\?|$)"),
-    re.compile(r"(?:I|my) (?:hobby|hobbies|pastime|activity) (?:is|are|include) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+    re.compile(
+        r"(?:I|my) (?:like to|love to|enjoy) ([a-z\s]+) (?:on|in|during) (?:my|the) ([a-z\s]+)(?:\.|\,|\!|\?|$)"
+    ),
+    re.compile(
+        r"(?:I|my) (?:hobby|hobbies|pastime|activity) (?:is|are|include) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"
+    ),
 ]
 
 RELATIONSHIP_PATTERNS = [
-    re.compile(r"(?:my) (wife|husband|spouse|partner|girlfriend|boyfriend) (?:is|name is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
-    re.compile(r"(?:my) (son|daughter|child|children|mother|father|brother|sister|sibling) (?:is|are|name is|names are) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"),
+    re.compile(
+        r"(?:my) (wife|husband|spouse|partner|girlfriend|boyfriend) (?:is|name is) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"
+    ),
+    re.compile(
+        r"(?:my) (son|daughter|child|children|mother|father|brother|sister|sibling) (?:is|are|name is|names are) ([a-z0-9\s]+)(?:\.|\,|\!|\?|$)"
+    ),
 ]
 
 REFERENCE_PATTERNS = [
     re.compile(r"what (?:was|is|were) (?:my|your|the) ([a-z\s]+)(?:\?|\.|$)"),
-    re.compile(r"(?:did|do) (?:I|you) (?:mention|say|tell|share) (?:about|that) ([a-z\s]+)(?:\?|\.|$)"),
+    re.compile(
+        r"(?:did|do) (?:I|you) (?:mention|say|tell|share) (?:about|that) ([a-z\s]+)(?:\?|\.|$)"
+    ),
     re.compile(r"(?:remind|tell) me (?:about|what) ([a-z\s]+)(?:\?|\.|$)"),
     re.compile(r"(?:what|which) ([a-z\s]+) (?:did|do) I (?:like|prefer|mention|say)(?:\?|\.|$)"),
 ]
@@ -71,7 +81,11 @@ SPACY_MATCHER_RULES = {
         [  # My favorite color is blue
             {"LOWER": {"IN": ["my", "i"]}},
             {"LOWER": {"IN": ["favorite", "preferred"]}},
-            {"LOWER": {"IN": ["color", "food", "drink", "movie", "book", "music", "song", "artist"]}},
+            {
+                "LOWER": {
+                    "IN": ["color", "food", "drink", "movie", "book", "music", "song", "artist"]
+                }
+            },
             {"LEMMA": "be"},
             {"OP": "+"},  # The preference value
         ],
@@ -117,11 +131,12 @@ SPACY_MATCHER_RULES = {
 class SpacyModelSingleton:
     """
     Singleton for managing a single instance of the spaCy model.
-    
+
     This class ensures that the spaCy model is loaded only once, regardless
     of how many NLPExtractor instances are created, saving memory and
     improving performance.
     """
+
     _instance = None
     _nlp = None
 
@@ -144,6 +159,7 @@ class SpacyModelSingleton:
         """Load the specified spaCy model."""
         try:
             import spacy
+
             try:
                 self._nlp = spacy.load(model_name)
                 logger.info(f"Successfully loaded spaCy model: {model_name}")
@@ -163,7 +179,7 @@ class SpacyModelSingleton:
 class NLPExtractor:
     """
     NLP-based attribute extractor with enhanced extraction capabilities.
-    
+
     This class provides methods for extracting personal attributes, query types,
     and important keywords from text using a combination of spaCy NLP and
     pattern matching techniques.
@@ -197,10 +213,10 @@ class NLPExtractor:
     def get_matcher(self, matcher_type):
         """
         Get a spaCy matcher by type, initializing it if necessary.
-        
+
         Args:
             matcher_type: Type of matcher to get
-            
+
         Returns:
             The requested matcher or None if spaCy is not available
         """
@@ -215,7 +231,7 @@ class NLPExtractor:
     def _setup_matcher(self, matcher_type):
         """
         Set up a specific spaCy matcher.
-        
+
         Args:
             matcher_type: Type of matcher to initialize
         """
@@ -241,13 +257,13 @@ class NLPExtractor:
     def extract_personal_attributes(self, text: str) -> Dict[str, Any]:
         """
         Extract personal attributes using a layered approach.
-        
+
         This method uses multiple extraction strategies in parallel for improved
         performance, then combines and refines the results.
-        
+
         Args:
             text: Text to extract attributes from
-            
+
         Returns:
             Dictionary with extracted personal attributes
         """
@@ -268,9 +284,9 @@ class NLPExtractor:
         # Run extraction methods in parallel
         with ThreadPoolExecutor(max_workers=3) as executor:
             # Submit extraction tasks
-            spacy_future = executor.submit(
-                self._extract_with_spacy, text
-            ) if self.is_spacy_available else None
+            spacy_future = (
+                executor.submit(self._extract_with_spacy, text) if self.is_spacy_available else None
+            )
 
             pattern_future = executor.submit(self._extract_with_patterns, text)
             heuristic_future = executor.submit(self._extract_with_heuristics, text)
@@ -307,10 +323,10 @@ class NLPExtractor:
     def _extract_with_spacy(self, text: str) -> Dict[str, Any]:
         """
         Extract attributes using spaCy NLP capabilities.
-        
+
         Args:
             text: Text to analyze
-            
+
         Returns:
             Dictionary with extracted attributes
         """
@@ -354,11 +370,11 @@ class NLPExtractor:
     def _determine_relationship_type(self, doc, person_entity) -> Optional[str]:
         """
         Determine relationship type from context.
-        
+
         Args:
             doc: spaCy Doc object
             person_entity: Entity to determine relationship for
-            
+
         Returns:
             Relationship type or None if not found
         """
@@ -368,7 +384,7 @@ class NLPExtractor:
             "husband": ["husband", "spouse", "partner"],
             "child": ["child", "daughter", "son", "kid"],
             "parent": ["mother", "father", "parent"],
-            "sibling": ["brother", "sister", "sibling"]
+            "sibling": ["brother", "sister", "sibling"],
         }
 
         # Check window around entity
@@ -390,7 +406,7 @@ class NLPExtractor:
     def _extract_preferences_with_dependency(self, doc, attributes: Dict[str, Any]) -> None:
         """
         Extract preferences using dependency parsing.
-        
+
         Args:
             doc: spaCy Doc object
             attributes: Attributes dict to update
@@ -426,7 +442,7 @@ class NLPExtractor:
     def _extract_occupation_with_dependency(self, doc, attributes: Dict[str, Any]) -> None:
         """
         Extract occupation using dependency parsing.
-        
+
         Args:
             doc: spaCy Doc object
             attributes: Attributes dict to update
@@ -440,8 +456,10 @@ class NLPExtractor:
                             # Get full occupation phrase
                             start = child.i
                             end = start + 1
-                            while end < len(doc) and (doc[end].dep_ in ["compound", "amod", "conj"] or
-                                                    doc[end].pos_ in ["NOUN", "PROPN"]):
+                            while end < len(doc) and (
+                                doc[end].dep_ in ["compound", "amod", "conj"]
+                                or doc[end].pos_ in ["NOUN", "PROPN"]
+                            ):
                                 end += 1
                             occupation = doc[start:end].text
                             attributes["demographics"]["occupation"] = occupation
@@ -455,8 +473,10 @@ class NLPExtractor:
                         # Get full phrase
                         start = child.i
                         end = start + 1
-                        while end < len(doc) and (doc[end].dep_ in ["compound", "amod", "conj"] or
-                                                doc[end].pos_ in ["NOUN", "PROPN"]):
+                        while end < len(doc) and (
+                            doc[end].dep_ in ["compound", "amod", "conj"]
+                            or doc[end].pos_ in ["NOUN", "PROPN"]
+                        ):
                             end += 1
                         occupation = doc[start:end].text
                         attributes["demographics"]["occupation"] = occupation
@@ -469,7 +489,7 @@ class NLPExtractor:
     def _extract_hobbies_with_dependency(self, doc, attributes: Dict[str, Any]) -> None:
         """
         Extract hobbies using dependency parsing.
-        
+
         Args:
             doc: spaCy Doc object
             attributes: Attributes dict to update
@@ -484,14 +504,18 @@ class NLPExtractor:
                         # Get complete hobby phrase
                         start = child.i
                         end = start + 1
-                        while end < len(doc) and (doc[end].dep_ in ["prep", "pobj", "amod", "compound"] or
-                                                doc[end].pos_ in ["ADP", "NOUN"]):
+                        while end < len(doc) and (
+                            doc[end].dep_ in ["prep", "pobj", "amod", "compound"]
+                            or doc[end].pos_ in ["ADP", "NOUN"]
+                        ):
                             end += 1
                         hobby = doc[start:end].text
                         hobbies.append(hobby)
 
         # Special case for hiking and weekends
-        if "hiking" in doc.text.lower() and any(word in doc.text.lower() for word in ["weekend", "mountains"]):
+        if "hiking" in doc.text.lower() and any(
+            word in doc.text.lower() for word in ["weekend", "mountains"]
+        ):
             hobbies.append("hiking in the mountains")
 
         if hobbies:
@@ -500,10 +524,10 @@ class NLPExtractor:
     def _extract_with_patterns(self, text: str) -> Dict[str, Any]:
         """
         Extract attributes using regex pattern matching.
-        
+
         Args:
             text: Text to analyze
-            
+
         Returns:
             Dictionary with extracted attributes
         """
@@ -524,10 +548,12 @@ class NLPExtractor:
                 elif len(match.groups()) == 1:  # Just value pattern
                     value = match.group(1)
                     # Try to determine category from context
-                    if "color" in text_lower[:match.start()]:
+                    if "color" in text_lower[: match.start()]:
                         attributes["preferences"]["color"] = value
-                    elif any(food_term in text_lower[:match.start()]
-                             for food_term in ["food", "eat", "eating"]):
+                    elif any(
+                        food_term in text_lower[: match.start()]
+                        for food_term in ["food", "eat", "eating"]
+                    ):
                         attributes["preferences"]["food"] = value
 
         # Extract direct color preferences
@@ -585,13 +611,13 @@ class NLPExtractor:
     def _extract_with_heuristics(self, text: str) -> Dict[str, Any]:
         """
         Extract attributes using heuristic methods.
-        
+
         This method uses simple keyword matching and special case handling
         to extract attributes that might be missed by other methods.
-        
+
         Args:
             text: Text to analyze
-            
+
         Returns:
             Dictionary with extracted attributes
         """
@@ -619,7 +645,8 @@ class NLPExtractor:
 
         # Check for "hiking in the mountains"
         if "hiking in the mountains" in text_lower or (
-            "hiking" in text_lower and "mountains" in text_lower):
+            "hiking" in text_lower and "mountains" in text_lower
+        ):
             if "hobbies" not in attributes["traits"]:
                 attributes["traits"]["hobbies"] = []
             attributes["traits"]["hobbies"].append("hiking in the mountains")
@@ -636,15 +663,20 @@ class NLPExtractor:
 
         return attributes
 
-    def _merge_attributes(self, target: Dict[str, Any], source: Dict[str, Any],
-                         sources_tracking: Dict[str, str], source_name: str) -> None:
+    def _merge_attributes(
+        self,
+        target: Dict[str, Any],
+        source: Dict[str, Any],
+        sources_tracking: Dict[str, str],
+        source_name: str,
+    ) -> None:
         """
         Merge attributes from source to target, tracking sources.
-        
+
         Args:
             target: Target attributes dict to update
             source: Source attributes dict
-            sources_tracking: Dict to track attribute sources 
+            sources_tracking: Dict to track attribute sources
             source_name: Name of the source method
         """
         for category, items in source.items():
@@ -661,7 +693,9 @@ class NLPExtractor:
                         sources_tracking[f"{category}.{key}"] = source_name
                     elif isinstance(value, list) and isinstance(target[category][key], list):
                         # For lists, extend rather than replace
-                        target[category][key].extend([v for v in value if v not in target[category][key]])
+                        target[category][key].extend(
+                            [v for v in value if v not in target[category][key]]
+                        )
             elif isinstance(items, list):
                 if category not in target:
                     target[category] = []
@@ -675,10 +709,10 @@ class NLPExtractor:
     def _refine_extractions(self, text: str, attributes: Dict[str, Any]) -> None:
         """
         Apply post-processing rules to refine extracted attributes.
-        
+
         This method handles special cases and ensures consistent output
         for specific test patterns.
-        
+
         Args:
             text: Original text
             attributes: Attributes dict to refine
@@ -709,10 +743,10 @@ class NLPExtractor:
     def _has_attributes(self, attributes: Dict[str, Any]) -> bool:
         """
         Check if any attributes were successfully extracted.
-        
+
         Args:
             attributes: Attributes dict to check
-            
+
         Returns:
             True if any attributes were extracted, False otherwise
         """
@@ -729,10 +763,10 @@ class NLPExtractor:
     def _has_sufficient_attributes(self, attributes: Dict[str, Any]) -> bool:
         """
         Check if enough attributes were extracted to skip fallback.
-        
+
         Args:
             attributes: Attributes dict to check
-            
+
         Returns:
             True if sufficient attributes were extracted, False otherwise
         """
@@ -750,10 +784,10 @@ class NLPExtractor:
     def identify_query_type(self, query: str) -> Dict[str, float]:
         """
         Identify the type of query.
-        
+
         Args:
             query: The query text
-            
+
         Returns:
             Dictionary with query type probabilities
         """
@@ -770,7 +804,11 @@ class NLPExtractor:
             doc = self.nlp(query)
 
             # Check for question words at the beginning
-            if doc and len(doc) > 0 and doc[0].lower_ in ["what", "who", "where", "when", "why", "how"]:
+            if (
+                doc
+                and len(doc) > 0
+                and doc[0].lower_ in ["what", "who", "where", "when", "why", "how"]
+            ):
                 scores["factual"] += 0.3
 
             # Check for personal pronouns
@@ -842,10 +880,10 @@ class NLPExtractor:
     def extract_important_keywords(self, query: str) -> Set[str]:
         """
         Extract important keywords from a query.
-        
+
         Args:
             query: The query text
-            
+
         Returns:
             Set of important keywords
         """
@@ -888,9 +926,21 @@ class NLPExtractor:
 
         # Add specific personal attribute keywords if present
         personal_terms = [
-            "color", "food", "movie", "book", "hobby", "activity",
-            "live", "work", "job", "occupation", "weekend",
-            "wife", "husband", "family", "child"
+            "color",
+            "food",
+            "movie",
+            "book",
+            "hobby",
+            "activity",
+            "live",
+            "work",
+            "job",
+            "occupation",
+            "weekend",
+            "wife",
+            "husband",
+            "family",
+            "child",
         ]
 
         for term in personal_terms:
@@ -899,16 +949,79 @@ class NLPExtractor:
 
         # Filter out common stop words
         stop_words = {
-            "the", "a", "an", "is", "was", "were", "be", "been", "being",
-            "to", "of", "and", "or", "that", "this", "these", "those",
-            "for", "with", "about", "against", "between", "into", "through",
-            "during", "before", "after", "above", "below", "from", "up",
-            "down", "in", "out", "on", "off", "over", "under", "again",
-            "further", "then", "once", "here", "there", "when", "where",
-            "why", "how", "all", "any", "both", "each", "few", "more",
-            "most", "other", "some", "such", "no", "nor", "not", "only",
-            "own", "same", "so", "than", "too", "very", "can", "will",
-            "just", "should", "now"
+            "the",
+            "a",
+            "an",
+            "is",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "to",
+            "of",
+            "and",
+            "or",
+            "that",
+            "this",
+            "these",
+            "those",
+            "for",
+            "with",
+            "about",
+            "against",
+            "between",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "from",
+            "up",
+            "down",
+            "in",
+            "out",
+            "on",
+            "off",
+            "over",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+            "here",
+            "there",
+            "when",
+            "where",
+            "why",
+            "how",
+            "all",
+            "any",
+            "both",
+            "each",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "no",
+            "nor",
+            "not",
+            "only",
+            "own",
+            "same",
+            "so",
+            "than",
+            "too",
+            "very",
+            "can",
+            "will",
+            "just",
+            "should",
+            "now",
         }
 
         keywords = {kw for kw in keywords if kw not in stop_words}

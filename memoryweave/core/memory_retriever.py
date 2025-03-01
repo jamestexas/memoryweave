@@ -183,11 +183,13 @@ class MemoryRetriever:
         # Return results with metadata
         results = []
         for idx in top_indices:
-            results.append((
-                int(idx),
-                float(similarities[idx]),
-                self.core_memory.memory_metadata[idx],
-            ))
+            results.append(
+                (
+                    int(idx),
+                    float(similarities[idx]),
+                    self.core_memory.memory_metadata[idx],
+                )
+            )
             # If not using max_k_override, we'll respect the confidence threshold
             # Otherwise, we'll keep adding results until we hit top_k
             if len(results) >= top_k and not max_k_override:

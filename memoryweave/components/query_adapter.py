@@ -13,7 +13,7 @@ from memoryweave.components.base import RetrievalComponent
 class QueryTypeAdapter(RetrievalComponent):
     """
     Adapts retrieval parameters based on query type analysis.
-    
+
     This component takes query type information from the QueryAnalyzer
     and adapts retrieval parameters accordingly, passing them to
     the retrieval strategies.
@@ -36,12 +36,12 @@ class QueryTypeAdapter(RetrievalComponent):
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """
         Process a query to adapt retrieval parameters.
-        
+
         Args:
             query: The query string
             context: Context from the pipeline, including query_types and
                     retrieval_param_recommendations if available
-        
+
         Returns:
             Updated context with adapted parameters
         """
@@ -74,8 +74,12 @@ class QueryTypeAdapter(RetrievalComponent):
                 if key in adapted_params:
                     current_value = adapted_params[key]
                     # For numerical values, linearly interpolate
-                    if isinstance(recommended_value, (int, float)) and isinstance(current_value, (int, float)):
-                        adapted_params[key] = current_value + self.adaptation_strength * (recommended_value - current_value)
+                    if isinstance(recommended_value, (int, float)) and isinstance(
+                        current_value, (int, float)
+                    ):
+                        adapted_params[key] = current_value + self.adaptation_strength * (
+                            recommended_value - current_value
+                        )
                     # For booleans or other types, use recommended value if adaptation strength > 0.5
                     else:
                         if self.adaptation_strength > 0.5:
@@ -90,20 +94,32 @@ class QueryTypeAdapter(RetrievalComponent):
     def _manually_adapt_params(self, params: dict[str, Any], query_type: str) -> None:
         """
         Manually adapt parameters based on query type when recommendations aren't available.
-        
+
         Args:
             params: Parameters to adapt (modified in place)
             query_type: The query type to adapt for
         """
         if query_type == "personal":
             # Personal queries need higher precision
-            params["confidence_threshold"] = params["confidence_threshold"] + 0.1 * self.adaptation_strength
-            params["adaptive_k_factor"] = params["adaptive_k_factor"] + 0.1 * self.adaptation_strength
-            params["first_stage_threshold_factor"] = min(1.0, params["first_stage_threshold_factor"] + 0.1 * self.adaptation_strength)
+            params["confidence_threshold"] = (
+                params["confidence_threshold"] + 0.1 * self.adaptation_strength
+            )
+            params["adaptive_k_factor"] = (
+                params["adaptive_k_factor"] + 0.1 * self.adaptation_strength
+            )
+            params["first_stage_threshold_factor"] = min(
+                1.0, params["first_stage_threshold_factor"] + 0.1 * self.adaptation_strength
+            )
         elif query_type == "factual":
             # Factual queries need better recall
-            params["confidence_threshold"] = max(0.0, params["confidence_threshold"] - 0.1 * self.adaptation_strength)
-            params["adaptive_k_factor"] = max(0.1, params["adaptive_k_factor"] - 0.15 * self.adaptation_strength)
+            params["confidence_threshold"] = max(
+                0.0, params["confidence_threshold"] - 0.1 * self.adaptation_strength
+            )
+            params["adaptive_k_factor"] = max(
+                0.1, params["adaptive_k_factor"] - 0.15 * self.adaptation_strength
+            )
             params["first_stage_k"] = params["first_stage_k"] + int(10 * self.adaptation_strength)
-            params["first_stage_threshold_factor"] = max(0.5, params["first_stage_threshold_factor"] - 0.1 * self.adaptation_strength)
+            params["first_stage_threshold_factor"] = max(
+                0.5, params["first_stage_threshold_factor"] - 0.1 * self.adaptation_strength
+            )
             params["expand_keywords"] = self.adaptation_strength > 0.5

@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class PatternMatch:
     """A match found by a pattern matcher."""
+
     pattern_id: str
     text: str
     start: int
@@ -29,16 +30,12 @@ class RegexMatcher:
         self._patterns: Dict[str, Pattern] = {}
         self._pattern_configs: Dict[str, Dict[str, Any]] = {}
 
-    def add_pattern(self,
-                    pattern_id: str,
-                    pattern: str,
-                    flags: int = re.IGNORECASE,
-                    score: float = 1.0) -> None:
+    def add_pattern(
+        self, pattern_id: str, pattern: str, flags: int = re.IGNORECASE, score: float = 1.0
+    ) -> None:
         """Add a pattern to the matcher."""
         self._patterns[pattern_id] = re.compile(pattern, flags)
-        self._pattern_configs[pattern_id] = {
-            'score': score
-        }
+        self._pattern_configs[pattern_id] = {"score": score}
 
     def add_patterns(self, patterns: Dict[str, str]) -> None:
         """Add multiple patterns to the matcher."""
@@ -68,7 +65,7 @@ class RegexMatcher:
                     start=start,
                     end=end,
                     groups=groups,
-                    score=self._pattern_configs[pattern_id]['score']
+                    score=self._pattern_configs[pattern_id]["score"],
                 )
 
                 results.append(result)
@@ -159,7 +156,7 @@ class KeywordMatcher:
 
     def __init__(self, keywords: Optional[List[str]] = None):
         """Initialize the keyword matcher.
-        
+
         Args:
             keywords: Optional list of keywords to initialize the matcher
         """
@@ -200,12 +197,7 @@ class KeywordMatcher:
 
                 # Create pattern match
                 result = PatternMatch(
-                    pattern_id=keyword,
-                    text=match_text,
-                    start=start,
-                    end=end,
-                    groups={},
-                    score=1.0
+                    pattern_id=keyword, text=match_text, start=start, end=end, groups={}, score=1.0
                 )
 
                 results.append(result)
@@ -221,7 +213,7 @@ class KeywordMatcher:
         escaped = re.escape(keyword)
 
         # Create pattern that matches word boundaries
-        pattern = rf'\b{escaped}\b'
+        pattern = rf"\b{escaped}\b"
 
         # Compile and store the pattern
         self._keyword_patterns[keyword] = re.compile(pattern, re.IGNORECASE)

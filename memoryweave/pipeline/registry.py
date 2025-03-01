@@ -41,9 +41,7 @@ class ComponentRegistry(IComponentRegistry):
         self._components[component_id] = component
         self._type_index[component_type].add(component_id)
 
-        self._logger.debug(
-            f"Registered component '{component_id}' of type '{component_type.name}'"
-        )
+        self._logger.debug(f"Registered component '{component_id}' of type '{component_type.name}'")
 
     def get_component(self, component_id: ComponentID) -> Optional[IComponent]:
         """Get a component by ID."""
@@ -64,7 +62,7 @@ class ComponentRegistry(IComponentRegistry):
 
     def remove(self, component_id: ComponentID) -> bool:
         """Remove a component from the registry.
-        
+
         Returns:
             True if the component was removed, False if it wasn't found
         """

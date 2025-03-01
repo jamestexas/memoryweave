@@ -12,11 +12,9 @@ from memoryweave.config.options import ConfigOption, ConfigValueType, get_compon
 class ConfigValidationError(Exception):
     """Error raised when configuration validation fails."""
 
-    def __init__(self,
-                errors: Dict[str, List[str]],
-                component_type: Optional[str] = None):
+    def __init__(self, errors: Dict[str, List[str]], component_type: Optional[str] = None):
         """Initialize the error.
-        
+
         Args:
             errors: Dictionary mapping option names to lists of error messages
             component_type: Optional component type that was being validated
@@ -38,14 +36,15 @@ class ConfigValidationError(Exception):
         super().__init__(message)
 
 
-def validate_config(config: Dict[str, Any],
-                  component_type: str) -> Tuple[bool, Dict[str, List[str]]]:
+def validate_config(
+    config: Dict[str, Any], component_type: str
+) -> Tuple[bool, Dict[str, List[str]]]:
     """Validate a configuration against the component's configuration options.
-    
+
     Args:
         config: Configuration to validate
         component_type: Type of component
-        
+
     Returns:
         Tuple of (is_valid, errors) where errors is a dictionary mapping
         option names to lists of error messages
@@ -66,7 +65,9 @@ def validate_config(config: Dict[str, Any],
         # Find the corresponding option definition
         option = next((o for o in component_config.options if o.name == name), None)
         if option is None:
-            errors.setdefault(name, []).append(f"Unknown option for component type '{component_type}'")
+            errors.setdefault(name, []).append(
+                f"Unknown option for component type '{component_type}'"
+            )
             continue
 
         # Validate the option value
@@ -80,11 +81,11 @@ def validate_config(config: Dict[str, Any],
 
 def validate_option(value: Any, option: ConfigOption) -> List[str]:
     """Validate a single configuration option.
-    
+
     Args:
         value: Value to validate
         option: Option definition
-        
+
     Returns:
         List of error messages, empty if valid
     """
@@ -92,9 +93,7 @@ def validate_option(value: Any, option: ConfigOption) -> List[str]:
 
     # Check value type
     if not is_correct_type(value, option.value_type):
-        errors.append(
-            f"Expected type {option.value_type.name}, got {type(value).__name__}"
-        )
+        errors.append(f"Expected type {option.value_type.name}, got {type(value).__name__}")
         # If type is wrong, no need to check other constraints
         return errors
 
@@ -107,9 +106,7 @@ def validate_option(value: Any, option: ConfigOption) -> List[str]:
 
     # Check allowed values
     if option.allowed_values is not None and value not in option.allowed_values:
-        errors.append(
-            f"Value must be one of: {', '.join(str(v) for v in option.allowed_values)}"
-        )
+        errors.append(f"Value must be one of: {', '.join(str(v) for v in option.allowed_values)}")
 
     # Check enum values
     if option.value_type == ConfigValueType.ENUM and option.enum_type is not None:
@@ -120,9 +117,7 @@ def validate_option(value: Any, option: ConfigOption) -> List[str]:
     if option.value_type == ConfigValueType.DICT and option.nested_options is not None:
         for nested_option in option.nested_options:
             if nested_option.name in value:
-                nested_errors = validate_option(
-                    value[nested_option.name], nested_option
-                )
+                nested_errors = validate_option(value[nested_option.name], nested_option)
                 if nested_errors:
                     for error in nested_errors:
                         errors.append(f"{nested_option.name}: {error}")
@@ -132,11 +127,11 @@ def validate_option(value: Any, option: ConfigOption) -> List[str]:
 
 def is_correct_type(value: Any, value_type: ConfigValueType) -> bool:
     """Check if a value is of the correct type.
-    
+
     Args:
         value: Value to check
         value_type: Expected value type
-        
+
     Returns:
         True if the value is of the correct type, False otherwise
     """

@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 
 class ConfigValueType(Enum):
     """Types of configuration values."""
+
     STRING = auto()
     INTEGER = auto()
     FLOAT = auto()
@@ -23,6 +24,7 @@ class ConfigValueType(Enum):
 @dataclass
 class ConfigOption:
     """Definition of a configuration option."""
+
     name: str
     value_type: ConfigValueType
     default_value: Any
@@ -32,12 +34,13 @@ class ConfigOption:
     max_value: Optional[Union[int, float]] = None
     allowed_values: Optional[List[Any]] = None
     enum_type: Optional[type] = None
-    nested_options: Optional[List['ConfigOption']] = None
+    nested_options: Optional[List["ConfigOption"]] = None
 
 
 @dataclass
 class ComponentConfig:
     """Configuration for a component."""
+
     component_type: str
     options: List[ConfigOption]
     description: str = ""
@@ -54,7 +57,7 @@ MEMORY_STORE_CONFIG = ComponentConfig(
             default_value=1000,
             description="Maximum number of memories to store",
             min_value=10,
-            max_value=100000
+            max_value=100000,
         ),
         ConfigOption(
             name="initial_activation",
@@ -62,16 +65,16 @@ MEMORY_STORE_CONFIG = ComponentConfig(
             default_value=0.0,
             description="Initial activation level for new memories",
             min_value=-10.0,
-            max_value=10.0
+            max_value=10.0,
         ),
         ConfigOption(
             name="consolidation_strategy",
             value_type=ConfigValueType.STRING,
             default_value="lru",
             description="Strategy for memory consolidation",
-            allowed_values=["lru", "activation", "random"]
-        )
-    ]
+            allowed_values=["lru", "activation", "random"],
+        ),
+    ],
 )
 
 # Vector Store Configuration
@@ -84,7 +87,7 @@ VECTOR_STORE_CONFIG = ComponentConfig(
             value_type=ConfigValueType.STRING,
             default_value="cosine",
             description="Metric for measuring vector similarity",
-            allowed_values=["cosine", "dot", "euclidean"]
+            allowed_values=["cosine", "dot", "euclidean"],
         ),
         ConfigOption(
             name="activation_weight",
@@ -92,15 +95,15 @@ VECTOR_STORE_CONFIG = ComponentConfig(
             default_value=0.2,
             description="Weight of activation in similarity scoring",
             min_value=0.0,
-            max_value=1.0
+            max_value=1.0,
         ),
         ConfigOption(
             name="use_approximate_search",
             value_type=ConfigValueType.BOOLEAN,
             default_value=False,
-            description="Whether to use approximate nearest neighbor search"
-        )
-    ]
+            description="Whether to use approximate nearest neighbor search",
+        ),
+    ],
 )
 
 # Retrieval Strategy Configuration
@@ -114,7 +117,7 @@ RETRIEVAL_STRATEGY_CONFIG = ComponentConfig(
             default_value=0.7,
             description="Minimum similarity score for retrieval",
             min_value=0.0,
-            max_value=1.0
+            max_value=1.0,
         ),
         ConfigOption(
             name="max_results",
@@ -122,7 +125,7 @@ RETRIEVAL_STRATEGY_CONFIG = ComponentConfig(
             default_value=10,
             description="Maximum number of results to retrieve",
             min_value=1,
-            max_value=100
+            max_value=100,
         ),
         ConfigOption(
             name="recency_bias",
@@ -130,7 +133,7 @@ RETRIEVAL_STRATEGY_CONFIG = ComponentConfig(
             default_value=0.3,
             description="Weight of recency in retrieval scoring",
             min_value=0.0,
-            max_value=1.0
+            max_value=1.0,
         ),
         ConfigOption(
             name="activation_boost",
@@ -138,7 +141,7 @@ RETRIEVAL_STRATEGY_CONFIG = ComponentConfig(
             default_value=0.2,
             description="Weight of activation in retrieval scoring",
             min_value=0.0,
-            max_value=1.0
+            max_value=1.0,
         ),
         ConfigOption(
             name="keyword_weight",
@@ -146,9 +149,9 @@ RETRIEVAL_STRATEGY_CONFIG = ComponentConfig(
             default_value=0.3,
             description="Weight of keyword matches in retrieval scoring",
             min_value=0.0,
-            max_value=1.0
-        )
-    ]
+            max_value=1.0,
+        ),
+    ],
 )
 
 # Query Analyzer Configuration
@@ -162,7 +165,7 @@ QUERY_ANALYZER_CONFIG = ComponentConfig(
             default_value=3,
             description="Minimum length for extracted keywords",
             min_value=1,
-            max_value=10
+            max_value=10,
         ),
         ConfigOption(
             name="max_keywords",
@@ -170,27 +173,27 @@ QUERY_ANALYZER_CONFIG = ComponentConfig(
             default_value=10,
             description="Maximum number of keywords to extract",
             min_value=1,
-            max_value=50
+            max_value=50,
         ),
         ConfigOption(
             name="stopwords",
             value_type=ConfigValueType.LIST,
             default_value=[],
-            description="Additional stopwords to exclude from keywords"
+            description="Additional stopwords to exclude from keywords",
         ),
         ConfigOption(
             name="personal_patterns",
             value_type=ConfigValueType.LIST,
             default_value=[],
-            description="Additional patterns for personal queries"
+            description="Additional patterns for personal queries",
         ),
         ConfigOption(
             name="factual_patterns",
             value_type=ConfigValueType.LIST,
             default_value=[],
-            description="Additional patterns for factual queries"
-        )
-    ]
+            description="Additional patterns for factual queries",
+        ),
+    ],
 )
 
 # Query Adapter Configuration
@@ -202,13 +205,13 @@ QUERY_ADAPTER_CONFIG = ComponentConfig(
             name="apply_keyword_boost",
             value_type=ConfigValueType.BOOLEAN,
             default_value=True,
-            description="Whether to apply keyword boosting to retrieval"
+            description="Whether to apply keyword boosting to retrieval",
         ),
         ConfigOption(
             name="scale_params_by_length",
             value_type=ConfigValueType.BOOLEAN,
             default_value=True,
-            description="Whether to adjust parameters based on query length"
+            description="Whether to adjust parameters based on query length",
         ),
         ConfigOption(
             name="length_threshold",
@@ -216,15 +219,15 @@ QUERY_ADAPTER_CONFIG = ComponentConfig(
             default_value=50,
             description="Character threshold for considering a query 'long'",
             min_value=10,
-            max_value=1000
+            max_value=1000,
         ),
         ConfigOption(
             name="type_configs",
             value_type=ConfigValueType.DICT,
             default_value={},
-            description="Type-specific configuration overrides"
-        )
-    ]
+            description="Type-specific configuration overrides",
+        ),
+    ],
 )
 
 # Pipeline Configuration
@@ -237,21 +240,21 @@ PIPELINE_CONFIG = ComponentConfig(
             value_type=ConfigValueType.LIST,
             default_value=[],
             description="List of component IDs to include in the pipeline",
-            required=True
+            required=True,
         ),
         ConfigOption(
             name="pipeline_name",
             value_type=ConfigValueType.STRING,
             default_value="default_pipeline",
-            description="Name of the pipeline"
+            description="Name of the pipeline",
         ),
         ConfigOption(
             name="stage_configs",
             value_type=ConfigValueType.DICT,
             default_value={},
-            description="Configuration for individual pipeline stages"
-        )
-    ]
+            description="Configuration for individual pipeline stages",
+        ),
+    ],
 )
 
 # All component configurations
@@ -261,7 +264,7 @@ COMPONENT_CONFIGS = {
     "retrieval_strategy": RETRIEVAL_STRATEGY_CONFIG,
     "query_analyzer": QUERY_ANALYZER_CONFIG,
     "query_adapter": QUERY_ADAPTER_CONFIG,
-    "pipeline": PIPELINE_CONFIG
+    "pipeline": PIPELINE_CONFIG,
 }
 
 
@@ -276,7 +279,4 @@ def get_default_config(component_type: str) -> Dict[str, Any]:
     if not config:
         return {}
 
-    return {
-        option.name: option.default_value
-        for option in config.options
-    }
+    return {option.name: option.default_value for option in config.options}

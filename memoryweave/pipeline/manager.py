@@ -31,9 +31,7 @@ class PipelineManager:
         """Register a component with the manager."""
         self._registry.register(component)
 
-    def create_pipeline(self,
-                       name: str,
-                       stage_ids: List[ComponentID]) -> Optional[IPipeline]:
+    def create_pipeline(self, name: str, stage_ids: List[ComponentID]) -> Optional[IPipeline]:
         """Create a pipeline from registered components."""
         self._logger.debug(f"Creating pipeline '{name}' with {len(stage_ids)} stages")
 
@@ -66,9 +64,7 @@ class PipelineManager:
         """Get a pipeline by name."""
         return self._pipelines.get(name)
 
-    def execute_pipeline(self,
-                       name: str,
-                       input_data: Any) -> Optional[Any]:
+    def execute_pipeline(self, name: str, input_data: Any) -> Optional[Any]:
         """Execute a pipeline by name."""
         pipeline = self.get_pipeline(name)
         if pipeline is None:
@@ -81,8 +77,7 @@ class PipelineManager:
         """Get a component by ID."""
         return self._registry.get_component(component_id)
 
-    def get_components_by_type(self,
-                              component_type: ComponentType) -> List[IComponent]:
+    def get_components_by_type(self, component_type: ComponentType) -> List[IComponent]:
         """Get all components of a specific type."""
         return self._registry.get_components_by_type(component_type)
 
@@ -99,9 +94,7 @@ class PipelineManager:
         """Get IDs of all registered components."""
         return self._registry.get_component_ids()
 
-    def initialize_component(self,
-                          component_id: ComponentID,
-                          config: Dict[str, Any]) -> bool:
+    def initialize_component(self, component_id: ComponentID, config: Dict[str, Any]) -> bool:
         """Initialize a component with configuration."""
         component = self._registry.get_component(component_id)
         if component is None:

@@ -22,6 +22,7 @@ from memoryweave.interfaces.memory import (
 @dataclass
 class MemoryMetadata:
     """Metadata for a memory in the store."""
+
     created_at: float = field(default_factory=time.time)
     last_accessed: float = field(default_factory=time.time)
     activation: float = 0.0
@@ -39,10 +40,9 @@ class MemoryStore(IMemoryStore):
         self._metadata: Dict[MemoryID, MemoryMetadata] = {}
         self._next_id: int = 0
 
-    def add(self,
-            embedding: EmbeddingVector,
-            content: str,
-            metadata: Optional[Dict[str, Any]] = None) -> MemoryID:
+    def add(
+        self, embedding: EmbeddingVector, content: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> MemoryID:
         """Add a memory and return its ID."""
         memory_id = self._generate_id()
         self._memories[memory_id] = embedding
@@ -70,7 +70,7 @@ class MemoryStore(IMemoryStore):
             id=memory_id,
             embedding=self._memories[memory_id],
             content=self._contents[memory_id],
-            metadata=metadata.user_metadata
+            metadata=metadata.user_metadata,
         )
 
     def get_all(self) -> List[Memory]:
@@ -127,16 +127,11 @@ class MemoryStore(IMemoryStore):
             return []
 
         # Sort memories by activation level (lowest first)
-        memories_by_activation = sorted(
-            self._metadata.items(),
-            key=lambda x: x[1].activation
-        )
+        memories_by_activation = sorted(self._metadata.items(), key=lambda x: x[1].activation)
 
         # Determine how many memories to remove
         num_to_remove = len(self._memories) - max_memories
-        memories_to_remove = [
-            memory_id for memory_id, _ in memories_by_activation[:num_to_remove]
-        ]
+        memories_to_remove = [memory_id for memory_id, _ in memories_by_activation[:num_to_remove]]
 
         # Remove the memories
         for memory_id in memories_to_remove:

@@ -100,10 +100,14 @@ class AdaptiveKProcessor(PostProcessor):
         if avg_score > 0.7:
             # High quality results - keep fewer
             adaptive_k = max(1, int(original_k * (1.0 - self.adaptive_k_factor)))
-            return sorted(results, key=lambda x: x.get("relevance_score", 0), reverse=True)[:adaptive_k]
+            return sorted(results, key=lambda x: x.get("relevance_score", 0), reverse=True)[
+                :adaptive_k
+            ]
         elif avg_score < 0.3:
             # Low quality results - keep more for diversity
             return results
         else:
             # Medium quality - sort and return original amount
-            return sorted(results, key=lambda x: x.get("relevance_score", 0), reverse=True)[:original_k]
+            return sorted(results, key=lambda x: x.get("relevance_score", 0), reverse=True)[
+                :original_k
+            ]
