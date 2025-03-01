@@ -103,7 +103,6 @@ class ContextualMemory:
         self.memory_retriever = MemoryRetriever(
             core_memory=self.core_memory,
             category_manager=self.category_manager,
-            activation_threshold=activation_threshold,
             default_confidence_threshold=default_confidence_threshold,
             adaptive_retrieval=adaptive_retrieval,
             semantic_coherence_check=semantic_coherence_check,
@@ -113,6 +112,7 @@ class ContextualMemory:
         # Store configuration
         self.embedding_dim = embedding_dim
         self.use_art_clustering = use_art_clustering
+        self.activation_threshold = activation_threshold  # Store this for reference
 
         # Expose key attributes from component classes
         # to maintain the original API
