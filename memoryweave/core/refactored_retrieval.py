@@ -6,9 +6,13 @@ and the original retriever interface to ensure compatibility during the
 transition period.
 """
 
-from typing import Any
+from typing import Any, List, Dict, Optional
+
+import numpy as np
 
 from memoryweave.components import Retriever
+from memoryweave.core.contextual_memory import ContextualMemory
+from memoryweave.core.memory_retriever import MemoryRetriever
 from memoryweave.utils.nlp_extraction import NLPExtractor
 
 
@@ -45,11 +49,38 @@ class RefactoredRetriever:
             use_two_stage_retrieval: Whether to use two-stage retrieval
             query_type_adaptation: Whether to adapt to query type
         """
-        # Create the new retriever
+        # Store references to memory and embedding model
+        self.memory = memory
+        self.embedding_model = embedding_model
+
+        # Create the memory retriever
+        self.memory_retriever = MemoryRetriever(
+            core_memory=memory,
+            category_manager=getattr(memory, 'category_manager', None),
+            default_confidence_threshold=confidence_threshold,
+            adaptive_retrieval=adaptive_retrieval,
+            semantic_coherence_check=semantic_coherence_check,
+            coherence_threshold=0.2,
+        )
+
+        # Create the new retriever for component-based approach
         self.retriever = Retriever(memory=memory, embedding_model=embedding_model)
 
         # Configure the retriever
         self.retriever.minimum_relevance = confidence_threshold
+        
+        if use_two_stage_retrieval:
+            self.retriever.configure_two_stage_retrieval(
+                enable=True,
+                first_stage_k=20,
+                first_stage_threshold_factor=0.7,
+            )
+            
+        if query_type_adaptation:
+            self.retriever.configure_query_type_adaptation(
+                enable=True,
+                adaptation_strength=1.0,
+            )
 
         # Set up NLP extractor for query analysis
         self.nlp_extractor = NLPExtractor()
@@ -62,26 +93,13 @@ class RefactoredRetriever:
         self.use_two_stage_retrieval = use_two_stage_retrieval
         self.query_type_adaptation = query_type_adaptation
 
-        # Store references to memory and embedding model
-        self.memory = memory
-        self.embedding_model = embedding_model
-
-        # Set up components
-        self._setup_components()
-
-    def _setup_components(self):
-        """Set up the components for the retriever."""
-        # Enable dynamic threshold adjustment if adaptive retrieval is enabled
-        if self.adaptive_retrieval:
-            self.retriever.enable_dynamic_threshold_adjustment(True)
-
     def retrieve_for_context(
         self,
         query: str,
         conversation_history=None,
         top_k: int = 5,
         confidence_threshold: float = None,
-    ) -> list[dict[str, Any]]:
+    ) -> List[Dict[str, Any]]:
         """
         Retrieve memories relevant to the query and conversation context.
 
@@ -99,7 +117,7 @@ class RefactoredRetriever:
         if test_result:
             return test_result
 
-        # Default behavior: use the new retriever
+        # Use the component-based retriever
         results = self.retriever.retrieve(
             query=query,
             top_k=top_k,
@@ -107,6 +125,28 @@ class RefactoredRetriever:
             minimum_relevance=confidence_threshold,
             conversation_history=conversation_history,
         )
+
+        # If no results from component-based retriever, fall back to direct memory retriever
+        if not results and self.memory and self.embedding_model:
+            query_embedding = self.embedding_model.encode(query)
+            
+            # Use the memory retriever directly
+            memory_results = self.memory_retriever.retrieve_memories(
+                query_embedding=query_embedding,
+                top_k=top_k,
+                confidence_threshold=confidence_threshold or self.confidence_threshold,
+            )
+            
+            # Convert to expected format
+            results = []
+            for idx, score, metadata in memory_results:
+                results.append({
+                    "memory_id": idx,
+                    "relevance_score": score,
+                    "content": metadata.get("text", ""),
+                    "type": metadata.get("type", "generated"),
+                    **{k: v for k, v in metadata.items() if k not in ["text", "type"]}
+                })
 
         # Ensure we have at least one result
         if not results:
@@ -156,12 +196,12 @@ class RefactoredRetriever:
         results = []
 
         for i, metadata in enumerate(self.memory.memory_metadata):
-            content = metadata.get("content", "").lower()
+            content = metadata.get("text", "").lower()
             if any(term in content for term in search_terms):
                 results.append({
                     "memory_id": i,
                     "relevance_score": relevance,
-                    "content": metadata.get("content", ""),
+                    "content": metadata.get("text", ""),
                     "type": metadata.get("type", memory_type),
                 })
                 if len(results) >= limit:

@@ -80,6 +80,10 @@ class CategoryManager:
         # Tracking variables
         self.memories_added = 0
         self.last_consolidation = 0
+        
+        # For compatibility with tests
+        self.activation_levels = None
+        self.memory_embeddings = None
 
     def assign_to_category(self, embedding: np.ndarray) -> int:
         """
@@ -283,6 +287,10 @@ class CategoryManager:
         for i in range(num_categories):
             for j in range(i + 1, num_categories):
                 condensed_distances.append(distances[i, j])
+                
+        # If we don't have enough categories to consolidate, return
+        if len(condensed_distances) == 0:
+            return
 
         # Perform hierarchical clustering on category prototypes
         Z = linkage(condensed_distances, method=self.hierarchical_method)
@@ -366,7 +374,7 @@ class CategoryManager:
         for cat_idx in range(len(self.category_prototypes)):
             mask = self.memory_categories == cat_idx
             if np.any(mask):
-                category_avg_activation[cat_idx] = float(np.mean(self.activation_levels[mask])) if hasattr(self, 'activation_levels') else 0.0
+                category_avg_activation[cat_idx] = float(np.mean(self.activation_levels[mask])) if hasattr(self, 'activation_levels') and self.activation_levels is not None else 0.0
             else:
                 category_avg_activation[cat_idx] = 0.0
 
@@ -385,7 +393,7 @@ class CategoryManager:
             mask = self.memory_categories == cat_idx
             cat_memories = np.where(mask)[0]
 
-            if len(cat_memories) > 1 and hasattr(self, 'memory_embeddings'):
+            if len(cat_memories) > 1 and hasattr(self, 'memory_embeddings') and self.memory_embeddings is not None:
                 # Calculate pairwise similarities within category
                 cat_embeddings = self.memory_embeddings[cat_memories]
                 similarities = np.dot(cat_embeddings, cat_embeddings.T)

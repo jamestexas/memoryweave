@@ -153,7 +153,7 @@ class MemoryRetriever:
         if top_k >= len(valid_similarities):
             top_relative_indices = np.argsort(-valid_similarities)
         else:
-            top_relative_indices = np.argpartition(-valid_similarities, top_k)[:top_k]
+            top_relative_indices = np.argpartition(-valid_similarities, min(top_k-1, len(valid_similarities)-1))[:top_k]
             top_relative_indices = top_relative_indices[
                 np.argsort(-valid_similarities[top_relative_indices])
             ]
@@ -212,13 +212,21 @@ class MemoryRetriever:
 
         valid_category_similarities = category_similarities[valid_categories]
 
+        # Fix: Ensure num_categories doesn't exceed the length of valid_category_similarities
         num_categories = min(3, len(valid_category_similarities))
         if num_categories == 0:
             return []
 
-        top_category_indices_rel = np.argpartition(-valid_category_similarities, num_categories)[
-            :num_categories
-        ]
+        # Fix: Use min(num_categories-1, len(valid_category_similarities)-1) to avoid out of bounds
+        if num_categories > 1:
+            top_category_indices_rel = np.argpartition(
+                -valid_category_similarities, 
+                min(num_categories-1, len(valid_category_similarities)-1)
+            )[:num_categories]
+        else:
+            # If we only need one category, just take the argmax
+            top_category_indices_rel = np.array([np.argmax(valid_category_similarities)])
+            
         top_category_indices = valid_categories[top_category_indices_rel]
 
         # Collect candidate memories from top categories
@@ -252,7 +260,11 @@ class MemoryRetriever:
         if top_k >= len(valid_candidate_similarities):
             top_memory_indices = np.argsort(-valid_candidate_similarities)
         else:
-            top_memory_indices = np.argpartition(-valid_candidate_similarities, top_k)[:top_k]
+            # Fix: Use min(top_k-1, len(valid_candidate_similarities)-1) to avoid out of bounds
+            top_memory_indices = np.argpartition(
+                -valid_candidate_similarities, 
+                min(top_k-1, len(valid_candidate_similarities)-1)
+            )[:top_k]
             top_memory_indices = top_memory_indices[
                 np.argsort(-valid_candidate_similarities[top_memory_indices])
             ]
