@@ -26,7 +26,7 @@ This document tracks the implementation status of features from the original `Co
 | Feature | Status | Component | Notes |
 |---------|--------|-----------|-------|
 | ART clustering integration | ❌ | - | No connection to ContextualMemory clustering |
-| Memory decay | ❌ | - | Not implemented in component architecture |
+| Memory decay | ✅ | MemoryDecayComponent | Implemented with configurable decay parameters |
 | Category-based retrieval | ❌ | - | Not implemented in component architecture |
 | Activation boosting | 🟡 | RetrievalStrategy | Basic implementation exists |
 
@@ -64,7 +64,7 @@ This document tracks the implementation status of features from the original `Co
 4. Integrate with ART clustering from ContextualMemory
 5. Implement full keyword expansion
 6. ✅ Enhance personal attribute integration
-7. Implement memory decay
+7. ✅ Implement memory decay
 8. Add query context building
 
 ## Refactoring Progress

@@ -11,6 +11,7 @@ import numpy as np
 
 from memoryweave.components.dynamic_threshold_adjuster import DynamicThresholdAdjuster
 from memoryweave.components.base import RetrievalStrategy
+from memoryweave.components.memory_decay import MemoryDecayComponent
 from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.components.personal_attributes import PersonalAttributeManager
 from memoryweave.components.post_processors import (
@@ -70,6 +71,11 @@ class Retriever:
         self.dynamic_threshold_adjustment = False
         self.threshold_adjustment_window = 5
         self.recent_retrieval_metrics = []
+        
+        # Memory decay settings
+        self.memory_decay_enabled = True
+        self.memory_decay_rate = 0.99
+        self.memory_decay_interval = 10
 
         # Conversation state tracking
         self.conversation_history = []
@@ -117,6 +123,16 @@ class Retriever:
         self.memory_manager.register_component("attribute_processor", attribute_processor)
         self.post_processors.append(attribute_processor)
 
+        # Add memory decay component
+        memory_decay = MemoryDecayComponent()
+        memory_decay.initialize({
+            "memory_decay_enabled": self.memory_decay_enabled,
+            "memory_decay_rate": self.memory_decay_rate,
+            "memory_decay_interval": self.memory_decay_interval,
+            "memory": self.memory
+        })
+        self.memory_manager.register_component("memory_decay", memory_decay)
+
         adaptive_k = AdaptiveKProcessor()
         self.memory_manager.register_component("adaptive_k", adaptive_k)
         self.post_processors.append(adaptive_k)
@@ -150,6 +166,12 @@ class Retriever:
         pipeline_steps = [
             dict(component="query_analyzer", config={}),
             dict(component="personal_attributes", config={}),
+            dict(component="memory_decay", config={
+                "memory_decay_enabled": self.memory_decay_enabled,
+                "memory_decay_rate": self.memory_decay_rate,
+                "memory_decay_interval": self.memory_decay_interval,
+                "memory": self.memory
+            }),
             dict(component="query_adapter", config=query_adapter_config),
         ]
 
