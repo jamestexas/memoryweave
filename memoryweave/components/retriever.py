@@ -18,6 +18,7 @@ from memoryweave.components.personal_attributes import PersonalAttributeManager
 from memoryweave.components.post_processors import (
     AdaptiveKProcessor,
     KeywordBoostProcessor,
+    MinimumResultGuaranteeProcessor,
     PersonalAttributeProcessor,
     SemanticCoherenceProcessor,
 )
@@ -78,6 +79,9 @@ class Retriever:
         self.memory_decay_enabled = True
         self.memory_decay_rate = 0.99
         self.memory_decay_interval = 10
+        
+        # Minimum result guarantee
+        self.min_results_guarantee = 1
 
         # Conversation state tracking
         self.conversation_history = []
@@ -139,6 +143,17 @@ class Retriever:
         })
         self.memory_manager.register_component("memory_decay", memory_decay)
 
+        # Ensure minimum results
+        min_result_processor = MinimumResultGuaranteeProcessor()
+        min_result_processor.initialize({
+            "min_results": self.min_results_guarantee,
+            "fallback_threshold_factor": 0.5,
+            "min_fallback_threshold": 0.05,
+            "memory": self.memory
+        })
+        self.memory_manager.register_component("min_result_guarantee", min_result_processor)
+        self.post_processors.append(min_result_processor)
+        
         adaptive_k = AdaptiveKProcessor()
         self.memory_manager.register_component("adaptive_k", adaptive_k)
         self.post_processors.append(adaptive_k)
