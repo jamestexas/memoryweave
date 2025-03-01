@@ -74,12 +74,12 @@ This document tracks the implementation status of features from the original `Co
 | 1 | Create interface definitions | ✅ | memory.py, retrieval.py, query.py, and pipeline.py created |
 | 1 | Define data models | ✅ | Memory, Query, and pipeline models defined |
 | 2 | Create storage components | ✅ | Implemented MemoryStore, VectorStore, ActivationManager, CategoryManager |
-| 2 | Create retrieval components | ❌ | Not started |
-| 2 | Create query components | ❌ | Not started |
-| 2 | Create NLP utilities | ❌ | Not started |
-| 3 | Create pipeline architecture | ❌ | Not started |
-| 3 | Create configuration system | ❌ | Not started |
-| 3 | Create factory methods | ❌ | Not started |
+| 2 | Create retrieval components | ✅ | Implemented similarity, temporal, hybrid, and two-stage retrieval strategies |
+| 2 | Create query components | ✅ | Implemented query analyzer, adapter, and keyword expander |
+| 2 | Create NLP utilities | ✅ | Implemented extraction, matchers, patterns, and keywords |
+| 3 | Create pipeline architecture | ✅ | Implemented registry, builder, manager, and executor |
+| 3 | Create configuration system | ✅ | Implemented options, validation, and loaders |
+| 3 | Create factory methods | ✅ | Implemented memory, retrieval, and pipeline factories |
 | 4 | Create adapters | ❌ | Not started |
 | 4 | Migrate feature implementations | ❌ | Not started |
 | 4 | Update tests | ❌ | Not started |
