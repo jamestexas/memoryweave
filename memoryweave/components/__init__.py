@@ -12,6 +12,7 @@ from memoryweave.components.base import (
     RetrievalComponent,
     RetrievalStrategy,
 )
+from memoryweave.components.keyword_expander import KeywordExpander
 from memoryweave.components.memory_decay import MemoryDecayComponent
 from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.components.personal_attributes import PersonalAttributeManager
@@ -39,6 +40,7 @@ __all__ = [
     "RetrievalStrategy",
     "PostProcessor",
     # Components
+    "KeywordExpander",
     "MemoryDecayComponent",
     "MemoryManager",
     "PersonalAttributeManager",

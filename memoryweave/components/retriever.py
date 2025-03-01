@@ -11,6 +11,7 @@ import numpy as np
 
 from memoryweave.components.dynamic_threshold_adjuster import DynamicThresholdAdjuster
 from memoryweave.components.base import RetrievalStrategy
+from memoryweave.components.keyword_expander import KeywordExpander
 from memoryweave.components.memory_decay import MemoryDecayComponent
 from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.components.personal_attributes import PersonalAttributeManager
@@ -57,6 +58,7 @@ class Retriever:
         self.post_processors = []
         self.two_stage_strategy = None
         self.personal_attribute_manager = None
+        self.keyword_expander = None
 
         # Default settings
         self.top_k = 5
@@ -94,6 +96,10 @@ class Retriever:
         # Create and initialize personal attribute manager
         self.personal_attribute_manager = PersonalAttributeManager()
         self.memory_manager.register_component("personal_attributes", self.personal_attribute_manager)
+        
+        # Create and initialize keyword expander
+        self.keyword_expander = KeywordExpander()
+        self.memory_manager.register_component("keyword_expander", self.keyword_expander)
 
         # Create and initialize query adapter
         self.query_adapter = QueryTypeAdapter()
@@ -171,6 +177,10 @@ class Retriever:
                 "memory_decay_rate": self.memory_decay_rate,
                 "memory_decay_interval": self.memory_decay_interval,
                 "memory": self.memory
+            }),
+            dict(component="keyword_expander", config={
+                "enable_expansion": True,
+                "max_expansions_per_keyword": 5
             }),
             dict(component="query_adapter", config=query_adapter_config),
         ]
