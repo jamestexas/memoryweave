@@ -1,0 +1,213 @@
+{
+  "queries": [
+    {
+      "query": "What's my name?",
+      "expected_answers": [
+        "Your name is Alex."
+      ],
+      "category": "personal",
+      "difficulty": "basic",
+      "context": "Basic personal information"
+    },
+    {
+      "query": "Tell me about myself",
+      "expected_answers": [
+        "Your name is Alex.",
+        "You live in Austin, Texas.",
+        "You're a Software Engineer.",
+        "You have a dog named Buddy."
+      ],
+      "category": "personal",
+      "difficulty": "complex",
+      "context": "Personal identity summary"
+    },
+    {
+      "query": "What programming languages do I know?",
+      "expected_answers": [
+        "Your preferred programming language is Python.",
+        "You also know JavaScript and Rust."
+      ],
+      "category": "personal",
+      "difficulty": "intermediate",
+      "context": "Professional skills"
+    },
+    {
+      "query": "What is my car?",
+      "expected_answers": [
+        "You drive a Tesla Model 3."
+      ],
+      "category": "personal",
+      "difficulty": "basic",
+      "context": "Personal possessions"
+    },
+    {
+      "query": "What are my hobbies?",
+      "expected_answers": [
+        "Your favorite hobby is cycling.",
+        "You also enjoy reading and hiking."
+      ],
+      "category": "personal",
+      "difficulty": "intermediate",
+      "context": "Personal interests"
+    },
+    {
+      "query": "What are my preferences?", 
+      "expected_answers": [
+        "Your favorite color is blue.",
+        "Your favorite food is sushi.",
+        "Your favorite season is autumn.",
+        "Your favorite beverage is coffee."
+      ],
+      "category": "personal",
+      "difficulty": "complex",
+      "context": "Personal preferences"
+    },
+    {
+      "query": "What is a quantum computer?",
+      "expected_answers": [
+        "Quantum computing harnesses principles of quantum mechanics to process information at speeds far beyond traditional computers."
+      ],
+      "category": "general",
+      "difficulty": "intermediate",
+      "context": "Technology concepts"
+    },
+    {
+      "query": "How does photosynthesis work?",
+      "expected_answers": [
+        "Photosynthesis converts light energy into chemical energy in plants, producing oxygen and glucose."
+      ],
+      "category": "general",
+      "difficulty": "intermediate",
+      "context": "Biology"
+    },
+    {
+      "query": "Explain blockchain",
+      "expected_answers": [
+        "Blockchain is a decentralized ledger technology that provides secure and transparent record-keeping."
+      ],
+      "category": "general", 
+      "difficulty": "intermediate",
+      "context": "Technology concepts"
+    },
+    {
+      "query": "What is the tallest mountain?",
+      "expected_answers": [
+        "Mount Everest is the tallest mountain in the world."
+      ],
+      "category": "general",
+      "difficulty": "basic",
+      "context": "Geography"
+    },
+    {
+      "query": "How do vaccines work?",
+      "expected_answers": [
+        "Vaccines stimulate the immune system to recognize and combat pathogens, building immunity without causing disease."
+      ],
+      "category": "general",
+      "difficulty": "intermediate",
+      "context": "Medicine"
+    },
+    {
+      "query": "Describe climate change",
+      "expected_answers": [
+        "Climate change refers to long-term shifts in temperatures and weather patterns, primarily due to human activities."
+      ],
+      "category": "general",
+      "difficulty": "intermediate",
+      "context": "Environmental science"
+    },
+    {
+      "query": "What is the Turing Test?",
+      "expected_answers": [
+        "The Turing Test evaluates a machine's ability to exhibit human-like intelligence and has been pivotal in AI research."
+      ],
+      "category": "domain-specific",
+      "difficulty": "intermediate",
+      "context": "Artificial intelligence"
+    },
+    {
+      "query": "Explain the Renaissance's impact on art",
+      "expected_answers": [
+        "The Renaissance introduced techniques like perspective and realism, profoundly influencing the development of modern art."
+      ],
+      "category": "domain-specific",
+      "difficulty": "complex",
+      "context": "Art history"
+    },
+    {
+      "query": "What is DNA's double helix structure?",
+      "expected_answers": [
+        "The discovery of DNA's double helix structure revealed the molecular basis of heredity and revolutionized genetics."
+      ],
+      "category": "domain-specific",
+      "difficulty": "intermediate",
+      "context": "Genetics"
+    },
+    {
+      "query": "How did the Industrial Revolution change society?",
+      "expected_answers": [
+        "The Industrial Revolution transformed economies through mechanization, leading to urbanization, social changes, and technological innovations."
+      ],
+      "category": "domain-specific",
+      "difficulty": "complex",
+      "context": "History"
+    },
+    {
+      "query": "What's the difference between classical and operant conditioning?",
+      "expected_answers": [
+        "Classical conditioning pairs a neutral stimulus with a response, while operant conditioning uses rewards and punishments to shape behavior."
+      ],
+      "category": "domain-specific",
+      "difficulty": "intermediate",
+      "context": "Psychology"
+    },
+    {
+      "query": "How has social media changed communication?",
+      "expected_answers": [
+        "Social media has transformed communication by enabling instant global connectivity and widespread sharing of user-generated content."
+      ],
+      "category": "domain-specific",
+      "difficulty": "intermediate",
+      "context": "Communications"
+    },
+    {
+      "query": "What challenges exist in cybersecurity?",
+      "expected_answers": [
+        "Cybersecurity challenges include data breaches, phishing attacks, and safeguarding privacy in an increasingly interconnected world."
+      ],
+      "category": "domain-specific",
+      "difficulty": "intermediate",
+      "context": "Computer security"
+    },
+    {
+      "query": "How is machine learning different from traditional programming?",
+      "expected_answers": [
+        "Unlike traditional programming which follows explicit instructions, machine learning systems learn patterns from data to make predictions."
+      ],
+      "category": "domain-specific",
+      "difficulty": "intermediate",
+      "context": "Computer science"
+    },
+    {
+      "query": "Something completely irrelevant",
+      "expected_answers": [],
+      "category": "out-of-domain",
+      "difficulty": "challenge",
+      "context": "Testing retrieval on unrelated queries"
+    },
+    {
+      "query": "Tell me a story about flying elephants",
+      "expected_answers": [],
+      "category": "out-of-domain",
+      "difficulty": "challenge",
+      "context": "Testing retrieval on fictional queries"
+    },
+    {
+      "query": "What is the best way to prepare for a marathon?",
+      "expected_answers": [],
+      "category": "out-of-domain",
+      "difficulty": "challenge",
+      "context": "Testing retrieval on unknown topics"
+    }
+  ]
+}

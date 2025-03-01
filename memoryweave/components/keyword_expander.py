@@ -176,6 +176,38 @@ class KeywordExpander(Component):
         context["expanded_keywords"] = expanded_keywords
         
         return data
+        
+    def process_query(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process a query by expanding keywords found in the context.
+        
+        Args:
+            query: The query string
+            context: The processing context
+            
+        Returns:
+            Updated context with expanded keywords
+        """
+        if not self.enable_expansion:
+            return context
+            
+        # Extract keywords from query if none in context
+        original_keywords = set(context.get("important_keywords", []))
+        if not original_keywords and query:
+            # Simple keyword extraction - split by spaces and take words of 3+ chars
+            words = query.lower().split()
+            original_keywords = {word for word in words if len(word) >= 3}
+            context["important_keywords"] = list(original_keywords)
+        
+        # Expand keywords
+        if original_keywords:
+            expanded_keywords = self.expand_keywords(original_keywords)
+            
+            # Store in context
+            context["original_keywords"] = list(original_keywords)
+            context["expanded_keywords"] = list(expanded_keywords)
+        
+        return context
     
     def expand_keywords(self, keywords: Set[str]) -> Set[str]:
         """
