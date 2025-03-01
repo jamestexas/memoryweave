@@ -480,25 +480,27 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
             original_threshold = self.base_strategy.confidence_threshold
             self.base_strategy.confidence_threshold = first_stage_threshold
 
-        # If expand_keywords is enabled, add expanded keywords to context
+        # If expand_keywords is enabled, use expanded keywords from context if available
         if expand_keywords and "important_keywords" in context:
-            # Simple keyword expansion (in a real system, this would be more sophisticated)
-            original_keywords = context.get("important_keywords", set())
-            expanded_keywords = set(original_keywords)
+            # Check if expanded_keywords are already in context (from KeywordExpander component)
+            if "expanded_keywords" not in context:
+                # Fall back to basic expansion if KeywordExpander wasn't used
+                original_keywords = context.get("important_keywords", set())
+                expanded_keywords = set(original_keywords)
 
-            # Add singular/plural forms
-            for keyword in original_keywords:
-                if not keyword.endswith("s"):
-                    expanded_keywords.add(f"{keyword}s")  # Simple pluralization
-                elif len(keyword) > 1:
-                    expanded_keywords.add(keyword[:-1])  # Simple singularization
+                # Add singular/plural forms
+                for keyword in original_keywords:
+                    if not keyword.endswith("s"):
+                        expanded_keywords.add(f"{keyword}s")  # Simple pluralization
+                    elif len(keyword) > 1:
+                        expanded_keywords.add(keyword[:-1])  # Simple singularization
 
-            # Add to context with a different key to avoid overwriting
-            context["expanded_keywords"] = expanded_keywords
-
+                # Add to context with a different key to avoid overwriting
+                context["expanded_keywords"] = expanded_keywords
+            
             # Temporarily replace important_keywords with expanded set
             context["original_important_keywords"] = context["important_keywords"]
-            context["important_keywords"] = expanded_keywords
+            context["important_keywords"] = context["expanded_keywords"]
 
         # Get candidates using base strategy
         candidates = self.base_strategy.retrieve(query_embedding, first_stage_k, context)
