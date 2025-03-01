@@ -210,7 +210,7 @@ class MemoryRetrievalBenchmark:
         for i, ((text, memory_type), embedding) in enumerate(
             zip(self.test_data["memory_texts"], self.test_data["memory_embeddings"])
         ):
-            metadata = {"type": memory_type, "index": i}
+            metadata = {"type": memory_type, "index": i, "content": text}
             memory.add_memory(embedding, text, metadata)
 
         # Create retriever based on type
@@ -229,6 +229,9 @@ class MemoryRetrievalBenchmark:
         elif config.retriever_type == "components":
             retriever = Retriever(memory=memory, embedding_model=embedding_model)
             retriever.minimum_relevance = config.confidence_threshold
+            
+            # Force initialization of components
+            retriever.initialize_components()
 
             if config.use_two_stage_retrieval:
                 retriever.configure_two_stage_retrieval(
@@ -293,14 +296,10 @@ class MemoryRetrievalBenchmark:
                 query_times.append(query_time)
 
                 # Extract retrieved indices
-                if config.retriever_type == "components":
-                    retrieved_indices = [
-                        r.get("memory_id") for r in results if isinstance(r.get("memory_id"), int)
-                    ]
-                else:
-                    retrieved_indices = [
-                        r.get("memory_id") for r in results if isinstance(r.get("memory_id"), int)
-                    ]
+                retrieved_indices = []
+                for r in results:
+                    if isinstance(r.get("memory_id"), int):
+                        retrieved_indices.append(r.get("memory_id"))
 
                 retrieval_counts.append(len(retrieved_indices))
 
@@ -358,8 +357,10 @@ class MemoryRetrievalBenchmark:
 
         # Save results if path provided
         if save_path:
-            if not os.path.exists(os.path.dirname(save_path)):
-                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            # Ensure directory exists
+            directory = os.path.dirname(save_path)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory, exist_ok=True)
 
             results_dict = {r.config.name: r.to_dict() for r in self.results}
             with open(save_path, "w") as f:
