@@ -125,10 +125,12 @@ class Retriever:
         # Register the new hybrid BM25 + vector retrieval strategy
         hybrid_bm25_vector_retrieval = HybridBM25VectorStrategy(self.memory)
         hybrid_bm25_vector_retrieval.initialize({
-            "vector_weight": 0.5,
-            "bm25_weight": 0.5,
+            "vector_weight": 0.2,          # Favor BM25 more heavily
+            "bm25_weight": 0.8,            # Give BM25 dominance by default
             "confidence_threshold": self.minimum_relevance,
             "activation_boost": True,
+            "enable_dynamic_weighting": True,  # Enable dynamic adjustment
+            "keyword_weight_bias": 0.7,        # Strong bias toward BM25 for keyword queries
         })
         self.memory_manager.register_component("hybrid_bm25_vector_retrieval", hybrid_bm25_vector_retrieval)
 
