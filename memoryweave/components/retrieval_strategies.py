@@ -40,6 +40,11 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
 
         # Check if we're in evaluation mode
         in_evaluation = context.get("in_evaluation", False)
+        
+        # Debug log for evaluation mode
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"SimilarityRetrievalStrategy: in_evaluation={in_evaluation}, confidence_threshold={confidence_threshold}")
 
         # Standard retrieval path
         if hasattr(memory, "retrieve_memories"):
@@ -50,11 +55,13 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
                 activation_boost=self.activation_boost,
                 confidence_threshold=confidence_threshold,
             )
+            logger.debug(f"SimilarityRetrievalStrategy: Initial retrieval returned {len(results)} results with threshold {confidence_threshold}")
 
             # Only fall back to lower threshold if not in evaluation mode
             if not results and not in_evaluation:
                 # This is a fallback for non-evaluation scenarios only
                 test_threshold = 0.0  # Minimum possible threshold
+                logger.info(f"SimilarityRetrievalStrategy: No results at threshold {confidence_threshold}, falling back to {test_threshold}")
                 results = memory.retrieve_memories(
                     query_embedding,
                     top_k=top_k,
@@ -497,21 +504,33 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
             f"TwoStageRetrievalStrategy: first_stage_k={first_stage_k}, first_stage_threshold={first_stage_threshold}, expand_keywords={expand_keywords}"
         )
 
+        # Check if we're in evaluation mode
+        in_evaluation = context.get("in_evaluation", False)
+        logger.info(f"TwoStageRetrievalStrategy: in_evaluation={in_evaluation}")
+        
+        # Log the adapted parameters to understand where they're coming from
+        logger.info(f"TwoStageRetrievalStrategy: Adapted params from context: {adapted_params}")
+        
         # Use query type for further adjustments if not already in adapted params
         if "first_stage_k" not in adapted_params:
             query_type = context.get("primary_query_type", "default")
+            logger.info(f"TwoStageRetrievalStrategy: Query type={query_type}")
+            
             if query_type == "personal":
                 # Personal queries need higher precision
+                original_threshold = first_stage_threshold
                 first_stage_threshold = max(first_stage_threshold, 0.2)
                 logger.info(
-                    f"TwoStageRetrievalStrategy: Adjusted for personal query, first_stage_threshold={first_stage_threshold}"
+                    f"TwoStageRetrievalStrategy: Adjusted for personal query, first_stage_threshold from {original_threshold} to {first_stage_threshold}"
                 )
             elif query_type == "factual":
                 # Factual queries need better recall
+                original_threshold = first_stage_threshold
+                original_k = first_stage_k
                 first_stage_threshold = min(first_stage_threshold, 0.15)
                 first_stage_k = max(first_stage_k, 30)  # Get more candidates for factual queries
                 logger.info(
-                    f"TwoStageRetrievalStrategy: Adjusted for factual query, first_stage_threshold={first_stage_threshold}, first_stage_k={first_stage_k}"
+                    f"TwoStageRetrievalStrategy: Adjusted for factual query, first_stage_threshold from {original_threshold} to {first_stage_threshold}, first_stage_k from {original_k} to {first_stage_k}"
                 )
 
         # First stage: Get a larger set of candidates with lower threshold

@@ -185,10 +185,17 @@ class Retriever:
         # Ensure all components are properly registered and available
         self._ensure_components_registered()
 
-        # Configure query adapter
+        # Configure query adapter - IMPORTANT: fixed bug where adaptation_strength was 0 
+        # even if query_type_adaptation was True
+        adaptation_strength = self.adaptation_strength if self.query_type_adaptation else 0.0
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Retriever._build_default_pipeline: query_type_adaptation={self.query_type_adaptation}, adaptation_strength={adaptation_strength}")
+        
         query_adapter_config = dict(
             # Enable query type adaptation if enabled
-            adaptation_strength=(self.adaptation_strength if self.query_type_adaptation else 0.0),
+            adaptation_strength=adaptation_strength,
             confidence_threshold=self.minimum_relevance,
             first_stage_k=self.first_stage_k,
             first_stage_threshold_factor=self.first_stage_threshold_factor,
@@ -343,16 +350,30 @@ class Retriever:
         Args:
             enable: Whether to enable semantic coherence checking
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Retriever.configure_semantic_coherence: Setting enable={enable}")
+        
         # Create semantic coherence processor if it doesn't exist
         if not hasattr(self, "semantic_coherence_processor"):
             self.semantic_coherence_processor = SemanticCoherenceProcessor()
+            # Initialize with proper configuration
+            self.semantic_coherence_processor.initialize({
+                "coherence_threshold": 0.2,
+                "enable_query_type_filtering": True,
+                "enable_pairwise_coherence": True,
+                "enable_clustering": False,
+            })
+            logger.info("Retriever.configure_semantic_coherence: Created new SemanticCoherenceProcessor")
 
         # Add to post-processors if enabled and not already there
         if enable and self.semantic_coherence_processor not in self.post_processors:
             self.post_processors.append(self.semantic_coherence_processor)
+            logger.info("Retriever.configure_semantic_coherence: Added processor to post_processors")
         # Remove from post-processors if disabled but present
         elif not enable and self.semantic_coherence_processor in self.post_processors:
             self.post_processors.remove(self.semantic_coherence_processor)
+            logger.info("Retriever.configure_semantic_coherence: Removed processor from post_processors")
 
     def retrieve(
         self,

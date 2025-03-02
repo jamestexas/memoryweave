@@ -45,8 +45,12 @@ class QueryTypeAdapter(RetrievalComponent):
         Returns:
             Updated context with adapted parameters
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Don't process if query type adaptation is disabled
         if self.adaptation_strength <= 0:
+            logger.warning(f"QueryTypeAdapter: adaptation_strength={self.adaptation_strength}, adaptation disabled")
             return {}
 
         # Get query type information

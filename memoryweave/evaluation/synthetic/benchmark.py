@@ -319,6 +319,20 @@ class SyntheticBenchmark:
 
                 # Set evaluation mode to prevent special case handling
                 context = {"in_evaluation": config.evaluation_mode}
+                
+                # Set logging level to INFO during evaluation to capture details
+                import logging
+                evaluation_logger = logging.getLogger()
+                original_level = evaluation_logger.level
+                evaluation_logger.setLevel(logging.INFO)
+                
+                # Detailed logging about the configuration
+                evaluation_logger.info(f"Benchmark: Retrieving with config={config.name}, " +
+                           f"evaluation_mode={config.evaluation_mode}, " +
+                           f"confidence_threshold={config.confidence_threshold}, " +
+                           f"semantic_coherence_check={config.semantic_coherence_check}, " +
+                           f"use_two_stage_retrieval={config.use_two_stage_retrieval}, " +
+                           f"query_type_adaptation={config.query_type_adaptation}")
 
                 # Time the query
                 start_time = time.time()
@@ -374,6 +388,9 @@ class SyntheticBenchmark:
                 elif hasattr(memory, "in_evaluation"):
                     # Remove the attribute if it wasn't there before
                     delattr(memory, "in_evaluation")
+
+                # Restore logging level
+                evaluation_logger.setLevel(original_level)
 
                 query_time = time.time() - start_time
                 query_times.append(query_time)

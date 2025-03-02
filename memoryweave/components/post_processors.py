@@ -92,29 +92,50 @@ class SemanticCoherenceProcessor(PostProcessor):
         Returns:
             Updated list of results with adjusted relevance scores
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Check for evaluation mode - in evaluation mode, we should still apply our logic
+        in_evaluation = context.get("in_evaluation", False)
+        logger.debug(f"SemanticCoherenceProcessor: processing {len(results)} results, in_evaluation={in_evaluation}")
+        
         if len(results) <= 1:
+            logger.debug("SemanticCoherenceProcessor: Skipping, not enough results")
             return results
 
         # Get query type from context
         query_type = context.get("primary_query_type", "default")
+        logger.debug(f"SemanticCoherenceProcessor: query_type={query_type}")
 
         # Make a copy of results to modify
         processed_results = list(results)
 
         # 1. Apply query type filtering if enabled
         if self.enable_query_type_filtering:
+            logger.debug("SemanticCoherenceProcessor: Applying query type filtering")
             processed_results = self._apply_query_type_filtering(processed_results, query_type)
+            
+            # Log the score changes
+            score_changes = [(r.get("relevance_score", 0), "type_coherence_applied" in r) 
+                            for r in processed_results]
+            logger.debug(f"SemanticCoherenceProcessor: After type filtering, scores: {score_changes}")
 
         # 2. Calculate pairwise coherence if enabled
         if self.enable_pairwise_coherence and len(processed_results) > 1:
+            logger.debug("SemanticCoherenceProcessor: Applying pairwise coherence")
             processed_results = self._apply_pairwise_coherence(processed_results, context)
 
         # 3. Perform clustering and outlier detection if enabled
         if self.enable_clustering and len(processed_results) >= self.min_cluster_size:
+            logger.debug("SemanticCoherenceProcessor: Applying clustering")
             processed_results = self._apply_clustering(processed_results, context)
 
         # 4. Final sort by adjusted relevance score
         processed_results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+        
+        # Log final scores
+        final_scores = [(i, r.get("relevance_score", 0)) for i, r in enumerate(processed_results[:5])]
+        logger.debug(f"SemanticCoherenceProcessor: Final top 5 scores: {final_scores}")
 
         return processed_results
 
