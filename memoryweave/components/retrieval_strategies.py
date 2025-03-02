@@ -490,6 +490,10 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
         # Apply query type adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
 
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"TwoStageRetrievalStrategy.retrieve: Received adapted_params={adapted_params}")
+
         # Adjust parameters based on query type and adapted parameters
         first_stage_k = adapted_params.get("first_stage_k", self.first_stage_k)
         first_stage_threshold_factor = adapted_params.get(
@@ -497,6 +501,15 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
         )
         confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
         expand_keywords = adapted_params.get("expand_keywords", False)
+
+        # Track parameter sources for debugging
+        param_sources = {
+            "first_stage_k": "adapted_params" if "first_stage_k" in adapted_params else "default",
+            "first_stage_threshold_factor": "adapted_params" if "first_stage_threshold_factor" in adapted_params else "default",
+            "confidence_threshold": "adapted_params" if "confidence_threshold" in adapted_params else "default",
+            "expand_keywords": "adapted_params" if "expand_keywords" in adapted_params else "default",
+        }
+        logger.info(f"TwoStageRetrievalStrategy.retrieve: Parameter sources: {param_sources}")
 
         first_stage_threshold = confidence_threshold * first_stage_threshold_factor
 

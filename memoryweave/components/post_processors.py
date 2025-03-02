@@ -97,7 +97,15 @@ class SemanticCoherenceProcessor(PostProcessor):
         
         # Check for evaluation mode - in evaluation mode, we should still apply our logic
         in_evaluation = context.get("in_evaluation", False)
-        logger.debug(f"SemanticCoherenceProcessor: processing {len(results)} results, in_evaluation={in_evaluation}")
+        
+        # Check if our functionality is explicitly enabled
+        enable_semantic_coherence = context.get("enable_semantic_coherence", True)
+        
+        logger.info(f"SemanticCoherenceProcessor: processing {len(results)} results, in_evaluation={in_evaluation}, enable_semantic_coherence={enable_semantic_coherence}")
+        
+        # Log parameters from context relevant to this processor
+        config_name = context.get("config_name", "unknown")
+        logger.info(f"SemanticCoherenceProcessor: config_name={config_name}, enable_query_type_filtering={self.enable_query_type_filtering}, enable_pairwise_coherence={self.enable_pairwise_coherence}")
         
         if len(results) <= 1:
             logger.debug("SemanticCoherenceProcessor: Skipping, not enough results")
@@ -105,7 +113,7 @@ class SemanticCoherenceProcessor(PostProcessor):
 
         # Get query type from context
         query_type = context.get("primary_query_type", "default")
-        logger.debug(f"SemanticCoherenceProcessor: query_type={query_type}")
+        logger.info(f"SemanticCoherenceProcessor: query_type={query_type}")
 
         # Make a copy of results to modify
         processed_results = list(results)
@@ -143,10 +151,15 @@ class SemanticCoherenceProcessor(PostProcessor):
         self, results: list[dict[str, Any]], query_type: str
     ) -> list[dict[str, Any]]:
         """Apply penalties for type mismatches between query and results."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Get compatibility matrix for this query type
         compatibility = self.query_type_compatibility.get(
             query_type, self.query_type_compatibility["default"]
         )
+        
+        logger.info(f"SemanticCoherenceProcessor._apply_query_type_filtering: Using compatibility matrix for {query_type}: {compatibility}")
 
         for result in results:
             # Check for type mismatch
@@ -162,8 +175,14 @@ class SemanticCoherenceProcessor(PostProcessor):
             # Apply penalty based on compatibility
             if compat_score < 1.0:
                 penalty = (1.0 - compat_score) * self.max_penalty
-                result["relevance_score"] = max(0, result.get("relevance_score", 0) - penalty)
+                original_score = result.get("relevance_score", 0)
+                result["relevance_score"] = max(0, original_score - penalty)
                 result["type_coherence_applied"] = True
+                
+                # Log score changes
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(f"SemanticCoherenceProcessor: Applied type_coherence penalty {penalty:.4f} to result type={result_type}, score: {original_score:.4f} -> {result['relevance_score']:.4f}")
 
         return results
 
