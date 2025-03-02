@@ -26,3 +26,5 @@ class ComponentName(str, Enum):
     TEMPORAL_CONTEXT_BUILDER = "temporal_context_builder"
     ACTIVATION_MANAGER = "activation_manager"
     CONTEXTUAL_FABRIC_STRATEGY = "contextual_fabric_strategy"
+    # Dynamic context adaptation
+    DYNAMIC_CONTEXT_ADAPTER = "dynamic_context_adapter"

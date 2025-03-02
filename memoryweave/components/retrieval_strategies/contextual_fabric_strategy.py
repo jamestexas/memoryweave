@@ -135,9 +135,28 @@ class ContextualFabricStrategy(RetrievalStrategy):
         # Get query from context
         query = context.get("query", "")
 
-        # Apply query type adaptation if available
+        # Apply parameter adaptation if available from DynamicContextAdapter or QueryAdapter
         adapted_params = context.get("adapted_retrieval_params", {})
+        
+        # Set parameters from adaptation
         confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
+        
+        # Apply additional parameter adaptations if provided
+        if "similarity_weight" in adapted_params:
+            self.similarity_weight = adapted_params["similarity_weight"]
+        if "associative_weight" in adapted_params:
+            self.associative_weight = adapted_params["associative_weight"]
+        if "temporal_weight" in adapted_params:
+            self.temporal_weight = adapted_params["temporal_weight"]
+        if "activation_weight" in adapted_params:
+            self.activation_weight = adapted_params["activation_weight"]
+        if "max_associative_hops" in adapted_params:
+            self.max_associative_hops = adapted_params["max_associative_hops"]
+        
+        # Apply progressive filtering for large memory stores
+        use_progressive_filtering = adapted_params.get("use_progressive_filtering", False)
+        use_batched_computation = adapted_params.get("use_batched_computation", False)
+        batch_size = adapted_params.get("batch_size", 200)
 
         # Log retrieval details if debug enabled
         if self.debug:
@@ -148,7 +167,10 @@ class ContextualFabricStrategy(RetrievalStrategy):
         similarity_results = self._retrieve_by_similarity(
             query_embedding=query_embedding,
             max_results=self.max_candidates,
-            memory_store=memory_store
+            memory_store=memory_store,
+            use_progressive_filtering=use_progressive_filtering,
+            use_batched_computation=use_batched_computation,
+            batch_size=batch_size
         )
 
         # Step 2: Get associative matches (if linker available)
@@ -250,7 +272,10 @@ class ContextualFabricStrategy(RetrievalStrategy):
         self,
         query_embedding: np.ndarray,
         max_results: int,
-        memory_store: Optional[IMemoryStore]
+        memory_store: Optional[IMemoryStore],
+        use_progressive_filtering: bool = False,
+        use_batched_computation: bool = False,
+        batch_size: int = 200
     ) -> List[Dict[str, Any]]:
         """
         Retrieve memories by direct similarity.
@@ -259,6 +284,9 @@ class ContextualFabricStrategy(RetrievalStrategy):
             query_embedding: Query embedding
             max_results: Maximum number of results to return
             memory_store: Memory store to retrieve from
+            use_progressive_filtering: Whether to use progressive filtering
+            use_batched_computation: Whether to use batched computation
+            batch_size: Size of batches for computation
             
         Returns:
             List of retrieved memory dicts with similarity scores
@@ -266,6 +294,16 @@ class ContextualFabricStrategy(RetrievalStrategy):
         if memory_store is None or not hasattr(memory_store, "memory_embeddings"):
             return []
 
+        memory_size = len(memory_store.memory_embeddings)
+        
+        # For large memory stores, use optimized computation
+        if memory_size > 500 and (use_progressive_filtering or use_batched_computation):
+            return self._optimized_similarity_retrieval(
+                query_embedding, max_results, memory_store, 
+                use_progressive_filtering, use_batched_computation, batch_size
+            )
+        
+        # Standard computation for smaller stores
         # Compute cosine similarities
         similarities = np.dot(memory_store.memory_embeddings, query_embedding)
         
@@ -317,6 +355,134 @@ class ContextualFabricStrategy(RetrievalStrategy):
                     **memory_store.memory_metadata[idx]
                 })
 
+        return results
+        
+    def _optimized_similarity_retrieval(
+        self,
+        query_embedding: np.ndarray,
+        max_results: int,
+        memory_store: IMemoryStore,
+        use_progressive_filtering: bool,
+        use_batched_computation: bool,
+        batch_size: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Optimized similarity retrieval for large memory stores.
+        
+        Uses two key optimizations:
+        1. Progressive filtering: First get a rough set of candidates, then refine
+        2. Batched computation: Process large embedding matrices in batches
+        
+        Args:
+            query_embedding: Query embedding
+            max_results: Maximum number of results to return
+            memory_store: Memory store to retrieve from
+            use_progressive_filtering: Whether to use progressive filtering
+            use_batched_computation: Whether to use batched computation
+            batch_size: Size of batches for computation
+            
+        Returns:
+            List of retrieved memory dicts with similarity scores
+        """
+        memory_embeddings = memory_store.memory_embeddings
+        memory_size = len(memory_embeddings)
+        
+        # Progressive filtering approach
+        if use_progressive_filtering:
+            # First pass: get a larger set of candidates using a fast approximation
+            # Sample a subset of dimensions to compute a rough similarity
+            embedding_dim = query_embedding.shape[0]
+            sample_size = min(100, embedding_dim)
+            sample_indices = np.random.choice(embedding_dim, sample_size, replace=False)
+            
+            # Use sampled dimensions for rough similarity
+            sampled_query = query_embedding[sample_indices]
+            sampled_memory = memory_embeddings[:, sample_indices]
+            
+            # Fast similarity computation on reduced dimensions
+            rough_similarities = np.dot(sampled_memory, sampled_query)
+            
+            # Get top candidates (3-5x more than needed)
+            candidate_count = min(memory_size, max(max_results * 3, 200))
+            candidate_indices = np.argsort(-rough_similarities)[:candidate_count]
+            
+            # Second pass: compute exact similarity only for the candidates
+            candidate_embeddings = memory_embeddings[candidate_indices]
+            similarities = np.dot(candidate_embeddings, query_embedding)
+            
+            # Convert back to original indices
+            top_indices = candidate_indices[np.argsort(-similarities)[:max_results]]
+            
+            # Get corresponding similarities
+            filtered_similarities = similarities[np.argsort(-similarities)[:max_results]]
+            
+        # Batched computation approach
+        elif use_batched_computation:
+            # Process in batches to reduce memory pressure
+            if memory_size <= batch_size:
+                # Small enough to compute directly
+                similarities = np.dot(memory_embeddings, query_embedding)
+            else:
+                # Initialize similarity array
+                similarities = np.zeros(memory_size)
+                
+                # Process in batches
+                for i in range(0, memory_size, batch_size):
+                    end_idx = min(i + batch_size, memory_size)
+                    batch_embeddings = memory_embeddings[i:end_idx]
+                    batch_similarities = np.dot(batch_embeddings, query_embedding)
+                    similarities[i:end_idx] = batch_similarities
+            
+            # Get top indices
+            top_indices = np.argsort(-similarities)[:max_results]
+            filtered_similarities = similarities[top_indices]
+            
+        else:
+            # Fallback to standard computation
+            similarities = np.dot(memory_embeddings, query_embedding)
+            top_indices = np.argsort(-similarities)[:max_results]
+            filtered_similarities = similarities[top_indices]
+        
+        # Normalize selected similarities
+        if len(filtered_similarities) > 1:
+            # Get statistics for normalization
+            mean_sim = np.mean(filtered_similarities)
+            std_sim = np.std(filtered_similarities)
+            
+            # Apply normalization if standard deviation is meaningful
+            if std_sim > 1e-5:
+                normalized_similarities = (filtered_similarities - mean_sim) / std_sim
+            else:
+                # Fallback to min-max scaling
+                min_sim = np.min(filtered_similarities)
+                max_sim = np.max(filtered_similarities)
+                sim_range = max_sim - min_sim
+                if sim_range > 1e-5:
+                    normalized_similarities = (filtered_similarities - min_sim) / sim_range
+                else:
+                    normalized_similarities = filtered_similarities
+                    
+            # Apply non-linear transformation to stretch differences
+            normalized_similarities = np.sign(normalized_similarities) * np.abs(normalized_similarities) ** 0.5
+        else:
+            normalized_similarities = filtered_similarities
+        
+        # Format results
+        results = []
+        for i, idx in enumerate(top_indices):
+            raw_similarity = float(filtered_similarities[i])
+            normalized_score = float(normalized_similarities[i])
+            
+            # Apply filtering threshold
+            if normalized_score > -1.0 or raw_similarity > 0.5:
+                # Add to results
+                results.append({
+                    "memory_id": int(idx),
+                    "similarity_score": raw_similarity,
+                    "normalized_score": normalized_score,
+                    **memory_store.memory_metadata[idx]
+                })
+                
         return results
 
     def _combine_results(
