@@ -20,6 +20,60 @@ from memoryweave.interfaces.retrieval import Query, QueryType
 from memoryweave.storage.memory_store import Memory, MemoryStore
 
 
+class RetrievalStrategyAdapter:
+    """Adapter to make SimilarityRetrievalStrategy compatible with the baseline comparison framework."""
+    
+    def __init__(self, retrieval_strategy):
+        """Initialize with a retrieval strategy."""
+        self.retrieval_strategy = retrieval_strategy
+        
+    def retrieve(self, query, top_k=10, threshold=0.0, **kwargs):
+        """Adapter method to work with the baseline comparison interface."""
+        # Extract the query embedding
+        query_embedding = query.embedding
+        
+        # Create a context dictionary with necessary parameters
+        context = {
+            "memory": self.retrieval_strategy.memory,
+            "query": query.text,
+            "top_k": top_k,
+            "adapted_retrieval_params": {
+                "confidence_threshold": threshold
+            }
+        }
+        
+        # Call the strategy's retrieve method with the correct arguments
+        results = self.retrieval_strategy.retrieve(query_embedding, top_k, context)
+        
+        # Convert the results to the expected format
+        memories = []
+        scores = []
+        
+        # Get the memory store
+        memory_store = self.retrieval_strategy.memory
+        
+        for result in results:
+            memory_id = result.get("memory_id")
+            if hasattr(memory_store, "get") and callable(memory_store.get):
+                memory = memory_store.get(memory_id)
+                memories.append(memory)
+                scores.append(result.get("relevance_score", 0.0))
+        
+        # Return in the expected format
+        return {
+            "memories": memories,
+            "scores": scores,
+            "strategy": "memoryweave",
+            "parameters": {
+                "max_results": top_k,
+                "threshold": threshold
+            },
+            "metadata": {
+                "query_time": 0.0  # We don't track query time here
+            }
+        }
+
+
 def main():
     """Run a simple baseline comparison example."""
     # Load the sample dataset
@@ -64,7 +118,15 @@ def main():
     memory_manager = MemoryManager(memory_store=memory_store)
     
     # Initialize MemoryWeave retriever
-    memoryweave_retriever = SimilarityRetrievalStrategy(memory_manager)
+    similarity_retriever = SimilarityRetrievalStrategy(memory_manager)
+    similarity_retriever.initialize({
+        "confidence_threshold": 0.0,
+        "activation_boost": True,
+        "min_results": 5
+    })
+    
+    # Wrap the retriever in our adapter to make it compatible with the baseline comparison
+    memoryweave_retriever = RetrievalStrategyAdapter(similarity_retriever)
     
     # Define baseline configurations
     baseline_configs = [

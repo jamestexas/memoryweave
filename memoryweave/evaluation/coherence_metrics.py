@@ -2,7 +2,7 @@
 Metrics for evaluating conversational coherence and memory effectiveness.
 """
 
-from typing import Any
+from typing import Any, List, Dict
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -132,6 +132,62 @@ def response_consistency(
     similarity = cosine_similarity([response_embedding], [memory_embedding])[0][0]
 
     return float(similarity)
+
+
+def calculate_semantic_coherence(memories: List[Dict[str, Any]]) -> float:
+    """
+    Calculate semantic coherence between a set of retrieved memories.
+    
+    Args:
+        memories: List of memory objects with text/content fields
+        
+    Returns:
+        Coherence score between 0 and 1
+    """
+    if len(memories) < 2:
+        return 1.0  # Single memory is trivially coherent
+    
+    # Extract text content from memories
+    texts = []
+    for memory in memories:
+        content = memory.get("text", "") or memory.get("content", "")
+        if content:
+            texts.append(content)
+    
+    if len(texts) < 2:
+        return 1.0  # Not enough valid texts to calculate coherence
+    
+    # Use TF-IDF or similar to get vectors
+    # For now, we'll use a simplified approach where we calculate 
+    # average pairwise similarity of normalized text vectors
+    
+    # Here we would normally use embeddings from a model
+    # Since we don't have direct access to a model in this function,
+    # we'll return a placeholder value that indicates coherence
+    # based on simple text comparison
+    
+    # In a real implementation, you would use:
+    # vectors = embedding_model.encode(texts)
+    # sim_matrix = cosine_similarity(vectors)
+    
+    # For now, return a simplistic coherence calculation:
+    # Proportion of word overlap between texts
+    coherence_scores = []
+    for i in range(len(texts)):
+        for j in range(i+1, len(texts)):
+            text1_words = set(texts[i].lower().split())
+            text2_words = set(texts[j].lower().split())
+            
+            if not text1_words or not text2_words:
+                continue
+                
+            overlap = len(text1_words.intersection(text2_words))
+            union = len(text1_words.union(text2_words))
+            
+            if union > 0:
+                coherence_scores.append(overlap / union)
+    
+    return float(np.mean(coherence_scores)) if coherence_scores else 1.0
 
 
 def evaluate_conversation(

@@ -25,6 +25,60 @@ from memoryweave.interfaces.retrieval import Query, QueryType, IRetrievalStrateg
 from memoryweave.storage.memory_store import Memory, MemoryStore
 
 
+class RetrievalStrategyAdapter:
+    """Adapter to make retrieval strategies compatible with the baseline comparison framework."""
+    
+    def __init__(self, retrieval_strategy):
+        """Initialize with a retrieval strategy."""
+        self.retrieval_strategy = retrieval_strategy
+        
+    def retrieve(self, query, top_k=10, threshold=0.0, **kwargs):
+        """Adapter method to work with the baseline comparison interface."""
+        # Extract the query embedding
+        query_embedding = query.embedding
+        
+        # Create a context dictionary with necessary parameters
+        context = {
+            "memory": self.retrieval_strategy.memory,
+            "query": query.text,
+            "top_k": top_k,
+            "adapted_retrieval_params": {
+                "confidence_threshold": threshold
+            }
+        }
+        
+        # Call the strategy's retrieve method with the correct arguments
+        results = self.retrieval_strategy.retrieve(query_embedding, top_k, context)
+        
+        # Convert the results to the expected format
+        memories = []
+        scores = []
+        
+        # Get the memory store
+        memory_store = self.retrieval_strategy.memory
+        
+        for result in results:
+            memory_id = result.get("memory_id")
+            if hasattr(memory_store, "get") and callable(memory_store.get):
+                memory = memory_store.get(memory_id)
+                memories.append(memory)
+                scores.append(result.get("relevance_score", 0.0))
+        
+        # Return in the expected format
+        return {
+            "memories": memories,
+            "scores": scores,
+            "strategy": "memoryweave",
+            "parameters": {
+                "max_results": top_k,
+                "threshold": threshold
+            },
+            "metadata": {
+                "query_time": 0.0  # We don't track query time here
+            }
+        }
+
+
 def load_dataset(path: str) -> Dict[str, Any]:
     """Load a dataset from a JSON file.
     
@@ -60,8 +114,7 @@ def load_dataset(path: str) -> Dict[str, Any]:
             embedding=embedding,
             query_type=QueryType.UNKNOWN,
             extracted_keywords=q_data.get("keywords", []),
-            extracted_entities=q_data.get("entities", []),
-            metadata=q_data.get("metadata", {})
+            extracted_entities=q_data.get("entities", [])
         )
         queries.append(query)
     
@@ -75,20 +128,32 @@ def load_dataset(path: str) -> Dict[str, Any]:
     }
 
 
-def get_retriever(retriever_type: str, **kwargs) -> IRetrievalStrategy:
+def get_retriever(retriever_type: str, memory_manager=None) -> Any:
     """Get a retriever of the specified type.
     
     Args:
         retriever_type: Type of retriever to create
-        **kwargs: Additional parameters for the retriever
+        memory_manager: MemoryManager instance to use
         
     Returns:
-        An initialized retriever
+        An initialized retriever wrapped in the adapter
     """
     if retriever_type == "similarity":
-        return SimilarityRetrievalStrategy(**kwargs)
+        strategy = SimilarityRetrievalStrategy(memory_manager)
+        strategy.initialize({
+            "confidence_threshold": 0.0,
+            "activation_boost": True,
+            "min_results": 5
+        })
+        return RetrievalStrategyAdapter(strategy)
     elif retriever_type == "hybrid":
-        return HybridRetrievalStrategy(**kwargs)
+        strategy = HybridRetrievalStrategy(memory_manager)
+        strategy.initialize({
+            "confidence_threshold": 0.0,
+            "relevance_weight": 0.7,
+            "recency_weight": 0.3
+        })
+        return RetrievalStrategyAdapter(strategy)
     else:
         raise ValueError(f"Unknown retriever type: {retriever_type}")
 
@@ -225,7 +290,7 @@ def main():
     
     # Initialize MemoryWeave retriever
     try:
-        memoryweave_retriever = get_retriever(args.retriever)
+        memoryweave_retriever = get_retriever(args.retriever, memory_manager=memory_manager)
         print(f"Using MemoryWeave retriever: {args.retriever}")
     except Exception as e:
         print(f"Error initializing retriever: {e}")

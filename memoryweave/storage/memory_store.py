@@ -149,6 +149,53 @@ class MemoryStore(IMemoryStore):
 
         return memories_to_remove
 
+    def add_multiple(self, memories: List[Memory]) -> List[MemoryID]:
+        """Add multiple memories at once.
+        
+        Args:
+            memories: List of Memory objects to add
+            
+        Returns:
+            List of memory IDs that were added
+        """
+        memory_ids = []
+        
+        for memory in memories:
+            # If the memory already has an ID, use it
+            if memory.id is not None:
+                memory_id = memory.id
+            else:
+                memory_id = self._generate_id()
+            
+            # Add the memory to the store
+            self._memories[memory_id] = memory.embedding
+            
+            # Add content
+            if hasattr(memory, "content") and isinstance(memory.content, dict):
+                self._contents[memory_id] = memory.content
+            elif hasattr(memory, "text"):
+                # Handle case where memory has text field instead of content
+                self._contents[memory_id] = {
+                    "text": memory.text,
+                    "metadata": {}
+                }
+            else:
+                # Default empty content
+                self._contents[memory_id] = {
+                    "text": "",
+                    "metadata": {}
+                }
+            
+            # Initialize metadata
+            memory_metadata = MemoryMetadata()
+            if hasattr(memory, "metadata") and memory.metadata:
+                memory_metadata.user_metadata.update(memory.metadata)
+            self._metadata[memory_id] = memory_metadata
+            
+            memory_ids.append(memory_id)
+        
+        return memory_ids
+            
     def _generate_id(self) -> MemoryID:
         """Generate a unique ID for a new memory."""
         memory_id = str(self._next_id)
