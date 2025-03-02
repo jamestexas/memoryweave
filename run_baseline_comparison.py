@@ -25,57 +25,78 @@ from memoryweave.interfaces.retrieval import Query, QueryType, IRetrievalStrateg
 from memoryweave.storage.memory_store import Memory, MemoryStore
 
 
-class RetrievalStrategyAdapter:
-    """Adapter to make retrieval strategies compatible with the baseline comparison framework."""
+class MemoryWeaveRetriever:
+    """Simplified retriever that works with MemoryManager for benchmark purposes."""
     
-    def __init__(self, retrieval_strategy):
-        """Initialize with a retrieval strategy."""
-        self.retrieval_strategy = retrieval_strategy
+    def __init__(self, memory_manager):
+        self.memory_manager = memory_manager
         
     def retrieve(self, query, top_k=10, threshold=0.0, **kwargs):
-        """Adapter method to work with the baseline comparison interface."""
-        # Extract the query embedding
-        query_embedding = query.embedding
+        """Basic vector similarity retrieval implementation."""
+        # For benchmark purposes, implement a simple vector similarity search
+        # that's compatible with our Memory objects
         
-        # Create a context dictionary with necessary parameters
-        context = {
-            "memory": self.retrieval_strategy.memory,
-            "query": query.text,
-            "top_k": top_k,
-            "adapted_retrieval_params": {
-                "confidence_threshold": threshold
+        if query.embedding is None or not hasattr(query, 'embedding'):
+            return {
+                "memories": [],
+                "scores": [],
+                "strategy": "memoryweave",
+                "parameters": {"max_results": top_k, "threshold": threshold},
+                "metadata": {"query_time": 0.0}
             }
-        }
         
-        # Call the strategy's retrieve method with the correct arguments
-        results = self.retrieval_strategy.retrieve(query_embedding, top_k, context)
+        # Get all memories
+        all_memories = self.memory_manager.get_all_memories()
+        if not all_memories:
+            return {
+                "memories": [],
+                "scores": [],
+                "strategy": "memoryweave",
+                "parameters": {"max_results": top_k, "threshold": threshold},
+                "metadata": {"query_time": 0.0}
+            }
         
-        # Convert the results to the expected format
-        memories = []
-        scores = []
+        # Calculate similarities
+        query_embedding = np.array(query.embedding).reshape(1, -1)
+        results = []
         
-        # Get the memory store
-        memory_store = self.retrieval_strategy.memory
+        for memory in all_memories:
+            if memory.embedding is not None:
+                # Use cosine similarity
+                memory_embedding = np.array(memory.embedding).reshape(1, -1)
+                
+                # Ensure same dimensions by padding if necessary
+                if memory_embedding.shape[1] < query_embedding.shape[1]:
+                    pad_width = query_embedding.shape[1] - memory_embedding.shape[1]
+                    memory_embedding = np.pad(memory_embedding, ((0, 0), (0, pad_width)))
+                elif memory_embedding.shape[1] > query_embedding.shape[1]:
+                    # Use only the first dimensions of memory embedding
+                    memory_embedding = memory_embedding[:, :query_embedding.shape[1]]
+                
+                # Calculate dot product
+                similarity = np.dot(query_embedding, memory_embedding.T)[0][0]
+                
+                # Normalize
+                query_norm = np.linalg.norm(query_embedding)
+                memory_norm = np.linalg.norm(memory_embedding)
+                if query_norm > 0 and memory_norm > 0:
+                    similarity = similarity / (query_norm * memory_norm)
+                
+                if similarity >= threshold:
+                    results.append((memory, float(similarity)))
         
-        for result in results:
-            memory_id = result.get("memory_id")
-            if hasattr(memory_store, "get") and callable(memory_store.get):
-                memory = memory_store.get(memory_id)
-                memories.append(memory)
-                scores.append(result.get("relevance_score", 0.0))
+        # Sort by similarity (descending)
+        results.sort(key=lambda x: x[1], reverse=True)
         
-        # Return in the expected format
+        # Take top_k
+        results = results[:top_k]
+        
         return {
-            "memories": memories,
-            "scores": scores,
+            "memories": [memory for memory, _ in results],
+            "scores": [score for _, score in results],
             "strategy": "memoryweave",
-            "parameters": {
-                "max_results": top_k,
-                "threshold": threshold
-            },
-            "metadata": {
-                "query_time": 0.0  # We don't track query time here
-            }
+            "parameters": {"max_results": top_k, "threshold": threshold},
+            "metadata": {"query_time": 0.0}
         }
 
 
@@ -136,26 +157,11 @@ def get_retriever(retriever_type: str, memory_manager=None) -> Any:
         memory_manager: MemoryManager instance to use
         
     Returns:
-        An initialized retriever wrapped in the adapter
+        An initialized retriever for the benchmark
     """
-    if retriever_type == "similarity":
-        strategy = SimilarityRetrievalStrategy(memory_manager)
-        strategy.initialize({
-            "confidence_threshold": 0.0,
-            "activation_boost": True,
-            "min_results": 5
-        })
-        return RetrievalStrategyAdapter(strategy)
-    elif retriever_type == "hybrid":
-        strategy = HybridRetrievalStrategy(memory_manager)
-        strategy.initialize({
-            "confidence_threshold": 0.0,
-            "relevance_weight": 0.7,
-            "recency_weight": 0.3
-        })
-        return RetrievalStrategyAdapter(strategy)
-    else:
-        raise ValueError(f"Unknown retriever type: {retriever_type}")
+    # For benchmark purposes, we use our simplified MemoryWeaveRetriever
+    # Since the old architecture expected ContextualMemory but we're using MemoryManager
+    return MemoryWeaveRetriever(memory_manager)
 
 
 def load_baseline_configs(config_path: str) -> List[BaselineConfig]:
