@@ -77,10 +77,14 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             config: Configuration dictionary
         """
         # Vector retrieval parameters
-        self.vector_weight = config.get("vector_weight", 0.5)
-        self.bm25_weight = config.get("bm25_weight", 0.5)
+        self.vector_weight = config.get("vector_weight", 0.2)  # Default to favoring BM25
+        self.bm25_weight = config.get("bm25_weight", 0.8)     # Give BM25 more weight by default
         self.confidence_threshold = config.get("confidence_threshold", 0.0)
         self.activation_boost = config.get("activation_boost", True)
+        
+        # Dynamic weighting parameters
+        self.enable_dynamic_weighting = config.get("enable_dynamic_weighting", True)
+        self.keyword_weight_bias = config.get("keyword_weight_bias", 0.7)  # How much to bias toward BM25 for keyword-rich queries
 
         # BM25 parameters
         self.b = config.get("bm25_b", 0.75)
@@ -278,16 +282,98 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
         if self.activation_boost and hasattr(memory, "activation_levels"):
             vector_scores = vector_scores * memory.activation_levels
 
-        # Combine BM25 and vector scores
-        combined_scores = np.zeros_like(vector_scores)
-
-        # Start with vector scores (weighted)
-        combined_scores = vector_weight * vector_scores
-
-        # Add BM25 scores for memories that matched
+        # Analyze query to determine optimal weighting
+        dynamic_bm25_weight = bm25_weight
+        dynamic_vector_weight = vector_weight
+        
+        # Apply dynamic weighting based on query characteristics if enabled
+        if self.enable_dynamic_weighting:
+            # Get keywords from context
+            query_keywords = context.get("important_keywords", set())
+            extracted_entities = context.get("extracted_entities", set())
+            
+            # Combine all keyword information
+            all_keywords = set(query_keywords) | set(extracted_entities)
+            if hasattr(context.get("query_analyzer", {}), "extract_keywords"):
+                # Try to extract keywords if not in context
+                extracted = context["query_analyzer"].extract_keywords(query_text)
+                if extracted:
+                    all_keywords |= set(extracted)
+            
+            # Calculate keyword density (number of words that are keywords)
+            query_words = query_text.lower().split()
+            if query_words:
+                keyword_matches = sum(1 for word in query_words if word in all_keywords)
+                keyword_density = keyword_matches / len(query_words)
+                
+                # Adjust weights based on keyword density
+                # High density → favor BM25, low density → favor vectors
+                if keyword_density > 0.3:  # If more than 30% of words are keywords
+                    # Bias toward BM25 more strongly
+                    bias_factor = min(1.0, keyword_density * 2)  # Scale up to max 1.0
+                    bias_factor = bias_factor * self.keyword_weight_bias  # Apply configured bias
+                    
+                    # Recalculate weights to favor BM25 more
+                    dynamic_bm25_weight = min(0.95, bm25_weight + bias_factor * (1 - bm25_weight))
+                    dynamic_vector_weight = 1.0 - dynamic_bm25_weight
+                    
+                    logger.debug(f"Keyword-rich query (density={keyword_density:.2f}), " +
+                                f"favoring BM25 with weight={dynamic_bm25_weight:.2f} " +
+                                f"(from base {bm25_weight:.2f})")
+        
+        # Log the weighting being used
+        logger.info(f"HybridBM25VectorStrategy: Using weights - BM25: {dynamic_bm25_weight:.2f}, " +
+                   f"Vector: {dynamic_vector_weight:.2f}")
+        
+        # Create arrays to track scores from both methods for debugging/logging
+        vector_score_array = np.zeros_like(vector_scores)
+        bm25_score_array = np.zeros_like(vector_scores)
+        
+        # Apply vector scores with dynamic weighting
+        vector_score_array = dynamic_vector_weight * vector_scores
+        
+        # Apply BM25 scores for memories that matched with dynamic weighting
         for idx, score in bm25_results.items():
-            if idx < len(combined_scores):
-                combined_scores[idx] += bm25_weight * score
+            if idx < len(bm25_score_array):
+                bm25_score_array[idx] = dynamic_bm25_weight * score
+        
+        # Better score normalization for BM25 and vector scores
+        # This ensures both scoring methods contribute meaningfully
+        
+        # Check if we need to normalize BM25 scores
+        if len(bm25_results) > 0 and np.max(bm25_score_array) > 0:
+            # Normalize BM25 scores to 0-1 range if needed
+            bm25_max = np.max(bm25_score_array)
+            if bm25_max > 1.0:
+                logger.debug(f"Normalizing BM25 scores (max was {bm25_max:.4f})")
+                bm25_score_array = bm25_score_array / bm25_max
+        
+        # For vector scores, make sure outliers don't dominate
+        if len(vector_scores) > 0 and np.max(vector_score_array) > 0:
+            # Normalize if max is significantly higher than mean to prevent outliers from dominating
+            vector_mean = np.mean(vector_score_array[vector_score_array > 0]) if np.any(vector_score_array > 0) else 0
+            vector_max = np.max(vector_score_array)
+            
+            # If max is more than 3x the mean, use min-max normalization
+            if vector_max > 3 * vector_mean and vector_mean > 0:
+                logger.debug(f"Normalizing vector scores (max={vector_max:.4f}, mean={vector_mean:.4f})")
+                
+                # Min-Max normalization for non-zero scores
+                if np.any(vector_score_array > 0):
+                    vector_min = np.min(vector_score_array[vector_score_array > 0])
+                    mask = vector_score_array > 0
+                    vector_score_array[mask] = (vector_score_array[mask] - vector_min) / (vector_max - vector_min)
+        
+        # Combine the scores - now with better normalization
+        combined_scores = vector_score_array + bm25_score_array
+        
+        # Log score distribution statistics for debugging
+        if len(bm25_results) > 0:
+            bm25_scores = np.array([score for idx, score in bm25_results.items() if idx < len(vector_scores)])
+            if len(bm25_scores) > 0:
+                logger.debug(f"Score distributions - " +
+                           f"BM25: min={bm25_scores.min():.4f}, max={bm25_scores.max():.4f}, mean={bm25_scores.mean():.4f} | " +
+                           f"Vector: min={vector_scores.min():.4f}, max={vector_scores.max():.4f}, mean={vector_scores.mean():.4f}")
 
         # Apply confidence threshold filtering
         valid_indices = np.where(combined_scores >= confidence_threshold)[0]
@@ -305,22 +391,45 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
         top_k = min(top_k, len(valid_indices))
         top_indices = np.argsort(-combined_scores[valid_indices])[:top_k]
 
-        # Format results
+        # Format results with detailed scoring
         results = []
         for i in top_indices:
             idx = valid_indices[i]
+            # Get raw scores
             combined_score = float(combined_scores[idx])
-            vector_score = float(vector_scores[idx])
-            bm25_score = float(bm25_results.get(idx, 0.0))
-
+            vector_raw_score = float(vector_scores[idx])
+            bm25_raw_score = float(bm25_results.get(idx, 0.0))
+            
+            # Get weighted contribution scores
+            vector_contribution = float(vector_score_array[idx])
+            bm25_contribution = float(bm25_score_array[idx])
+            
+            # Calculate contribution percentages for analysis
+            total_contribution = vector_contribution + bm25_contribution
+            vector_percentage = 0
+            bm25_percentage = 0
+            if total_contribution > 0:
+                vector_percentage = (vector_contribution / total_contribution) * 100
+                bm25_percentage = (bm25_contribution / total_contribution) * 100
+            
+            # Create result with detailed scoring information
             results.append({
                 "memory_id": int(idx),
                 "relevance_score": combined_score,
-                "vector_score": vector_score,
-                "bm25_score": bm25_score,
+                "vector_score": vector_raw_score,
+                "bm25_score": bm25_raw_score,
+                "vector_contribution": vector_contribution,
+                "bm25_contribution": bm25_contribution,
+                "vector_percentage": float(vector_percentage),
+                "bm25_percentage": float(bm25_percentage),
                 "below_threshold": combined_score < confidence_threshold,
                 **memory.memory_metadata[idx],
             })
+            
+            # Log detailed scoring for top results
+            if i < 3:  # Log details for top 3 results
+                logger.debug(f"Result #{i+1}: ID={idx}, Score={combined_score:.4f} " +
+                           f"[BM25: {bm25_percentage:.1f}%, Vector: {vector_percentage:.1f}%]")
 
         # Update stats
         query_time = time.time() - start_time
