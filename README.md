@@ -308,8 +308,27 @@ See the [examples](examples/) directory for more detailed examples and the [Migr
 MemoryWeave includes a benchmarking tool to evaluate and compare different retrieval configurations:
 
 ```bash
-# Run benchmarks
+# Run synthetic benchmark (evaluates different configurations)
+uv run python run_synthetic_benchmark.py
+
+# Run semantic benchmark (tests performance on real-world queries)
+uv run python run_semantic_benchmark.py
+
+# Run custom benchmark script
 uv run python -m benchmarks.memory_retrieval_benchmark
+
+# Visualize benchmark results
+python examples/visualize_results.py synthetic_benchmark_results.json
+```
+
+For benchmark development and testing:
+
+```bash
+# Run integration tests for benchmarks
+uv run python -m pytest tests/integration/test_benchmark_performance.py -v
+
+# Run with specific configuration
+uv run python run_synthetic_benchmark.py --config configs/benchmark_advanced.json
 ```
 
 Current benchmark results show the following metrics across different configurations:
@@ -356,6 +375,10 @@ Contributions are welcome! Please check our [documentation](docs/) first to unde
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+### Developed with AI Assistance
+
+This project is developed with assistance from AI tools, particularly Claude, to accelerate development, improve code quality, and automate testing. We believe in transparency about AI usage in our development process while maintaining high standards for all contributions.
 
 ## Development
 <a id="development"></a>
