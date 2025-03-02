@@ -41,6 +41,16 @@ class Query:
     extracted_keywords: List[str]
     extracted_entities: List[str]
     context: Optional[QueryContext] = None
+    
+    def __iter__(self):
+        """Make the Query object iterable for dict conversion."""
+        yield 'text', self.text
+        yield 'embedding', self.embedding
+        yield 'query_type', self.query_type
+        yield 'extracted_keywords', self.extracted_keywords
+        yield 'extracted_entities', self.extracted_entities
+        if self.context is not None:
+            yield 'context', self.context
 
 
 class RetrievalResult(TypedDict):

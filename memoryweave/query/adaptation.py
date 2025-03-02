@@ -5,7 +5,7 @@ based on query type and characteristics.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from memoryweave.interfaces.query import IQueryAdapter
 from memoryweave.interfaces.retrieval import Query, QueryType, RetrievalParameters
@@ -25,6 +25,28 @@ class QueryTypeConfig:
 
 class QueryTypeAdapter(IQueryAdapter):
     """Adapter that adjusts retrieval parameters based on query type."""
+    
+    def process(self, input_data: Any) -> Any:
+        """Process the input data as a pipeline stage.
+        
+        This method implements IPipelineStage.process to make the component
+        usable in a pipeline.
+        """
+        # Expects a Query object and adds adapted parameters to it
+        if hasattr(input_data, 'query_type'):
+            # Input is a Query object
+            query = input_data
+            
+            # Adapt parameters
+            params = self.adapt_parameters(query)
+            
+            # Return the query with adapted parameters
+            result = dict(query)
+            result['parameters'] = params
+            return result
+        else:
+            # Just pass through input if it's not a Query
+            return input_data
 
     def __init__(self):
         """Initialize the query type adapter."""

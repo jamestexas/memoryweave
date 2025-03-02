@@ -14,6 +14,44 @@ from memoryweave.interfaces.retrieval import QueryType
 
 class SimpleQueryAnalyzer(IQueryAnalyzer):
     """Simple rule-based query analyzer implementation."""
+    
+    def process(self, input_data: Any) -> Any:
+        """Process the input data as a pipeline stage.
+        
+        This method implements IPipelineStage.process to make the component
+        usable in a pipeline.
+        """
+        # Handle different types of input
+        if isinstance(input_data, str):
+            # Text query - analyze it
+            query_type = self.analyze(input_data)
+            keywords = self.extract_keywords(input_data)
+            entities = self.extract_entities(input_data)
+            
+            # Return a dict with the results
+            return {
+                "text": input_data,
+                "query_type": query_type,
+                "extracted_keywords": keywords,
+                "extracted_entities": entities
+            }
+        elif isinstance(input_data, dict) and "text" in input_data:
+            # Dict with query text - analyze and add results
+            text = input_data["text"]
+            result = dict(input_data)  # Copy to avoid modifying original
+            
+            # Only add these if not already present
+            if "query_type" not in result:
+                result["query_type"] = self.analyze(text)
+            if "extracted_keywords" not in result:
+                result["extracted_keywords"] = self.extract_keywords(text)
+            if "extracted_entities" not in result:
+                result["extracted_entities"] = self.extract_entities(text)
+                
+            return result
+        else:
+            # Pass through anything else
+            return input_data
 
     def __init__(self):
         """Initialize the query analyzer."""

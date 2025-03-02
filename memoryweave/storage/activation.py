@@ -32,6 +32,16 @@ class ActivationManager(IActivationManager):
         self._initial_activation = initial_activation
         self._max_activation = max_activation
         self._min_activation = min_activation
+        self.component_id = "activation_manager"
+        
+    def get_id(self) -> str:
+        """Get the unique identifier for this component."""
+        return self.component_id
+        
+    def get_type(self):
+        """Get the type of this component."""
+        from memoryweave.interfaces.pipeline import ComponentType
+        return ComponentType.ACTIVATION_MANAGER
 
     def update_activation(self, memory_id: MemoryID, activation_delta: float) -> None:
         """Update the activation level of a memory."""
@@ -107,12 +117,22 @@ class TemporalActivationManager(IActivationManager):
         self._initial_activation = initial_activation
         self._max_activation = max_activation
         self._min_activation = min_activation
-
+        self.component_id = "temporal_activation_manager"
+        
         # Calculate decay rate from half-life
         # If half_life_days = 7, then after 7 days, activation should be 0.5 of original
         # decay_rate = -ln(0.5) / half_life_seconds
         half_life_seconds = half_life_days * 24 * 60 * 60
         self._decay_rate = math.log(2) / half_life_seconds
+        
+    def get_id(self) -> str:
+        """Get the unique identifier for this component."""
+        return self.component_id
+        
+    def get_type(self):
+        """Get the type of this component."""
+        from memoryweave.interfaces.pipeline import ComponentType
+        return ComponentType.ACTIVATION_MANAGER
 
     def update_activation(self, memory_id: MemoryID, activation_delta: float) -> None:
         """Update the activation level of a memory."""
