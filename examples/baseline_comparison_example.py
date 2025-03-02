@@ -12,7 +12,7 @@ import numpy as np
 
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.components.memory_manager import MemoryManager
-from memoryweave.components.retrieval_strategies import SimilarityRetriever
+from memoryweave.components.retrieval_strategies import SimilarityRetrievalStrategy
 from memoryweave.evaluation.baseline_comparison import (
     BaselineComparison, BaselineConfig
 )
@@ -64,7 +64,7 @@ def main():
     memory_manager = MemoryManager(memory_store=memory_store)
     
     # Initialize MemoryWeave retriever
-    memoryweave_retriever = SimilarityRetriever()
+    memoryweave_retriever = SimilarityRetrievalStrategy(memory_manager)
     
     # Define baseline configurations
     baseline_configs = [

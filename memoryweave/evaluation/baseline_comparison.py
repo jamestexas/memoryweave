@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from memoryweave.baselines.base import BaselineRetriever
 from memoryweave.evaluation.coherence_metrics import calculate_semantic_coherence
-from memoryweave.interfaces.memory import IMemoryManager
+from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.interfaces.retrieval import IRetrievalStrategy, Query, RetrievalResult
 
 

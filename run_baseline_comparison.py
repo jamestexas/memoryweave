@@ -17,7 +17,7 @@ import numpy as np
 
 from memoryweave.baselines import BaselineRetriever, BM25Retriever, VectorBaselineRetriever
 from memoryweave.components.memory_manager import MemoryManager
-from memoryweave.components.retrieval_strategies import SimilarityRetriever, HybridRetriever
+from memoryweave.components.retrieval_strategies import SimilarityRetrievalStrategy, HybridRetrievalStrategy
 from memoryweave.evaluation.baseline_comparison import (
     BaselineComparison, BaselineConfig, ComparisonResult
 )
@@ -86,9 +86,9 @@ def get_retriever(retriever_type: str, **kwargs) -> IRetrievalStrategy:
         An initialized retriever
     """
     if retriever_type == "similarity":
-        return SimilarityRetriever(**kwargs)
+        return SimilarityRetrievalStrategy(**kwargs)
     elif retriever_type == "hybrid":
-        return HybridRetriever(**kwargs)
+        return HybridRetrievalStrategy(**kwargs)
     else:
         raise ValueError(f"Unknown retriever type: {retriever_type}")
 
