@@ -28,6 +28,9 @@ class QueryTypeAdapter(IQueryAdapter):
 
     def __init__(self):
         """Initialize the query type adapter."""
+        # Component ID for pipeline registration
+        self.component_id = "query_adapter"
+        
         # Default parameters for different query types
         self._type_configs = {
             QueryType.PERSONAL: QueryTypeConfig(
@@ -138,6 +141,23 @@ class QueryTypeAdapter(IQueryAdapter):
                         if hasattr(self._type_configs[query_type], field):
                             setattr(self._type_configs[query_type], field, value)
 
+    def get_id(self) -> str:
+        """Get the unique identifier for this component."""
+        return self.component_id
+        
+    def get_type(self):
+        """Get the type of this component."""
+        from memoryweave.interfaces.pipeline import ComponentType
+        return ComponentType.QUERY_ADAPTER
+        
+    def get_dependencies(self) -> list[str]:
+        """Get the IDs of components this component depends on."""
+        return []
+        
+    def initialize(self, config: Dict[str, Any]) -> None:
+        """Initialize the component with configuration."""
+        self.configure(config)
+    
     def _adjust_for_query_length(
         self, params: RetrievalParameters, query_text: str
     ) -> RetrievalParameters:

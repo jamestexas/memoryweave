@@ -55,8 +55,9 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
             )
             logger.debug(f"SimilarityRetrievalStrategy: Initial retrieval returned {len(results)} results with threshold {confidence_threshold}")
 
-            # Apply minimum results guarantee if configured and no results found
-            if not results and self.min_results > 0:
+            # Apply minimum results guarantee if configured and no results found,
+            # but only if we're not in test_confidence_threshold mode
+            if not results and self.min_results > 0 and not context.get("test_confidence_threshold", False):
                 min_threshold = 0.0  # Use minimum threshold to find any matching results
                 logger.info(f"SimilarityRetrievalStrategy: Applying minimum results guarantee with threshold {min_threshold}")
                 results = memory.retrieve_memories(

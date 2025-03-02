@@ -27,6 +27,16 @@ class SimilarityRetrievalStrategy(IRetrievalStrategy):
         self._memory_store = memory_store
         self._vector_store = vector_store
         self._default_params = {"similarity_threshold": 0.6, "max_results": 10}
+        self.component_id = "similarity_retrieval_strategy"
+        
+    def get_id(self) -> str:
+        """Get the unique identifier for this component."""
+        return self.component_id
+        
+    def get_type(self):
+        """Get the type of this component."""
+        from memoryweave.interfaces.pipeline import ComponentType
+        return ComponentType.RETRIEVAL_STRATEGY
 
     def retrieve(
         self, query_embedding: EmbeddingVector, parameters: Optional[RetrievalParameters] = None

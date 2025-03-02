@@ -39,6 +39,16 @@ class MemoryStore(IMemoryStore):
         self._contents: Dict[MemoryID, MemoryContent] = {}
         self._metadata: Dict[MemoryID, MemoryMetadata] = {}
         self._next_id: int = 0
+        self.component_id: str = "memory_store"
+        
+    def get_id(self) -> str:
+        """Get the unique identifier for this component."""
+        return self.component_id
+        
+    def get_type(self):
+        """Get the type of this component."""
+        from memoryweave.interfaces.pipeline import ComponentType
+        return ComponentType.MEMORY_STORE
 
     def add(
         self, embedding: EmbeddingVector, content: str, metadata: Optional[Dict[str, Any]] = None

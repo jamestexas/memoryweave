@@ -44,6 +44,16 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
             "recency_bias": 0.3,
             "activation_boost": 0.2,
         }
+        self.component_id = "hybrid_retrieval_strategy"
+        
+    def get_id(self) -> str:
+        """Get the unique identifier for this component."""
+        return self.component_id
+        
+    def get_type(self):
+        """Get the type of this component."""
+        from memoryweave.interfaces.pipeline import ComponentType
+        return ComponentType.RETRIEVAL_STRATEGY
 
     def retrieve(
         self, query_embedding: EmbeddingVector, parameters: Optional[RetrievalParameters] = None
