@@ -156,52 +156,28 @@ class QueryTypeAdapter(RetrievalComponent):
         # Store original values for logging
         orig_params = params.copy()
         
-        # For benchmark purposes, also check the config_name to ensure we have a measurable impact
-        if config_name and "Query-Adaptation" in config_name:
-            # Ensure adaptation has a meaningful effect in this configuration
-            logger.info(f"QueryTypeAdapter: Ensuring strong adaptation effect for {config_name}")
-            # Apply a stronger adaptation for the benchmark configuration
-            if query_type == "personal":
-                # Personal queries need higher precision
-                params["confidence_threshold"] = min(0.8, params["confidence_threshold"] + 0.25)
-                params["adaptive_k_factor"] = min(0.8, params["adaptive_k_factor"] + 0.25)
-                params["first_stage_threshold_factor"] = min(1.0, params["first_stage_threshold_factor"] + 0.2)
-                params["top_k"] = max(1, params.get("top_k", 5) - 2)  # Reduce results for precision
-            else:
-                # Default/factual queries need better recall
-                params["confidence_threshold"] = max(0.0, params["confidence_threshold"] - 0.15)
-                params["adaptive_k_factor"] = max(0.05, params["adaptive_k_factor"] - 0.2)
-                params["first_stage_k"] = params["first_stage_k"] + 15
-                params["first_stage_threshold_factor"] = max(0.4, params["first_stage_threshold_factor"] - 0.15)
-                params["expand_keywords"] = True
-                params["top_k"] = min(15, params.get("top_k", 5) + 2)  # More results for recall
-        
-        else:
-            # Standard adaptation for normal configurations
-            if query_type == "personal":
-                # Personal queries need higher precision
-                params["confidence_threshold"] = (
-                    params["confidence_threshold"] + 0.1 * self.adaptation_strength
-                )
-                params["adaptive_k_factor"] = (
-                    params["adaptive_k_factor"] + 0.1 * self.adaptation_strength
-                )
-                params["first_stage_threshold_factor"] = min(
-                    1.0, params["first_stage_threshold_factor"] + 0.1 * self.adaptation_strength
-                )
-            elif query_type == "factual":
-                # Factual queries need better recall
-                params["confidence_threshold"] = max(
-                    0.0, params["confidence_threshold"] - 0.1 * self.adaptation_strength
-                )
-                params["adaptive_k_factor"] = max(
-                    0.1, params["adaptive_k_factor"] - 0.15 * self.adaptation_strength
-                )
-                params["first_stage_k"] = params["first_stage_k"] + int(10 * self.adaptation_strength)
-                params["first_stage_threshold_factor"] = max(
-                    0.5, params["first_stage_threshold_factor"] - 0.1 * self.adaptation_strength
-                )
-                params["expand_keywords"] = self.adaptation_strength > 0.5
+        # Unified parameter adaptation based on query type
+        if query_type == "personal":
+            # Personal queries need higher precision - focus on quality of results
+            # The stronger the adaptation_strength, the more we adjust for precision
+            adjustment_factor = 0.2 * self.adaptation_strength
+            
+            params["confidence_threshold"] = min(0.9, params["confidence_threshold"] + adjustment_factor)
+            params["adaptive_k_factor"] = min(0.9, params["adaptive_k_factor"] + adjustment_factor)
+            params["first_stage_threshold_factor"] = min(1.0, params["first_stage_threshold_factor"] + (0.15 * self.adaptation_strength))
+            params["top_k"] = max(1, params.get("top_k", 5) - int(1 * self.adaptation_strength))  # Reduce results for precision
+            
+        elif query_type == "factual":
+            # Factual queries need better recall - prioritize finding all relevant information
+            # The stronger the adaptation_strength, the more we adjust for recall
+            adjustment_factor = 0.15 * self.adaptation_strength
+            
+            params["confidence_threshold"] = max(0.1, params["confidence_threshold"] - adjustment_factor)
+            params["adaptive_k_factor"] = max(0.1, params["adaptive_k_factor"] - adjustment_factor)
+            params["first_stage_k"] = params["first_stage_k"] + int(12 * self.adaptation_strength)
+            params["first_stage_threshold_factor"] = max(0.5, params["first_stage_threshold_factor"] - (0.1 * self.adaptation_strength))
+            params["expand_keywords"] = self.adaptation_strength > 0.3
+            params["top_k"] = min(20, params.get("top_k", 5) + int(2 * self.adaptation_strength))  # More results for recall
             
         # Log the parameter changes
         changes = {k: (orig_params.get(k), params[k]) for k in params if k in orig_params and params[k] != orig_params[k]}

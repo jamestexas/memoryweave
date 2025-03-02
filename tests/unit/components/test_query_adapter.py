@@ -62,47 +62,50 @@ class TestQueryTypeAdapter:
         # Personal queries should have higher confidence thresholds
         assert result["adapted_retrieval_params"]["confidence_threshold"] > 0.3
 
-    def test_query_adaptation_config_has_stronger_effect(self):
-        """Test that Query-Adaptation config has stronger parameter modifications."""
-        # Create another adapter with config name that should trigger stronger effects
-        special_adapter = QueryTypeAdapter()
-        special_adapter.initialize({
-            "adaptation_strength": 1.0,
+    def test_adaptation_strength_affects_parameter_adjustments(self):
+        """Test that adaptation_strength properly affects parameter adjustments."""
+        # Create two adapters with different adaptation strengths
+        low_strength_adapter = QueryTypeAdapter()
+        low_strength_adapter.initialize({
+            "adaptation_strength": 0.2,  # Low adaptation strength
             "confidence_threshold": 0.3,
             "adaptive_k_factor": 0.3,
             "first_stage_k": 20,
             "first_stage_threshold_factor": 0.7,
             "keyword_boost_weight": 0.5
         })
-        special_adapter.config_name = "Query-Adaptation"
         
-        # Regular context
-        basic_context = {
+        high_strength_adapter = QueryTypeAdapter()
+        high_strength_adapter.initialize({
+            "adaptation_strength": 1.0,  # High adaptation strength
+            "confidence_threshold": 0.3,
+            "adaptive_k_factor": 0.3,
+            "first_stage_k": 20,
+            "first_stage_threshold_factor": 0.7,
+            "keyword_boost_weight": 0.5
+        })
+        
+        # Same context for both
+        context = {
             "enable_query_type_adaptation": True,
             "primary_query_type": "factual", 
-            "config_name": "Basic"
-        }
-        
-        # Special context
-        special_context = {
-            "enable_query_type_adaptation": True,
-            "primary_query_type": "factual",
-            "config_name": "Query-Adaptation"
+            "config_name": "test-config"
         }
         
         # Process with both adapters
-        basic_result = self.adapter.process_query("What is the capital of France?", basic_context)
-        special_result = special_adapter.process_query("What is the capital of France?", special_context)
+        low_result = low_strength_adapter.process_query("What is the capital of France?", context)
+        high_result = high_strength_adapter.process_query("What is the capital of France?", context)
         
-        basic_params = basic_result["adapted_retrieval_params"]
-        special_params = special_result["adapted_retrieval_params"]
+        low_params = low_result["adapted_retrieval_params"]
+        high_params = high_result["adapted_retrieval_params"]
         
-        # Special configuration should have more aggressive parameter adjustments
-        # For factual queries, first_stage_k should be larger in special config
-        assert special_params["first_stage_k"] > basic_params["first_stage_k"]
+        # Higher adaptation strength should result in more aggressive parameter adjustments
+        assert high_params["first_stage_k"] > low_params["first_stage_k"], "Higher adaptation strength should result in larger first_stage_k for factual queries"
+        assert high_params["confidence_threshold"] < low_params["confidence_threshold"], "Higher adaptation strength should result in lower confidence threshold for factual queries"
         
-        # Special configuration should expand keywords for factual queries
-        assert special_params["expand_keywords"] is True
+        # Higher adaptation strength should be more likely to enable keyword expansion
+        if low_params.get("expand_keywords", False):
+            assert high_params.get("expand_keywords", False), "If low strength enables keyword expansion, high strength should too"
 
     def test_different_query_types_produce_different_params(self):
         """Test that different query types result in different adaptation parameters."""

@@ -71,17 +71,14 @@ class PersonalAttributeManager(RetrievalComponent):
 
     def _update_attributes(self, attributes: dict[str, Any]) -> None:
         """Ensure extracted attributes are properly stored and merged."""
-        # Special handling for test cases - if we receive pattern matches in a different format
+        # Handle attributes with category_subcategory format (e.g., preferences_color)
         if "preferences_color" in attributes:
-            value = attributes["preferences_color"]
-            if "preferences" not in self.personal_attributes:
-                self.personal_attributes["preferences"] = {}
-            self.personal_attributes["preferences"]["color"] = value
+            self._ensure_category_exists("preferences")
+            self.personal_attributes["preferences"]["color"] = attributes["preferences_color"]
             
-        # Special handling for color update test case
-        if "favorite" in attributes and "color" in attributes["favorite"]:
-            if "preferences" not in self.personal_attributes:
-                self.personal_attributes["preferences"] = {}
+        # Handle structured attributes with nested dictionaries
+        if "favorite" in attributes and isinstance(attributes["favorite"], dict) and "color" in attributes["favorite"]:
+            self._ensure_category_exists("preferences")
             self.personal_attributes["preferences"]["color"] = attributes["favorite"]["color"]
             
         # Standard processing for attributes
@@ -94,24 +91,23 @@ class PersonalAttributeManager(RetrievalComponent):
                 main_category, sub_key = category.split("_", 1)
                 
                 # Create category if it doesn't exist
-                if main_category not in self.personal_attributes:
-                    self.personal_attributes[main_category] = {}
+                self._ensure_category_exists(main_category)
                     
-                # Special handling for family
+                # Handle family relationships
                 if main_category == "relationships" and sub_key == "family":
                     if "family" not in self.personal_attributes["relationships"]:
                         self.personal_attributes["relationships"]["family"] = {}
                     
-                    # If items is a dictionary, update family 
+                    # Update family relationships based on input format
                     if isinstance(items, dict):
                         for k, v in items.items():
                             self.personal_attributes["relationships"]["family"][k] = v
-                    else:
-                        # Direct assignment for test cases
-                        self.personal_attributes["relationships"]["family"]["wife"] = items
+                    elif isinstance(items, str):
+                        # Skip if it's just a string with no relation specified
+                        pass
                         
+                # Handle hobbies (always ensure it's a list)
                 elif main_category == "traits" and sub_key == "hobbies":
-                    # Ensure hobbies is a list
                     if sub_key not in self.personal_attributes[main_category]:
                         if isinstance(items, list):
                             self.personal_attributes[main_category][sub_key] = items
@@ -148,15 +144,16 @@ class PersonalAttributeManager(RetrievalComponent):
             else:
                 self.personal_attributes[category] = items
                 
-        # Make sure we have the needed structure for test cases
-        if "preferences" not in self.personal_attributes:
-            self.personal_attributes["preferences"] = {}
-        if "demographics" not in self.personal_attributes:
-            self.personal_attributes["demographics"] = {}
-        if "traits" not in self.personal_attributes:
-            self.personal_attributes["traits"] = {}
-        if "relationships" not in self.personal_attributes:
-            self.personal_attributes["relationships"] = {}
+        # Ensure all standard categories exist
+        self._ensure_category_exists("preferences")
+        self._ensure_category_exists("demographics")
+        self._ensure_category_exists("traits")
+        self._ensure_category_exists("relationships")
+        
+    def _ensure_category_exists(self, category: str) -> None:
+        """Ensure a category exists in the personal attributes."""
+        if category not in self.personal_attributes:
+            self.personal_attributes[category] = {}
 
     def _get_relevant_attributes(self, query: str) -> dict[str, Any]:
         """Retrieve attributes relevant to the query dynamically."""
@@ -165,24 +162,17 @@ class PersonalAttributeManager(RetrievalComponent):
 
         # Extract important keywords from query
         keywords = self.nlp_extractor.extract_important_keywords(query)
-
-        # Special handling for test cases
+        
+        # Check for favorite color questions
         if "what's my favorite color" in query_lower or "what is my favorite color" in query_lower:
-            # Special case for tests to ensure this always returns even if attributes are empty
             if self.personal_attributes.get("preferences", {}).get("color"):
                 relevant_attributes["preferences_color"] = self.personal_attributes["preferences"]["color"]
-            else:
-                # For tests where attributes might not be fully initialized
-                relevant_attributes["preferences_color"] = "blue"
             return relevant_attributes
 
+        # Check for location questions
         if "where do i live" in query_lower or ("where" in query_lower and "live" in query_lower):
-            # Special case for tests to ensure this always returns even if attributes are empty
             if self.personal_attributes.get("demographics", {}).get("location"):
                 relevant_attributes["demographic_location"] = self.personal_attributes["demographics"]["location"]
-            else:
-                # For tests where attributes might not be fully initialized
-                relevant_attributes["demographic_location"] = "Seattle"
             return relevant_attributes
 
         # Check different attribute categories based on query keywords
@@ -212,9 +202,6 @@ class PersonalAttributeManager(RetrievalComponent):
             if family_dict:
                 for key, value in family_dict.items():
                     relevant_attributes[f"relationship_{key}"] = value
-            else:
-                # For test cases, provide a default value
-                relevant_attributes["relationship_wife"] = "Sarah"
 
         # Check traits/hobbies
         trait_keywords = ["hobby", "hobbies", "enjoy", "activity", "like to do"]
@@ -223,8 +210,5 @@ class PersonalAttributeManager(RetrievalComponent):
             hobbies = self.personal_attributes.get("traits", {}).get("hobbies")
             if hobbies:
                 relevant_attributes["trait_hobbies"] = hobbies
-            else:
-                # For test cases, provide a default value
-                relevant_attributes["trait_hobbies"] = ["hiking"]
 
         return relevant_attributes
