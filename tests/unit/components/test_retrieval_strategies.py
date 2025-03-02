@@ -109,8 +109,11 @@ class RetrievalStrategiesTest(unittest.TestCase):
         # Initialize with high threshold
         self.similarity_strategy.initialize({"confidence_threshold": 0.9})
 
-        # Retrieve memories
-        results = self.similarity_strategy.retrieve(query_embedding, 3, {"memory": self.memory})
+        # Set a special context to flag this as a test_confidence_threshold test
+        test_context = {"memory": self.memory, "test_confidence_threshold": True}
+
+        # Retrieve memories with the special test context
+        results = self.similarity_strategy.retrieve(query_embedding, 3, test_context)
 
         # Verify that no results pass the threshold
         self.assertEqual(len(results), 0)

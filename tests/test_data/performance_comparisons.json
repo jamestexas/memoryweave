@@ -22,6 +22,29 @@
       },
       "difference": 0.0008045832316080637,
       "percentage_difference": 0.8383834536032007
+    },
+    {
+      "timestamp": 1740935430.037237,
+      "basic_config": {
+        "name": "Performance-Test-Basic",
+        "avg_time": 0.09796301523844402,
+        "times": [
+          0.09712100028991699,
+          0.09838700294494629,
+          0.09838104248046875
+        ]
+      },
+      "advanced_config": {
+        "name": "Performance-Test-Advanced",
+        "avg_time": 0.09839034080505371,
+        "times": [
+          0.09839701652526855,
+          0.09872698783874512,
+          0.09804701805114746
+        ]
+      },
+      "difference": 0.0004273255666096959,
+      "percentage_difference": 0.4362111206658723
     }
   ]
 }
