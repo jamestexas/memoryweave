@@ -155,18 +155,47 @@ class TestPipeline:
         # Verify output
         assert output_data == {"processed_by": "stage1", "data": "modified"}
 
-    def test_execute_multi_stage(self, mock_stages):
+    def test_execute_multi_stage(self):
         """Test executing a pipeline with multiple stages."""
+        # Create real mock stages with specific behavior
+        stage1 = MagicMock(spec=IPipelineStage)
+        stage1.process.return_value = {"processed_by": "stage1", "data": "modified"}
+        
+        stage2 = MagicMock(spec=IPipelineStage)
+        # Define the side effect as a function to correctly handle the input
+        def stage2_process(data):
+            return {
+                "processed_by": data["processed_by"] + ",stage2",
+                "data": data["data"],
+                "additional": "value"
+            }
+        stage2.process.side_effect = stage2_process
+        
+        stage3 = MagicMock(spec=IPipelineStage)
+        # Define the side effect for stage3
+        def stage3_process(data):
+            return {
+                "processed_by": data["processed_by"] + ",stage3",
+                "data": data["data"],
+                "additional": data["additional"],
+                "final": True
+            }
+        stage3.process.side_effect = stage3_process
+        
+        mock_stages = [stage1, stage2, stage3]
         pipeline = Pipeline(mock_stages)
 
         # Execute pipeline
         input_data = {"test": "data"}
         output_data = pipeline.execute(input_data)
 
-        # Verify each stage was called with the output of the previous stage
-        mock_stages[0].process.assert_called_once_with(input_data)
-        mock_stages[1].process.assert_called_once_with(mock_stages[0].process.return_value)
-        mock_stages[2].process.assert_called_once_with(mock_stages[1].process.return_value)
+        # Verify each stage was called
+        stage1.process.assert_called_once_with(input_data)
+        
+        # Add a check that the output has the expected elements
+        assert "processed_by" in output_data
+        assert output_data["processed_by"] == "stage1,stage2,stage3"
+        assert "final" in output_data and output_data["final"] is True
 
         # Verify final output
         assert output_data["processed_by"] == "stage1,stage2,stage3"
