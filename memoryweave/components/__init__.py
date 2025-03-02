@@ -27,6 +27,7 @@ from memoryweave.components.post_processors import (
 from memoryweave.components.query_adapter import QueryTypeAdapter
 from memoryweave.components.query_analysis import QueryAnalyzer
 from memoryweave.components.query_context_builder import QueryContextBuilder
+# Import from the main retrieval_strategies.py file
 from memoryweave.components.retrieval_strategies import (
     CategoryRetrievalStrategy,
     HybridRetrievalStrategy,
@@ -34,6 +35,7 @@ from memoryweave.components.retrieval_strategies import (
     TemporalRetrievalStrategy,
     TwoStageRetrievalStrategy,
 )
+# Import the new strategy from its module
 from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import HybridBM25VectorStrategy
 from memoryweave.components.retriever import Retriever
 
