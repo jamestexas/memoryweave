@@ -230,12 +230,12 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
 
         return time_vector
 
-    def _extract_topical_context(self, topics: Set[str], data: Dict[str, Any]) -> np.ndarray:
+    def _extract_topical_context(self, topics, data: Dict[str, Any]) -> np.ndarray:
         """
         Extract topical context embedding.
         
         Args:
-            topics: Set of current topics
+            topics: Set or list of current topics
             data: Memory data with potential topic information
             
         Returns:
@@ -245,12 +245,18 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
         if not topics:
             return np.zeros(768)
 
-        # Get memory topics
+        # Get memory topics and ensure it's a set
         memory_topics = set(data.get("topics", []))
+        
+        # Convert topics to set if it's not already
+        if not isinstance(topics, set):
+            topics_set = set(topics)
+        else:
+            topics_set = topics
 
         # Calculate topic overlap
-        common_topics = topics.intersection(memory_topics)
-        topic_overlap_ratio = len(common_topics) / max(1, len(topics))
+        common_topics = topics_set.intersection(memory_topics)
+        topic_overlap_ratio = len(common_topics) / max(1, len(topics_set))
 
         # Create a topic context vector
         topic_vector = np.zeros(768)
@@ -259,7 +265,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
         topic_vector[0:10] = topic_overlap_ratio
 
         # Encode each topic using a hash-based approach
-        for topic in topics:
+        for topic in topics_set:
             # Use hash of topic to determine which dimensions to affect
             hash_val = hash(topic) % 100  # Use modulo to limit to first 100 dimensions
             start_idx = 100 + hash_val
