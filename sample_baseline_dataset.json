@@ -1,0 +1,125 @@
+{
+  "memories": [
+    {
+      "id": "mem1",
+      "content": {
+        "text": "Python is a high-level programming language known for its readability and simplicity.",
+        "metadata": {}
+      },
+      "embedding": [0.1, 0.2, 0.3, 0.4, 0.5],
+      "metadata": {
+        "category": "fact",
+        "topic": "programming"
+      }
+    },
+    {
+      "id": "mem2",
+      "content": {
+        "text": "JavaScript is a programming language commonly used for web development.",
+        "metadata": {}
+      },
+      "embedding": [0.2, 0.3, 0.4, 0.5, 0.6],
+      "metadata": {
+        "category": "fact",
+        "topic": "programming"
+      }
+    },
+    {
+      "id": "mem3",
+      "content": {
+        "text": "Paris is the capital city of France and known for the Eiffel Tower.",
+        "metadata": {}
+      },
+      "embedding": [0.3, 0.4, 0.5, 0.6, 0.7],
+      "metadata": {
+        "category": "fact",
+        "topic": "geography"
+      }
+    },
+    {
+      "id": "mem4",
+      "content": {
+        "text": "I prefer to eat pizza on Friday nights while watching movies.",
+        "metadata": {}
+      },
+      "embedding": [0.4, 0.5, 0.6, 0.7, 0.8],
+      "metadata": {
+        "category": "preference",
+        "topic": "food"
+      }
+    },
+    {
+      "id": "mem5",
+      "content": {
+        "text": "My favorite programming language is Python because of its simplicity and readability.",
+        "metadata": {}
+      },
+      "embedding": [0.15, 0.25, 0.35, 0.45, 0.55],
+      "metadata": {
+        "category": "preference",
+        "topic": "programming"
+      }
+    },
+    {
+      "id": "mem6",
+      "content": {
+        "text": "The Great Wall of China is one of the seven wonders of the world.",
+        "metadata": {}
+      },
+      "embedding": [0.5, 0.6, 0.7, 0.8, 0.9],
+      "metadata": {
+        "category": "fact",
+        "topic": "geography"
+      }
+    },
+    {
+      "id": "mem7",
+      "content": {
+        "text": "Machine learning is a subset of artificial intelligence focused on data-based learning.",
+        "metadata": {}
+      },
+      "embedding": [0.1, 0.3, 0.5, 0.7, 0.9],
+      "metadata": {
+        "category": "fact",
+        "topic": "technology"
+      }
+    },
+    {
+      "id": "mem8",
+      "content": {
+        "text": "I enjoy hiking in the mountains during summer vacations.",
+        "metadata": {}
+      },
+      "embedding": [0.2, 0.4, 0.6, 0.8, 1.0],
+      "metadata": {
+        "category": "preference",
+        "topic": "activity"
+      }
+    }
+  ],
+  "queries": [
+    {
+      "text": "What programming language is known for readability?",
+      "embedding": [0.12, 0.22, 0.32, 0.42, 0.52],
+      "keywords": ["programming", "language", "readability"],
+      "entities": []
+    },
+    {
+      "text": "What is the capital of France?",
+      "embedding": [0.32, 0.42, 0.52, 0.62, 0.72],
+      "keywords": ["capital", "France"],
+      "entities": ["France"]
+    },
+    {
+      "text": "What food do I like to eat?",
+      "embedding": [0.42, 0.52, 0.62, 0.72, 0.82],
+      "keywords": ["food", "eat", "like"],
+      "entities": []
+    }
+  ],
+  "relevant_ids": [
+    ["mem1", "mem5"],
+    ["mem3"],
+    ["mem4"]
+  ]
+}

@@ -317,6 +317,9 @@ uv run python run_semantic_benchmark.py
 # Run custom benchmark script
 uv run python -m benchmarks.memory_retrieval_benchmark
 
+# Run baseline comparison (compare against BM25 and vector search)
+uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json --config baselines_config.yaml
+
 # Visualize benchmark results
 python examples/visualize_results.py synthetic_benchmark_results.json
 ```

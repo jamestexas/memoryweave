@@ -67,6 +67,16 @@ This document tracks the implementation status of features from the original `Co
 7. ✅ Implement memory decay
 8. ✅ Add query context building
 
+## Evaluation and Benchmarking
+
+| Feature | Status | Component | Notes |
+|---------|--------|-----------|-------|
+| Synthetic benchmarks | ✅ | benchmarks module | Comprehensive benchmarking across configurations |
+| Semantic benchmarks | ✅ | run_semantic_benchmark.py | Real-world query evaluation |
+| Baseline comparison | ✅ | baselines module | Compare against BM25 and vector search baselines |
+| Visualization tools | ✅ | examples/visualize_results.py | Generate charts and reports for benchmark results |
+| Performance metrics | ✅ | evaluation module | Precision, recall, F1, MRR, and coherence metrics |
+
 ## Refactoring Progress
 
 | Phase | Task | Status | Notes |
@@ -86,3 +96,4 @@ This document tracks the implementation status of features from the original `Co
 | 5 | Remove deprecated code | 🔄 | In progress |
 | 5 | Update documentation | ✅ | Architecture ADR added, feature matrix updated |
 | 5 | Update examples | ✅ | Added migration example demonstrating all migration approaches |
+| 5 | Add baseline comparison | ✅ | Implemented BM25 and vector search baselines for evaluation |

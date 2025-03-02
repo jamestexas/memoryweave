@@ -1,0 +1,21 @@
+# Baseline configurations for MemoryWeave comparison
+
+# BM25 baseline configuration
+- name: bm25
+  type: bm25
+  parameters:
+    b: 0.75  # Length normalization parameter
+    k1: 1.2  # Term frequency scaling parameter
+
+# Vector search baseline configuration
+- name: vector_search
+  type: vector
+  parameters:
+    use_exact_search: true  # Use exact search instead of approximate
+
+# BM25 with different parameters
+- name: bm25_aggressive
+  type: bm25
+  parameters:
+    b: 0.5  # Less length normalization
+    k1: 2.0  # More term frequency impact
