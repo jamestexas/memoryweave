@@ -151,7 +151,7 @@ class TestMigratedPipeline:
         """Create and populate a migrated pipeline with consistent component structure."""
         # Create memory components with explicit parameters
         memory_store = MemoryFactory.create_memory_store({"max_memories": 100})
-        vector_store = MemoryFactory.create_vector_store({"embedding_dim": 768})
+        vector_store = MemoryFactory.create_vector_store({})  # No need to specify embedding_dim for vector_store
         activation_manager = MemoryFactory.create_activation_manager({"decay_rate": 0.01})
 
         # Create retrieval components with explicit parameters
@@ -159,7 +159,7 @@ class TestMigratedPipeline:
             "similarity", 
             memory_store, 
             vector_store,
-            params={"confidence_threshold": 0.3, "activation_boost": True}
+            {"confidence_threshold": 0.3, "activation_boost": True}
         )
         
         hybrid_strategy = RetrievalFactory.create_retrieval_strategy(
@@ -167,7 +167,7 @@ class TestMigratedPipeline:
             memory_store, 
             vector_store, 
             activation_manager,
-            params={"relevance_weight": 0.7, "recency_weight": 0.3}
+            {"relevance_weight": 0.7, "recency_weight": 0.3}
         )
         
         two_stage_strategy = RetrievalFactory.create_retrieval_strategy(
@@ -175,16 +175,16 @@ class TestMigratedPipeline:
             memory_store, 
             vector_store, 
             activation_manager,
-            params={"first_stage_k": 10, "first_stage_threshold_factor": 0.7}
+            {"first_stage_k": 10, "first_stage_threshold_factor": 0.7}
         )
         
         # Create analysis components with explicit parameters
         query_analyzer = RetrievalFactory.create_query_analyzer(
-            params={"personal_keywords": ["my", "me", "i", "favorite"]}
+            {"personal_keywords": ["my", "me", "i", "favorite"]}
         )
         
         query_adapter = RetrievalFactory.create_query_adapter(
-            params={"personal_threshold": 0.6, "factual_threshold": 0.7}
+            {"personal_threshold": 0.6, "factual_threshold": 0.7}
         )
 
         # Create pipeline manager and register all components

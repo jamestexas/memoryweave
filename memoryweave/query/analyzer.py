@@ -17,6 +17,9 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
 
     def __init__(self):
         """Initialize the query analyzer."""
+        # Component ID for pipeline registration
+        self.component_id = "query_analyzer"
+        
         # Patterns for different query types
         self._personal_patterns = [
             r"\b(?:my|your|I|me|mine|you|yours)\b",
@@ -100,6 +103,23 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
 
         # Default configuration
         self._config = {"min_keyword_length": 3, "max_keywords": 10}
+
+    def get_id(self) -> str:
+        """Get the unique identifier for this component."""
+        return self.component_id
+        
+    def get_type(self):
+        """Get the type of this component."""
+        from memoryweave.interfaces.pipeline import ComponentType
+        return ComponentType.QUERY_ANALYZER
+        
+    def get_dependencies(self) -> List[str]:
+        """Get the IDs of components this component depends on."""
+        return []
+        
+    def initialize(self, config: Dict[str, Any]) -> None:
+        """Initialize the component with configuration."""
+        self.configure(config)
 
     def analyze(self, query_text: str) -> QueryType:
         """Analyze a query to determine its type."""
