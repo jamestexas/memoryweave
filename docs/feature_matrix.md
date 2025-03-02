@@ -66,6 +66,9 @@ This document tracks the implementation status of features from the original `Co
 6. ✅ Enhance personal attribute integration
 7. ✅ Implement memory decay
 8. ✅ Add query context building
+9. 🔄 Improve hybrid retrieval to combine BM25 and vector search advantages
+10. 🔄 Enhance vector retrieval precision while maintaining recall
+11. 🔄 Expand benchmark datasets for more diverse query types
 
 ## Evaluation and Benchmarking
 
@@ -73,7 +76,7 @@ This document tracks the implementation status of features from the original `Co
 |---------|--------|-----------|-------|
 | Synthetic benchmarks | ✅ | benchmarks module | Comprehensive benchmarking across configurations |
 | Semantic benchmarks | ✅ | run_semantic_benchmark.py | Real-world query evaluation |
-| Baseline comparison | ✅ | baselines module | Compare against BM25 and vector search baselines |
+| Baseline comparison | ✅ | baselines module | Compare against BM25 and vector search baselines with proper metrics |
 | Visualization tools | ✅ | examples/visualize_results.py | Generate charts and reports for benchmark results |
 | Performance metrics | ✅ | evaluation module | Precision, recall, F1, MRR, and coherence metrics |
 
