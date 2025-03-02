@@ -30,6 +30,7 @@ from memoryweave.components.retrieval_strategies import (
     TemporalRetrievalStrategy,
     TwoStageRetrievalStrategy,
 )
+from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import HybridBM25VectorStrategy
 
 
 class Retriever:
@@ -120,6 +121,16 @@ class Retriever:
 
         temporal_retrieval = TemporalRetrievalStrategy(self.memory)
         self.memory_manager.register_component("temporal_retrieval", temporal_retrieval)
+        
+        # Register the new hybrid BM25 + vector retrieval strategy
+        hybrid_bm25_vector_retrieval = HybridBM25VectorStrategy(self.memory)
+        hybrid_bm25_vector_retrieval.initialize({
+            "vector_weight": 0.5,
+            "bm25_weight": 0.5,
+            "confidence_threshold": self.minimum_relevance,
+            "activation_boost": True,
+        })
+        self.memory_manager.register_component("hybrid_bm25_vector_retrieval", hybrid_bm25_vector_retrieval)
 
         # Create and initialize post-processors
         keyword_processor = KeywordBoostProcessor()
@@ -295,6 +306,7 @@ class Retriever:
             "query_adapter": self.query_adapter,
             "two_stage_retrieval": self.two_stage_strategy,
             "hybrid_retrieval": self.retrieval_strategy,
+            "hybrid_bm25_vector_retrieval": self.memory_manager.components.get("hybrid_bm25_vector_retrieval"),
             "similarity_retrieval": self.memory_manager.components.get("similarity_retrieval"),
             "temporal_retrieval": self.memory_manager.components.get("temporal_retrieval"),
             "keyword_boost": self.memory_manager.components.get("keyword_boost"),
@@ -468,6 +480,8 @@ class Retriever:
                         component_name = "temporal_retrieval"
                     elif strategy == "two_stage":
                         component_name = "two_stage_retrieval"
+                    elif strategy == "bm25_hybrid" or strategy == "hybrid_bm25":
+                        component_name = "hybrid_bm25_vector_retrieval"
                     else:  # Default to hybrid
                         component_name = "hybrid_retrieval"
 

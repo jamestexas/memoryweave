@@ -8,6 +8,7 @@ class ComponentName(str, Enum):
     QUERY_CONTEXT_BUILDER = "query_context_builder"
     TWO_STAGE_RETRIEVAL = "two_stage_retrieval"
     HYBRID_RETRIEVAL = "hybrid_retrieval"
+    HYBRID_BM25_VECTOR_RETRIEVAL = "hybrid_bm25_vector_retrieval"
     SIMILARITY_RETRIEVAL = "similarity_retrieval"
     TEMPORAL_RETRIEVAL = "temporal_retrieval"
     CATEGORY_RETRIEVAL = "category_retrieval"

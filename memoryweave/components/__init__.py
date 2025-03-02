@@ -34,6 +34,7 @@ from memoryweave.components.retrieval_strategies import (
     TemporalRetrievalStrategy,
     TwoStageRetrievalStrategy,
 )
+from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import HybridBM25VectorStrategy
 from memoryweave.components.retriever import Retriever
 
 __all__ = [
@@ -59,6 +60,7 @@ __all__ = [
     "TemporalRetrievalStrategy",
     "TwoStageRetrievalStrategy",
     "CategoryRetrievalStrategy",
+    "HybridBM25VectorStrategy",
     # Post-processors
     "AdaptiveKProcessor",
     "KeywordBoostProcessor",
