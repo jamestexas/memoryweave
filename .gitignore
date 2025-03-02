@@ -119,7 +119,16 @@ test_output/
 
 # Exclude benchmark results and generated datasets
 *_benchmark_results.json
+*_results.json
 evaluation_results.json
 synthetic_dataset.json
+semantic_dataset.json
+baseline_comparison_*.json
+baseline_comparison_*.html
+baseline_*.html
+hybrid_bm25_*.json
+hybrid_bm25_*.html
+contextual_fabric_results.json
+benchmark_results/
 datasets/semantic_dataset.json
 datasets/synthetic_benchmark_dataset.json
