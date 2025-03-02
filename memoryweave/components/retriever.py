@@ -425,7 +425,13 @@ class Retriever:
             "top_k": top_k,
             "conversation_history": self.conversation_history,
             "conversation_context": self.conversation_context,
-            "in_evaluation": True,  # Always set this flag to use normal retrieval paths in strategies
+            "in_evaluation": True,  # Set this flag to true to use normal retrieval paths
+            # Set feature flags to control component behavior
+            "enable_query_type_adaptation": self.query_type_adaptation,
+            "enable_semantic_coherence": self.semantic_coherence_processor in self.post_processors if hasattr(self, "semantic_coherence_processor") else False,
+            "enable_two_stage_retrieval": self.use_two_stage_retrieval,
+            # Set the config name for better tracking in logs
+            "config_name": strategy or "default",
         }
 
         # Ensure components are initialized, but do it only once
@@ -556,6 +562,10 @@ class Retriever:
 
             return results
         else:
+            # Update pipeline context with correct config name
+            if hasattr(self.memory_manager, "config_name"):
+                query_context["config_name"] = self.memory_manager.config_name
+                
             # Use the configured pipeline
             pipeline_result = self.memory_manager.execute_pipeline(query, query_context)
 
