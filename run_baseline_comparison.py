@@ -159,8 +159,138 @@ def get_retriever(retriever_type: str, memory_manager=None) -> Any:
     Returns:
         An initialized retriever for the benchmark
     """
-    # For benchmark purposes, we use our simplified MemoryWeaveRetriever
-    # Since the old architecture expected ContextualMemory but we're using MemoryManager
+    # For hybrid_bm25, we need to properly initialize the strategy
+    if retriever_type == "hybrid_bm25":
+        # First convert memory manager to a format the strategy can use
+        from memoryweave.core import ContextualMemory
+        all_memories = memory_manager.get_all_memories()
+        
+        # Setup logging for better debugging
+        import logging
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger("run_baseline_comparison")
+        logger.info(f"Setting up hybrid_bm25 retriever with {len(all_memories)} memories")
+        
+        # Create contextual memory to hold the memories
+        test_memory = ContextualMemory()
+        test_memory.memory_metadata = []
+        test_memory.memory_embeddings = []
+        
+        # Add all memories
+        for memory in all_memories:
+            # Get the text content
+            if isinstance(memory.content, dict) and "text" in memory.content:
+                text_content = memory.content["text"]
+            else:
+                text_content = str(memory.content)
+                
+            # Create metadata entry - simplified to ensure text is properly accessible
+            metadata = {
+                "id": memory.id,
+                "content": text_content,
+                "metadata": memory.metadata
+            }
+            test_memory.memory_metadata.append(metadata)
+            
+            # Log what we're storing
+            logger.debug(f"Storing memory {memory.id}: '{text_content[:50]}...'")
+            
+            # Add embedding if available
+            if memory.embedding is not None:
+                test_memory.memory_embeddings.append(memory.embedding)
+        
+        # Convert to numpy array
+        import numpy as np
+        if hasattr(test_memory, 'memory_embeddings') and test_memory.memory_embeddings:
+            test_memory.memory_embeddings = np.array(test_memory.memory_embeddings)
+        
+        # Create the hybrid strategy
+        from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import HybridBM25VectorStrategy
+        hybrid_strategy = HybridBM25VectorStrategy(test_memory)
+        
+        # Initialize with our desired configuration
+        hybrid_strategy.initialize({
+            "vector_weight": 0.3,          # 70/30 split favoring BM25
+            "bm25_weight": 0.7,            # Balance for benchmarking
+            "confidence_threshold": 0.0,    # No threshold for benchmarking
+            "activation_boost": False,      # No activation boost for benchmarking
+            "enable_dynamic_weighting": True,  # Enable dynamic adjustment
+            "keyword_weight_bias": 0.6,        # Moderate bias toward BM25 for keyword queries
+        })
+        
+        # Create a wrapper that adapts the hybrid strategy to the benchmark interface
+        class HybridStrategyWrapper:
+            def __init__(self, hybrid_strategy):
+                self.strategy = hybrid_strategy
+                
+            def retrieve(self, query, top_k=10, threshold=0.0, **kwargs):
+                """Adapt the hybrid strategy to the benchmark interface"""
+                # Process the query
+                context = {
+                    "query": query.text,
+                    "query_embedding": query.embedding,
+                    "top_k": top_k,
+                    "important_keywords": query.extracted_keywords,
+                    "extracted_entities": query.extracted_entities,
+                    "confidence_threshold": threshold
+                }
+                
+                import time
+                start_time = time.time()
+                
+                # Use the strategy to retrieve memories
+                result = self.strategy.process_query(query.text, context)
+                query_time = time.time() - start_time
+                
+                # Log what happened
+                import logging
+                logger = logging.getLogger("HybridStrategyWrapper")
+                logger.info(f"Retrieved {len(result.get('results', []))} results for query: '{query.text}'")
+                
+                # Extract results
+                memories = []
+                scores = []
+                
+                # Convert results to the expected format
+                for item in result.get("results", []):
+                    memory_id = item.get("memory_id")
+                    if memory_id < len(test_memory.memory_metadata):
+                        # Create memory object
+                        mem_data = test_memory.memory_metadata[memory_id]
+                        mem_id = mem_data.get("id", str(memory_id))
+                        
+                        # Log result details
+                        logger.info(f"Result {memory_id}: '{mem_id}' with score {item.get('relevance_score', 0.0):.4f}")
+                        logger.info(f"  BM25 contribution: {item.get('bm25_percentage', 0):.1f}%, Vector: {item.get('vector_percentage', 0):.1f}%")
+                        
+                        from memoryweave.storage.memory_store import Memory
+                        # Create content object correctly
+                        if isinstance(mem_data.get("content"), str):
+                            content = {"text": mem_data["content"], "metadata": {}}
+                        else:
+                            content = mem_data.get("content", {"text": "", "metadata": {}})
+                            
+                        memory = Memory(
+                            id=mem_id,
+                            embedding=test_memory.memory_embeddings[memory_id] if hasattr(test_memory, 'memory_embeddings') and memory_id < len(test_memory.memory_embeddings) else None,
+                            content=content,
+                            metadata=mem_data.get("metadata", {})
+                        )
+                        memories.append(memory)
+                        scores.append(item.get("relevance_score", 0.0))
+                
+                # Return in the format expected by the benchmark
+                return {
+                    "memories": memories,
+                    "scores": scores,
+                    "strategy": "memoryweave_hybrid_bm25",
+                    "parameters": {"max_results": top_k, "threshold": threshold},
+                    "metadata": {"query_time": query_time}
+                }
+        
+        return HybridStrategyWrapper(hybrid_strategy)
+    
+    # For other types, use the simplified MemoryWeaveRetriever
     return MemoryWeaveRetriever(memory_manager)
 
 
