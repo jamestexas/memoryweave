@@ -1,8 +1,10 @@
 # memoryweave/components/memory_manager.py
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from memoryweave.components.base import Component
 from memoryweave.components.pipeline_config import PipelineConfig
+from memoryweave.interfaces.memory import Memory
+from memoryweave.storage.memory_store import MemoryStore
 
 
 class MemoryManager:
@@ -10,9 +12,14 @@ class MemoryManager:
     Coordinates memory components and orchestrates retrieval pipeline.
     """
 
-    def __init__(self):
+    def __init__(self, memory_store: Optional[MemoryStore] = None):
         self.components = {}
         self.pipeline: list[PipelineConfig] = []
+        self.memory_store = memory_store or MemoryStore()
+    
+    def get_all_memories(self) -> List[Memory]:
+        """Get all memories from the store."""
+        return self.memory_store.get_all()
 
     def register_component(
         self,

@@ -16,6 +16,17 @@ from memoryweave.evaluation.coherence_metrics import calculate_semantic_coherenc
 from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.interfaces.retrieval import IRetrievalStrategy, Query, RetrievalResult
 
+# Define a protocol for the memory manager interface
+from typing import Protocol
+from memoryweave.interfaces.memory import Memory
+
+class IMemoryManager(Protocol):
+    """Protocol for memory managers that can be used with baseline comparison."""
+    
+    def get_all_memories(self) -> list[Memory]:
+        """Get all memories from the store."""
+        ...
+
 
 class BaselineConfig(BaseModel):
     """Configuration for a baseline retriever."""
@@ -28,8 +39,8 @@ class BaselineConfig(BaseModel):
 class ComparisonResult(BaseModel):
     """Results from comparing MemoryWeave with baselines."""
 
-    memoryweave_metrics: Dict[str, Dict[str, float]]
-    baseline_metrics: Dict[str, Dict[str, Dict[str, float]]]
+    memoryweave_metrics: Dict[str, Dict[str, Any]]
+    baseline_metrics: Dict[str, Dict[str, Dict[str, Any]]]
     query_details: Dict[str, List[Dict[str, Any]]]
     runtime_stats: Dict[str, Dict[str, float]]
     dataset_stats: Dict[str, Any]
