@@ -22,6 +22,6 @@ if __name__ == "__main__":
             logging.StreamHandler(sys.stdout),
         ],
     )
-    
+
     # Pass arguments to benchmark main function
     benchmark_main()

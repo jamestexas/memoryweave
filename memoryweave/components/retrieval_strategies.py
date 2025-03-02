@@ -37,10 +37,10 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         # Apply query type adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
         confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
-        
+
         # Check if we're in evaluation mode
         in_evaluation = context.get("in_evaluation", False)
-        
+
         # Standard retrieval path
         if hasattr(memory, "retrieve_memories"):
             # Try with the specified threshold
@@ -98,11 +98,12 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
             Updated context with results
         """
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         # Log which query is being processed
         logger.info(f"SimilarityRetrievalStrategy: Processing query: {query}")
-        
+
         # Get query embedding from context
         query_embedding = context.get("query_embedding")
         if query_embedding is None:
@@ -110,7 +111,9 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
             embedding_model = context.get("embedding_model")
             if embedding_model:
                 query_embedding = embedding_model.encode(query)
-                logger.info("SimilarityRetrievalStrategy: Created query embedding using embedding model")
+                logger.info(
+                    "SimilarityRetrievalStrategy: Created query embedding using embedding model"
+                )
 
         # If still no query embedding but we have working_context, create one for test environment
         # (Note: This is for compatibility with tests where no embedding model is available)
@@ -118,11 +121,15 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
             memory = context.get("memory", self.memory)
             dim = getattr(memory, "embedding_dim", 768)
             query_embedding = np.ones(dim) / np.sqrt(dim)  # Unit vector
-            logger.info(f"SimilarityRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}")
+            logger.info(
+                f"SimilarityRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}"
+            )
 
         # If still no query embedding, return empty results
         if query_embedding is None:
-            logger.warning("SimilarityRetrievalStrategy: No query embedding available, returning empty results")
+            logger.warning(
+                "SimilarityRetrievalStrategy: No query embedding available, returning empty results"
+            )
             return {"results": []}
 
         # Get top_k from context
@@ -183,11 +190,12 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
             Updated context with results
         """
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         # Log which query is being processed
         logger.info(f"TemporalRetrievalStrategy: Processing query: {query}")
-        
+
         # Get memory from context or instance
         memory = context.get("memory", self.memory)
 
@@ -202,16 +210,20 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
             embedding_model = context.get("embedding_model")
             if embedding_model:
                 query_embedding = embedding_model.encode(query)
-                logger.info("TemporalRetrievalStrategy: Created query embedding using embedding model")
+                logger.info(
+                    "TemporalRetrievalStrategy: Created query embedding using embedding model"
+                )
             else:
                 # Use unit vector as dummy embedding when no model is available
                 dim = getattr(memory, "embedding_dim", 768)
                 query_embedding = np.ones(dim) / np.sqrt(dim)
-                logger.info(f"TemporalRetrievalStrategy: Created dummy query embedding with dim={dim}")
+                logger.info(
+                    f"TemporalRetrievalStrategy: Created dummy query embedding with dim={dim}"
+                )
 
         # Check if we're in evaluation mode
         in_evaluation = context.get("in_evaluation", False)
-        
+
         # Standard retrieval logic
         logger.info("TemporalRetrievalStrategy: Using temporal retrieval")
         results = self.retrieve(query_embedding, top_k, context)
@@ -261,14 +273,18 @@ class HybridRetrievalStrategy(RetrievalStrategy):
 
         # Only fall back to basic retrieval if we don't have access to the necessary memory attributes
         # We need memory_embeddings, temporal_markers, and activation_levels
-        if (not hasattr(memory, "memory_embeddings") or 
-            not hasattr(memory, "temporal_markers") or 
-            not hasattr(memory, "activation_levels")) and hasattr(memory, "retrieve_memories"):
-            
+        if (
+            not hasattr(memory, "memory_embeddings")
+            or not hasattr(memory, "temporal_markers")
+            or not hasattr(memory, "activation_levels")
+        ) and hasattr(memory, "retrieve_memories"):
             # Log that we're falling back to basic retrieval
             import logging
-            logging.warning("HybridRetrievalStrategy: Falling back to basic retrieval due to missing memory attributes")
-            
+
+            logging.warning(
+                "HybridRetrievalStrategy: Falling back to basic retrieval due to missing memory attributes"
+            )
+
             results = memory.retrieve_memories(
                 query_embedding, top_k=top_k, confidence_threshold=confidence_threshold
             )
@@ -345,11 +361,12 @@ class HybridRetrievalStrategy(RetrievalStrategy):
             Updated context with results
         """
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         # Log which query is being processed
         logger.info(f"HybridRetrievalStrategy: Processing query: {query}")
-        
+
         # Get query embedding from context
         query_embedding = context.get("query_embedding")
         if query_embedding is None:
@@ -357,7 +374,9 @@ class HybridRetrievalStrategy(RetrievalStrategy):
             embedding_model = context.get("embedding_model")
             if embedding_model:
                 query_embedding = embedding_model.encode(query)
-                logger.info("HybridRetrievalStrategy: Created query embedding using embedding model")
+                logger.info(
+                    "HybridRetrievalStrategy: Created query embedding using embedding model"
+                )
 
         # If still no query embedding but in a test environment, create a dummy one
         if query_embedding is None and "working_context" in context:
@@ -365,11 +384,15 @@ class HybridRetrievalStrategy(RetrievalStrategy):
             memory = context.get("memory", self.memory)
             dim = getattr(memory, "embedding_dim", 768)
             query_embedding = np.ones(dim) / np.sqrt(dim)  # Unit vector
-            logger.info(f"HybridRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}")
+            logger.info(
+                f"HybridRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}"
+            )
 
         # If still no query embedding, return empty results
         if query_embedding is None:
-            logger.warning("HybridRetrievalStrategy: No query embedding available, returning empty results")
+            logger.warning(
+                "HybridRetrievalStrategy: No query embedding available, returning empty results"
+            )
             return {"results": []}
 
         # Get top_k from context
@@ -446,12 +469,17 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
             List of retrieved memory dicts
         """
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         # Log which configuration is being used
-        logger.info(f"TwoStageRetrievalStrategy: Using base strategy: {self.base_strategy.__class__.__name__}")
-        logger.info(f"TwoStageRetrievalStrategy: Post-processors: {[p.__class__.__name__ for p in self.post_processors]}")
-        
+        logger.info(
+            f"TwoStageRetrievalStrategy: Using base strategy: {self.base_strategy.__class__.__name__}"
+        )
+        logger.info(
+            f"TwoStageRetrievalStrategy: Post-processors: {[p.__class__.__name__ for p in self.post_processors]}"
+        )
+
         # Apply query type adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
 
@@ -464,8 +492,10 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
         expand_keywords = adapted_params.get("expand_keywords", False)
 
         first_stage_threshold = confidence_threshold * first_stage_threshold_factor
-        
-        logger.info(f"TwoStageRetrievalStrategy: first_stage_k={first_stage_k}, first_stage_threshold={first_stage_threshold}, expand_keywords={expand_keywords}")
+
+        logger.info(
+            f"TwoStageRetrievalStrategy: first_stage_k={first_stage_k}, first_stage_threshold={first_stage_threshold}, expand_keywords={expand_keywords}"
+        )
 
         # Use query type for further adjustments if not already in adapted params
         if "first_stage_k" not in adapted_params:
@@ -473,19 +503,25 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
             if query_type == "personal":
                 # Personal queries need higher precision
                 first_stage_threshold = max(first_stage_threshold, 0.2)
-                logger.info(f"TwoStageRetrievalStrategy: Adjusted for personal query, first_stage_threshold={first_stage_threshold}")
+                logger.info(
+                    f"TwoStageRetrievalStrategy: Adjusted for personal query, first_stage_threshold={first_stage_threshold}"
+                )
             elif query_type == "factual":
                 # Factual queries need better recall
                 first_stage_threshold = min(first_stage_threshold, 0.15)
                 first_stage_k = max(first_stage_k, 30)  # Get more candidates for factual queries
-                logger.info(f"TwoStageRetrievalStrategy: Adjusted for factual query, first_stage_threshold={first_stage_threshold}, first_stage_k={first_stage_k}")
+                logger.info(
+                    f"TwoStageRetrievalStrategy: Adjusted for factual query, first_stage_threshold={first_stage_threshold}, first_stage_k={first_stage_k}"
+                )
 
         # First stage: Get a larger set of candidates with lower threshold
         # Update base strategy's confidence threshold for first stage
         if hasattr(self.base_strategy, "confidence_threshold"):
             original_threshold = self.base_strategy.confidence_threshold
             self.base_strategy.confidence_threshold = first_stage_threshold
-            logger.info(f"TwoStageRetrievalStrategy: Updated base strategy threshold from {original_threshold} to {first_stage_threshold}")
+            logger.info(
+                f"TwoStageRetrievalStrategy: Updated base strategy threshold from {original_threshold} to {first_stage_threshold}"
+            )
 
         # If expand_keywords is enabled, use expanded keywords from context if available
         if expand_keywords and "important_keywords" in context:
@@ -504,22 +540,30 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
 
                 # Add to context with a different key to avoid overwriting
                 context["expanded_keywords"] = expanded_keywords
-                logger.info(f"TwoStageRetrievalStrategy: Expanded keywords from {original_keywords} to {expanded_keywords}")
-            
+                logger.info(
+                    f"TwoStageRetrievalStrategy: Expanded keywords from {original_keywords} to {expanded_keywords}"
+                )
+
             # Temporarily replace important_keywords with expanded set
             context["original_important_keywords"] = context["important_keywords"]
             context["important_keywords"] = context["expanded_keywords"]
-            logger.info(f"TwoStageRetrievalStrategy: Using expanded keywords: {context['expanded_keywords']}")
+            logger.info(
+                f"TwoStageRetrievalStrategy: Using expanded keywords: {context['expanded_keywords']}"
+            )
 
         # Get candidates using base strategy
-        logger.info(f"TwoStageRetrievalStrategy: Calling base strategy {self.base_strategy.__class__.__name__}.retrieve")
+        logger.info(
+            f"TwoStageRetrievalStrategy: Calling base strategy {self.base_strategy.__class__.__name__}.retrieve"
+        )
         candidates = self.base_strategy.retrieve(query_embedding, first_stage_k, context)
         logger.info(f"TwoStageRetrievalStrategy: First stage returned {len(candidates)} candidates")
 
         # Restore original threshold
         if hasattr(self.base_strategy, "confidence_threshold"):
             self.base_strategy.confidence_threshold = original_threshold
-            logger.info(f"TwoStageRetrievalStrategy: Restored base strategy threshold to {original_threshold}")
+            logger.info(
+                f"TwoStageRetrievalStrategy: Restored base strategy threshold to {original_threshold}"
+            )
 
         # Restore original keywords if they were expanded
         if expand_keywords and "original_important_keywords" in context:
@@ -535,8 +579,10 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
         # Second stage: Re-rank and filter candidates
         # Apply post-processors with adapted parameters
         for i, processor in enumerate(self.post_processors):
-            logger.info(f"TwoStageRetrievalStrategy: Applying post-processor {i+1}/{len(self.post_processors)}: {processor.__class__.__name__}")
-            
+            logger.info(
+                f"TwoStageRetrievalStrategy: Applying post-processor {i + 1}/{len(self.post_processors)}: {processor.__class__.__name__}"
+            )
+
             # If we have an adapted keyword_boost_weight, set it before processing
             if (
                 hasattr(processor, "keyword_boost_weight")
@@ -544,18 +590,24 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
             ):
                 orig_weight = processor.keyword_boost_weight
                 processor.keyword_boost_weight = adapted_params["keyword_boost_weight"]
-                logger.info(f"TwoStageRetrievalStrategy: Updated keyword_boost_weight from {orig_weight} to {processor.keyword_boost_weight}")
+                logger.info(
+                    f"TwoStageRetrievalStrategy: Updated keyword_boost_weight from {orig_weight} to {processor.keyword_boost_weight}"
+                )
 
             # If we have an adapted adaptive_k_factor, set it before processing
             if hasattr(processor, "adaptive_k_factor") and "adaptive_k_factor" in adapted_params:
                 orig_factor = processor.adaptive_k_factor
                 processor.adaptive_k_factor = adapted_params["adaptive_k_factor"]
-                logger.info(f"TwoStageRetrievalStrategy: Updated adaptive_k_factor from {orig_factor} to {processor.adaptive_k_factor}")
+                logger.info(
+                    f"TwoStageRetrievalStrategy: Updated adaptive_k_factor from {orig_factor} to {processor.adaptive_k_factor}"
+                )
 
             # Process the candidates
             candidates_before = len(candidates)
             candidates = processor.process_results(candidates, context.get("query", ""), context)
-            logger.info(f"TwoStageRetrievalStrategy: Post-processor reduced candidates from {candidates_before} to {len(candidates)}")
+            logger.info(
+                f"TwoStageRetrievalStrategy: Post-processor reduced candidates from {candidates_before} to {len(candidates)}"
+            )
 
         # Sort by relevance score
         candidates.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
@@ -564,17 +616,21 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
         # Filter by confidence threshold
         candidates_before = len(candidates)
         candidates = [c for c in candidates if c.get("relevance_score", 0) >= confidence_threshold]
-        logger.info(f"TwoStageRetrievalStrategy: Filtered candidates by threshold {confidence_threshold}, from {candidates_before} to {len(candidates)}")
+        logger.info(
+            f"TwoStageRetrievalStrategy: Filtered candidates by threshold {confidence_threshold}, from {candidates_before} to {len(candidates)}"
+        )
 
         # Return top_k results
         final_results = candidates[:top_k]
-        logger.info(f"TwoStageRetrievalStrategy: Returning top {len(final_results)} results (requested {top_k})")
-        
+        logger.info(
+            f"TwoStageRetrievalStrategy: Returning top {len(final_results)} results (requested {top_k})"
+        )
+
         # Log the average relevance score of results
         if final_results:
             avg_score = sum(r.get("relevance_score", 0) for r in final_results) / len(final_results)
             logger.info(f"TwoStageRetrievalStrategy: Average relevance score: {avg_score:.4f}")
-            
+
         return final_results
 
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
@@ -600,71 +656,73 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
 class CategoryRetrievalStrategy(RetrievalStrategy):
     """
     Retrieves memories based on ART category clustering.
-    
+
     This strategy uses the ART-inspired clustering to first identify
     the most relevant categories, then retrieves memories from those
     categories.
     """
-    
+
     def __init__(self, memory: ContextualMemory):
         """
         Initialize with memory and category manager.
-        
+
         Args:
             memory: The memory to retrieve from
         """
         self.memory = memory
         # Will use the category_manager from memory
-    
+
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
         self.confidence_threshold = config.get("confidence_threshold", 0.0)
         self.max_categories = config.get("max_categories", 3)
         self.activation_boost = config.get("activation_boost", True)
         self.category_selection_threshold = config.get("category_selection_threshold", 0.5)
-        
+
         # For testing/benchmarking, set minimum results
         self.min_results = max(1, config.get("min_results", 5))
-    
+
     def retrieve(
-        self, 
-        query_embedding: np.ndarray, 
-        top_k: int, 
-        context: dict[str, Any]
+        self, query_embedding: np.ndarray, top_k: int, context: dict[str, Any]
     ) -> List[dict[str, Any]]:
         """Retrieve memories using category-based retrieval."""
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         # Get memory from context or instance
         memory = context.get("memory", self.memory)
-        
+
         # Check if memory has category_manager
         category_manager = getattr(memory, "category_manager", None)
         if category_manager is None:
             # Fall back to similarity retrieval if no category manager
-            logger.info("CategoryRetrievalStrategy: No category manager found, falling back to similarity retrieval")
+            logger.info(
+                "CategoryRetrievalStrategy: No category manager found, falling back to similarity retrieval"
+            )
             similarity_strategy = SimilarityRetrievalStrategy(memory)
             if hasattr(similarity_strategy, "initialize"):
                 similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
             return similarity_strategy.retrieve(query_embedding, top_k, context)
-        
+
         # Apply query type adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
         confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
         max_categories = adapted_params.get("max_categories", self.max_categories)
-        
+
         try:
             # Get category similarities
             category_similarities = category_manager.get_category_similarities(query_embedding)
-            
+
             # If no categories, fall back to similarity retrieval
             if len(category_similarities) == 0:
                 similarity_strategy = SimilarityRetrievalStrategy(memory)
                 if hasattr(similarity_strategy, "initialize"):
-                    similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
+                    similarity_strategy.initialize(
+                        {"confidence_threshold": self.confidence_threshold}
+                    )
                 return similarity_strategy.retrieve(query_embedding, top_k, context)
-            
+
             # Select top categories with similarity above threshold
             selected_categories = []
             for cat_idx in np.argsort(-category_similarities):
@@ -672,106 +730,126 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
                     selected_categories.append(cat_idx)
                 if len(selected_categories) >= max_categories:
                     break
-            
+
             # If no categories selected, use top N categories
             if not selected_categories and len(category_similarities) > 0:
                 num_to_select = min(max_categories, len(category_similarities))
                 selected_categories = np.argsort(-category_similarities)[:num_to_select].tolist()
-            
+
             # Get memories from selected categories
             candidate_indices = []
             for cat_idx in selected_categories:
                 cat_memories = category_manager.get_memories_for_category(cat_idx)
                 candidate_indices.extend(cat_memories)
-            
+
             # If no candidates, fall back to similarity retrieval
             if not candidate_indices:
                 similarity_strategy = SimilarityRetrievalStrategy(memory)
                 if hasattr(similarity_strategy, "initialize"):
-                    similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
+                    similarity_strategy.initialize(
+                        {"confidence_threshold": self.confidence_threshold}
+                    )
                 return similarity_strategy.retrieve(query_embedding, top_k, context)
-            
+
             # Calculate similarities for candidate memories
             candidate_similarities = np.dot(
                 memory.memory_embeddings[candidate_indices], query_embedding
             )
-            
+
             # Apply activation boost if enabled
             if self.activation_boost:
-                candidate_similarities = candidate_similarities * memory.activation_levels[candidate_indices]
-            
+                candidate_similarities = (
+                    candidate_similarities * memory.activation_levels[candidate_indices]
+                )
+
             # Filter by confidence threshold
             valid_candidates = np.where(candidate_similarities >= confidence_threshold)[0]
-            
+
             # Check if we're in evaluation mode
             in_evaluation = context.get("in_evaluation", False)
-            
+
             # Only use threshold bypass if not in evaluation mode
-            if len(valid_candidates) == 0 and not in_evaluation and (hasattr(self, "min_results") and self.min_results > 0):
-                logger.info("CategoryRetrievalStrategy: No results passed threshold, using min_results fallback (non-evaluation mode)")
+            if (
+                len(valid_candidates) == 0
+                and not in_evaluation
+                and (hasattr(self, "min_results") and self.min_results > 0)
+            ):
+                logger.info(
+                    "CategoryRetrievalStrategy: No results passed threshold, using min_results fallback (non-evaluation mode)"
+                )
                 # Sort all candidates by similarity
                 sorted_idx = np.argsort(-candidate_similarities)
                 # Take top min_results candidates regardless of threshold
-                valid_candidates = sorted_idx[:self.min_results]
-            
+                valid_candidates = sorted_idx[: self.min_results]
+
             if len(valid_candidates) == 0:
                 return []
-            
+
             valid_candidate_indices = [candidate_indices[i] for i in valid_candidates]
             valid_candidate_similarities = candidate_similarities[valid_candidates]
-            
+
             # Get top-k memories
             top_k = min(top_k, len(valid_candidate_similarities))
             top_memory_indices = np.argsort(-valid_candidate_similarities)[:top_k]
-            
+
             # Format results
             results = []
             for i in top_memory_indices:
                 idx = valid_candidate_indices[i]
                 similarity = valid_candidate_similarities[i]
-                
+
                 # Get category for memory
                 try:
                     category_id = category_manager.get_category_for_memory(idx)
-                    category_similarity = category_similarities[category_id] if category_id < len(category_similarities) else 0.0
+                    category_similarity = (
+                        category_similarities[category_id]
+                        if category_id < len(category_similarities)
+                        else 0.0
+                    )
                 except (IndexError, Exception):
                     category_id = -1
                     category_similarity = 0.0
-                
+
                 # Update memory activation
                 if hasattr(memory, "update_activation"):
                     memory.update_activation(idx)
-                
+
                 # Add result with category information
-                results.append({
-                    "memory_id": int(idx),
-                    "relevance_score": float(similarity),
-                    "category_id": int(category_id),
-                    "category_similarity": float(category_similarity),
-                    "below_threshold": similarity < confidence_threshold,
-                    **memory.memory_metadata[idx]
-                })
-            
+                results.append(
+                    {
+                        "memory_id": int(idx),
+                        "relevance_score": float(similarity),
+                        "category_id": int(category_id),
+                        "category_similarity": float(category_similarity),
+                        "below_threshold": similarity < confidence_threshold,
+                        **memory.memory_metadata[idx],
+                    }
+                )
+
             return results
-        
+
         except Exception as e:
             # On any error, fall back to similarity retrieval
             import logging
-            logging.warning(f"Category retrieval failed with error: {str(e)}. Falling back to similarity retrieval.")
-            
+
+            logging.warning(
+                f"Category retrieval failed with error: {str(e)}. Falling back to similarity retrieval."
+            )
+
             similarity_strategy = SimilarityRetrievalStrategy(memory)
             if hasattr(similarity_strategy, "initialize"):
                 similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
             return similarity_strategy.retrieve(query_embedding, top_k, context)
-    
+
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """Process a query to retrieve relevant memories using categories."""
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         # Log which query is being processed
         logger.info(f"CategoryRetrievalStrategy: Processing query: {query}")
-        
+
         # Get query embedding from context
         query_embedding = context.get("query_embedding")
         if query_embedding is None:
@@ -779,28 +857,34 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
             embedding_model = context.get("embedding_model")
             if embedding_model:
                 query_embedding = embedding_model.encode(query)
-                logger.info("CategoryRetrievalStrategy: Created query embedding using embedding model")
-                
+                logger.info(
+                    "CategoryRetrievalStrategy: Created query embedding using embedding model"
+                )
+
         # If still no query embedding but in a test environment, create a dummy one
         if query_embedding is None and "working_context" in context:
             # Use standard dimension (for test compatibility)
             memory = context.get("memory", self.memory)
             dim = getattr(memory, "embedding_dim", 768)
             query_embedding = np.ones(dim) / np.sqrt(dim)  # Unit vector
-            logger.info(f"CategoryRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}")
-            
+            logger.info(
+                f"CategoryRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}"
+            )
+
         # If still no query embedding, return empty results
         if query_embedding is None:
-            logger.warning("CategoryRetrievalStrategy: No query embedding available, returning empty results")
+            logger.warning(
+                "CategoryRetrievalStrategy: No query embedding available, returning empty results"
+            )
             return {"results": []}
-            
+
         # Get top_k from context
         top_k = context.get("top_k", 5)
         logger.info(f"CategoryRetrievalStrategy: Using top_k={top_k}")
-        
+
         # Retrieve memories using category-based approach
         results = self.retrieve(query_embedding, top_k, context)
         logger.info(f"CategoryRetrievalStrategy: Retrieved {len(results)} results")
-        
+
         # Return results
         return {"results": results}

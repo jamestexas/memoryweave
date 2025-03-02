@@ -74,12 +74,12 @@ class Retriever:
         self.dynamic_threshold_adjustment = False
         self.threshold_adjustment_window = 5
         self.recent_retrieval_metrics = []
-        
+
         # Memory decay settings
         self.memory_decay_enabled = True
         self.memory_decay_rate = 0.99
         self.memory_decay_interval = 10
-        
+
         # Minimum result guarantee
         self.min_results_guarantee = 1
 
@@ -99,8 +99,10 @@ class Retriever:
 
         # Create and initialize personal attribute manager
         self.personal_attribute_manager = PersonalAttributeManager()
-        self.memory_manager.register_component("personal_attributes", self.personal_attribute_manager)
-        
+        self.memory_manager.register_component(
+            "personal_attributes", self.personal_attribute_manager
+        )
+
         # Create and initialize keyword expander
         self.keyword_expander = KeywordExpander()
         self.memory_manager.register_component("keyword_expander", self.keyword_expander)
@@ -135,25 +137,29 @@ class Retriever:
 
         # Add memory decay component
         memory_decay = MemoryDecayComponent()
-        memory_decay.initialize({
-            "memory_decay_enabled": self.memory_decay_enabled,
-            "memory_decay_rate": self.memory_decay_rate,
-            "memory_decay_interval": self.memory_decay_interval,
-            "memory": self.memory
-        })
+        memory_decay.initialize(
+            {
+                "memory_decay_enabled": self.memory_decay_enabled,
+                "memory_decay_rate": self.memory_decay_rate,
+                "memory_decay_interval": self.memory_decay_interval,
+                "memory": self.memory,
+            }
+        )
         self.memory_manager.register_component("memory_decay", memory_decay)
 
         # Ensure minimum results
         min_result_processor = MinimumResultGuaranteeProcessor()
-        min_result_processor.initialize({
-            "min_results": self.min_results_guarantee,
-            "fallback_threshold_factor": 0.5,
-            "min_fallback_threshold": 0.05,
-            "memory": self.memory
-        })
+        min_result_processor.initialize(
+            {
+                "min_results": self.min_results_guarantee,
+                "fallback_threshold_factor": 0.5,
+                "min_fallback_threshold": 0.05,
+                "memory": self.memory,
+            }
+        )
         self.memory_manager.register_component("min_result_guarantee", min_result_processor)
         self.post_processors.append(min_result_processor)
-        
+
         adaptive_k = AdaptiveKProcessor()
         self.memory_manager.register_component("adaptive_k", adaptive_k)
         self.post_processors.append(adaptive_k)
@@ -178,7 +184,7 @@ class Retriever:
         """Build the default retrieval pipeline."""
         # Ensure all components are properly registered and available
         self._ensure_components_registered()
-        
+
         # Configure query adapter
         query_adapter_config = dict(
             # Enable query type adaptation if enabled
@@ -190,16 +196,19 @@ class Retriever:
         pipeline_steps = [
             dict(component="query_analyzer", config={}),
             dict(component="personal_attributes", config={}),
-            dict(component="memory_decay", config={
-                "memory_decay_enabled": self.memory_decay_enabled,
-                "memory_decay_rate": self.memory_decay_rate,
-                "memory_decay_interval": self.memory_decay_interval,
-                "memory": self.memory
-            }),
-            dict(component="keyword_expander", config={
-                "enable_expansion": True,
-                "max_expansions_per_keyword": 5
-            }),
+            dict(
+                component="memory_decay",
+                config={
+                    "memory_decay_enabled": self.memory_decay_enabled,
+                    "memory_decay_rate": self.memory_decay_rate,
+                    "memory_decay_interval": self.memory_decay_interval,
+                    "memory": self.memory,
+                },
+            ),
+            dict(
+                component="keyword_expander",
+                config={"enable_expansion": True, "max_expansions_per_keyword": 5},
+            ),
             dict(component="query_adapter", config=query_adapter_config),
         ]
 
@@ -267,7 +276,7 @@ class Retriever:
             self.memory_manager.build_pipeline(pipeline_steps)
         else:
             print("Warning: No components available for pipeline")
-            
+
     def _ensure_components_registered(self):
         """Ensure all required components are registered properly."""
         # Check for missing core components and register them if needed
@@ -287,12 +296,12 @@ class Retriever:
             "attribute_processor": self.memory_manager.components.get("attribute_processor"),
             "min_result_guarantee": self.memory_manager.components.get("min_result_guarantee"),
         }
-        
+
         # Initialize any components that are not initialized yet
         for name, component in list(required_components.items()):
             if component is None and hasattr(self, name):
                 required_components[name] = getattr(self, name)
-                
+
         # If we still don't have the two_stage_retrieval and it's needed, create it
         if required_components["two_stage_retrieval"] is None and self.use_two_stage_retrieval:
             # Initialize it from scratch with proper dependencies
@@ -300,19 +309,20 @@ class Retriever:
                 self.two_stage_strategy = TwoStageRetrievalStrategy(
                     self.memory,
                     base_strategy=self.retrieval_strategy,
-                    post_processors=self.post_processors
+                    post_processors=self.post_processors,
                 )
                 required_components["two_stage_retrieval"] = self.two_stage_strategy
-                
+
         # Register all missing components at once using the new bulk registration method
         missing_components = {
-            name: component 
+            name: component
             for name, component in required_components.items()
             if component is not None and name not in self.memory_manager.components
         }
-        
+
         if missing_components:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.debug(f"Registering missing components: {list(missing_components.keys())}")
             self.memory_manager.register_components(missing_components)
@@ -401,9 +411,10 @@ class Retriever:
         # This ensures components maintain state between queries
         if not self.query_analyzer:
             self.initialize_components()
-            
+
         # Add debug logging
         import logging
+
         logger = logging.getLogger(__name__)
         logger.debug(f"Using retrieval strategy: {self.retrieval_strategy.__class__.__name__}")
         logger.debug(f"Using {len(self.post_processors)} post-processors")

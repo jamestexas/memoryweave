@@ -117,16 +117,18 @@ class RetrieverIntegrationTest(unittest.TestCase):
         """Verify that the retrieval results meet basic quality criteria."""
         # Check that we got some results
         self.assertTrue(len(results) > 0, "No results returned from retrieval")
-        
+
         # Check that results have required fields
         for result in results:
             self.assertIn("memory_id", result, "Result missing memory_id field")
             self.assertIn("relevance_score", result, "Result missing relevance_score field")
             self.assertIn("content", result, "Result missing content field")
-            
+
         # Check that results are sorted by relevance
         scores = [r.get("relevance_score", 0) for r in results]
-        self.assertEqual(scores, sorted(scores, reverse=True), "Results not sorted by relevance score")
+        self.assertEqual(
+            scores, sorted(scores, reverse=True), "Results not sorted by relevance score"
+        )
 
     def test_personal_query(self):
         """Test retrieval for personal queries."""
