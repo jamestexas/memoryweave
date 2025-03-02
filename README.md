@@ -305,9 +305,33 @@ See the [examples](examples/) directory for more detailed examples and the [Migr
 ## Benchmarks
 <a id="benchmarks"></a>
 
-MemoryWeave includes a benchmarking tool to evaluate and compare different retrieval configurations:
+MemoryWeave includes comprehensive benchmarking tools to evaluate and compare different retrieval approaches, with special focus on the contextual fabric architecture.
+
+### Contextual Fabric Benchmark
+
+The most important benchmark compares the contextual fabric architecture with traditional retrieval methods:
 
 ```bash
+# Run the complete benchmark suite with multiple memory sizes
+./run_contextual_fabric_benchmark.sh
+
+# Run with a specific memory size
+uv run python -m benchmarks.contextual_fabric_benchmark --memories 100
+```
+
+This benchmark tests how well the contextual fabric architecture handles:
+- Conversation context understanding
+- Temporal reference resolution
+- Associative memory linking
+- Activation patterns
+- Episodic memory retrieval
+
+### Other Benchmarks
+
+```bash
+# Run baseline comparison (compare against BM25 and vector search)
+uv run python run_baseline_comparison.py
+
 # Run synthetic benchmark (evaluates different configurations)
 uv run python run_synthetic_benchmark.py
 
@@ -317,33 +341,19 @@ uv run python run_semantic_benchmark.py
 # Run custom benchmark script
 uv run python -m benchmarks.memory_retrieval_benchmark
 
-# Run baseline comparison (compare against BM25 and vector search)
-uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json --config baselines_config.yaml --output benchmark_results.json --html-report baseline_report.html --visualization baseline_chart.png
-
 # Visualize benchmark results
 python examples/visualize_results.py synthetic_benchmark_results.json
 ```
 
-For benchmark development and testing:
+Current benchmark results show significant improvements when using the contextual fabric approach:
 
-```bash
-# Run integration tests for benchmarks
-uv run python -m pytest tests/integration/test_benchmark_performance.py -v
+| Memory Size | Hybrid BM25+Vector | Contextual Fabric | Improvement |
+|-------------|-------------------|-------------------|-------------|
+| 20 memories | 0.136 F1          | 0.290 F1          | +0.154 F1   |
+| 100 memories | 0.056 F1         | 0.217 F1          | +0.161 F1   |
+| 500 memories | 0.033 F1         | 0.075 F1          | +0.042 F1   |
 
-# Run with specific configuration
-uv run python run_synthetic_benchmark.py --config configs/benchmark_advanced.json
-```
-
-Current benchmark results show the following metrics across different configurations:
-
-| Configuration | Precision | Recall | F1 Score | MRR | Avg Query Time |
-|---------------|-----------|--------|----------|-----|----------------|
-| MemoryWeave (similarity) | 0.166 | 1.000 | 0.282 | 1.000 | 0.00004s |
-| BM25 (text search) | 0.889 | 1.000 | 0.933 | 1.000 | 0.00359s |
-| Vector (baseline) | 0.267 | 1.000 | 0.413 | 1.000 | 0.00016s |
-| BM25 (aggressive) | 0.889 | 1.000 | 0.933 | 1.000 | 0.00054s |
-
-These benchmarks help ensure that the new component architecture maintains performance parity with the legacy implementation.
+For detailed information on running and interpreting benchmarks, see the [Benchmark Guide](docs/benchmark_guide.md).
 
 ## Current Limitations
 <a id="current-limitations"></a>
