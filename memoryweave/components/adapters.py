@@ -2,9 +2,13 @@
 Adapters for integrating core components with the pipeline architecture.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
-from memoryweave.components.base import RetrievalComponent
+import numpy as np
+
+from memoryweave.components.base import Component, RetrievalComponent
+from memoryweave.components.category_manager import CategoryManager
+from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
 from memoryweave.core.contextual_memory import ContextualMemory
 
 
@@ -88,3 +92,141 @@ class CoreRetrieverAdapter(RetrievalComponent):
             formatted_results.append({"memory_id": idx, "relevance_score": score, **metadata})
 
         return {"results": formatted_results}
+
+
+class CategoryAdapter(Component):
+    """
+    Adapter for integrating CategoryManager components within the pipeline.
+    
+    This adapter provides bidirectional compatibility between the legacy
+    and new category systems, ensuring proper memory ID mapping between
+    the systems.
+    """
+    
+    def __init__(
+        self,
+        core_category_manager: Optional[CoreCategoryManager] = None,
+        component_category_manager: Optional[CategoryManager] = None
+    ):
+        """
+        Initialize the category adapter.
+        
+        Args:
+            core_category_manager: Optional core category manager instance
+            component_category_manager: Optional component category manager instance
+        """
+        self.core_manager = core_category_manager
+        self.component_manager = component_category_manager
+        
+        # Create default managers if not provided
+        if not self.component_manager and not self.core_manager:
+            self.core_manager = CoreCategoryManager()
+            self.component_manager = CategoryManager(self.core_manager)
+        elif not self.component_manager and self.core_manager:
+            self.component_manager = CategoryManager(self.core_manager)
+        elif not self.core_manager and self.component_manager:
+            self.core_manager = self.component_manager.core_manager
+    
+    def initialize(self, config: Dict[str, Any]) -> None:
+        """
+        Initialize the component with configuration.
+        
+        Args:
+            config: Configuration dictionary
+        """
+        # Initialize component manager if it exists
+        if self.component_manager:
+            self.component_manager.initialize(config)
+        
+        # If core manager exists but component doesn't, create component
+        if self.core_manager and not self.component_manager:
+            self.component_manager = CategoryManager(self.core_manager)
+            self.component_manager.initialize(config)
+    
+    def assign_to_category(self, embedding: np.ndarray) -> int:
+        """
+        Assign a memory embedding to a category.
+        
+        Args:
+            embedding: The memory embedding to categorize
+            
+        Returns:
+            Index of the assigned category
+        """
+        return self.component_manager.assign_to_category(embedding)
+    
+    def add_memory_category_mapping(self, memory_idx: int, category_idx: int) -> None:
+        """
+        Add a mapping between a memory and its category.
+        
+        Args:
+            memory_idx: Index of the memory
+            category_idx: Index of the category
+        """
+        self.component_manager.add_memory_category_mapping(memory_idx, category_idx)
+    
+    def get_category_for_memory(self, memory_idx: int) -> int:
+        """
+        Get the category index for a memory.
+        
+        Args:
+            memory_idx: Index of the memory
+            
+        Returns:
+            Category index for the memory
+        """
+        return self.component_manager.get_category_for_memory(memory_idx)
+    
+    def get_memories_for_category(self, category_idx: int) -> List[int]:
+        """
+        Get all memory indices for a category.
+        
+        Args:
+            category_idx: Index of the category
+            
+        Returns:
+            List of memory indices in the category
+        """
+        return self.component_manager.get_memories_for_category(category_idx)
+    
+    def get_category_similarities(self, query_embedding: np.ndarray) -> np.ndarray:
+        """
+        Calculate similarities between query and all category prototypes.
+        
+        Args:
+            query_embedding: Query embedding vector
+            
+        Returns:
+            Array of similarity scores for each category
+        """
+        return self.component_manager.get_category_similarities(query_embedding)
+    
+    def update_category_activation(self, category_idx: int) -> None:
+        """
+        Update activation level for a category that's been accessed.
+        
+        Args:
+            category_idx: Index of the category to update
+        """
+        self.component_manager.update_category_activation(category_idx)
+    
+    def consolidate_categories(self, threshold: Optional[float] = None) -> int:
+        """
+        Trigger category consolidation with an optional custom threshold.
+        
+        Args:
+            threshold: Custom similarity threshold
+            
+        Returns:
+            Number of categories after consolidation
+        """
+        return self.component_manager.consolidate_categories(threshold)
+    
+    def get_category_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about the current categories.
+        
+        Returns:
+            Dictionary with category statistics
+        """
+        return self.component_manager.get_category_statistics()
