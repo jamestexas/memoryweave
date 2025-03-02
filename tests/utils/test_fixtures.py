@@ -34,11 +34,12 @@ class PredictableTestEmbeddings:
         
         # Pattern that will have high similarity with cat content
         embedding[0] = 0.8  # Primary signal for "cat"
-        embedding[1] = 0.3  # Secondary signal
+        embedding[1 % dim] = 0.3  # Secondary signal
         
         # Add some noise to make it realistic
-        for i in range(10, 20):
-            embedding[i] = 0.1 * (i % 5)
+        for i in range(min(10, dim)):
+            noise_idx = (i + 2) % dim
+            embedding[noise_idx] = 0.1 * ((i % 5) / 10)
             
         # Normalize
         return embedding / np.linalg.norm(embedding)
@@ -49,12 +50,13 @@ class PredictableTestEmbeddings:
         embedding = np.zeros(dim)
         
         # Pattern for color content
-        embedding[10] = 0.7
-        embedding[11] = 0.4
+        embedding[1 % dim] = 0.7
+        embedding[2 % dim] = 0.4
         
-        # Add some noise
-        for i in range(30, 40):
-            embedding[i] = 0.1 * (i % 3)
+        # Add some noise to make it realistic but work with small dimensions
+        for i in range(min(3, dim)):
+            noise_idx = (i + 1) % dim
+            embedding[noise_idx] += 0.1 * ((i % 3) / 10)
             
         # Normalize
         return embedding / np.linalg.norm(embedding)
@@ -65,12 +67,13 @@ class PredictableTestEmbeddings:
         embedding = np.zeros(dim)
         
         # Pattern for weather content
-        embedding[20] = 0.7
-        embedding[21] = 0.4
+        embedding[2 % dim] = 0.7
+        embedding[3 % dim] = 0.4
         
-        # Add some noise
-        for i in range(50, 60):
-            embedding[i] = 0.1 * (i % 4)
+        # Add some noise to make it realistic but work with small dimensions
+        for i in range(min(3, dim)):
+            noise_idx = (i + 2) % dim
+            embedding[noise_idx] += 0.1 * ((i % 4) / 10)
             
         # Normalize
         return embedding / np.linalg.norm(embedding)
@@ -81,7 +84,7 @@ def create_test_embedding(text: str, dim: int = 768) -> np.ndarray:
     
     Args:
         text: Text to encode into an embedding
-        dim: Dimension of the embedding
+        dim: Dimension of the embedding (works with any dimension)
         
     Returns:
         A numpy array with a normalized embedding
@@ -89,18 +92,44 @@ def create_test_embedding(text: str, dim: int = 768) -> np.ndarray:
     # Create deterministic embedding from text content
     embedding = np.zeros(dim)
     
-    # Use text characteristics for basic embedding pattern
-    for i, char in enumerate(text[:min(10, dim)]):
-        embedding[i % dim] += ord(char) / 1000
-    
-    # Use hash of text for additional patterns
-    text_hash = hashlib.md5(text.encode()).digest()
-    for i, byte in enumerate(text_hash):
-        pos = byte % dim
-        embedding[pos] += byte / 256
+    # For very small dimensions, create simple pattern
+    if dim <= 4:
+        # Use a simple but deterministic pattern for tiny embeddings
+        for i, char in enumerate(text[:4]):
+            char_val = ord(char) / 1000
+            embedding[i % dim] += char_val
+            
+        # Ensure we have some signal
+        if np.sum(embedding) < 0.1:
+            # Use the first character of text to create a pattern
+            if text:
+                idx = ord(text[0]) % dim
+                embedding[idx] = 0.8
+                embedding[(idx + 1) % dim] = 0.3
+            else:
+                # Fallback pattern
+                embedding[0] = 0.7
+                embedding[1 % dim] = 0.3
+    else:
+        # For normal dimensions, use more complex pattern
+        # Use text characteristics for basic embedding pattern
+        for i, char in enumerate(text[:min(10, dim)]):
+            embedding[i % dim] += ord(char) / 1000
+        
+        # Use hash of text for additional patterns
+        text_hash = hashlib.md5(text.encode()).digest()
+        for i, byte in enumerate(text_hash):
+            pos = byte % dim
+            embedding[pos] += byte / 256
     
     # Normalize the embedding
-    embedding = embedding / (np.linalg.norm(embedding) or 1.0)
+    norm = np.linalg.norm(embedding)
+    if norm > 0:
+        embedding = embedding / norm
+    else:
+        # Fallback for zero vectors
+        embedding[0] = 1.0
+        
     return embedding
 
 
@@ -189,8 +218,11 @@ def create_test_memory(embedding_dim: int = 768) -> ContextualMemory:
     
     # Add color-related memories
     color_embedding = np.zeros(embedding_dim)
-    color_embedding[10] = 0.7
-    color_embedding[11] = 0.3
+    # Use modulo to ensure indices are in bounds for small embedding dimensions
+    color_idx1 = 1 % embedding_dim
+    color_idx2 = 2 % embedding_dim
+    color_embedding[color_idx1] = 0.7
+    color_embedding[color_idx2] = 0.3
     color_embedding = color_embedding / np.linalg.norm(color_embedding)
     
     memory.add_memory(
@@ -207,8 +239,11 @@ def create_test_memory(embedding_dim: int = 768) -> ContextualMemory:
     
     # Add weather-related memories
     weather_embedding = np.zeros(embedding_dim)
-    weather_embedding[20] = 0.7
-    weather_embedding[21] = 0.3
+    # Use modulo to ensure indices are in bounds for small embedding dimensions
+    weather_idx1 = 2 % embedding_dim
+    weather_idx2 = 3 % embedding_dim
+    weather_embedding[weather_idx1] = 0.7
+    weather_embedding[weather_idx2] = 0.3
     weather_embedding = weather_embedding / np.linalg.norm(weather_embedding)
     
     memory.add_memory(
@@ -225,8 +260,11 @@ def create_test_memory(embedding_dim: int = 768) -> ContextualMemory:
     
     # Add general memories
     general_embedding = np.zeros(embedding_dim)
-    general_embedding[30] = 0.6
-    general_embedding[31] = 0.4
+    # Use modulo to ensure indices are in bounds for small embedding dimensions
+    general_idx1 = 0 % embedding_dim
+    general_idx2 = 3 % embedding_dim
+    general_embedding[general_idx1] = 0.6
+    general_embedding[general_idx2] = 0.4
     general_embedding = general_embedding / np.linalg.norm(general_embedding)
     
     memory.add_memory(
