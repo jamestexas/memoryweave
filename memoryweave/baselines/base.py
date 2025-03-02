@@ -3,9 +3,9 @@ Base class for baseline retrieval implementations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List
 
-from memoryweave.interfaces.retrieval import RetrievalResult, Query
+from memoryweave.interfaces.retrieval import Query
 from memoryweave.storage.memory_store import Memory
 
 
@@ -16,9 +16,9 @@ class BaselineRetriever(ABC):
     implementations, allowing them to be easily compared with
     MemoryWeave's more sophisticated retrieval strategies.
     """
-    
+
     name: str = "baseline"
-    
+
     @abstractmethod
     def index_memories(self, memories: List[Memory]) -> None:
         """Index a list of memories for retrieval.
@@ -27,12 +27,12 @@ class BaselineRetriever(ABC):
             memories: List of memories to index
         """
         pass
-    
+
     @abstractmethod
     def retrieve(
-        self, 
-        query: Query, 
-        top_k: int = 10, 
+        self,
+        query: Query,
+        top_k: int = 10,
         threshold: float = 0.0,
         **kwargs
     ) -> Dict[str, Any]:
@@ -48,7 +48,7 @@ class BaselineRetriever(ABC):
             A RetrievalResult containing retrieved memories and metadata
         """
         pass
-    
+
     @abstractmethod
     def get_statistics(self) -> Dict[str, Any]:
         """Get retrieval statistics for the baseline.
@@ -57,7 +57,7 @@ class BaselineRetriever(ABC):
             Dictionary of statistics like index size, feature count, etc.
         """
         pass
-    
+
     def clear(self) -> None:
         """Clear the indexed memories."""
         pass

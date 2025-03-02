@@ -5,26 +5,21 @@ Framework for comparing MemoryWeave against baseline retrieval methods.
 import json
 import os
 import time
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Any, Optional, Tuple, Union, Set, Type
+from typing import Any, Dict, List, Optional, Type
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from pydantic import BaseModel
 
 from memoryweave.baselines.base import BaselineRetriever
 from memoryweave.evaluation.coherence_metrics import calculate_semantic_coherence
 from memoryweave.interfaces.memory import IMemoryManager
-from memoryweave.interfaces.retrieval import (
-    IRetrievalStrategy, Query, RetrievalResult, 
-    RetrievalParameters
-)
-from memoryweave.storage.memory_store import Memory
+from memoryweave.interfaces.retrieval import IRetrievalStrategy, Query, RetrievalResult
 
 
 class BaselineConfig(BaseModel):
     """Configuration for a baseline retriever."""
-    
+
     name: str
     retriever_class: Type[BaselineRetriever]
     parameters: Dict[str, Any] = {}
@@ -32,22 +27,22 @@ class BaselineConfig(BaseModel):
 
 class ComparisonResult(BaseModel):
     """Results from comparing MemoryWeave with baselines."""
-    
+
     memoryweave_metrics: Dict[str, Dict[str, float]]
     baseline_metrics: Dict[str, Dict[str, Dict[str, float]]]
     query_details: Dict[str, List[Dict[str, Any]]]
     runtime_stats: Dict[str, Dict[str, float]]
     dataset_stats: Dict[str, Any]
-    
+
     class Config:
         arbitrary_types_allowed = True
 
 
 class BaselineComparison:
     """Framework for comparing MemoryWeave against baseline methods."""
-    
+
     def __init__(
-        self, 
+        self,
         memory_manager: IMemoryManager,
         memoryweave_retriever: IRetrievalStrategy,
         baseline_configs: List[BaselineConfig],
@@ -64,13 +59,13 @@ class BaselineComparison:
         self.memory_manager = memory_manager
         self.memoryweave_retriever = memoryweave_retriever
         self.metrics = metrics
-        
+
         # Initialize baseline retrievers
         self.baseline_retrievers: Dict[str, BaselineRetriever] = {}
         for config in baseline_configs:
             retriever = config.retriever_class(**config.parameters)
             self.baseline_retrievers[config.name] = retriever
-    
+
     def run_comparison(
         self,
         queries: List[Query],
@@ -91,15 +86,15 @@ class BaselineComparison:
         """
         # Get all memories from memory manager
         all_memories = self.memory_manager.get_all_memories()
-        
+
         # Initialize baseline retrievers with memories
         for retriever in self.baseline_retrievers.values():
             retriever.index_memories(all_memories)
-        
+
         # Run queries on MemoryWeave
         memoryweave_results = []
         memoryweave_times = []
-        
+
         for query in queries:
             start_time = time.time()
             result = self.memoryweave_retriever.retrieve(
@@ -108,18 +103,18 @@ class BaselineComparison:
                 threshold=threshold
             )
             query_time = time.time() - start_time
-            
+
             memoryweave_results.append(result)
             memoryweave_times.append(query_time)
-        
+
         # Run queries on baseline retrievers
         baseline_results: Dict[str, List[RetrievalResult]] = {}
         baseline_times: Dict[str, List[float]] = {}
-        
+
         for name, retriever in self.baseline_retrievers.items():
             results = []
             times = []
-            
+
             for query in queries:
                 start_time = time.time()
                 result = retriever.retrieve(
@@ -128,28 +123,28 @@ class BaselineComparison:
                     threshold=threshold
                 )
                 query_time = time.time() - start_time
-                
+
                 results.append(result)
                 times.append(query_time)
-            
+
             baseline_results[name] = results
             baseline_times[name] = times
-        
+
         # Compute metrics for MemoryWeave
         memoryweave_metrics = self._compute_metrics(
-            memoryweave_results, 
-            queries, 
+            memoryweave_results,
+            queries,
             relevant_memory_ids
         )
-        
+
         # Compute metrics for baselines
         baseline_metrics: Dict[str, Dict[str, Dict[str, float]]] = {}
-        
+
         for name, results in baseline_results.items():
             baseline_metrics[name] = self._compute_metrics(
                 results, queries, relevant_memory_ids
             )
-        
+
         # Compute runtime statistics
         runtime_stats = {
             "memoryweave": {
@@ -159,7 +154,7 @@ class BaselineComparison:
                 "max_time": max(memoryweave_times)
             }
         }
-        
+
         for name, times in baseline_times.items():
             runtime_stats[name] = {
                 "avg_query_time": np.mean(times),
@@ -167,18 +162,18 @@ class BaselineComparison:
                 "min_time": min(times),
                 "max_time": max(times)
             }
-        
+
         # Prepare query details
         query_details = {}
-        
+
         for i, query in enumerate(queries):
             query_id = f"query_{i}"
             query_details[query_id] = []
-            
+
             # Add MemoryWeave results
             mw_result = memoryweave_results[i]
             mw_memory_ids = [m.id for m in mw_result["memories"]]
-            
+
             query_details[query_id].append({
                 "system": "memoryweave",
                 "query_text": query.text,
@@ -187,12 +182,12 @@ class BaselineComparison:
                 "scores": mw_result["scores"],
                 "query_time": memoryweave_times[i]
             })
-            
+
             # Add baseline results
             for name in self.baseline_retrievers.keys():
                 bl_result = baseline_results[name][i]
                 bl_memory_ids = [m.id for m in bl_result["memories"]]
-                
+
                 query_details[query_id].append({
                     "system": name,
                     "query_text": query.text,
@@ -201,7 +196,7 @@ class BaselineComparison:
                     "scores": bl_result["scores"],
                     "query_time": baseline_times[name][i]
                 })
-        
+
         # Prepare dataset statistics
         dataset_stats = {
             "num_memories": len(all_memories),
@@ -209,7 +204,7 @@ class BaselineComparison:
             "avg_query_length": np.mean([len(q.text.split()) for q in queries]),
             "avg_relevant_count": np.mean([len(ids) for ids in relevant_memory_ids])
         }
-        
+
         # Return comparison results
         return ComparisonResult(
             memoryweave_metrics=memoryweave_metrics,
@@ -218,7 +213,7 @@ class BaselineComparison:
             runtime_stats=runtime_stats,
             dataset_stats=dataset_stats
         )
-    
+
     def _compute_metrics(
         self,
         results: List[RetrievalResult],
@@ -236,49 +231,49 @@ class BaselineComparison:
             Dictionary of metrics
         """
         metrics_by_query = {}
-        
+
         for i, (result, query, rel_ids) in enumerate(zip(results, queries, relevant_memory_ids)):
             query_id = f"query_{i}"
             metrics_by_query[query_id] = {}
-            
+
             retrieved_ids = [memory.id for memory in result["memories"]]
-            
+
             # Calculate precision
             if "precision" in self.metrics:
                 precision = self._calculate_precision(retrieved_ids, rel_ids)
                 metrics_by_query[query_id]["precision"] = precision
-            
+
             # Calculate recall
             if "recall" in self.metrics:
                 recall = self._calculate_recall(retrieved_ids, rel_ids)
                 metrics_by_query[query_id]["recall"] = recall
-            
+
             # Calculate F1 score
             if "f1" in self.metrics and "precision" in self.metrics and "recall" in self.metrics:
                 precision = metrics_by_query[query_id]["precision"]
                 recall = metrics_by_query[query_id]["recall"]
-                
+
                 if precision + recall > 0:
                     f1 = 2 * precision * recall / (precision + recall)
                 else:
                     f1 = 0.0
-                
+
                 metrics_by_query[query_id]["f1"] = f1
-            
+
             # Calculate MRR (Mean Reciprocal Rank)
             if "mrr" in self.metrics:
                 mrr = self._calculate_mrr(retrieved_ids, rel_ids)
                 metrics_by_query[query_id]["mrr"] = mrr
-            
+
             # Calculate semantic coherence
             if "coherence" in self.metrics:
                 coherence = 0.0
                 if len(result["memories"]) >= 2:
                     # Calculate semantic coherence between retrieved memories
                     coherence = calculate_semantic_coherence(result["memories"])
-                
+
                 metrics_by_query[query_id]["coherence"] = coherence
-        
+
         # Calculate average metrics across all queries
         avg_metrics = {}
         for metric in self.metrics:
@@ -286,13 +281,13 @@ class BaselineComparison:
                 avg_metrics[metric] = np.mean([
                     query_metrics[metric] for query_metrics in metrics_by_query.values()
                 ])
-        
+
         # Return metrics by query and averages
         return {
             "by_query": metrics_by_query,
             "average": avg_metrics
         }
-    
+
     def _calculate_precision(self, retrieved_ids: List[str], relevant_ids: List[str]) -> float:
         """Calculate precision of retrieved results.
         
@@ -305,10 +300,10 @@ class BaselineComparison:
         """
         if not retrieved_ids:
             return 0.0
-        
+
         relevant_count = sum(1 for mem_id in retrieved_ids if mem_id in relevant_ids)
         return relevant_count / len(retrieved_ids)
-    
+
     def _calculate_recall(self, retrieved_ids: List[str], relevant_ids: List[str]) -> float:
         """Calculate recall of retrieved results.
         
@@ -321,10 +316,10 @@ class BaselineComparison:
         """
         if not relevant_ids:
             return 1.0  # All relevant items retrieved (there are none)
-        
+
         relevant_count = sum(1 for mem_id in retrieved_ids if mem_id in relevant_ids)
         return relevant_count / len(relevant_ids)
-    
+
     def _calculate_mrr(self, retrieved_ids: List[str], relevant_ids: List[str]) -> float:
         """Calculate Mean Reciprocal Rank.
         
@@ -338,9 +333,9 @@ class BaselineComparison:
         for i, mem_id in enumerate(retrieved_ids):
             if mem_id in relevant_ids:
                 return 1.0 / (i + 1)
-        
+
         return 0.0
-    
+
     def visualize_results(
         self,
         comparison_result: ComparisonResult,
@@ -354,11 +349,11 @@ class BaselineComparison:
         """
         # Extract metrics for each system
         systems = ["memoryweave"] + list(comparison_result.baseline_metrics.keys())
-        
+
         metrics = {}
         for metric in self.metrics:
             metrics[metric] = []
-            
+
             # Add MemoryWeave metrics
             if metric in comparison_result.memoryweave_metrics["average"]:
                 metrics[metric].append(
@@ -366,7 +361,7 @@ class BaselineComparison:
                 )
             else:
                 metrics[metric].append(0.0)
-            
+
             # Add baseline metrics
             for baseline in comparison_result.baseline_metrics.keys():
                 if metric in comparison_result.baseline_metrics[baseline]["average"]:
@@ -375,29 +370,29 @@ class BaselineComparison:
                     )
                 else:
                     metrics[metric].append(0.0)
-        
+
         # Create subplots for each metric
         num_metrics = len(self.metrics)
         fig, axes = plt.subplots(num_metrics, 1, figsize=(10, 4 * num_metrics))
-        
+
         if num_metrics == 1:
             axes = [axes]
-        
+
         for i, metric in enumerate(self.metrics):
             ax = axes[i]
             y_pos = np.arange(len(systems))
-            
+
             ax.barh(y_pos, metrics[metric], align="center")
             ax.set_yticks(y_pos)
             ax.set_yticklabels(systems)
             ax.invert_yaxis()  # Labels read top-to-bottom
             ax.set_xlabel(metric.upper())
             ax.set_title(f"{metric.upper()} by System")
-            
+
             # Add values at the end of each bar
             for j, v in enumerate(metrics[metric]):
                 ax.text(v + 0.01, j, f"{v:.3f}", va="center")
-        
+
         # Add query time comparison
         query_times = []
         for system in systems:
@@ -409,7 +404,7 @@ class BaselineComparison:
                 query_times.append(
                     comparison_result.runtime_stats[system]["avg_query_time"]
                 )
-        
+
         time_ax = fig.add_subplot(num_metrics + 1, 1, num_metrics + 1)
         time_ax.barh(np.arange(len(systems)), query_times, align="center")
         time_ax.set_yticks(np.arange(len(systems)))
@@ -417,18 +412,18 @@ class BaselineComparison:
         time_ax.invert_yaxis()
         time_ax.set_xlabel("Average Query Time (seconds)")
         time_ax.set_title("Query Performance by System")
-        
+
         for j, v in enumerate(query_times):
             time_ax.text(v + 0.01, j, f"{v:.5f}s", va="center")
-        
+
         plt.tight_layout()
-        
+
         if output_path:
             plt.savefig(output_path)
             plt.close()
         else:
             plt.show()
-    
+
     def save_results(self, comparison_result: ComparisonResult, output_path: str) -> None:
         """Save comparison results to a file.
         
@@ -438,12 +433,12 @@ class BaselineComparison:
         """
         # Convert to dict for JSON serialization
         results_dict = comparison_result.dict()
-        
+
         with open(output_path, "w") as f:
             json.dump(results_dict, f, indent=2)
-    
+
     def generate_html_report(
-        self, 
+        self,
         comparison_result: ComparisonResult,
         output_path: str,
         title: str = "MemoryWeave Baseline Comparison"
@@ -458,7 +453,7 @@ class BaselineComparison:
         # Save visualization as PNG for embedding in HTML
         img_path = output_path.replace(".html", "_chart.png")
         self.visualize_results(comparison_result, img_path)
-        
+
         # Generate HTML content
         html_content = f"""
         <!DOCTYPE html>
@@ -527,42 +522,42 @@ class BaselineComparison:
                 <tr>
                     <th>System</th>
         """
-        
+
         # Add metric columns
         for metric in self.metrics:
             html_content += f"<th>{metric.upper()}</th>"
-        
+
         html_content += "<th>Avg Query Time</th></tr>"
-        
+
         # Add MemoryWeave metrics
         html_content += "<tr><td class='system-name'>MemoryWeave</td>"
-        
+
         for metric in self.metrics:
             if metric in comparison_result.memoryweave_metrics["average"]:
                 value = comparison_result.memoryweave_metrics["average"][metric]
                 html_content += f"<td class='metric-value'>{value:.4f}</td>"
             else:
                 html_content += "<td>N/A</td>"
-        
+
         # Add query time
         query_time = comparison_result.runtime_stats["memoryweave"]["avg_query_time"]
         html_content += f"<td>{query_time:.5f} s</td></tr>"
-        
+
         # Add baseline metrics
         for baseline in comparison_result.baseline_metrics.keys():
             html_content += f"<tr><td class='system-name'>{baseline}</td>"
-            
+
             for metric in self.metrics:
                 if metric in comparison_result.baseline_metrics[baseline]["average"]:
                     value = comparison_result.baseline_metrics[baseline]["average"][metric]
                     html_content += f"<td class='metric-value'>{value:.4f}</td>"
                 else:
                     html_content += "<td>N/A</td>"
-            
+
             # Add query time
             query_time = comparison_result.runtime_stats[baseline]["avg_query_time"]
             html_content += f"<td>{query_time:.5f} s</td></tr>"
-        
+
         html_content += """
             </table>
             
@@ -573,11 +568,11 @@ class BaselineComparison:
                     <th>Value</th>
                 </tr>
         """
-        
+
         # Add dataset statistics
         for stat, value in comparison_result.dataset_stats.items():
             html_content += f"<tr><td>{stat}</td><td>{value}</td></tr>"
-        
+
         html_content += """
             </table>
             
@@ -590,7 +585,7 @@ class BaselineComparison:
                     <th>Max Query Time</th>
                 </tr>
         """
-        
+
         # Add system details
         for system, stats in comparison_result.runtime_stats.items():
             html_content += f"""
@@ -601,7 +596,7 @@ class BaselineComparison:
                     <td>{stats['max_time']:.5f} s</td>
                 </tr>
             """
-        
+
         html_content += """
             </table>
             
@@ -611,7 +606,7 @@ class BaselineComparison:
         </body>
         </html>
         """
-        
+
         # Write HTML to file
         with open(output_path, "w") as f:
             f.write(html_content)
