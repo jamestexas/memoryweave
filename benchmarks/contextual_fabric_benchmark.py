@@ -210,11 +210,67 @@ class ContextualFabricBenchmark:
             is_sequential = (i > 0 and i % 5 == 0)
             prev_id = str(i - 1) if is_sequential else None
             
-            # Create memory content with specific features for testing
+            # Create richer memory content with specific features for testing
+            # Generate more realistic text that BM25 can work with
+            
+            # Select topic-specific keywords
+            topic_keywords = {
+                "food": ["recipe", "delicious", "restaurant", "cooking", "meal", "dish", "flavor", "taste", "cuisine", "ingredient"],
+                "travel": ["vacation", "destination", "trip", "journey", "explore", "tourism", "hotel", "flight", "adventure", "sightseeing"],
+                "work": ["project", "meeting", "deadline", "colleague", "office", "career", "job", "task", "productivity", "professional"],
+                "family": ["parents", "children", "relatives", "siblings", "household", "relationship", "marriage", "love", "home", "tradition"],
+                "technology": ["device", "software", "hardware", "digital", "innovation", "computer", "application", "system", "gadget", "internet"],
+                "education": ["learning", "student", "school", "course", "knowledge", "teacher", "class", "study", "academic", "curriculum"],
+                "health": ["wellness", "fitness", "exercise", "nutrition", "medical", "doctor", "diet", "healthy", "condition", "therapy"],
+                "entertainment": ["movie", "music", "game", "show", "performance", "television", "concert", "theater", "artist", "festival"],
+                "finance": ["money", "investment", "budget", "savings", "expense", "financial", "bank", "economy", "fund", "income"],
+                "sports": ["athlete", "team", "competition", "game", "championship", "training", "coach", "player", "fitness", "tournament"]
+            }
+            
+            # Get keywords for this memory's topics
+            main_keywords = topic_keywords.get(topic, [])
+            sub_keywords = topic_keywords.get(subtopic, [])
+            
+            # Select random keywords to include in the text
+            selected_main = random.sample(main_keywords, min(3, len(main_keywords)))
+            selected_sub = random.sample(sub_keywords, min(2, len(sub_keywords)))
+            
+            # Generate sentences with repeated keywords for better BM25 indexing
+            sentences = []
+            
+            # Topic introduction with keyword repetition
+            sentences.append(f"Memory {i} contains information about {topic}.")
+            
+            # Add memory-specific content with keywords
+            if topic == "food":
+                sentences.append(f"I found a great {random.choice(selected_main)} while looking for {random.choice(selected_main)}.")
+                sentences.append(f"The {random.choice(selected_main)} had amazing {random.choice(selected_main)} and {random.choice(selected_sub)}.")
+            elif topic == "travel":
+                sentences.append(f"I went on a {random.choice(selected_main)} to explore {random.choice(selected_main)}.")
+                sentences.append(f"The {random.choice(selected_main)} was filled with {random.choice(selected_main)} and {random.choice(selected_sub)}.")
+            elif topic == "health":
+                sentences.append(f"I've been focusing on my {random.choice(selected_main)} by improving {random.choice(selected_main)}.")
+                sentences.append(f"The {random.choice(selected_main)} routine includes {random.choice(selected_main)} and {random.choice(selected_sub)}.")
+            else:
+                sentences.append(f"I've been working on {random.choice(selected_main)} related to {random.choice(selected_main)}.")
+                sentences.append(f"The {random.choice(selected_main)} involves aspects of {random.choice(selected_main)} and some {random.choice(selected_sub)}.")
+            
+            # Add a sentence with subtopic reference
+            sentences.append(f"It also relates to {subtopic} because of the {random.choice(selected_sub)}.")
+            
+            # Add sequential reference if applicable
+            if is_sequential:
+                sentences.append(f"This follows my previous experience with {topic} that I mentioned earlier.")
+            
+            # Create complete text
+            memory_text = " ".join(sentences)
+            
+            # Prepare content structure
             content = {
-                "text": f"This is memory {i} about {topic} with some mention of {subtopic}.",
+                "text": memory_text,
                 "metadata": {
                     "topics": [topic, subtopic],
+                    "keywords": selected_main + selected_sub,
                     "created_at": timestamp,
                     "importance": random.random(),
                     "sequential_to": prev_id
@@ -402,34 +458,103 @@ class ContextualFabricBenchmark:
         
         # 1. Conversation context test case
         # This tests if the system can use conversation history to improve retrieval
-        convo_history = [
+        # Create more realistic conversations for each topic
+        conversation_contexts = {}
+        
+        # Food conversation (more detailed and multi-turn)
+        conversation_contexts["food"] = [
             {
-                "text": "Let's talk about food.",
-                "embedding": self._create_query_embedding("Let's talk about food", "food"),
-                "timestamp": now - 300
+                "text": "Let's talk about food options for dinner tonight.",
+                "embedding": self._create_query_embedding("Let's talk about food options for dinner tonight", "food"),
+                "timestamp": now - 600
             },
             {
-                "text": "I really like Italian cuisine.",
-                "embedding": self._create_query_embedding("I really like Italian cuisine", "food"),
-                "timestamp": now - 200
+                "text": "I'm thinking of trying that new Italian restaurant downtown.",
+                "embedding": self._create_query_embedding("I'm thinking of trying that new Italian restaurant downtown", "food"),
+                "timestamp": now - 500
+            },
+            {
+                "text": "Their pasta dishes are supposed to be amazing, especially the carbonara.",
+                "embedding": self._create_query_embedding("Their pasta dishes are supposed to be amazing, especially the carbonara", "food"),
+                "timestamp": now - 400
+            },
+            {
+                "text": "But I'm also in the mood for something with more spice.",
+                "embedding": self._create_query_embedding("But I'm also in the mood for something with more spice", "food"),
+                "timestamp": now - 300
             }
         ]
         
-        food_memories = []
-        for memory_id in all_ids:
-            memory = self.memory_store.get(memory_id)
-            if "topics" in memory.metadata and "food" in memory.metadata["topics"]:
-                food_memories.append(memory_id)
+        # Travel conversation
+        conversation_contexts["travel"] = [
+            {
+                "text": "I'm planning my next vacation.",
+                "embedding": self._create_query_embedding("I'm planning my next vacation", "travel"),
+                "timestamp": now - 500
+            },
+            {
+                "text": "I've been researching destinations in Southeast Asia.",
+                "embedding": self._create_query_embedding("I've been researching destinations in Southeast Asia", "travel"),
+                "timestamp": now - 400
+            },
+            {
+                "text": "Thailand and Vietnam both look amazing for cultural experiences.",
+                "embedding": self._create_query_embedding("Thailand and Vietnam both look amazing for cultural experiences", "travel"),
+                "timestamp": now - 300
+            }
+        ]
         
-        test_cases.append(self._create_test_case(
-            name="conversation_context",
-            query="What other options are there?",
-            topic="food",
-            expected_results=food_memories[:5],
-            conversation_history=convo_history,
-            current_time=now,
-            description="Tests if the system can use conversation history to disambiguate a vague query"
-        ))
+        # Health conversation
+        conversation_contexts["health"] = [
+            {
+                "text": "I've been trying to improve my fitness routine lately.",
+                "embedding": self._create_query_embedding("I've been trying to improve my fitness routine lately", "health"),
+                "timestamp": now - 500
+            },
+            {
+                "text": "Combining cardio with strength training seems most effective.",
+                "embedding": self._create_query_embedding("Combining cardio with strength training seems most effective", "health"),
+                "timestamp": now - 400
+            },
+            {
+                "text": "I've noticed better results when I also focus on proper nutrition.",
+                "embedding": self._create_query_embedding("I've noticed better results when I also focus on proper nutrition", "health"),
+                "timestamp": now - 300
+            }
+        ]
+        
+        # Create test cases for multiple conversation contexts to better evaluate the feature
+        for context_topic, convo_history in conversation_contexts.items():
+            # Find memories related to this topic
+            topic_memories = []
+            for memory_id in all_ids:
+                memory = self.memory_store.get(memory_id)
+                if "topics" in memory.metadata and context_topic in memory.metadata["topics"]:
+                    topic_memories.append(memory_id)
+            
+            # Choose an appropriate query based on topic
+            if context_topic == "food":
+                query = "What other options are there?"
+                description = "Tests if the system can use food conversation history to disambiguate a vague query"
+            elif context_topic == "travel":
+                query = "What destinations would you recommend?"
+                description = "Tests if the system can use travel conversation history to disambiguate recommendations"
+            elif context_topic == "health":
+                query = "What else should I consider for improvements?"
+                description = "Tests if the system can use health conversation history to disambiguate a vague question"
+            else:
+                query = "Tell me more about this."
+                description = f"Tests if the system can use {context_topic} conversation history for context"
+                
+            test_cases.append(self._create_test_case(
+                name=f"conversation_context_{context_topic}",
+                query=query,
+                topic=context_topic,
+                expected_results=topic_memories[:5],
+                conversation_history=convo_history,
+                current_time=now,
+                description=description
+            ))
         
         # 2. Temporal context test case
         # This tests if the system can find memories based on temporal references
@@ -504,28 +629,37 @@ class ContextualFabricBenchmark:
         
         # 5. Episodic memory test case
         # This tests if the system can retrieve memories from the same episode
-        episode_memories = []
-        if self.temporal_context and self.temporal_context.episodes:
-            # Get a random episode
-            episode_id = random.choice(list(self.temporal_context.episodes.keys()))
-            episode_memories = list(self.temporal_context.get_memories_in_episode(episode_id))
+        if self.temporal_context and hasattr(self.temporal_context, 'episodes') and self.temporal_context.episodes:
+            # Create multiple episodic memory test cases for better testing
+            # Pick a few episodes to test with
+            episode_ids = list(self.temporal_context.episodes.keys())
+            test_episode_ids = random.sample(episode_ids, min(3, len(episode_ids)))
             
-            # Get episode time range
-            episode = self.temporal_context.episodes[episode_id]
-            episode_time = episode["center_time"]
-            
-            # Convert to datetime for query formulation
-            episode_dt = datetime.fromtimestamp(episode_time)
-            date_str = episode_dt.strftime("%B %d")
-            
-            test_cases.append(self._create_test_case(
-                name="episodic_memory",
-                query=f"What happened on {date_str}?",
-                topic="time",
-                expected_results=episode_memories[:5],
-                current_time=now,
-                description="Tests if the system can retrieve memories from the same temporal episode"
-            ))
+            for idx, episode_id in enumerate(test_episode_ids):
+                episode_memories = list(self.temporal_context.get_memories_in_episode(episode_id))
+                
+                # Get episode time info
+                episode = self.temporal_context.episodes[episode_id]
+                episode_time = episode["center_time"]
+                
+                # Add debugging info to log what we're querying
+                print(f"Creating episodic memory test for episode: {episode_id}")
+                print(f"  - Date strings: {episode.get('date_str')}, {episode.get('month_day')}")
+                print(f"  - Contains memories: {episode_memories[:5]}")
+                
+                # Convert to datetime for query formulation
+                episode_dt = datetime.fromtimestamp(episode_time)
+                # Format as "Month DD" which our improved temporal context can now handle
+                date_str = episode_dt.strftime("%B %d")
+                
+                test_cases.append(self._create_test_case(
+                    name=f"episodic_memory_{idx+1}",
+                    query=f"What happened on {date_str}?",
+                    topic="time",
+                    expected_results=episode_memories[:5],
+                    current_time=now,
+                    description=f"Tests if the system can retrieve memories from temporal episode {date_str}"
+                ))
         
         return test_cases
     
