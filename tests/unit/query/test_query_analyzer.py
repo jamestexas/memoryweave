@@ -3,10 +3,8 @@ Tests for the QueryAnalyzer component.
 """
 
 import pytest
-from unittest.mock import MagicMock
-
-from memoryweave.query.analyzer import SimpleQueryAnalyzer
 from memoryweave.interfaces.retrieval import QueryType
+from memoryweave.query.analyzer import SimpleQueryAnalyzer
 
 
 class TestSimpleQueryAnalyzer:
@@ -81,14 +79,17 @@ class TestSimpleQueryAnalyzer:
         assert "capital" in keywords
         assert "france" in keywords
         assert "population" in keywords
-
         # Check that stopwords were removed
-        assert "what" not in keywords
-        assert "is" not in keywords
-        assert "the" not in keywords
-        assert "of" not in keywords
-        assert "and" not in keywords
-        assert "its" not in keywords
+        stopwords = [
+            "and",
+            "is",
+            "its",
+            "of",
+            "the",
+            "what",
+        ]
+        for k in stopwords:
+            assert k not in keywords
 
     def test_extract_entities(self, analyzer):
         """Test entity extraction."""
@@ -108,14 +109,12 @@ class TestSimpleQueryAnalyzer:
         assert analyzer._config["max_keywords"] == 10
 
         # Configure analyzer
-        analyzer.configure(
-            {
-                "min_keyword_length": 4,
-                "max_keywords": 5,
-                "stopwords": {"test", "example"},
-                "personal_patterns": ["\\bours\\b", "\\bwe\\b"],
-            }
-        )
+        analyzer.configure({
+            "min_keyword_length": 4,
+            "max_keywords": 5,
+            "stopwords": {"test", "example"},
+            "personal_patterns": ["\\bours\\b", "\\bwe\\b"],
+        })
 
         # Check updated configuration
         assert analyzer._config["min_keyword_length"] == 4
