@@ -330,7 +330,8 @@ class SyntheticBenchmark:
                 logger.info(f"Limited to {max_queries} queries for testing")
 
             logger.info(f"Running {len(queries_to_run)} queries")
-            for query_idx, query_item in enumerate(tqdm(queries_to_run, desc="Queries")):
+            # Disable tqdm progress bar for cleaner output
+            for query_idx, query_item in enumerate(queries_to_run):
                 # Get query text (handle both "query" and "text" keys for compatibility)
                 query = query_item.get("query", query_item.get("text", f"Query {query_idx}"))
                 # Get expected indices (handle different key names for compatibility)

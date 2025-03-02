@@ -175,23 +175,28 @@ def main():
 
     # Log results summary
     logger.info("\nBenchmark Results Summary:")
-    for result in results:
-        logger.info(f"Configuration: {result.config.name}")
-        logger.info(f"  Precision: {result.precision:.4f}")
-        logger.info(f"  Recall: {result.recall:.4f}")
-        logger.info(f"  F1 Score: {result.f1_score:.4f}")
-        logger.info(f"  Avg Query Time: {result.avg_query_time:.4f}s")
-        logger.info(f"  Avg Results: {result.avg_retrieval_count:.2f}")
+    # Check the structure of results - it's a dict with 'results' and 'summary' keys
+    if isinstance(results, dict) and 'results' in results:
+        for result in results['results']:
+            logger.info(f"Configuration: {result.config.name}")
+            logger.info(f"  Precision: {result.precision:.4f}")
+            logger.info(f"  Recall: {result.recall:.4f}")
+            logger.info(f"  F1 Score: {result.f1_score:.4f}")
+            logger.info(f"  Avg Query Time: {result.avg_query_time:.4f}s")
+            logger.info(f"  Avg Results: {result.avg_retrieval_count:.2f}")
 
-    # Find best configurations
-    best_precision = max(results, key=lambda r: r.precision)
-    best_recall = max(results, key=lambda r: r.recall)
-    best_f1 = max(results, key=lambda r: r.f1_score)
+        # Find best configurations
+        best_precision = max(results['results'], key=lambda r: r.precision)
+        best_recall = max(results['results'], key=lambda r: r.recall)
+        best_f1 = max(results['results'], key=lambda r: r.f1_score)
 
-    logger.info("\nBest Configurations:")
-    logger.info(f"Best Precision: {best_precision.config.name} ({best_precision.precision:.4f})")
-    logger.info(f"Best Recall: {best_recall.config.name} ({best_recall.recall:.4f})")
-    logger.info(f"Best F1 Score: {best_f1.config.name} ({best_f1.f1_score:.4f})")
+        logger.info("\nBest Configurations:")
+        logger.info(f"Best Precision: {best_precision.config.name} ({best_precision.precision:.4f})")
+        logger.info(f"Best Recall: {best_recall.config.name} ({best_recall.recall:.4f})")
+        logger.info(f"Best F1 Score: {best_f1.config.name} ({best_f1.f1_score:.4f})")
+    else:
+        # Handle string result case
+        logger.info(f"Result: {results}")
 
     logger.info(f"\nFull results saved to {args.save_results}")
     logger.info("Visualization saved to semantic_benchmark_results.png")
