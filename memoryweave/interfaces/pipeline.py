@@ -5,7 +5,7 @@ including protocols, data models, and base classes for pipeline components.
 """
 
 from enum import Enum, auto
-from typing import Any, Dict, Generic, List, Optional, Protocol, TypeVar
+from typing import Any, Dict, Generic, List, Optional, Protocol, TypeVar, runtime_checkable
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -17,6 +17,7 @@ class ComponentType(Enum):
 
     MEMORY_STORE = auto()
     VECTOR_STORE = auto()
+    ACTIVATION_MANAGER = auto()
     RETRIEVAL_STRATEGY = auto()
     QUERY_ANALYZER = auto()
     QUERY_ADAPTER = auto()
@@ -24,6 +25,7 @@ class ComponentType(Enum):
     PIPELINE = auto()
 
 
+@runtime_checkable
 class IComponent(Protocol):
     """Base interface for all pipeline components."""
 
@@ -44,6 +46,7 @@ class IComponent(Protocol):
         ...
 
 
+@runtime_checkable
 class IComponentRegistry(Protocol):
     """Registry for pipeline components."""
 
@@ -64,6 +67,7 @@ class IComponentRegistry(Protocol):
         ...
 
 
+@runtime_checkable
 class IPipelineStage(Generic[T, U], Protocol):
     """Interface for a pipeline stage that processes inputs and produces outputs."""
 
@@ -76,6 +80,7 @@ class IPipelineStage(Generic[T, U], Protocol):
         ...
 
 
+@runtime_checkable
 class IPipelineBuilder(Protocol):
     """Interface for building component pipelines."""
 
@@ -88,6 +93,7 @@ class IPipelineBuilder(Protocol):
         ...
 
 
+@runtime_checkable
 class IPipeline(Generic[T, U], Protocol):
     """Interface for a component pipeline."""
 

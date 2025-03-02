@@ -25,6 +25,16 @@ class SimpleVectorStore(IVectorStore):
         self._index_to_id: Dict[int, MemoryID] = {}
         self._dirty: bool = True
         self._matrix: Optional[np.ndarray] = None
+        self.component_id = "simple_vector_store"
+        
+    def get_id(self) -> str:
+        """Get the unique identifier for this component."""
+        return self.component_id
+        
+    def get_type(self):
+        """Get the type of this component."""
+        from memoryweave.interfaces.pipeline import ComponentType
+        return ComponentType.VECTOR_STORE
 
     def add(self, id: MemoryID, vector: EmbeddingVector) -> None:
         """Add a vector to the store."""
@@ -130,6 +140,16 @@ class ActivationVectorStore(IVectorStore):
         self._vector_store = SimpleVectorStore()
         self._activations: Dict[MemoryID, float] = {}
         self._activation_weight = activation_weight
+        self.component_id = "activation_vector_store"
+        
+    def get_id(self) -> str:
+        """Get the unique identifier for this component."""
+        return self.component_id
+        
+    def get_type(self):
+        """Get the type of this component."""
+        from memoryweave.interfaces.pipeline import ComponentType
+        return ComponentType.VECTOR_STORE
 
     def add(self, id: MemoryID, vector: EmbeddingVector) -> None:
         """Add a vector to the store."""
