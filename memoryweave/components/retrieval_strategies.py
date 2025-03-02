@@ -4,6 +4,7 @@ from typing import Any, List, Optional
 import numpy as np
 
 from memoryweave.components.base import RetrievalStrategy
+from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import HybridBM25VectorStrategy
 from memoryweave.core import ContextualMemory
 from memoryweave.core.category_manager import CategoryManager
 
