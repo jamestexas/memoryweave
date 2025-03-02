@@ -223,7 +223,7 @@ def main():
         "--retriever", 
         type=str, 
         default="similarity",
-        choices=["similarity", "hybrid"],
+        choices=["similarity", "hybrid", "hybrid_bm25"],
         help="MemoryWeave retriever type to use"
     )
     
