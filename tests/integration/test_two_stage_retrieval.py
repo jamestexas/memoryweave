@@ -2,7 +2,7 @@
 Integration tests for TwoStageRetrievalStrategy.
 
 These tests verify that the TwoStageRetrievalStrategy works correctly with other components
-and produces different results across different configurations.
+and produces expected results with different configurations.
 """
 
 import pytest
@@ -13,222 +13,315 @@ from memoryweave.components.retrieval_strategies import (
     SimilarityRetrievalStrategy,
     TwoStageRetrievalStrategy,
 )
-from memoryweave.components.post_processors import (
-    KeywordBoostProcessor,
-    SemanticCoherenceProcessor,
+from tests.utils.test_fixtures import (
+    PredictableTestEmbeddings,
+    create_test_memory,
+    create_retrieval_components,
+    verify_retrieval_results,
+    assert_specific_difference
 )
-from memoryweave.core.contextual_memory import ContextualMemory
 
 
 class TestTwoStageRetrievalIntegration:
-    """Integration tests for TwoStageRetrievalStrategy."""
+    """Integration tests for TwoStageRetrievalStrategy with proper assertions."""
 
     def setup_method(self):
-        """Setup for each test."""
-        # Create a mock memory with some test data
-        self.memory = ContextualMemory(embedding_dim=4)
+        """Setup for each test using predictable test fixtures."""
+        # Create a test memory with predictable data
+        self.memory = create_test_memory()
         
-        # Add some test memories with simple embeddings
-        cat_embedding = np.array([0.9, 0.1, 0.1, 0.1])
-        dog_embedding = np.array([0.1, 0.9, 0.1, 0.1])
-        weather_embedding = np.array([0.1, 0.1, 0.9, 0.1])
-        travel_embedding = np.array([0.1, 0.1, 0.1, 0.9])
+        # Create retrieval components
+        components = create_retrieval_components(self.memory)
         
-        self.memory.add_memory(
-            cat_embedding, 
-            "My cat is named Whiskers and likes to sleep on the couch.",
-            {"type": "personal", "category": "pets"}
-        )
-        self.memory.add_memory(
-            cat_embedding * 0.95, 
-            "Whiskers enjoys playing with toy mice.",
-            {"type": "personal", "category": "pets"}
-        )
-        self.memory.add_memory(
-            dog_embedding, 
-            "I have a dog named Rover who likes to fetch balls.",
-            {"type": "personal", "category": "pets"}
-        )
-        self.memory.add_memory(
-            weather_embedding, 
-            "It was rainy in Seattle yesterday.",
-            {"type": "factual", "category": "weather"}
-        )
-        self.memory.add_memory(
-            travel_embedding, 
-            "I visited Paris last summer and saw the Eiffel Tower.",
-            {"type": "personal", "category": "travel"}
-        )
-        
-        # Create individual components
-        self.base_strategy = HybridRetrievalStrategy(self.memory)
-        self.base_strategy.initialize({"confidence_threshold": 0.3})
-        
-        self.keyword_processor = KeywordBoostProcessor()
-        self.keyword_processor.initialize({"keyword_boost_weight": 0.5})
-        
-        self.coherence_processor = SemanticCoherenceProcessor()
-        self.coherence_processor.initialize({
-            "coherence_threshold": 0.2,
-            "enable_query_type_filtering": True,
-            "max_penalty": 0.3
-        })
-        
-        # Create the two-stage retrieval strategy
-        self.two_stage_strategy = TwoStageRetrievalStrategy(
-            self.memory,
-            base_strategy=self.base_strategy,
-            post_processors=[self.keyword_processor, self.coherence_processor]
-        )
-        self.two_stage_strategy.initialize({
-            "confidence_threshold": 0.3,
-            "first_stage_k": 3,
-            "first_stage_threshold_factor": 0.7
-        })
+        # Extract components for tests
+        self.base_strategy = components["hybrid_strategy"]
+        self.similarity_strategy = components["similarity_strategy"]
+        self.keyword_processor = components["keyword_processor"]
+        self.coherence_processor = components["coherence_processor"]
+        self.basic_two_stage = components["basic_two_stage"]
+        self.advanced_two_stage = components["advanced_two_stage"]
 
-    def test_config_affects_first_stage_parameters(self):
-        """Test that configuration name affects first stage parameters."""
-        # Standard query embedding pointing to cats
-        query_embedding = np.array([0.8, 0.1, 0.1, 0.1])
+    def test_first_stage_k_affects_result_count(self):
+        """Test that first_stage_k parameter affects the result count and quality."""
+        # Create two strategies with different first_stage_k values
+        small_k_strategy = TwoStageRetrievalStrategy(
+            self.memory,
+            base_strategy=self.similarity_strategy,
+            post_processors=[]
+        )
+        small_k_strategy.initialize({
+            "confidence_threshold": 0.3,
+            "first_stage_k": 2  # Small first stage limits results
+        })
         
-        # Context with Two-Stage configuration
-        two_stage_context = {
-            "config_name": "Two-Stage",
+        large_k_strategy = TwoStageRetrievalStrategy(
+            self.memory,
+            base_strategy=self.similarity_strategy,
+            post_processors=[]
+        )
+        large_k_strategy.initialize({
+            "confidence_threshold": 0.3,
+            "first_stage_k": 5  # Larger first stage allows more results
+        })
+        
+        # Common context with two-stage enabled
+        context = {
             "enable_two_stage_retrieval": True,
+            "config_name": "Test"
         }
         
-        # Context with basic configuration
-        basic_context = {
-            "config_name": "Basic",
-            "enable_two_stage_retrieval": True,
-        }
+        # Use cat query embedding
+        query_embedding = PredictableTestEmbeddings.cat_query()
         
-        # Retrieve with both contexts
-        two_stage_results = self.two_stage_strategy.retrieve(query_embedding, 2, two_stage_context)
-        basic_results = self.two_stage_strategy.retrieve(query_embedding, 2, basic_context)
+        # Retrieve with both configurations
+        small_k_results = small_k_strategy.retrieve(query_embedding, 5, context)
+        large_k_results = large_k_strategy.retrieve(query_embedding, 5, context)
         
-        # Two-Stage configuration should modify first_stage_k
-        assert len(two_stage_results) > 0, "Two-Stage retrieval returned no results"
+        # When first_stage_k is smaller, fewer results are considered, 
+        # potentially limiting final result count or quality
+        # Test that either:
+        # 1. The number of results differs, or
+        # 2. The relevance scores differ
+        different, message = assert_specific_difference(
+            small_k_results, large_k_results, 
+            "Different first_stage_k values should affect results"
+        )
         
-        # Check if the configuration was properly logged
-        # (We can't directly assert the internal behavior, but it would be visible in logs)
-        assert two_stage_results is not None
-        assert basic_results is not None
+        assert different, message
+        
+        # Verify that cat-related content appears in both result sets
+        # but we don't require exactly the same ordering
+        assert verify_retrieval_results(small_k_results, ["cat"]), \
+            "Small first_stage_k should still find cat-related content"
+            
+        assert verify_retrieval_results(large_k_results, ["cat"]), \
+            "Large first_stage_k should find cat-related content"
 
     def test_two_stage_includes_post_processing(self):
-        """Test that two-stage retrieval includes post-processing effects."""
-        # Query embedding pointing to cats
-        query_embedding = np.array([0.8, 0.1, 0.1, 0.1])
+        """Test that two-stage retrieval applies post-processing correctly."""
+        # Create two identical strategies, but one with post-processors
+        no_processors_strategy = TwoStageRetrievalStrategy(
+            self.memory,
+            base_strategy=self.similarity_strategy,
+            post_processors=[]  # No post-processors
+        )
+        no_processors_strategy.initialize({
+            "confidence_threshold": 0.3,
+            "first_stage_k": 4
+        })
         
-        # Create a context with keywords to boost
+        with_processors_strategy = TwoStageRetrievalStrategy(
+            self.memory,
+            base_strategy=self.similarity_strategy,
+            post_processors=[self.keyword_processor]  # Add keyword processor
+        )
+        with_processors_strategy.initialize({
+            "confidence_threshold": 0.3,
+            "first_stage_k": 4
+        })
+        
+        # Context with keywords to boost
         context = {
             "enable_two_stage_retrieval": True,
             "important_keywords": {"cat", "Whiskers"},
-            "enable_semantic_coherence": True,
-            "primary_query_type": "personal",
             "query": "Tell me about my cat Whiskers"
         }
         
-        # Retrieve with two-stage strategy
-        two_stage_results = self.two_stage_strategy.retrieve(query_embedding, 3, context)
+        # Use cat query embedding
+        query_embedding = PredictableTestEmbeddings.cat_query()
         
-        # Retrieve with base strategy only
-        base_results = self.base_strategy.retrieve(query_embedding, 3, context) 
+        # Retrieve with both strategies
+        no_processor_results = no_processors_strategy.retrieve(query_embedding, 3, context)
+        with_processor_results = with_processors_strategy.retrieve(query_embedding, 3, context)
         
-        # Find cat-related results in both result sets
-        two_stage_cat_results = [r for r in two_stage_results if "cat" in r.get("content", "").lower()]
-        base_cat_results = [r for r in base_results if "cat" in r.get("content", "").lower()]
-        
-        # Two-stage with post-processors should boost cat results
-        assert len(two_stage_cat_results) > 0, "No cat results found in two-stage results"
-        
-        # If both have cat results, the two-stage ones should have higher scores due to keyword boost
-        if base_cat_results:
-            two_stage_cat_score = max(r.get("relevance_score", 0) for r in two_stage_cat_results)
-            base_cat_score = max(r.get("relevance_score", 0) for r in base_cat_results)
+        # Verify both return cat results
+        assert verify_retrieval_results(no_processor_results, ["cat"]), \
+            "Strategy without processors should still find cat-related content"
             
-            # Can't directly assert score differences due to implementation details,
-            # but we expect different behavior between the strategies
+        assert verify_retrieval_results(with_processor_results, ["cat"]), \
+            "Strategy with processors should find cat-related content"
+        
+        # Compare relevance scores - with keyword processor, "cat" results should have higher scores
+        no_processor_cat_results = [r for r in no_processor_results if "cat" in r.get("content", "").lower()]
+        with_processor_cat_results = [r for r in with_processor_results if "cat" in r.get("content", "").lower()]
+        
+        if no_processor_cat_results and with_processor_cat_results:
+            no_processor_max_score = max(r.get("relevance_score", 0) for r in no_processor_cat_results)
+            with_processor_max_score = max(r.get("relevance_score", 0) for r in with_processor_cat_results)
+            
+            # The actual assertion is that the processor changes scores in some way,
+            # not necessarily increases them (depends on implementation)
+            assert with_processor_max_score != no_processor_max_score, \
+                "Keyword processor should modify cat result scores, but they remained the same"
+        
+        # Test for specific differences between the results
+        different, message = assert_specific_difference(
+            no_processor_results, with_processor_results,
+            "Post-processors should affect result scores or ordering"
+        )
+        
+        assert different, message
 
     def test_disabled_two_stage_uses_base_strategy(self):
         """Test that when two-stage retrieval is disabled, it falls back to base strategy."""
-        # Query embedding pointing to cats
-        query_embedding = np.array([0.8, 0.1, 0.1, 0.1])
+        # Use cat query embedding
+        query_embedding = PredictableTestEmbeddings.cat_query()
         
-        # Context with two-stage disabled
-        context = {
+        # Context with two-stage explicitly disabled
+        disabled_context = {
             "enable_two_stage_retrieval": False,
             "query": "Tell me about my cat"
         }
         
-        # Retrieve with two-stage strategy (should fall back to base)
-        results = self.two_stage_strategy.retrieve(query_embedding, 2, context)
+        # Context with two-stage explicitly enabled
+        enabled_context = {
+            "enable_two_stage_retrieval": True,
+            "query": "Tell me about my cat"
+        }
         
-        # Direct base strategy results
-        base_results = self.base_strategy.retrieve(query_embedding, 2, {})
+        # Direct base strategy results (SimilarityRetrievalStrategy)
+        base_results = self.similarity_strategy.retrieve(query_embedding, 3, {})
         
-        # Both should return cat-related results
-        assert any("cat" in r.get("content", "").lower() for r in results), "No cat results found when two-stage disabled"
+        # Two-stage with disabled flag should use base strategy
+        disabled_results = self.basic_two_stage.retrieve(query_embedding, 3, disabled_context)
         
-        # The number of results should be the same as with base strategy directly
-        assert len(results) == len(base_results), "Different result count between disabled two-stage and base strategy"
+        # Two-stage with enabled flag should use two-stage logic
+        enabled_results = self.basic_two_stage.retrieve(query_embedding, 3, enabled_context)
+        
+        # When disabled, the results should match the base strategy's behavior
+        assert len(disabled_results) == len(base_results), \
+            f"When disabled, two-stage should return same count as base strategy: {len(disabled_results)} vs {len(base_results)}"
+        
+        # Both disabled and direct base should find cat content
+        assert verify_retrieval_results(disabled_results, ["cat"]), \
+            "Disabled two-stage should still find cat-related content"
+            
+        assert verify_retrieval_results(base_results, ["cat"]), \
+            "Base strategy should find cat-related content"
+        
+        # Enabled two-stage should produce different results from disabled
+        different, message = assert_specific_difference(
+            disabled_results, enabled_results,
+            "Enabled vs disabled two-stage should produce different results"
+        )
+        
+        assert different, message
 
     def test_different_configurations_produce_different_results(self):
-        """Test that different configurations produce different results."""
-        # Create a custom two-stage strategy for each configuration
-        basic_strategy = TwoStageRetrievalStrategy(
-            self.memory,
-            base_strategy=SimilarityRetrievalStrategy(self.memory),
-            post_processors=[]
-        )
-        basic_strategy.initialize({
-            "confidence_threshold": 0.3,
-            "first_stage_k": 3
-        })
-        
-        advanced_strategy = TwoStageRetrievalStrategy(
-            self.memory,
-            base_strategy=HybridRetrievalStrategy(self.memory),
-            post_processors=[self.keyword_processor, self.coherence_processor]
-        )
-        advanced_strategy.initialize({
-            "confidence_threshold": 0.3,
-            "first_stage_k": 5,  # Larger first stage
-        })
-        
-        # Query embedding pointing to cats
-        query_embedding = np.array([0.8, 0.1, 0.1, 0.1])
+        """Test that different configurations produce specific, expected differences."""
+        # Use cat query embedding
+        query_embedding = PredictableTestEmbeddings.cat_query()
         
         # Context with different configurations
         basic_context = {
             "enable_two_stage_retrieval": True,
             "config_name": "Basic",
-            "enable_semantic_coherence": False,
-            "enable_query_type_adaptation": False
+            "enable_semantic_coherence": False
         }
         
         advanced_context = {
             "enable_two_stage_retrieval": True,
-            "config_name": "Full-Advanced",
+            "config_name": "Advanced",
             "enable_semantic_coherence": True,
-            "enable_query_type_adaptation": True,
             "primary_query_type": "personal",
             "important_keywords": {"cat", "Whiskers"},
             "query": "Tell me about my cat Whiskers"
         }
         
         # Retrieve with both configurations
-        basic_results = basic_strategy.retrieve(query_embedding, 3, basic_context)
-        advanced_results = advanced_strategy.retrieve(query_embedding, 3, advanced_context)
+        basic_results = self.basic_two_stage.retrieve(query_embedding, 3, basic_context)
+        advanced_results = self.advanced_two_stage.retrieve(query_embedding, 3, advanced_context)
         
-        # Configurations should return different result counts or scores
-        # Since they use different base strategies and post-processors
-        basic_cat_results = [r for r in basic_results if "cat" in r.get("content", "").lower()]
-        advanced_cat_results = [r for r in advanced_results if "cat" in r.get("content", "").lower()]
+        # Test specific expected differences:
         
-        assert len(basic_results) != len(advanced_results) or \
-               len(basic_cat_results) != len(advanced_cat_results), \
-               "Different configurations should produce different results"
+        # 1. Basic should still return cat results
+        assert verify_retrieval_results(basic_results, ["cat"]), \
+            "Basic configuration should find cat-related content"
+            
+        # 2. Advanced should return cat results, possibly in different order
+        assert verify_retrieval_results(advanced_results, ["cat"]), \
+            "Advanced configuration should find cat-related content"
+        
+        # 3. Verify the configurations produce different results
+        different, message = assert_specific_difference(
+            basic_results, advanced_results,
+            "Basic vs Advanced configurations should produce different results"
+        )
+        
+        assert different, message
+        
+        # 4. Advanced configuration uses keyword boost, so should have 
+        # different relevance scores for cat results
+        basic_cat_scores = [
+            r.get("relevance_score", 0) 
+            for r in basic_results 
+            if "cat" in r.get("content", "").lower()
+        ]
+        
+        advanced_cat_scores = [
+            r.get("relevance_score", 0) 
+            for r in advanced_results 
+            if "cat" in r.get("content", "").lower()
+        ]
+        
+        # Either the scores should be different, or the result sets should have
+        # different lengths, content, etc.
+        assert basic_cat_scores != advanced_cat_scores or different, \
+            "Different configurations should produce different cat result scores"
+
+    def test_post_processor_order_affects_results(self):
+        """Test that the order of post-processors affects the final results."""
+        # Create two strategies with different post-processor orders
+        order1_strategy = TwoStageRetrievalStrategy(
+            self.memory,
+            base_strategy=self.similarity_strategy,
+            post_processors=[self.keyword_processor, self.coherence_processor]
+        )
+        order1_strategy.initialize({
+            "confidence_threshold": 0.3,
+            "first_stage_k": 4
+        })
+        
+        order2_strategy = TwoStageRetrievalStrategy(
+            self.memory,
+            base_strategy=self.similarity_strategy,
+            post_processors=[self.coherence_processor, self.keyword_processor]
+        )
+        order2_strategy.initialize({
+            "confidence_threshold": 0.3,
+            "first_stage_k": 4
+        })
+        
+        # Context with relevant parameters for both processors
+        context = {
+            "enable_two_stage_retrieval": True,
+            "enable_semantic_coherence": True,
+            "primary_query_type": "personal",
+            "important_keywords": {"cat", "Whiskers"},
+            "query": "Tell me about my cat Whiskers"
+        }
+        
+        # Use cat query embedding
+        query_embedding = PredictableTestEmbeddings.cat_query()
+        
+        # Retrieve with both orders
+        order1_results = order1_strategy.retrieve(query_embedding, 3, context)
+        order2_results = order2_strategy.retrieve(query_embedding, 3, context)
+        
+        # Both should find cat results
+        assert verify_retrieval_results(order1_results, ["cat"]), \
+            "First processor order should find cat-related content"
+            
+        assert verify_retrieval_results(order2_results, ["cat"]), \
+            "Second processor order should find cat-related content"
+        
+        # The order should produce different scores or rankings
+        different, message = assert_specific_difference(
+            order1_results, order2_results,
+            "Different post-processor orders should affect results"
+        )
+        
+        assert different, message
 
 
 if __name__ == "__main__":
