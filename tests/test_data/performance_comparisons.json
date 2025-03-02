@@ -1,0 +1,27 @@
+{
+  "comparisons": [
+    {
+      "timestamp": 1740935375.1852212,
+      "basic_config": {
+        "name": "Performance-Test-Basic",
+        "avg_time": 0.09596840540568034,
+        "times": [
+          0.09736013412475586,
+          0.09505701065063477,
+          0.09548807144165039
+        ]
+      },
+      "advanced_config": {
+        "name": "Performance-Test-Advanced",
+        "avg_time": 0.0967729886372884,
+        "times": [
+          0.09600400924682617,
+          0.09628701210021973,
+          0.09802794456481934
+        ]
+      },
+      "difference": 0.0008045832316080637,
+      "percentage_difference": 0.8383834536032007
+    }
+  ]
+}
