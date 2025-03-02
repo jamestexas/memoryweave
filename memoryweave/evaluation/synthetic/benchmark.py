@@ -369,10 +369,17 @@ class SyntheticBenchmark:
                     original_in_evaluation = None
 
                 # Update the memory_manager components working context to indicate we're in evaluation
+                # BUT make sure we're enabling specialized components rather than disabling their behavior
                 if hasattr(retriever, "memory_manager"):
                     retriever.memory_manager.working_context = {
-                        "in_evaluation": config.evaluation_mode
+                        "in_evaluation": config.evaluation_mode,
+                        # Make sure to enable full functionality of specialized components
+                        "enable_query_type_adaptation": config.query_type_adaptation,
+                        "enable_semantic_coherence": config.semantic_coherence_check,
+                        "enable_two_stage_retrieval": config.use_two_stage_retrieval,
+                        "config_name": config.name  # Track which config is being used
                     }
+                    evaluation_logger.info(f"Benchmark: Set working_context for {config.name}: {retriever.memory_manager.working_context}")
 
                 # Retrieve results
                 results = retriever.retrieve(

@@ -48,6 +48,9 @@ class QueryTypeAdapter(RetrievalComponent):
         import logging
         logger = logging.getLogger(__name__)
         
+        # Log initial state
+        logger.info(f"QueryTypeAdapter.process_query: adaptation_strength={self.adaptation_strength}")
+        
         # Don't process if query type adaptation is disabled
         if self.adaptation_strength <= 0:
             logger.warning(f"QueryTypeAdapter: adaptation_strength={self.adaptation_strength}, adaptation disabled")
@@ -60,6 +63,8 @@ class QueryTypeAdapter(RetrievalComponent):
 
         # Get parameter recommendations if available
         param_recommendations = context.get("retrieval_param_recommendations", {})
+        
+        logger.info(f"QueryTypeAdapter.process_query: primary_type={primary_type}, existing recommendations={param_recommendations}")
 
         # Base parameters to adapt
         adapted_params = {
@@ -70,6 +75,8 @@ class QueryTypeAdapter(RetrievalComponent):
             "keyword_boost_weight": self.default_keyword_boost_weight,
             "expand_keywords": False,
         }
+        
+        logger.info(f"QueryTypeAdapter.process_query: Base adapted_params={adapted_params}")
 
         # Use recommendations if available and enabled
         if self.use_recommendations and param_recommendations:
@@ -93,6 +100,11 @@ class QueryTypeAdapter(RetrievalComponent):
             self._manually_adapt_params(adapted_params, primary_type)
 
         # Store the adapted parameters for use by retrieval strategies
+        logger.info(f"QueryTypeAdapter.process_query: Final adapted_params={adapted_params}")
+        
+        # Add a flag to indicate that parameters were adapted by this component
+        adapted_params["adapted_by_query_type"] = True
+        
         return {"adapted_retrieval_params": adapted_params}
 
     def _manually_adapt_params(self, params: dict[str, Any], query_type: str) -> None:
@@ -103,6 +115,12 @@ class QueryTypeAdapter(RetrievalComponent):
             params: Parameters to adapt (modified in place)
             query_type: The query type to adapt for
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"QueryTypeAdapter._manually_adapt_params: Adapting for query_type={query_type}")
+        
+        # Store original values for logging
+        orig_params = params.copy()
         if query_type == "personal":
             # Personal queries need higher precision
             params["confidence_threshold"] = (
@@ -127,3 +145,9 @@ class QueryTypeAdapter(RetrievalComponent):
                 0.5, params["first_stage_threshold_factor"] - 0.1 * self.adaptation_strength
             )
             params["expand_keywords"] = self.adaptation_strength > 0.5
+            
+        # Log the parameter changes
+        import logging
+        logger = logging.getLogger(__name__)
+        changes = {k: (orig_params.get(k), params[k]) for k in params if k in orig_params and params[k] != orig_params[k]}
+        logger.info(f"QueryTypeAdapter._manually_adapt_params: Changes for {query_type}: {changes}")
