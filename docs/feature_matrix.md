@@ -60,12 +60,12 @@ This document tracks the implementation status of features from the original `Co
 
 1. ✅ Implement two-stage retrieval in the component architecture
 2. ✅ Enhance query type adaptation to drive retrieval behavior
-3. 🔄 Refactor to modular architecture as per architecture decision record
-4. Integrate with ART clustering from ContextualMemory
+3. ✅ Refactor to modular architecture as per architecture decision record
+4. ✅ Integrate with ART clustering from ContextualMemory
 5. ✅ Implement full keyword expansion
 6. ✅ Enhance personal attribute integration
 7. ✅ Implement memory decay
-8. Add query context building
+8. ✅ Add query context building
 
 ## Refactoring Progress
 
@@ -80,9 +80,9 @@ This document tracks the implementation status of features from the original `Co
 | 3 | Create pipeline architecture | ✅ | Implemented registry, builder, manager, and executor |
 | 3 | Create configuration system | ✅ | Implemented options, validation, and loaders |
 | 3 | Create factory methods | ✅ | Implemented memory, retrieval, and pipeline factories |
-| 4 | Create adapters | ✅ | Implemented memory, retrieval, and pipeline adapters |
-| 4 | Migrate feature implementations | 🔄 | Added component migration utility |
-| 4 | Update tests | 🔄 | Added unit tests for storage, retrieval, query, pipeline, and adapter components |
-| 5 | Remove deprecated code | ❌ | Not started |
+| 4 | Create adapters | ✅ | Implemented memory, retrieval, pipeline, and category adapters |
+| 4 | Migrate feature implementations | ✅ | Added component migration utility and completed feature migration |
+| 4 | Update tests | ✅ | Added unit and integration tests for all components |
+| 5 | Remove deprecated code | 🔄 | In progress |
 | 5 | Update documentation | ✅ | Architecture ADR added, feature matrix updated |
 | 5 | Update examples | ✅ | Added migration example demonstrating all migration approaches |
