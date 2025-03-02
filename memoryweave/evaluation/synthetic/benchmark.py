@@ -15,7 +15,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -68,10 +68,11 @@ class BenchmarkResults:
     f1_score: float
     avg_query_time: float
     avg_retrieval_count: float
+    query_times: dict[str, Any] = None  # Added field for per-query timing data
 
     def to_dict(self) -> dict[str, Any]:
         """Convert results to a dictionary."""
-        return {
+        result = {
             "config": {
                 "name": self.config.name,
                 "retriever_type": self.config.retriever_type,
@@ -91,6 +92,12 @@ class BenchmarkResults:
                 "avg_retrieval_count": self.avg_retrieval_count,
             },
         }
+        
+        # Add per-query timing data if available
+        if self.query_times:
+            result["query_times"] = self.query_times
+            
+        return result
 
 
 class SyntheticBenchmark:
@@ -244,8 +251,11 @@ class SyntheticBenchmark:
                 )
                 continue
 
-            text = mem["text"]
-            metadata = {**mem["metadata"], "index": i}  # Add original index to metadata
+            # Get text content (handle both "text" and "content" keys for compatibility)
+            text = mem.get("text", mem.get("content", f"Memory {i}"))
+            # Get metadata or create empty dict
+            memory_metadata = mem.get("metadata", {})
+            metadata = {**memory_metadata, "index": i}  # Add original index to metadata
             memory.add_memory(embedding, text, metadata)
 
         # Create retriever
@@ -281,15 +291,16 @@ class SyntheticBenchmark:
 
         return memory, retriever
 
-    def run_benchmark(self, save_path: Optional[Union[str, Path]] = None) -> list[BenchmarkResults]:
+    def run_benchmark(self, save_path: Optional[Union[str, Path]] = None, max_queries: Optional[int] = None) -> dict:
         """
         Run the benchmark for all configurations.
 
         Args:
             save_path: Path to save the results (optional)
+            max_queries: Maximum number of queries to run (optional, for testing/debugging)
 
         Returns:
-            list of benchmark results
+            Dictionary with benchmark results and additional data including per-query timing
         """
         if not self.dataset:
             if self.dataset_path:
@@ -310,12 +321,23 @@ class SyntheticBenchmark:
             retrieval_counts = []
             all_expected = []
             all_retrieved = []
+            query_timing_dict = {}  # Dictionary to store query ID -> timing data
+            
+            # Limit queries if max_queries is specified
+            queries_to_run = self.dataset["queries"]
+            if max_queries is not None and max_queries > 0:
+                queries_to_run = self.dataset["queries"][:max_queries]
+                logger.info(f"Limited to {max_queries} queries for testing")
 
-            logger.info(f"Running {len(self.dataset['queries'])} queries")
-            for query_item in tqdm(self.dataset["queries"], desc="Queries"):
-                query = query_item["query"]
-                expected_indices = query_item["relevant_indices"]
+            logger.info(f"Running {len(queries_to_run)} queries")
+            for query_idx, query_item in enumerate(tqdm(queries_to_run, desc="Queries")):
+                # Get query text (handle both "query" and "text" keys for compatibility)
+                query = query_item.get("query", query_item.get("text", f"Query {query_idx}"))
+                # Get expected indices (handle different key names for compatibility)
+                expected_indices = query_item.get("relevant_indices", query_item.get("expected_ids", []))
+                # Get query embedding
                 query_embedding = np.array(query_item["embedding"])
+                query_id = query_item.get("id", f"query_{query_idx}")  # Get query ID or generate one
 
                 # Set evaluation mode to prevent special case handling
                 context = {"in_evaluation": config.evaluation_mode}
@@ -492,6 +514,13 @@ class SyntheticBenchmark:
 
                 query_time = time.time() - start_time
                 query_times.append(query_time)
+                
+                # Store the timing data with query details
+                query_timing_dict[query_id] = {
+                    "time": query_time,
+                    "query_text": query[:50] + ("..." if len(query) > 50 else ""),  # Store truncated query text
+                    "result_count": len(results)
+                }
 
                 # Extract retrieved indices
                 retrieved_indices = []
@@ -555,6 +584,7 @@ class SyntheticBenchmark:
                 f1_score=np.mean(f1_scores),
                 avg_query_time=np.mean(query_times),
                 avg_retrieval_count=np.mean(retrieval_counts),
+                query_times=query_timing_dict  # Add the per-query timing dictionary
             )
 
             self.results.append(result)
@@ -565,6 +595,7 @@ class SyntheticBenchmark:
             logger.info(f"  F1 Score: {result.f1_score:.4f}")
             logger.info(f"  Avg Query Time: {result.avg_query_time:.4f}s")
             logger.info(f"  Avg Results: {result.avg_retrieval_count:.2f}")
+            logger.info(f"  Per-query timing data collected for {len(query_timing_dict)} queries")
 
         # Save results if path provided
         if save_path:
@@ -579,8 +610,19 @@ class SyntheticBenchmark:
 
         # Generate visualizations
         self.visualize_results()
+        
+        # Create a consolidated result to return
+        consolidated_results = {
+            "results": self.results,
+            "summary": {
+                "configs_tested": len(self.results),
+                "total_queries": len(queries_to_run) if 'queries_to_run' in locals() else len(self.dataset["queries"]),
+                "best_f1": max(r.f1_score for r in self.results) if self.results else 0,
+                "best_config": next((r.config.name for r in self.results if r.f1_score == max(r2.f1_score for r2 in self.results)), None) if self.results else None
+            }
+        }
 
-        return self.results
+        return consolidated_results
 
     def visualize_results(self, save_path: str = "synthetic_benchmark_results.png"):
         """
@@ -776,6 +818,124 @@ def main():
 
     # Run benchmark
     benchmark.run_benchmark(save_path=args.save_results)
+
+
+def run_benchmark_with_config(
+    dataset_path: Union[str, Path],
+    config: Dict[str, Any],
+    metrics: List[str] = None,
+    verbose: bool = True,
+    max_queries: Optional[int] = None,
+    track_query_performance: bool = False
+) -> Dict[str, Any]:
+    """
+    Run a benchmark with a single configuration.
+    
+    This is a convenience wrapper around SyntheticBenchmark for running with a single config.
+    
+    Args:
+        dataset_path: Path to the benchmark dataset
+        config: Configuration dictionary for the benchmark
+        metrics: List of metrics to calculate
+        verbose: Whether to print verbose output
+        max_queries: Maximum number of queries to run (for testing)
+        track_query_performance: Whether to track and return per-query performance data
+        
+    Returns:
+        Dictionary with benchmark results
+    """
+    # Configure logging based on verbose setting
+    log_level = logging.INFO if verbose else logging.WARNING
+    logger.setLevel(log_level)
+    
+    # Convert config dict to BenchmarkConfig
+    benchmark_config = BenchmarkConfig(
+        name=config.get("name", "Custom-Config"),
+        retriever_type=config.get("retriever_type", "components"),
+        confidence_threshold=config.get("confidence_threshold", 0.3),
+        use_art_clustering=config.get("use_art_clustering", False),
+        semantic_coherence_check=config.get("semantic_coherence_check", False),
+        adaptive_retrieval=config.get("adaptive_retrieval", False),
+        use_two_stage_retrieval=config.get("use_two_stage_retrieval", False),
+        query_type_adaptation=config.get("query_type_adaptation", False),
+        dynamic_threshold_adjustment=config.get("dynamic_threshold_adjustment", False),
+        memory_decay_enabled=config.get("memory_decay_enabled", False),
+        top_k=config.get("top_k", 5),
+        evaluation_mode=config.get("evaluation_mode", True)
+    )
+    
+    # Look for any components configuration
+    if "components" in config:
+        # Apply component-specific parameters
+        components_config = config["components"]
+        
+        # Configure retriever strategy
+        if "retriever" in components_config:
+            retriever_config = components_config["retriever"]
+            if "params" in retriever_config:
+                params = retriever_config["params"]
+                if "retrieval_strategy" in params:
+                    strategy = params["retrieval_strategy"]
+                    if "TwoStageRetrievalStrategy" in strategy:
+                        benchmark_config.use_two_stage_retrieval = True
+                    
+                if "confidence_threshold" in params:
+                    benchmark_config.confidence_threshold = params["confidence_threshold"]
+                    
+                if "top_k" in params:
+                    benchmark_config.top_k = params["top_k"]
+                    
+        # Configure post-processors
+        if "post_processors" in components_config:
+            post_processors = components_config["post_processors"]
+            for processor in post_processors:
+                if "class" in processor:
+                    processor_class = processor["class"]
+                    if processor_class == "SemanticCoherenceProcessor":
+                        benchmark_config.semantic_coherence_check = True
+                    elif processor_class == "QueryTypeAdapter":
+                        benchmark_config.query_type_adaptation = True
+    
+    # Create and run benchmark
+    benchmark = SyntheticBenchmark(
+        configs=[benchmark_config],
+        dataset_path=dataset_path
+    )
+    
+    # Track query performance if requested
+    if track_query_performance:
+        config["track_query_performance"] = True
+    
+    # Run benchmark with max_queries limit if specified
+    results = benchmark.run_benchmark(max_queries=max_queries)
+    
+    # Extract results for the single config
+    if results and "results" in results and len(results["results"]) > 0:
+        # Get the first (and only) result
+        result = results["results"][0].to_dict()
+        
+        # Add the actual metrics calculated if specified
+        if metrics:
+            available_metrics = {
+                "precision": result["metrics"]["precision"],
+                "recall": result["metrics"]["recall"],
+                "f1_score": result["metrics"]["f1_score"],
+                "avg_query_time": result["metrics"]["avg_query_time"]
+            }
+            
+            result["requested_metrics"] = {
+                metric: available_metrics.get(metric, None) 
+                for metric in metrics
+            }
+            
+        # Add query times if tracking was enabled
+        if track_query_performance and "query_times" in result:
+            result["query_times"] = result["query_times"]
+            
+        return result
+    
+    # Return empty result if no results were generated
+    return {"error": "No results generated"}
 
 
 if __name__ == "__main__":
