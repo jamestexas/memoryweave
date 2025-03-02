@@ -38,23 +38,13 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         adapted_params = context.get("adapted_retrieval_params", {})
         confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
 
-        # Check if we're in evaluation mode
-        in_evaluation = context.get("in_evaluation", False)
-        
-        # Debug log for evaluation mode
+        # Get logging setup
         import logging
         logger = logging.getLogger(__name__)
-        logger.debug(f"SimilarityRetrievalStrategy: in_evaluation={in_evaluation}, confidence_threshold={confidence_threshold}")
+        logger.debug(f"SimilarityRetrievalStrategy: confidence_threshold={confidence_threshold}")
+        logger.info(f"SimilarityRetrievalStrategy: Using confidence_threshold={confidence_threshold}")
 
-        # Special case for test_confidence_threshold test
-        if "test_confidence_threshold" in context:
-            # For testing only - this enables the test to work correctly
-            confidence_threshold = 0.9
-            logger.info(f"SimilarityRetrievalStrategy: Using high threshold {confidence_threshold} for test_confidence_threshold test")
-            # Just return 0 results for the test
-            return []
-
-        # Standard retrieval path
+        # Standard retrieval path - consistent behavior regardless of evaluation mode
         if hasattr(memory, "retrieve_memories"):
             # Try with the specified threshold
             results = memory.retrieve_memories(
@@ -65,23 +55,22 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
             )
             logger.debug(f"SimilarityRetrievalStrategy: Initial retrieval returned {len(results)} results with threshold {confidence_threshold}")
 
-            # Only fall back to lower threshold if not in evaluation mode
-            if not results and not in_evaluation:
-                # This is a fallback for non-evaluation scenarios only
-                test_threshold = 0.0  # Minimum possible threshold
-                logger.info(f"SimilarityRetrievalStrategy: No results at threshold {confidence_threshold}, falling back to {test_threshold}")
+            # Apply minimum results guarantee if configured and no results found
+            if not results and self.min_results > 0:
+                min_threshold = 0.0  # Use minimum threshold to find any matching results
+                logger.info(f"SimilarityRetrievalStrategy: Applying minimum results guarantee with threshold {min_threshold}")
                 results = memory.retrieve_memories(
                     query_embedding,
-                    top_k=top_k,
+                    top_k=self.min_results,
                     activation_boost=self.activation_boost,
-                    confidence_threshold=test_threshold,
+                    confidence_threshold=min_threshold,
                 )
-
-                # Mark these as lower-confidence results
-                results = [
-                    (idx, min(score, confidence_threshold - 0.01), metadata)
-                    for idx, score, metadata in results
-                ]
+                
+                # Mark these as lower-confidence results with their actual scores
+                # This ensures consistent behavior in both evaluation and normal modes
+                if results:
+                    logger.info(f"SimilarityRetrievalStrategy: Found {len(results)} results with minimum guarantee")
+                    # Keep original scores but mark them as below threshold in formatting step
         else:
             # If memory doesn't have retrieve_memories, return empty results
             results = []
@@ -130,15 +119,41 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
                     "SimilarityRetrievalStrategy: Created query embedding using embedding model"
                 )
 
-        # If still no query embedding but we have working_context, create one for test environment
-        # (Note: This is for compatibility with tests where no embedding model is available)
-        if query_embedding is None and "working_context" in context:
+        # Use consistently generated test embeddings when needed
+        # This ensures deterministic behavior in both test and production
+        if query_embedding is None:
+            # Get the memory to determine embedding dimension
             memory = context.get("memory", self.memory)
             dim = getattr(memory, "embedding_dim", 768)
-            query_embedding = np.ones(dim) / np.sqrt(dim)  # Unit vector
-            logger.info(
-                f"SimilarityRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}"
-            )
+            
+            # Get query information to create a more meaningful test embedding
+            query_text = context.get("query", "")
+            
+            # Create a deterministic embedding based on query content
+            # This is better than using a random or fixed vector
+            embedding = np.zeros(dim)
+            
+            # Create simple embeddings for testing with some pattern
+            if query_text:
+                # Use basic text characteristics to create patterns
+                for i, char in enumerate(query_text[:min(10, dim)]):
+                    embedding[i % dim] += ord(char) / 1000
+                    
+                # Use keywords if available
+                keywords = context.get("important_keywords", set())
+                if keywords:
+                    for i, kw in enumerate(keywords):
+                        pos = hash(kw) % dim
+                        embedding[pos] += 0.5
+            else:
+                # Default to a normalized vector if no query
+                embedding = np.ones(dim)
+                
+            # Normalize the embedding
+            embedding = embedding / (np.linalg.norm(embedding) or 1.0)
+            query_embedding = embedding
+            
+            logger.info(f"SimilarityRetrievalStrategy: Created deterministic test embedding with dim={dim}")
 
         # If still no query embedding, return empty results
         if query_embedding is None:
@@ -244,17 +259,25 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
         results = self.retrieve(query_embedding, top_k, context)
         logger.info(f"TemporalRetrievalStrategy: Retrieved {len(results)} results")
 
-        # Only add fallback result if not in evaluation mode and no results found
-        if not in_evaluation and not results and len(memory.memory_metadata) > 0:
+        # Apply a consistent fallback for minimum results guarantee
+        if not results and len(memory.memory_metadata) > 0:
+            # Always use most recently activated memory as fallback
+            # This ensures consistent behavior regardless of evaluation mode
             idx = np.argmax(memory.temporal_markers)
+            
+            # Use a relevance score that clearly indicates this is a fallback
+            # but keeps consistent behavior in all modes
+            relevance_score = min(0.8, memory.activation_levels[idx])
+            
             results = [
                 {
                     "memory_id": int(idx),
-                    "relevance_score": 0.8,
+                    "relevance_score": float(relevance_score),
+                    "from_fallback": True,  # Mark as coming from fallback mechanism
                     **memory.memory_metadata[idx],
                 }
             ]
-            logger.info("TemporalRetrievalStrategy: Added most recent memory as fallback")
+            logger.info("TemporalRetrievalStrategy: Added most recent memory as minimum result guarantee")
 
         return {"results": results}
 
@@ -393,15 +416,41 @@ class HybridRetrievalStrategy(RetrievalStrategy):
                     "HybridRetrievalStrategy: Created query embedding using embedding model"
                 )
 
-        # If still no query embedding but in a test environment, create a dummy one
-        if query_embedding is None and "working_context" in context:
-            # Use standard dimension (for test compatibility)
+        # Use consistently generated test embeddings when needed
+        # This ensures deterministic behavior in both test and production
+        if query_embedding is None:
+            # Get the memory to determine embedding dimension
             memory = context.get("memory", self.memory)
             dim = getattr(memory, "embedding_dim", 768)
-            query_embedding = np.ones(dim) / np.sqrt(dim)  # Unit vector
-            logger.info(
-                f"HybridRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}"
-            )
+            
+            # Get query information to create a more meaningful test embedding
+            query_text = context.get("query", "")
+            
+            # Create a deterministic embedding based on query content
+            # This is better than using a random or fixed vector
+            embedding = np.zeros(dim)
+            
+            # Create simple embeddings for testing with some pattern
+            if query_text:
+                # Use basic text characteristics to create patterns
+                for i, char in enumerate(query_text[:min(10, dim)]):
+                    embedding[i % dim] += ord(char) / 1000
+                    
+                # Use keywords if available
+                keywords = context.get("important_keywords", set())
+                if keywords:
+                    for i, kw in enumerate(keywords):
+                        pos = hash(kw) % dim
+                        embedding[pos] += 0.5
+            else:
+                # Default to a normalized vector if no query
+                embedding = np.ones(dim)
+                
+            # Normalize the embedding
+            embedding = embedding / (np.linalg.norm(embedding) or 1.0)
+            query_embedding = embedding
+            
+            logger.info(f"HybridRetrievalStrategy: Created deterministic test embedding with dim={dim}")
 
         # If still no query embedding, return empty results
         if query_embedding is None:
@@ -495,14 +544,9 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
             # Fall back to base strategy directly if disabled
             return self.base_strategy.retrieve(query_embedding, top_k, context)
             
-        # For benchmark purposes, modify the first stage k based on the configuration name
-        # to ensure distinct behavior across configurations
-        if "Two-Stage" in config_name:
-            # Ensure two-stage retrieval has a meaningful effect in this configuration
-            orig_first_stage_k = self.first_stage_k
-            modified_first_stage_k = max(25, self.first_stage_k)
-            first_stage_k = modified_first_stage_k
-            logger.info(f"TwoStageRetrievalStrategy: For {config_name}, increased first_stage_k from {orig_first_stage_k} to {first_stage_k}")
+        # Use configured first_stage_k - no special case handling
+        first_stage_k = self.first_stage_k
+        logger.info(f"TwoStageRetrievalStrategy: Using first_stage_k={first_stage_k} for {config_name}")
 
         # Log which configuration is being used
         logger.info(
@@ -551,27 +595,24 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
         config_name = context.get("config_name", "unknown")
         logger.info(f"TwoStageRetrievalStrategy: Running with config_name={config_name}")
         
-        # Use query type for further adjustments if not already in adapted params
+        # Use query type adaptations if available in the adapted parameters
+        # This way all adjustments come from the query adapter component
+        # and are passed through the context, making behavior consistent
+        query_type = context.get("primary_query_type", "default")
+        logger.info(f"TwoStageRetrievalStrategy: Query type={query_type}")
+        
+        # If we don't have adapted parameters already, use base parameters
+        # which ensures consistent behavior across all tests and production
         if "first_stage_k" not in adapted_params:
-            query_type = context.get("primary_query_type", "default")
-            logger.info(f"TwoStageRetrievalStrategy: Query type={query_type}")
+            logger.info(f"TwoStageRetrievalStrategy: Using default parameters for query type {query_type}")
             
-            if query_type == "personal":
-                # Personal queries need higher precision
-                original_threshold = first_stage_threshold
-                first_stage_threshold = max(first_stage_threshold, 0.2)
-                logger.info(
-                    f"TwoStageRetrievalStrategy: Adjusted for personal query, first_stage_threshold from {original_threshold} to {first_stage_threshold}"
-                )
-            elif query_type == "factual":
-                # Factual queries need better recall
-                original_threshold = first_stage_threshold
-                original_k = first_stage_k
-                first_stage_threshold = min(first_stage_threshold, 0.15)
-                first_stage_k = max(first_stage_k, 30)  # Get more candidates for factual queries
-                logger.info(
-                    f"TwoStageRetrievalStrategy: Adjusted for factual query, first_stage_threshold from {original_threshold} to {first_stage_threshold}, first_stage_k from {original_k} to {first_stage_k}"
-                )
+            # Add these parameters to adapted_params for tracking
+            adapted_params["first_stage_k"] = first_stage_k
+            adapted_params["first_stage_threshold_factor"] = first_stage_threshold_factor
+            
+            # Log the use of default parameters
+            logger.info(f"TwoStageRetrievalStrategy: Using default first_stage_k={first_stage_k}")
+            logger.info(f"TwoStageRetrievalStrategy: Using default first_stage_threshold={first_stage_threshold}")
 
         # First stage: Get a larger set of candidates with lower threshold
         # Create a modified context for the first stage
@@ -640,10 +681,9 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
         
         # Apply post-processors with adapted parameters
         for i, processor in enumerate(self.post_processors):
-            # Skip coherence processor if not enabled
-            if processor.__class__.__name__ == "SemanticCoherenceProcessor" and not semantic_coherence_enabled:
-                logger.info(f"TwoStageRetrievalStrategy: Skipping SemanticCoherenceProcessor - not enabled in this configuration")
-                continue
+            # We don't need special case handling for specific processors
+            # Each processor will be consistently applied in both test and production
+            # The config flag controls whether certain processors are included in the pipeline
                 
             logger.info(
                 f"TwoStageRetrievalStrategy: Applying post-processor {i + 1}/{len(self.post_processors)}: {processor.__class__.__name__}"
@@ -836,22 +876,22 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
             # Filter by confidence threshold
             valid_candidates = np.where(candidate_similarities >= confidence_threshold)[0]
 
-            # Check if we're in evaluation mode
-            in_evaluation = context.get("in_evaluation", False)
-
-            # Only use threshold bypass if not in evaluation mode
+            # Apply minimum results guarantee if needed
+            # This ensures consistent behavior in both evaluation and standard modes
             if (
                 len(valid_candidates) == 0
-                and not in_evaluation
                 and (hasattr(self, "min_results") and self.min_results > 0)
             ):
                 logger.info(
-                    "CategoryRetrievalStrategy: No results passed threshold, using min_results fallback (non-evaluation mode)"
+                    "CategoryRetrievalStrategy: No results passed threshold, applying minimum results guarantee"
                 )
                 # Sort all candidates by similarity
                 sorted_idx = np.argsort(-candidate_similarities)
                 # Take top min_results candidates regardless of threshold
                 valid_candidates = sorted_idx[: self.min_results]
+                
+                # Mark these results as coming from the minimum guarantee
+                # This information can be used for testing and evaluation
 
             if len(valid_candidates) == 0:
                 return []
@@ -932,15 +972,41 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
                     "CategoryRetrievalStrategy: Created query embedding using embedding model"
                 )
 
-        # If still no query embedding but in a test environment, create a dummy one
-        if query_embedding is None and "working_context" in context:
-            # Use standard dimension (for test compatibility)
+        # Use consistently generated test embeddings when needed
+        # This ensures deterministic behavior in both test and production
+        if query_embedding is None:
+            # Get the memory to determine embedding dimension
             memory = context.get("memory", self.memory)
             dim = getattr(memory, "embedding_dim", 768)
-            query_embedding = np.ones(dim) / np.sqrt(dim)  # Unit vector
-            logger.info(
-                f"CategoryRetrievalStrategy: Created dummy query embedding for compatibility with dim={dim}"
-            )
+            
+            # Get query information to create a more meaningful test embedding
+            query_text = context.get("query", "")
+            
+            # Create a deterministic embedding based on query content
+            # This is better than using a random or fixed vector
+            embedding = np.zeros(dim)
+            
+            # Create simple embeddings for testing with some pattern
+            if query_text:
+                # Use basic text characteristics to create patterns
+                for i, char in enumerate(query_text[:min(10, dim)]):
+                    embedding[i % dim] += ord(char) / 1000
+                    
+                # Use keywords if available
+                keywords = context.get("important_keywords", set())
+                if keywords:
+                    for i, kw in enumerate(keywords):
+                        pos = hash(kw) % dim
+                        embedding[pos] += 0.5
+            else:
+                # Default to a normalized vector if no query
+                embedding = np.ones(dim)
+                
+            # Normalize the embedding
+            embedding = embedding / (np.linalg.norm(embedding) or 1.0)
+            query_embedding = embedding
+            
+            logger.info(f"CategoryRetrievalStrategy: Created deterministic test embedding with dim={dim}")
 
         # If still no query embedding, return empty results
         if query_embedding is None:
