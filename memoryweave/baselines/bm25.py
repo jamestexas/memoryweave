@@ -73,9 +73,20 @@ class BM25Retriever(BaselineRetriever):
 
         for memory in memories:
             # Store memory text and ID in the index
+            memory_text = ""
+            if isinstance(memory.content, dict) and "text" in memory.content:
+                memory_text = memory.content["text"]
+            elif hasattr(memory, "text"):
+                memory_text = memory.text
+            
+            # Ensure we have text to index
+            if not memory_text:
+                print(f"Warning: Memory {memory.id} has no text content to index")
+                memory_text = " "  # Add a space to prevent indexing errors
+                
             writer.add_document(
                 id=str(memory.id),
-                content=memory.content["text"],
+                content=memory_text,
                 metadata=memory.metadata
             )
             self.memory_lookup[str(memory.id)] = memory
@@ -106,9 +117,71 @@ class BM25Retriever(BaselineRetriever):
 
         # Create query parser for the content field
         parser = QueryParser("content", schema=self.index.schema)
+        
+        # Add logging for debugging
+        print(f"BM25Retriever: Query text: '{query.text}'")
+        print(f"BM25Retriever: Index size: {self.stats['index_size']} memories")
 
         # Parse the query text
-        q = parser.parse(query.text)
+        query_text = query.text
+        
+        # Ensure the query text isn't empty to prevent parsing errors
+        if not query_text or query_text.strip() == "":
+            query_text = " "
+        
+        # Clean query text to avoid Whoosh parsing errors
+        # Replace special characters with spaces and escape or remove syntax elements
+        import re
+        # Replace characters that might cause parser errors
+        cleaned_query = re.sub(r'[?!&|\'"-:;.,()~/*]', ' ', query_text)
+        # Replace multiple spaces with single space
+        cleaned_query = re.sub(r'\s+', ' ', cleaned_query).strip()
+        
+        print(f"BM25Retriever: Cleaned query: '{cleaned_query}'")
+        
+        # Use keywords instead if available (often safer for search)
+        if hasattr(query, 'extracted_keywords') and query.extracted_keywords:
+            keywords_query = " OR ".join(query.extracted_keywords)
+            print(f"BM25Retriever: Using keywords query: '{keywords_query}'")
+            cleaned_query = keywords_query
+            
+        try:
+            # Use keyword search with OR operator for more relaxed matching
+            if cleaned_query.strip():
+                q = parser.parse(cleaned_query)
+            else:
+                # If we have nothing left after cleaning, return empty results
+                return {
+                    "memories": [],
+                    "scores": [],
+                    "strategy": self.name,
+                    "parameters": {
+                        "max_results": top_k,
+                        "threshold": threshold
+                    },
+                    "metadata": {
+                        "query_time": 0.0,
+                        "error": "Empty query after cleaning",
+                        "bm25_params": {"b": self.b, "k1": self.k1}
+                    }
+                }
+        except Exception as e:
+            print(f"Error parsing query '{cleaned_query}': {e}")
+            # Return empty results on parsing error
+            return {
+                "memories": [],
+                "scores": [],
+                "strategy": self.name,
+                "parameters": {
+                    "max_results": top_k,
+                    "threshold": threshold
+                },
+                "metadata": {
+                    "query_time": 0.0,
+                    "error": str(e),
+                    "bm25_params": {"b": self.b, "k1": self.k1}
+                }
+            }
 
         with self.index.searcher(weighting=BM25F(B=self.b, K1=self.k1)) as searcher:
             results = searcher.search(q, limit=top_k)
@@ -117,12 +190,32 @@ class BM25Retriever(BaselineRetriever):
             memories = []
             scores = []
 
-            max_score = results.top_score if results and len(results) > 0 else 1.0
+            # Check if results exist and get the max score
+            max_score = 1.0
+            if results and len(results) > 0:
+                if hasattr(results, 'top_score'):
+                    max_score = results.top_score
+                elif hasattr(results, 'score') and len(results) > 0:
+                    # If top_score doesn't exist, try to find the highest score from individual results
+                    max_score = max([r.score for r in results]) if len(results) > 0 else 1.0
+                else:
+                    # Default max_score if neither is available
+                    max_score = 1.0
+                    
+            print(f"BM25Retriever: Found {len(results)} results with max_score={max_score}")
 
             for result in results:
                 memory_id = result["id"]
                 if memory_id in self.memory_lookup:
-                    score = result.score / max_score  # Normalize to 0-1 range
+                    # Get result score with error handling
+                    if hasattr(result, 'score'):
+                        score = result.score
+                    else:
+                        # If no score attribute, try to access it as a dictionary item
+                        score = result.get('score', 0.0)
+                    
+                    # Normalize to 0-1 range
+                    score = score / max_score if max_score > 0 else 0.0
 
                     if score >= threshold:
                         memories.append(self.memory_lookup[memory_id])

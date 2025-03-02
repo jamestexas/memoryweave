@@ -404,7 +404,8 @@ class BaselineComparison:
             for j, v in enumerate(metrics[metric]):
                 ax.text(v + 0.01, j, f"{v:.3f}", va="center")
 
-        # Add query time comparison
+        # Create a separate figure for query time comparison
+        time_fig, time_ax = plt.subplots(figsize=(10, 4))
         query_times = []
         for system in systems:
             if system == "memoryweave":
@@ -416,7 +417,6 @@ class BaselineComparison:
                     comparison_result.runtime_stats[system]["avg_query_time"]
                 )
 
-        time_ax = fig.add_subplot(num_metrics + 1, 1, num_metrics + 1)
         time_ax.barh(np.arange(len(systems)), query_times, align="center")
         time_ax.set_yticks(np.arange(len(systems)))
         time_ax.set_yticklabels(systems)
@@ -427,11 +427,23 @@ class BaselineComparison:
         for j, v in enumerate(query_times):
             time_ax.text(v + 0.01, j, f"{v:.5f}s", va="center")
 
+        # Apply tight layout to each figure separately
+        plt.figure(fig.number)
         plt.tight_layout()
-
+        
+        plt.figure(time_fig.number)
+        plt.tight_layout()
+        
+        # If saving to file, save both figures
         if output_path:
-            plt.savefig(output_path)
-            plt.close()
+            fig.savefig(output_path)
+            
+            # Save time figure with a modified filename
+            time_output_path = output_path.replace('.png', '_time.png')
+            time_fig.savefig(time_output_path)
+            
+            plt.close(fig)
+            plt.close(time_fig)
         else:
             plt.show()
 
@@ -525,7 +537,13 @@ class BaselineComparison:
             </p>
             
             <div class="chart-container">
+                <h3>Performance Metrics</h3>
                 <img src="{os.path.basename(img_path)}" alt="Performance Comparison Chart" style="max-width:100%">
+            </div>
+            
+            <div class="chart-container">
+                <h3>Query Performance</h3>
+                <img src="{os.path.basename(img_path).replace('.png', '_time.png')}" alt="Query Time Comparison Chart" style="max-width:100%">
             </div>
             
             <h2>Average Metrics</h2>
