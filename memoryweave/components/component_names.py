@@ -20,3 +20,9 @@ class ComponentName(str, Enum):
     PERSONAL_ATTRIBUTE = "personal_attribute"
     MEMORY_DECAY = "memory_decay"
     KEYWORD_EXPANDER = "keyword_expander"
+    # New contextual fabric components
+    CONTEXTUAL_EMBEDDING_ENHANCER = "contextual_embedding_enhancer"
+    ASSOCIATIVE_MEMORY_LINKER = "associative_memory_linker"
+    TEMPORAL_CONTEXT_BUILDER = "temporal_context_builder"
+    ACTIVATION_MANAGER = "activation_manager"
+    CONTEXTUAL_FABRIC_STRATEGY = "contextual_fabric_strategy"

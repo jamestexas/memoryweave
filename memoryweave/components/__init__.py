@@ -27,16 +27,33 @@ from memoryweave.components.post_processors import (
 from memoryweave.components.query_adapter import QueryTypeAdapter
 from memoryweave.components.query_analysis import QueryAnalyzer
 from memoryweave.components.query_context_builder import QueryContextBuilder
+
 # Import retrieval strategies
 from memoryweave.components.retrieval_strategies import (
     SimilarityRetrievalStrategy, 
     TemporalRetrievalStrategy,
     HybridRetrievalStrategy,
     TwoStageRetrievalStrategy,
-    CategoryRetrievalStrategy
+    CategoryRetrievalStrategy,
+    HybridBM25VectorStrategy,
+    ContextualFabricStrategy,
 )
-# Import the new strategy from its module
-from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import HybridBM25VectorStrategy
+
+# Import contextual fabric components
+from memoryweave.components.context_enhancement import (
+    ContextualEmbeddingEnhancer,
+    ContextSignalExtractor,
+)
+from memoryweave.components.associative_linking import (
+    AssociativeMemoryLinker,
+    AssociativeNetworkVisualizer,
+)
+from memoryweave.components.temporal_context import (
+    TemporalContextBuilder,
+    TemporalDecayComponent,
+)
+from memoryweave.components.activation import ActivationManager
+
 from memoryweave.components.retriever import Retriever
 
 __all__ = [
@@ -46,6 +63,7 @@ __all__ = [
     "RetrievalComponent",
     "RetrievalStrategy",
     "PostProcessor",
+    
     # Components
     "KeywordExpander",
     "MemoryDecayComponent",
@@ -56,6 +74,7 @@ __all__ = [
     "QueryContextBuilder",
     "Retriever",
     "DynamicThresholdAdjuster",
+    
     # Retrieval strategies
     "HybridRetrievalStrategy",
     "SimilarityRetrievalStrategy",
@@ -63,10 +82,21 @@ __all__ = [
     "TwoStageRetrievalStrategy",
     "CategoryRetrievalStrategy",
     "HybridBM25VectorStrategy",
+    "ContextualFabricStrategy",
+    
     # Post-processors
     "AdaptiveKProcessor",
     "KeywordBoostProcessor",
     "MinimumResultGuaranteeProcessor",
     "PersonalAttributeProcessor",
     "SemanticCoherenceProcessor",
+    
+    # Contextual Fabric Components
+    "ContextualEmbeddingEnhancer",
+    "ContextSignalExtractor",
+    "AssociativeMemoryLinker",
+    "AssociativeNetworkVisualizer",
+    "TemporalContextBuilder",
+    "TemporalDecayComponent",
+    "ActivationManager",
 ]
