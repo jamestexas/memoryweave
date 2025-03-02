@@ -116,3 +116,10 @@ cython_debug/
 
 # Exclude test output
 test_output/
+
+# Exclude benchmark results and generated datasets
+*_benchmark_results.json
+evaluation_results.json
+synthetic_dataset.json
+datasets/semantic_dataset.json
+datasets/synthetic_benchmark_dataset.json
