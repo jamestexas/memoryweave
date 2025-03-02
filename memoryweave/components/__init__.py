@@ -56,7 +56,7 @@ __all__ = [
     # Retrieval strategies
     "HybridRetrievalStrategy",
     "SimilarityRetrievalStrategy",
-    "TemporalRetrievalStrategy", 
+    "TemporalRetrievalStrategy",
     "TwoStageRetrievalStrategy",
     "CategoryRetrievalStrategy",
     # Post-processors

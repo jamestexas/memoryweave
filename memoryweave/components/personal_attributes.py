@@ -30,18 +30,18 @@ class PersonalAttributeManager(RetrievalComponent):
             return {"personal_attributes": self.personal_attributes}
 
         extracted_attribute_list = self.nlp_extractor.extract_personal_attributes(text)
-        
+
         # Convert the list of ExtractedAttribute objects to a dictionary
         attributes_dict = {}
         for attr in extracted_attribute_list:
             category = attr.attribute.split("_")[0] if "_" in attr.attribute else "preferences"
             attr_type = attr.attribute.split("_")[1] if "_" in attr.attribute else attr.attribute
-            
+
             if category not in attributes_dict:
                 attributes_dict[category] = {}
-                
+
             attributes_dict[category][attr_type] = attr.value
-        
+
         self._update_attributes(attributes_dict)
 
         return {"personal_attributes": self.personal_attributes}
@@ -49,18 +49,18 @@ class PersonalAttributeManager(RetrievalComponent):
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """Process a query to identify and extract personal attributes."""
         extracted_attribute_list = self.nlp_extractor.extract_personal_attributes(query)
-        
+
         # Convert the list of ExtractedAttribute objects to a dictionary
         attributes_dict = {}
         for attr in extracted_attribute_list:
             category = attr.attribute.split("_")[0] if "_" in attr.attribute else "preferences"
             attr_type = attr.attribute.split("_")[1] if "_" in attr.attribute else attr.attribute
-            
+
             if category not in attributes_dict:
                 attributes_dict[category] = {}
-                
+
             attributes_dict[category][attr_type] = attr.value
-        
+
         self._update_attributes(attributes_dict)
         relevant_attributes = self._get_relevant_attributes(query)
 

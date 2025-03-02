@@ -21,10 +21,10 @@ class MemoryManager:
     ) -> None:
         """Register a component with the memory manager."""
         self.components[name] = component
-        
+
     def register_components(self, components_dict: dict[str, Component]) -> None:
         """Register multiple components at once.
-        
+
         Args:
             components_dict: Dictionary mapping component names to component instances
         """
@@ -89,7 +89,7 @@ class MemoryManager:
 
         for step in self.pipeline:
             component = step["component"]
-            
+
             # Process the query with the component
             # Note: We no longer reinitialize the component on each query
             # This allows components to maintain state between queries

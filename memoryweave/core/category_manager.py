@@ -458,32 +458,32 @@ class CategoryManager:
             List of memory indices in the category
         """
         return np.where(self.memory_categories == category_idx)[0].tolist()
-    
+
     def get_category_similarities(self, query_embedding: np.ndarray) -> np.ndarray:
         """
         Get similarities between a query and all category prototypes.
-        
+
         Args:
             query_embedding: Embedding vector of the query
-            
+
         Returns:
             Array of similarity scores for each category
         """
         if len(self.category_prototypes) == 0:
             return np.array([], dtype=np.float32)
-            
+
         # Normalize the query embedding
         query_norm = np.linalg.norm(query_embedding)
         if query_norm > 0:
             query_embedding = query_embedding / query_norm
-            
+
         # Calculate dot product similarity with all category prototypes
         similarities = np.dot(self.category_prototypes, query_embedding)
-        
+
         # Weight similarities by category activation levels
         if self.category_activations is not None and len(self.category_activations) > 0:
             similarities = similarities * self.category_activations
-            
+
         return similarities
 
     def consolidate_categories_manually(self, threshold: float = None) -> int:
