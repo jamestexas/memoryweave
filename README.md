@@ -318,7 +318,7 @@ uv run python run_semantic_benchmark.py
 uv run python -m benchmarks.memory_retrieval_benchmark
 
 # Run baseline comparison (compare against BM25 and vector search)
-uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json --config baselines_config.yaml
+uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json --config baselines_config.yaml --output benchmark_results.json --html-report baseline_report.html --visualization baseline_chart.png
 
 # Visualize benchmark results
 python examples/visualize_results.py synthetic_benchmark_results.json
@@ -336,11 +336,12 @@ uv run python run_synthetic_benchmark.py --config configs/benchmark_advanced.jso
 
 Current benchmark results show the following metrics across different configurations:
 
-| Configuration | Precision | Recall | F1 Score | Avg Results | Avg Query Time |
-|---------------|-----------|--------|----------|-------------|----------------|
-| Legacy-Basic | 0.004 | 0.015 | 0.006 | 10.0 | 0.0083s |
-| Components-Advanced | 0.004 | 0.015 | 0.006 | 10.0 | 0.0084s |
-| Optimized-Performance | 0.004 | 0.015 | 0.006 | 10.0 | 0.0085s |
+| Configuration | Precision | Recall | F1 Score | MRR | Avg Query Time |
+|---------------|-----------|--------|----------|-----|----------------|
+| MemoryWeave (similarity) | 0.166 | 1.000 | 0.282 | 1.000 | 0.00004s |
+| BM25 (text search) | 0.889 | 1.000 | 0.933 | 1.000 | 0.00359s |
+| Vector (baseline) | 0.267 | 1.000 | 0.413 | 1.000 | 0.00016s |
+| BM25 (aggressive) | 0.889 | 1.000 | 0.933 | 1.000 | 0.00054s |
 
 These benchmarks help ensure that the new component architecture maintains performance parity with the legacy implementation.
 
@@ -349,22 +350,25 @@ These benchmarks help ensure that the new component architecture maintains perfo
 
 While MemoryWeave has undergone significant architectural improvements, there are still some limitations:
 
-- ART-Clustering feature is not fully implemented in the component architecture
 - Limited testing with large-scale models and large memory stores
 - No persistence layer for long-term storage
 - Query analyzer needs improvements for certain query types
 - Performance could be further optimized for large memory sets
+- Vector retrieval performance in benchmarks lags behind BM25 for some query types
+- Hybrid retrieval still needs tuning to combine BM25 and vector advantages
 
 ## Roadmap
 <a id="roadmap"></a>
 
 See the [ROADMAP.md](ROADMAP.md) file for detailed information on planned developments. Current priorities include:
 
-- Complete implementation of ART-Clustering in component architecture
 - Fix and improve query analyzer accuracy
 - Add persistence layer for long-term memory storage
 - Optimize performance for large memory sets
-- Improve benchmarking methodology
+- Improve hybrid retrieval to combine BM25 and vector search advantages
+- Expand benchmarking datasets for more diverse query types
+- Implement visualization improvements for benchmark results
+- Enhance vector retrieval precision while maintaining high recall
 
 Check the [feature matrix](docs/feature_matrix.md) for the current implementation status of various features.
 
