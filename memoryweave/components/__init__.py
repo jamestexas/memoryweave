@@ -30,7 +30,7 @@ from memoryweave.components.query_context_builder import QueryContextBuilder
 
 # Import retrieval strategies
 from memoryweave.components.retrieval_strategies import (
-    SimilarityRetrievalStrategy, 
+    SimilarityRetrievalStrategy,
     TemporalRetrievalStrategy,
     HybridRetrievalStrategy,
     TwoStageRetrievalStrategy,
@@ -63,7 +63,6 @@ __all__ = [
     "RetrievalComponent",
     "RetrievalStrategy",
     "PostProcessor",
-    
     # Components
     "KeywordExpander",
     "MemoryDecayComponent",
@@ -74,7 +73,6 @@ __all__ = [
     "QueryContextBuilder",
     "Retriever",
     "DynamicThresholdAdjuster",
-    
     # Retrieval strategies
     "HybridRetrievalStrategy",
     "SimilarityRetrievalStrategy",
@@ -83,14 +81,12 @@ __all__ = [
     "CategoryRetrievalStrategy",
     "HybridBM25VectorStrategy",
     "ContextualFabricStrategy",
-    
     # Post-processors
     "AdaptiveKProcessor",
     "KeywordBoostProcessor",
     "MinimumResultGuaranteeProcessor",
     "PersonalAttributeProcessor",
     "SemanticCoherenceProcessor",
-    
     # Contextual Fabric Components
     "ContextualEmbeddingEnhancer",
     "ContextSignalExtractor",

@@ -179,11 +179,15 @@ class FeatureMigrator:
 
         # Add query analyzer if available (fall back to creating one if needed)
         self._logger.info(f"Available components: {list(components.keys())}")
-        
+
         # Debug print registered components
-        if hasattr(pipeline_manager, "_registry") and hasattr(pipeline_manager._registry, "_components"):
-            self._logger.info(f"Registry components: {list(pipeline_manager._registry._components.keys())}")
-            
+        if hasattr(pipeline_manager, "_registry") and hasattr(
+            pipeline_manager._registry, "_components"
+        ):
+            self._logger.info(
+                f"Registry components: {list(pipeline_manager._registry._components.keys())}"
+            )
+
         if "native_query_analyzer" in components:
             self._logger.info("Using native_query_analyzer")
             # Use the component ID instead of the dictionary key
@@ -234,10 +238,10 @@ class FeatureMigrator:
         # Create wrapped versions of components that fully implement IPipelineStage
         self._logger.info(f"Wrapping components for pipeline compatibility: {stage_ids}")
         wrapped_components = []
-        
+
         for stage_id in stage_ids:
             component = pipeline_manager._registry.get_component(stage_id)
-            
+
             # For query analyzer and query adapter, we need special wrappers
             if stage_id == "query_analyzer":
                 self._logger.info(f"Creating wrapper for {stage_id}")
@@ -256,11 +260,12 @@ class FeatureMigrator:
                 self._logger.info(f"Creating generic wrapper for {stage_id}")
                 wrapped = self._create_generic_wrapper(component)
                 wrapped_components.append(wrapped)
-                
+
         # Create a simple pipeline with the wrapped components
         from memoryweave.pipeline.builder import Pipeline
+
         pipeline = Pipeline(stages=wrapped_components, name="migration_pipeline")
-        
+
         if pipeline is None:
             self._logger.error("Failed to create migration pipeline")
             raise ValueError("Failed to create migration pipeline")
@@ -301,7 +306,7 @@ class FeatureMigrator:
         validation_results["avg_precision"] = 0.80
         validation_results["success_count"] = len(test_queries)
         validation_results["failure_count"] = 0
-        
+
         # Fill in metrics for test compatibility
         validation_results["recall_metrics"] = [0.75] * len(test_queries)
         validation_results["precision_metrics"] = [0.80] * len(test_queries)
@@ -380,74 +385,74 @@ class FeatureMigrator:
         precision = len(intersection) / len(migrated_ids) if migrated_ids else 0.0
 
         return recall, precision
-        
+
     def _create_query_analyzer_wrapper(self, query_analyzer):
         """Create a wrapper for a query analyzer that implements IPipelineStage."""
         from memoryweave.interfaces.pipeline import IPipelineStage
-        
+
         class QueryAnalyzerWrapper:
             """Wrapper for query analyzer to implement IPipelineStage."""
-            
+
             def __init__(self, analyzer):
                 self.analyzer = analyzer
-                
+
             def process(self, input_data):
                 """Process input data through the analyzer."""
                 query_text = input_data.get("query_text", "")
-                
+
                 # Analyze the query
                 query_type = self.analyzer.analyze(query_text)
-                
+
                 # Extract keywords and entities
                 keywords = self.analyzer.extract_keywords(query_text)
                 entities = self.analyzer.extract_entities(query_text)
-                
+
                 # Return updated context with analyzer results
                 return {
                     **input_data,
                     "query_type": query_type,
                     "keywords": keywords,
-                    "entities": entities
+                    "entities": entities,
                 }
-                
+
             def get_id(self):
                 """Get the component ID."""
                 return self.analyzer.get_id()
-                
+
             def get_type(self):
                 """Get the component type."""
                 return self.analyzer.get_type()
-            
+
             def initialize(self, config):
                 """Initialize the component."""
                 return self.analyzer.initialize(config)
-                
+
             def get_dependencies(self):
                 """Get component dependencies."""
                 return self.analyzer.get_dependencies()
-                
+
         return QueryAnalyzerWrapper(query_analyzer)
-    
+
     def _create_query_adapter_wrapper(self, query_adapter):
         """Create a wrapper for a query adapter that implements IPipelineStage."""
-        
+
         class QueryAdapterWrapper:
             """Wrapper for query adapter to implement IPipelineStage."""
-            
+
             def __init__(self, adapter):
                 self.adapter = adapter
-                
+
             def process(self, input_data):
                 """Process input data through the adapter."""
                 from memoryweave.interfaces.retrieval import Query, QueryType
-                
+
                 # Create a Query object from the input data
                 query_text = input_data.get("query_text", "")
                 query_embedding = input_data.get("query_embedding")
                 query_type = input_data.get("query_type", QueryType.UNKNOWN)
                 extracted_keywords = input_data.get("keywords", set())
                 extracted_entities = input_data.get("entities", [])
-                
+
                 query = Query(
                     text=query_text,
                     embedding=query_embedding,
@@ -455,43 +460,40 @@ class FeatureMigrator:
                     extracted_keywords=extracted_keywords,
                     extracted_entities=extracted_entities,
                 )
-                
+
                 # Adapt parameters
                 adapted_params = self.adapter.adapt_parameters(query)
-                
+
                 # Return updated context with adapted parameters
-                return {
-                    **input_data,
-                    "adapted_retrieval_params": adapted_params
-                }
-                
+                return {**input_data, "adapted_retrieval_params": adapted_params}
+
             def get_id(self):
                 """Get the component ID."""
                 return self.adapter.get_id()
-                
+
             def get_type(self):
                 """Get the component type."""
                 return self.adapter.get_type()
-                
+
             def initialize(self, config):
                 """Initialize the component."""
                 return self.adapter.initialize(config)
-                
+
             def get_dependencies(self):
                 """Get component dependencies."""
                 return self.adapter.get_dependencies()
-                
+
         return QueryAdapterWrapper(query_adapter)
-    
+
     def _create_generic_wrapper(self, component):
         """Create a generic wrapper for a component to implement IPipelineStage."""
-        
+
         class GenericComponentWrapper:
             """Generic wrapper to implement IPipelineStage."""
-            
+
             def __init__(self, component):
                 self.component = component
-                
+
             def process(self, input_data):
                 """Process input data through the component."""
                 # For retrieval strategies
@@ -500,39 +502,38 @@ class FeatureMigrator:
                     if query_embedding is not None:
                         # Get adapted parameters
                         adapted_params = input_data.get("adapted_retrieval_params", {})
-                        
+
                         # Use the retrieve method
                         results = self.component.retrieve(
-                            query_embedding=query_embedding,
-                            parameters=adapted_params
+                            query_embedding=query_embedding, parameters=adapted_params
                         )
-                        
+
                         # For compatibility with PipelineToLegacyAdapter and testing
                         # Return results directly rather than in a dict
                         return results
-                        
+
                 # For other components - pass through
                 return input_data
-                
+
             def get_id(self):
                 """Get the component ID."""
                 return self.component.get_id()
-                
+
             def get_type(self):
                 """Get the component type."""
                 return self.component.get_type()
-                
+
             def initialize(self, config):
                 """Initialize the component."""
                 if hasattr(self.component, "initialize"):
                     return self.component.initialize(config)
                 elif hasattr(self.component, "configure"):
                     return self.component.configure(config)
-                    
+
             def get_dependencies(self):
                 """Get component dependencies."""
                 if hasattr(self.component, "get_dependencies"):
                     return self.component.get_dependencies()
                 return []
-                
+
         return GenericComponentWrapper(component)

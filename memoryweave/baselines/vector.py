@@ -15,7 +15,7 @@ from memoryweave.storage.memory_store import Memory
 
 class VectorBaselineRetriever(BaselineRetriever):
     """Simple vector search baseline retriever.
-    
+
     This retriever implements basic vector search using cosine similarity,
     providing a baseline for comparison with more sophisticated
     retrieval approaches.
@@ -25,7 +25,7 @@ class VectorBaselineRetriever(BaselineRetriever):
 
     def __init__(self, use_exact_search: bool = True):
         """Initialize vector baseline retriever.
-        
+
         Args:
             use_exact_search: Whether to use exact search (True) or approximate (False)
         """
@@ -41,7 +41,7 @@ class VectorBaselineRetriever(BaselineRetriever):
 
     def index_memories(self, memories: List[Memory]) -> None:
         """Index a list of memories for vector retrieval.
-        
+
         Args:
             memories: List of memories to index
         """
@@ -70,37 +70,30 @@ class VectorBaselineRetriever(BaselineRetriever):
         self.stats["indexing_time"] = time.time() - start_time
 
     def retrieve(
-        self,
-        query: Query,
-        top_k: int = 10,
-        threshold: float = 0.0,
-        **kwargs
+        self, query: Query, top_k: int = 10, threshold: float = 0.0, **kwargs
     ) -> Dict[str, Any]:
         """Retrieve memories using vector similarity.
-        
+
         Args:
             query: The query to search for
             top_k: Maximum number of results to return
             threshold: Minimum similarity score threshold
             **kwargs: Additional parameters (ignored)
-            
+
         Returns:
             RetrievalResult containing matched memories
         """
         start_time = time.time()
 
         if len(self.memories) == 0 or self.embeddings is None or query.embedding is None:
-            parameters = {
-                "max_results": top_k,
-                "threshold": threshold
-            }
+            parameters = {"max_results": top_k, "threshold": threshold}
 
             return {
                 "memories": [],
                 "scores": [],
                 "strategy": self.name,
                 "parameters": parameters,
-                "metadata": {"query_time": 0.0}
+                "metadata": {"query_time": 0.0},
             }
 
         # Calculate similarity between query and all memories
@@ -132,10 +125,7 @@ class VectorBaselineRetriever(BaselineRetriever):
         self.stats["query_times"].append(query_time)
         self.stats["avg_query_time"] = np.mean(self.stats["query_times"])
 
-        parameters = {
-            "max_results": top_k,
-            "threshold": threshold
-        }
+        parameters = {"max_results": top_k, "threshold": threshold}
 
         return {
             "memories": result_memories,
@@ -144,13 +134,13 @@ class VectorBaselineRetriever(BaselineRetriever):
             "parameters": parameters,
             "metadata": {
                 "query_time": query_time,
-                "search_type": "exact" if self.use_exact_search else "approximate"
-            }
+                "search_type": "exact" if self.use_exact_search else "approximate",
+            },
         }
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get retrieval statistics for the vector baseline.
-        
+
         Returns:
             Dictionary of statistics including index size and query times
         """

@@ -93,33 +93,47 @@ class SemanticCoherenceProcessor(PostProcessor):
             Updated list of results with adjusted relevance scores
         """
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         # Check if our functionality is explicitly enabled in the context
         enable_semantic_coherence = context.get("enable_semantic_coherence", False)
         config_name = context.get("config_name", "unknown")
-        
+
         # Skip processing if semantic coherence is not enabled
         if not enable_semantic_coherence:
-            logger.info(f"SemanticCoherenceProcessor: Skipping - semantic coherence not enabled for config {config_name}")
-            
+            logger.info(
+                f"SemanticCoherenceProcessor: Skipping - semantic coherence not enabled for config {config_name}"
+            )
+
             # For benchmark differentiation, make a small copy change to mark results but don't
             # affect scores when this component is not enabled
             processed_results = list(results)
             for r in processed_results:
                 r["semantic_coherence_skipped"] = True
-            
+
             return processed_results
-            
+
         # For evaluation purposes, verify that this processor was called during the correct configuration
         config_name_to_check = config_name or "unknown"
-        if "With-Semantic-Coherence" in config_name_to_check or "Full-Advanced" in config_name_to_check or "Precision-Focused" in config_name_to_check or "Recall-Focused" in config_name_to_check:
-            logger.info(f"SemanticCoherenceProcessor: Confirmed enabled for {config_name_to_check} configuration")
+        if (
+            "With-Semantic-Coherence" in config_name_to_check
+            or "Full-Advanced" in config_name_to_check
+            or "Precision-Focused" in config_name_to_check
+            or "Recall-Focused" in config_name_to_check
+        ):
+            logger.info(
+                f"SemanticCoherenceProcessor: Confirmed enabled for {config_name_to_check} configuration"
+            )
         else:
-            logger.warning(f"SemanticCoherenceProcessor: Unexpected activation for {config_name_to_check} configuration")
-            
-        logger.info(f"SemanticCoherenceProcessor: Processing {len(results)} results for config {config_name}")
-        
+            logger.warning(
+                f"SemanticCoherenceProcessor: Unexpected activation for {config_name_to_check} configuration"
+            )
+
+        logger.info(
+            f"SemanticCoherenceProcessor: Processing {len(results)} results for config {config_name}"
+        )
+
         # Apply processor-specific parameters if provided in context
         if "processor_params" in context:
             processor_params = context["processor_params"]
@@ -127,18 +141,24 @@ class SemanticCoherenceProcessor(PostProcessor):
             if "coherence_threshold" in processor_params:
                 original = self.coherence_threshold
                 self.coherence_threshold = processor_params["coherence_threshold"]
-                logger.info(f"SemanticCoherenceProcessor: Override coherence_threshold {original} -> {self.coherence_threshold}")
-                
+                logger.info(
+                    f"SemanticCoherenceProcessor: Override coherence_threshold {original} -> {self.coherence_threshold}"
+                )
+
             if "max_penalty" in processor_params:
                 original = self.max_penalty
                 self.max_penalty = processor_params["max_penalty"]
-                logger.info(f"SemanticCoherenceProcessor: Override max_penalty {original} -> {self.max_penalty}")
-                
+                logger.info(
+                    f"SemanticCoherenceProcessor: Override max_penalty {original} -> {self.max_penalty}"
+                )
+
         # Log active parameters for this processor
-        logger.info(f"SemanticCoherenceProcessor: Active params: coherence_threshold={self.coherence_threshold}, " +
-                    f"max_penalty={self.max_penalty}, enable_query_type_filtering={self.enable_query_type_filtering}, " +
-                    f"enable_pairwise_coherence={self.enable_pairwise_coherence}")
-        
+        logger.info(
+            f"SemanticCoherenceProcessor: Active params: coherence_threshold={self.coherence_threshold}, "
+            + f"max_penalty={self.max_penalty}, enable_query_type_filtering={self.enable_query_type_filtering}, "
+            + f"enable_pairwise_coherence={self.enable_pairwise_coherence}"
+        )
+
         if len(results) <= 1:
             logger.debug("SemanticCoherenceProcessor: Skipping, not enough results")
             return results
@@ -154,40 +174,54 @@ class SemanticCoherenceProcessor(PostProcessor):
         if self.enable_query_type_filtering:
             logger.info("SemanticCoherenceProcessor: Applying query type filtering")
             processed_results = self._apply_query_type_filtering(processed_results, query_type)
-            
+
             # Log the score changes
             score_changes = sum(1 for r in processed_results if "type_coherence_applied" in r)
-            logger.info(f"SemanticCoherenceProcessor: Applied type filtering penalties to {score_changes}/{len(processed_results)} results")
+            logger.info(
+                f"SemanticCoherenceProcessor: Applied type filtering penalties to {score_changes}/{len(processed_results)} results"
+            )
 
         # 2. Calculate pairwise coherence if enabled
         if self.enable_pairwise_coherence and len(processed_results) > 1:
             logger.info("SemanticCoherenceProcessor: Applying pairwise coherence")
             processed_results = self._apply_pairwise_coherence(processed_results, context)
-            
+
             # Log coherence changes
-            coherence_penalties = sum(1 for r in processed_results if "coherence_penalty_applied" in r)
+            coherence_penalties = sum(
+                1 for r in processed_results if "coherence_penalty_applied" in r
+            )
             coherence_boosts = sum(1 for r in processed_results if "coherence_boost_applied" in r)
-            logger.info(f"SemanticCoherenceProcessor: Applied coherence penalties to {coherence_penalties} results, boosts to {coherence_boosts} results")
+            logger.info(
+                f"SemanticCoherenceProcessor: Applied coherence penalties to {coherence_penalties} results, boosts to {coherence_boosts} results"
+            )
 
         # 3. Perform clustering and outlier detection if enabled
         if self.enable_clustering and len(processed_results) >= self.min_cluster_size:
             logger.info("SemanticCoherenceProcessor: Applying clustering")
             processed_results = self._apply_clustering(processed_results, context)
-            
+
             # Log clustering results
             outliers = sum(1 for r in processed_results if "outlier_penalty_applied" in r)
             cluster_boosts = sum(1 for r in processed_results if "cluster_boost_applied" in r)
-            logger.info(f"SemanticCoherenceProcessor: Found {outliers} outliers, applied cluster boosts to {cluster_boosts} results")
+            logger.info(
+                f"SemanticCoherenceProcessor: Found {outliers} outliers, applied cluster boosts to {cluster_boosts} results"
+            )
 
         # 4. Final sort by adjusted relevance score
         processed_results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
-        
+
         # Log score changes
         if processed_results:
-            original_avg = sum(r.get("original_score", r.get("relevance_score", 0)) for r in processed_results) / len(processed_results)
-            final_avg = sum(r.get("relevance_score", 0) for r in processed_results) / len(processed_results)
-            logger.info(f"SemanticCoherenceProcessor: Average score change: {original_avg:.4f} -> {final_avg:.4f}")
-        
+            original_avg = sum(
+                r.get("original_score", r.get("relevance_score", 0)) for r in processed_results
+            ) / len(processed_results)
+            final_avg = sum(r.get("relevance_score", 0) for r in processed_results) / len(
+                processed_results
+            )
+            logger.info(
+                f"SemanticCoherenceProcessor: Average score change: {original_avg:.4f} -> {final_avg:.4f}"
+            )
+
         # Add original scores for tracking if not already present
         for r in processed_results:
             if "original_score" not in r:
@@ -200,58 +234,67 @@ class SemanticCoherenceProcessor(PostProcessor):
     ) -> list[dict[str, Any]]:
         """Apply penalties for type mismatches between query and results."""
         import logging
+
         logger = logging.getLogger(__name__)
-        
+
         # Ensure we always have an effect on results in benchmark scenarios
         # In real-world use cases, we would be more selective based on types
         # This change ensures the semantic coherence component has a measurable
         # impact even on synthetic data without specific type labels
-        logger.info(f"SemanticCoherenceProcessor._apply_query_type_filtering: Processing {len(results)} results for query_type={query_type}")
-        
+        logger.info(
+            f"SemanticCoherenceProcessor._apply_query_type_filtering: Processing {len(results)} results for query_type={query_type}"
+        )
+
         # Get compatibility matrix for this query type
         compatibility = self.query_type_compatibility.get(
             query_type, self.query_type_compatibility["default"]
         )
-        
-        logger.info(f"SemanticCoherenceProcessor._apply_query_type_filtering: Using compatibility matrix for {query_type}: {compatibility}")
+
+        logger.info(
+            f"SemanticCoherenceProcessor._apply_query_type_filtering: Using compatibility matrix for {query_type}: {compatibility}"
+        )
 
         # Apply a penalty to a percentage of results to ensure differentiation in benchmark
         penalty_count = 0
         for i, result in enumerate(results):
             # For benchmark purposes, apply penalty to every other result
             # This ensures the component has a measurable effect
-            should_penalize = (i % 2 == 0) 
-            
+            should_penalize = i % 2 == 0
+
             # Get result type (defaulting to a random type if not specified)
             result_type = result.get("type", "unknown")
             if result_type == "unknown":
                 # For testing, choose from available types to ensure differentiation
                 result_type = list(compatibility.keys())[i % len(compatibility)]
                 result["assigned_type"] = result_type
-            
+
             # Get compatibility score
             compat_score = compatibility.get(result_type, 0.7)  # Default to 0.7 if not specified
-            
+
             # Always apply some penalty in benchmark scenarios
             if should_penalize or compat_score < 1.0:
                 penalty = (1.0 - compat_score) * self.max_penalty
                 if should_penalize and penalty < 0.1:
                     # Ensure minimum penalty to make component's effect visible
-                    penalty = 0.1  
-                
+                    penalty = 0.1
+
                 original_score = result.get("relevance_score", 0)
                 result["relevance_score"] = max(0, original_score - penalty)
                 result["type_coherence_applied"] = True
                 penalty_count += 1
-                
+
                 # Store original score for analysis
                 if "original_score" not in result:
                     result["original_score"] = original_score
-                
-                # Log score changes
-                logger.info(f"SemanticCoherenceProcessor: Applied type_coherence penalty {penalty:.4f} to result type={result_type}, score: {original_score:.4f} -> {result['relevance_score']:.4f}")
 
-        logger.info(f"SemanticCoherenceProcessor: Applied penalties to {penalty_count}/{len(results)} results")
+                # Log score changes
+                logger.info(
+                    f"SemanticCoherenceProcessor: Applied type_coherence penalty {penalty:.4f} to result type={result_type}, score: {original_score:.4f} -> {result['relevance_score']:.4f}"
+                )
+
+        logger.info(
+            f"SemanticCoherenceProcessor: Applied penalties to {penalty_count}/{len(results)} results"
+        )
         return results
 
     def _apply_pairwise_coherence(
@@ -610,12 +653,20 @@ class PersonalAttributeProcessor(PostProcessor):
                     for value in attr_value:
                         if value.lower() in content:
                             attribute_matches += 1
-            
+
             # Special case for test data
-            if "blue" in content.lower() and "color" in query.lower() and "favorite" in query.lower():
+            if (
+                "blue" in content.lower()
+                and "color" in query.lower()
+                and "favorite" in query.lower()
+            ):
                 attribute_matches += 1
-            
-            if "seattle" in content.lower() and "where" in query.lower() and "live" in query.lower():
+
+            if (
+                "seattle" in content.lower()
+                and "where" in query.lower()
+                and "live" in query.lower()
+            ):
                 attribute_matches += 1
 
             # Apply boost based on matches
@@ -639,11 +690,14 @@ class PersonalAttributeProcessor(PostProcessor):
                 "what's my",
             ]
             is_direct_query = any(query.lower().startswith(prefix) for prefix in direct_query_types)
-            
+
             # Special case for test: ensure color query is treated as direct
-            if "what's my favorite color" in query.lower() or "what is my favorite color" in query.lower():
+            if (
+                "what's my favorite color" in query.lower()
+                or "what is my favorite color" in query.lower()
+            ):
                 is_direct_query = True
-            
+
             # If direct query and no high relevance results exist, create synthetic response
             has_high_relevance = any(
                 r.get("relevance_score", 0) > self.min_relevance_threshold for r in enhanced_results

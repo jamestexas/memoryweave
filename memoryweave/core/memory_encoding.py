@@ -16,6 +16,7 @@ warnings.warn(
     stacklevel=2,
 )
 
+
 class MemoryEncoder:
     """
     DEPRECATED: Encodes different types of content into memory representations.

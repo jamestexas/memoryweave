@@ -65,7 +65,7 @@ class TestLegacyMemoryAdapter:
 
         # Verify ID mapping
         assert memory_id in adapter._memory_id_map
-        
+
         # Instead of checking exact equality, just verify it's being called correctly
         # This avoids issues with mock return values vs. side effect behavior
         assert adapter._memory_id_map[memory_id] == 1
@@ -224,7 +224,7 @@ class TestLegacyVectorStoreAdapter:
 
         # Create a new mock with controlled behavior for this specific test
         test_mock_memory = MagicMock()
-        
+
         # Define the retrieve_memories behavior to specifically return 2 items
         # to match the expected output in the assertions
         def mock_retrieve_memories(
@@ -290,10 +290,10 @@ class TestLegacyActivationManagerAdapter:
         # to avoid interference from previous tests
         fresh_memory_adapter = MagicMock(spec=LegacyMemoryAdapter)
         fresh_memory_adapter._memory_id_map = {"memory0": 0, "memory1": 1, "memory2": 2}
-        
+
         # Create proper mock for update_activation method
         fresh_memory_adapter.update_activation = MagicMock()
-        
+
         adapter = LegacyActivationManagerAdapter(mock_legacy_memory, fresh_memory_adapter)
 
         # Update activation

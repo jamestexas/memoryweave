@@ -1,7 +1,7 @@
 """
 DEPRECATED: Refactored retriever implementation for MemoryWeave.
 
-This module is a transitional bridge and is deprecated. 
+This module is a transitional bridge and is deprecated.
 Please use the component-based architecture directly:
 - Use memoryweave.components.retriever.Retriever for memory retrieval
 - Use memoryweave.adapters for bridging to legacy code if needed
@@ -30,7 +30,7 @@ class RefactoredRetriever:
 
     This class is deprecated and will be removed in a future version.
     Please use memoryweave.components.retriever.Retriever directly.
-    
+
     This class serves as a bridge between the new component-based architecture
     and the original retriever interface to ensure compatibility during the
     transition period.

@@ -126,32 +126,34 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
     """
     Tests for category-based retrieval strategy.
     """
-    
+
     def setUp(self):
         """Set up test environment before each test."""
         # Create memory with a smaller embedding dimension for testing
         self.embedding_dim = 16
         self.memory = MockMemory(embedding_dim=self.embedding_dim)
-        
+
         # Create category manager
         self.category_manager = CoreCategoryManager(embedding_dim=self.embedding_dim)
-        
+
         # Add category manager to memory
         self.memory.category_manager = self.category_manager
-        
+
         # Create different types of memories
         self._populate_categorized_memory()
-        
+
         # Create CategoryRetrievalStrategy
         self.category_strategy = CategoryRetrievalStrategy(self.memory)
-        self.category_strategy.initialize({
-            "confidence_threshold": 0.0,
-            "max_categories": 2,
-            "activation_boost": True,
-            "category_selection_threshold": 0.5,
-            "min_results": 2
-        })
-        
+        self.category_strategy.initialize(
+            {
+                "confidence_threshold": 0.0,
+                "max_categories": 2,
+                "activation_boost": True,
+                "category_selection_threshold": 0.5,
+                "min_results": 2,
+            }
+        )
+
     def _populate_categorized_memory(self):
         """Populate memory with categorized test data."""
         # Create category patterns
@@ -159,65 +161,61 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
         cat_pattern[0] = 0.9
         cat_pattern[1] = 0.1
         cat_pattern = cat_pattern / np.linalg.norm(cat_pattern)
-        
+
         dog_pattern = np.zeros(self.embedding_dim)
         dog_pattern[2] = 0.9
         dog_pattern[3] = 0.1
         dog_pattern = dog_pattern / np.linalg.norm(dog_pattern)
-        
+
         weather_pattern = np.zeros(self.embedding_dim)
         weather_pattern[4] = 0.9
         weather_pattern[5] = 0.1
         weather_pattern = weather_pattern / np.linalg.norm(weather_pattern)
-        
+
         # Add cat memories
         for i in range(3):
             # Add some noise to the base pattern
             noise = np.random.randn(self.embedding_dim) * 0.1
             embedding = cat_pattern + noise
             embedding = embedding / np.linalg.norm(embedding)
-            
+
             # Add to memory
             self.memory.add_memory(
-                embedding, 
-                f"Cat memory {i}", 
-                {"type": "animal", "category": "cat", "index": i}
+                embedding, f"Cat memory {i}", {"type": "animal", "category": "cat", "index": i}
             )
-            
+
             # Assign to category
             cat_idx = self.category_manager.assign_to_category(embedding)
             self.category_manager.add_memory_category_mapping(i, cat_idx)
-            
+
         # Add dog memories
         for i in range(3, 6):
             noise = np.random.randn(self.embedding_dim) * 0.1
             embedding = dog_pattern + noise
             embedding = embedding / np.linalg.norm(embedding)
-            
+
             self.memory.add_memory(
-                embedding,
-                f"Dog memory {i-3}",
-                {"type": "animal", "category": "dog", "index": i}
+                embedding, f"Dog memory {i - 3}", {"type": "animal", "category": "dog", "index": i}
             )
-            
+
             cat_idx = self.category_manager.assign_to_category(embedding)
             self.category_manager.add_memory_category_mapping(i, cat_idx)
-            
+
         # Add weather memories
         for i in range(6, 9):
             noise = np.random.randn(self.embedding_dim) * 0.1
             embedding = weather_pattern + noise
             embedding = embedding / np.linalg.norm(embedding)
-            
+
             self.memory.add_memory(
                 embedding,
-                f"Weather memory {i-6}",
-                {"type": "weather", "category": "weather", "index": i}
+                f"Weather memory {i - 6}",
+                {"type": "weather", "category": "weather", "index": i},
             )
-            
+
             cat_idx = self.category_manager.assign_to_category(embedding)
             self.category_manager.add_memory_category_mapping(i, cat_idx)
-    
+
     def test_category_retrieval_basic(self):
         """Test basic category retrieval."""
         # Create a cat-related query
@@ -225,22 +223,22 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
         cat_query[0] = 0.9
         cat_query[1] = 0.1
         cat_query = cat_query / np.linalg.norm(cat_query)
-        
+
         # Retrieve memories
         results = self.category_strategy.retrieve(cat_query, 3, {"memory": self.memory})
-        
+
         # Verify results
         self.assertGreaterEqual(len(results), 1)
-        
+
         # Verify that cat memories are retrieved
         cat_indices = set([r["memory_id"] for r in results])
         cat_expected = {0, 1, 2}  # Expected cat memory indices
         self.assertTrue(len(cat_indices.intersection(cat_expected)) > 0)
-        
+
         # Check that category information is included
         self.assertIn("category_id", results[0])
         self.assertIn("category_similarity", results[0])
-        
+
     def test_category_retrieval_dog(self):
         """Test retrieval with dog-related query."""
         # Create a dog-related query
@@ -248,18 +246,18 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
         dog_query[2] = 0.9
         dog_query[3] = 0.1
         dog_query = dog_query / np.linalg.norm(dog_query)
-        
+
         # Retrieve memories
         results = self.category_strategy.retrieve(dog_query, 3, {"memory": self.memory})
-        
+
         # Verify results
         self.assertGreaterEqual(len(results), 1)
-        
+
         # Verify that dog memories are retrieved
         dog_indices = set([r["memory_id"] for r in results])
         dog_expected = {3, 4, 5}  # Expected dog memory indices
         self.assertTrue(len(dog_indices.intersection(dog_expected)) > 0)
-        
+
     def test_category_retrieval_fallback(self):
         """Test fallback to similarity when no categories match well."""
         # Create a query with a pattern not matching any category
@@ -267,32 +265,34 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
         unrelated_query[8] = 0.9  # Different pattern from all categories
         unrelated_query[9] = 0.1
         unrelated_query = unrelated_query / np.linalg.norm(unrelated_query)
-        
+
         # Configure strategy with high category selection threshold
-        self.category_strategy.initialize({
-            "confidence_threshold": 0.0,
-            "max_categories": 2,
-            "category_selection_threshold": 0.9,  # Very high to force fallback
-            "min_results": 2
-        })
-        
+        self.category_strategy.initialize(
+            {
+                "confidence_threshold": 0.0,
+                "max_categories": 2,
+                "category_selection_threshold": 0.9,  # Very high to force fallback
+                "min_results": 2,
+            }
+        )
+
         # Retrieve memories
         results = self.category_strategy.retrieve(unrelated_query, 3, {"memory": self.memory})
-        
+
         # Should still get results due to fallback to similarity retrieval
         self.assertGreaterEqual(len(results), 1)
-        
+
     def test_process_query(self):
         """Test the full query processing path."""
         # Create a cat-related query
         query = "Tell me about cats"
-        
+
         # Create a context with embedding
         cat_query = np.zeros(self.embedding_dim)
         cat_query[0] = 0.9
         cat_query[1] = 0.1
         cat_query = cat_query / np.linalg.norm(cat_query)
-        
+
         context = {
             "query_embedding": cat_query,
             "top_k": 3,
@@ -300,15 +300,15 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
             "primary_query_type": "factual",
             "important_keywords": {"cat", "cats", "tell"},
         }
-        
+
         # Process the query
         result_context = self.category_strategy.process_query(query, context)
-        
+
         # Check results
         self.assertIn("results", result_context)
         results = result_context["results"]
         self.assertGreaterEqual(len(results), 1)
-        
+
         # Verify that cat memories are retrieved
         cat_indices = set([r["memory_id"] for r in results])
         cat_expected = {0, 1, 2}  # Expected cat memory indices

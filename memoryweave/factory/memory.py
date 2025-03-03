@@ -18,12 +18,12 @@ from memoryweave.storage.activation import ActivationManager, TemporalActivation
 from memoryweave.storage.category import CategoryManager
 from memoryweave.storage.memory_store import MemoryStore
 from memoryweave.storage.vector_store import (
-    ActivationVectorStore, 
+    ActivationVectorStore,
     SimpleVectorStore,
     ANNVectorStore,
     ANNActivationVectorStore,
     get_optimal_faiss_config,
-    VectorStoreScaleType
+    VectorStoreScaleType,
 )
 
 
@@ -88,7 +88,7 @@ class MemoryFactory:
         # Get the scale setting (auto, small, medium, large)
         scale = merged_config.get("scale", "auto")
         dimension = merged_config.get("dimension", 768)
-        
+
         # If memory count is provided explicitly, set scale based on that
         memory_count = merged_config.get("memory_count", 0)
         if memory_count > 0:
@@ -98,14 +98,14 @@ class MemoryFactory:
                 scale = "medium"
             else:
                 scale = "large"
-        
+
         # Get optimization parameters based on scale
         faiss_config = get_optimal_faiss_config(scale, dimension)
-        
+
         # Check if we should use activation-weighted store
         activation_weight = merged_config.get("activation_weight", 0.0)
         use_ann = merged_config.get("use_ann", True)
-        
+
         # Create the appropriate vector store based on settings
         if not use_ann:
             # Use simple implementations without ANN

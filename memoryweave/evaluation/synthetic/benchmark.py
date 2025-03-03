@@ -92,11 +92,11 @@ class BenchmarkResults:
                 "avg_retrieval_count": self.avg_retrieval_count,
             },
         }
-        
+
         # Add per-query timing data if available
         if self.query_times:
             result["query_times"] = self.query_times
-            
+
         return result
 
 
@@ -291,7 +291,9 @@ class SyntheticBenchmark:
 
         return memory, retriever
 
-    def run_benchmark(self, save_path: Optional[Union[str, Path]] = None, max_queries: Optional[int] = None) -> dict:
+    def run_benchmark(
+        self, save_path: Optional[Union[str, Path]] = None, max_queries: Optional[int] = None
+    ) -> dict:
         """
         Run the benchmark for all configurations.
 
@@ -322,7 +324,7 @@ class SyntheticBenchmark:
             all_expected = []
             all_retrieved = []
             query_timing_dict = {}  # Dictionary to store query ID -> timing data
-            
+
             # Limit queries if max_queries is specified
             queries_to_run = self.dataset["queries"]
             if max_queries is not None and max_queries > 0:
@@ -335,27 +337,34 @@ class SyntheticBenchmark:
                 # Get query text (handle both "query" and "text" keys for compatibility)
                 query = query_item.get("query", query_item.get("text", f"Query {query_idx}"))
                 # Get expected indices (handle different key names for compatibility)
-                expected_indices = query_item.get("relevant_indices", query_item.get("expected_ids", []))
+                expected_indices = query_item.get(
+                    "relevant_indices", query_item.get("expected_ids", [])
+                )
                 # Get query embedding
                 query_embedding = np.array(query_item["embedding"])
-                query_id = query_item.get("id", f"query_{query_idx}")  # Get query ID or generate one
+                query_id = query_item.get(
+                    "id", f"query_{query_idx}"
+                )  # Get query ID or generate one
 
                 # Set evaluation mode to prevent special case handling
                 context = {"in_evaluation": config.evaluation_mode}
-                
+
                 # Set logging level to INFO during evaluation to capture details
                 import logging
+
                 evaluation_logger = logging.getLogger()
                 original_level = evaluation_logger.level
                 evaluation_logger.setLevel(logging.INFO)
-                
+
                 # Detailed logging about the configuration
-                evaluation_logger.info(f"Benchmark: Retrieving with config={config.name}, " +
-                           f"evaluation_mode={config.evaluation_mode}, " +
-                           f"confidence_threshold={config.confidence_threshold}, " +
-                           f"semantic_coherence_check={config.semantic_coherence_check}, " +
-                           f"use_two_stage_retrieval={config.use_two_stage_retrieval}, " +
-                           f"query_type_adaptation={config.query_type_adaptation}")
+                evaluation_logger.info(
+                    f"Benchmark: Retrieving with config={config.name}, "
+                    + f"evaluation_mode={config.evaluation_mode}, "
+                    + f"confidence_threshold={config.confidence_threshold}, "
+                    + f"semantic_coherence_check={config.semantic_coherence_check}, "
+                    + f"use_two_stage_retrieval={config.use_two_stage_retrieval}, "
+                    + f"query_type_adaptation={config.query_type_adaptation}"
+                )
 
                 # Time the query
                 start_time = time.time()
@@ -395,8 +404,8 @@ class SyntheticBenchmark:
                 if hasattr(retriever, "memory_manager"):
                     # Store the config name directly on the memory manager
                     retriever.memory_manager.config_name = config.name
-                    
-                    # Set query context with feature flags 
+
+                    # Set query context with feature flags
                     # THIS MUST MATCH what's passed to retriever.retrieve below
                     query_context = {
                         "in_evaluation": config.evaluation_mode,
@@ -406,27 +415,38 @@ class SyntheticBenchmark:
                         "config_name": config.name,
                         "query_embedding": query_embedding,  # We will hide this in logs but need it in context
                         "top_k": config.top_k,
-                        "minimum_relevance": config.confidence_threshold
+                        "minimum_relevance": config.confidence_threshold,
                     }
-                    
-                    # Update the memory_manager working context 
+
+                    # Update the memory_manager working context
                     retriever.memory_manager.working_context = query_context.copy()
-                    
+
                     # Also update all component instances with the config name and enable flags
                     for component_name, component in retriever.memory_manager.components.items():
                         if component_name == "query_adapter":
                             # Set the adaptation strength directly on the component to ensure it's enabled
                             if hasattr(component, "adaptation_strength"):
-                                component.adaptation_strength = 1.0 if config.query_type_adaptation else 0.0
+                                component.adaptation_strength = (
+                                    1.0 if config.query_type_adaptation else 0.0
+                                )
                                 component.config_name = config.name  # Set the config name directly
-                                evaluation_logger.info(f"Benchmark: Set query_adapter.adaptation_strength={component.adaptation_strength} for {config.name}")
-                                
+                                evaluation_logger.info(
+                                    f"Benchmark: Set query_adapter.adaptation_strength={component.adaptation_strength} for {config.name}"
+                                )
+
                         # Make sure the individual retrieval strategies have the configuration name too
-                        if component_name in ["similarity_retrieval", "hybrid_retrieval", "temporal_retrieval", "two_stage_retrieval"]:
+                        if component_name in [
+                            "similarity_retrieval",
+                            "hybrid_retrieval",
+                            "temporal_retrieval",
+                            "two_stage_retrieval",
+                        ]:
                             if hasattr(component, "config_name"):
                                 component.config_name = config.name
-                                evaluation_logger.info(f"Benchmark: Set {component_name}.config_name={config.name}")
-                                
+                                evaluation_logger.info(
+                                    f"Benchmark: Set {component_name}.config_name={config.name}"
+                                )
+
                         # Directly configure coherence processor if using semantic coherence
                         if component_name == "coherence":
                             if config.semantic_coherence_check:
@@ -434,16 +454,22 @@ class SyntheticBenchmark:
                                 component.enable_query_type_filtering = True
                                 component.enable_pairwise_coherence = True
                                 component.max_penalty = 0.3
-                                evaluation_logger.info(f"Benchmark: Enabled coherence processor for {config.name}")
+                                evaluation_logger.info(
+                                    f"Benchmark: Enabled coherence processor for {config.name}"
+                                )
                             else:
                                 component.max_penalty = 0.0
-                                evaluation_logger.info(f"Benchmark: Disabled coherence processor for {config.name}")
-                    
+                                evaluation_logger.info(
+                                    f"Benchmark: Disabled coherence processor for {config.name}"
+                                )
+
                     # Log that context was set, but without the complete array data to avoid excessive log output
                     context_log = retriever.memory_manager.working_context.copy()
-                    if 'query_embedding' in context_log:
-                        context_log['query_embedding'] = "[EMBEDDING ARRAY HIDDEN]"
-                    evaluation_logger.info(f"Benchmark: Set working_context for {config.name}: {context_log}")
+                    if "query_embedding" in context_log:
+                        context_log["query_embedding"] = "[EMBEDDING ARRAY HIDDEN]"
+                    evaluation_logger.info(
+                        f"Benchmark: Set working_context for {config.name}: {context_log}"
+                    )
 
                 # Modify retriever.retrieve to directly use our query context
                 # Normally this would be built inside retrieve, but we need to ensure consistency
@@ -451,57 +477,67 @@ class SyntheticBenchmark:
                 # We're doing this to show how different configurations behave distinctly
                 custom_top_k = config.top_k
                 custom_threshold = config.confidence_threshold
-                
+
                 # Adjust parameters based on config name to make them clearly different
                 if "With-Semantic-Coherence" in config.name:
                     custom_top_k = 4  # Different from Basic's 5
-                    evaluation_logger.info(f"Benchmark: Using custom_top_k={custom_top_k} for {config.name}")
+                    evaluation_logger.info(
+                        f"Benchmark: Using custom_top_k={custom_top_k} for {config.name}"
+                    )
                 elif "With-Query-Adaptation" in config.name:
                     custom_top_k = 6  # Different from Basic's 5
-                    evaluation_logger.info(f"Benchmark: Using custom_top_k={custom_top_k} for {config.name}")
+                    evaluation_logger.info(
+                        f"Benchmark: Using custom_top_k={custom_top_k} for {config.name}"
+                    )
                 elif "With-Two-Stage" in config.name:
                     custom_top_k = 7  # Different from Basic's 5
-                    evaluation_logger.info(f"Benchmark: Using custom_top_k={custom_top_k} for {config.name}")
+                    evaluation_logger.info(
+                        f"Benchmark: Using custom_top_k={custom_top_k} for {config.name}"
+                    )
                 elif "Full-Advanced" in config.name:
                     custom_top_k = 8  # Different from Basic's 5
-                    evaluation_logger.info(f"Benchmark: Using custom_top_k={custom_top_k} for {config.name}")
-                    
+                    evaluation_logger.info(
+                        f"Benchmark: Using custom_top_k={custom_top_k} for {config.name}"
+                    )
+
                 # Ensure strategy name is passed to indicate specific configuration
                 strategy = None
                 if "Semantic-Coherence" in config.name:
                     strategy = "hybrid"  # Use hybrid with coherence post-processing
                 elif "Query-Adaptation" in config.name:
-                    strategy = "hybrid"  # Use hybrid with query adaptation 
+                    strategy = "hybrid"  # Use hybrid with query adaptation
                 elif "Two-Stage" in config.name:
                     strategy = "two_stage"  # Explicitly use two-stage
                 elif "Full-Advanced" in config.name:
                     strategy = "two_stage"  # Use two-stage for advanced
-                
+
                 # Retrieve with adjusted parameters
                 results = retriever.retrieve(
                     query, top_k=custom_top_k, minimum_relevance=custom_threshold, strategy=strategy
                 )
-                evaluation_logger.info(f"Benchmark: Retrieved {len(results)} results using retrieve()")
-                
+                evaluation_logger.info(
+                    f"Benchmark: Retrieved {len(results)} results using retrieve()"
+                )
+
                 # If no results and we have a direct path to memory, try a fallback
                 if not results and hasattr(retriever, "memory") and query_embedding is not None:
                     # Get basic results for benchmark purposes
                     basic_results = retriever.memory.retrieve_memories(
-                        query_embedding, 
-                        top_k=config.top_k,
-                        confidence_threshold=0.0
+                        query_embedding, top_k=config.top_k, confidence_threshold=0.0
                     )
-                    
+
                     # Format result dictionaries
                     results = []
                     for idx, score, metadata in basic_results:
-                        results.append({
-                            "memory_id": idx,
-                            "relevance_score": max(0.1, score),  # Ensure minimum score
-                            "below_threshold": score < config.confidence_threshold,
-                            "benchmark_fallback": True,
-                            **metadata
-                        })
+                        results.append(
+                            {
+                                "memory_id": idx,
+                                "relevance_score": max(0.1, score),  # Ensure minimum score
+                                "below_threshold": score < config.confidence_threshold,
+                                "benchmark_fallback": True,
+                                **metadata,
+                            }
+                        )
                     evaluation_logger.info(f"Benchmark: Added {len(results)} fallback results")
 
                 # Restore original settings
@@ -519,12 +555,13 @@ class SyntheticBenchmark:
 
                 query_time = time.time() - start_time
                 query_times.append(query_time)
-                
+
                 # Store the timing data with query details
                 query_timing_dict[query_id] = {
                     "time": query_time,
-                    "query_text": query[:50] + ("..." if len(query) > 50 else ""),  # Store truncated query text
-                    "result_count": len(results)
+                    "query_text": query[:50]
+                    + ("..." if len(query) > 50 else ""),  # Store truncated query text
+                    "result_count": len(results),
                 }
 
                 # Extract retrieved indices
@@ -589,7 +626,7 @@ class SyntheticBenchmark:
                 f1_score=np.mean(f1_scores),
                 avg_query_time=np.mean(query_times),
                 avg_retrieval_count=np.mean(retrieval_counts),
-                query_times=query_timing_dict  # Add the per-query timing dictionary
+                query_times=query_timing_dict,  # Add the per-query timing dictionary
             )
 
             self.results.append(result)
@@ -615,16 +652,27 @@ class SyntheticBenchmark:
 
         # Generate visualizations
         self.visualize_results()
-        
+
         # Create a consolidated result to return
         consolidated_results = {
             "results": self.results,
             "summary": {
                 "configs_tested": len(self.results),
-                "total_queries": len(queries_to_run) if 'queries_to_run' in locals() else len(self.dataset["queries"]),
+                "total_queries": len(queries_to_run)
+                if "queries_to_run" in locals()
+                else len(self.dataset["queries"]),
                 "best_f1": max(r.f1_score for r in self.results) if self.results else 0,
-                "best_config": next((r.config.name for r in self.results if r.f1_score == max(r2.f1_score for r2 in self.results)), None) if self.results else None
-            }
+                "best_config": next(
+                    (
+                        r.config.name
+                        for r in self.results
+                        if r.f1_score == max(r2.f1_score for r2 in self.results)
+                    ),
+                    None,
+                )
+                if self.results
+                else None,
+            },
         }
 
         return consolidated_results
@@ -831,13 +879,13 @@ def run_benchmark_with_config(
     metrics: List[str] = None,
     verbose: bool = True,
     max_queries: Optional[int] = None,
-    track_query_performance: bool = False
+    track_query_performance: bool = False,
 ) -> Dict[str, Any]:
     """
     Run a benchmark with a single configuration.
-    
+
     This is a convenience wrapper around SyntheticBenchmark for running with a single config.
-    
+
     Args:
         dataset_path: Path to the benchmark dataset
         config: Configuration dictionary for the benchmark
@@ -845,14 +893,14 @@ def run_benchmark_with_config(
         verbose: Whether to print verbose output
         max_queries: Maximum number of queries to run (for testing)
         track_query_performance: Whether to track and return per-query performance data
-        
+
     Returns:
         Dictionary with benchmark results
     """
     # Configure logging based on verbose setting
     log_level = logging.INFO if verbose else logging.WARNING
     logger.setLevel(log_level)
-    
+
     # Convert config dict to BenchmarkConfig
     benchmark_config = BenchmarkConfig(
         name=config.get("name", "Custom-Config"),
@@ -866,14 +914,14 @@ def run_benchmark_with_config(
         dynamic_threshold_adjustment=config.get("dynamic_threshold_adjustment", False),
         memory_decay_enabled=config.get("memory_decay_enabled", False),
         top_k=config.get("top_k", 5),
-        evaluation_mode=config.get("evaluation_mode", True)
+        evaluation_mode=config.get("evaluation_mode", True),
     )
-    
+
     # Look for any components configuration
     if "components" in config:
         # Apply component-specific parameters
         components_config = config["components"]
-        
+
         # Configure retriever strategy
         if "retriever" in components_config:
             retriever_config = components_config["retriever"]
@@ -883,13 +931,13 @@ def run_benchmark_with_config(
                     strategy = params["retrieval_strategy"]
                     if "TwoStageRetrievalStrategy" in strategy:
                         benchmark_config.use_two_stage_retrieval = True
-                    
+
                 if "confidence_threshold" in params:
                     benchmark_config.confidence_threshold = params["confidence_threshold"]
-                    
+
                 if "top_k" in params:
                     benchmark_config.top_k = params["top_k"]
-                    
+
         # Configure post-processors
         if "post_processors" in components_config:
             post_processors = components_config["post_processors"]
@@ -900,45 +948,41 @@ def run_benchmark_with_config(
                         benchmark_config.semantic_coherence_check = True
                     elif processor_class == "QueryTypeAdapter":
                         benchmark_config.query_type_adaptation = True
-    
+
     # Create and run benchmark
-    benchmark = SyntheticBenchmark(
-        configs=[benchmark_config],
-        dataset_path=dataset_path
-    )
-    
+    benchmark = SyntheticBenchmark(configs=[benchmark_config], dataset_path=dataset_path)
+
     # Track query performance if requested
     if track_query_performance:
         config["track_query_performance"] = True
-    
+
     # Run benchmark with max_queries limit if specified
     results = benchmark.run_benchmark(max_queries=max_queries)
-    
+
     # Extract results for the single config
     if results and "results" in results and len(results["results"]) > 0:
         # Get the first (and only) result
         result = results["results"][0].to_dict()
-        
+
         # Add the actual metrics calculated if specified
         if metrics:
             available_metrics = {
                 "precision": result["metrics"]["precision"],
                 "recall": result["metrics"]["recall"],
                 "f1_score": result["metrics"]["f1_score"],
-                "avg_query_time": result["metrics"]["avg_query_time"]
+                "avg_query_time": result["metrics"]["avg_query_time"],
             }
-            
+
             result["requested_metrics"] = {
-                metric: available_metrics.get(metric, None) 
-                for metric in metrics
+                metric: available_metrics.get(metric, None) for metric in metrics
             }
-            
+
         # Add query times if tracking was enabled
         if track_query_performance and "query_times" in result:
             result["query_times"] = result["query_times"]
-            
+
         return result
-    
+
     # Return empty result if no results were generated
     return {"error": "No results generated"}
 

@@ -24,13 +24,13 @@ from memoryweave.interfaces.memory import IMemoryStore, MemoryID
 class TemporalContextBuilder(Component):
     """
     Component that extracts and integrates temporal information into memory contexts.
-    
+
     This component:
     1. Extracts time references from queries
     2. Builds temporal representations for memories
     3. Groups memories into episodes based on temporal proximity
     4. Applies temporal decay to memory activations
-    
+
     The temporal context helps the system understand when memories occurred
     and how they relate to each other in time.
     """
@@ -38,7 +38,7 @@ class TemporalContextBuilder(Component):
     def __init__(self, memory_store: Optional[IMemoryStore] = None):
         """
         Initialize the temporal context builder.
-        
+
         Args:
             memory_store: Optional memory store to work with
         """
@@ -59,7 +59,7 @@ class TemporalContextBuilder(Component):
     def initialize(self, config: Dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
-        
+
         Args:
             config: Configuration dictionary with parameters:
                 - temporal_window: Time window for episodic clustering (default: 3600s)
@@ -85,10 +85,10 @@ class TemporalContextBuilder(Component):
     def extract_time_references(self, query: str) -> Dict[str, Any]:
         """
         Extract time references from a query.
-        
+
         Args:
             query: The query string
-            
+
         Returns:
             Dictionary of extracted temporal information
         """
@@ -100,7 +100,7 @@ class TemporalContextBuilder(Component):
             "absolute_time": None,
             "time_expressions": [],
             "time_keywords": [],
-            "debug_info": {}
+            "debug_info": {},
         }
 
         # No query, no temporal references
@@ -113,37 +113,57 @@ class TemporalContextBuilder(Component):
         # Check for explicit time expressions
         # Absolute time patterns (including simple month + day format used in benchmark)
         date_patterns = [
-            r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b',
-            r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b',
-            r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b',
-            r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?\b',
-            r'\b\d{1,2}/\d{1,2}/\d{2,4}\b',
-            r'\b\d{4}-\d{1,2}-\d{1,2}\b'
+            r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b",
+            r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b",
+            r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b",
+            r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?\b",
+            r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
+            r"\b\d{4}-\d{1,2}-\d{1,2}\b",
         ]
 
-        time_patterns = [
-            r'\b\d{1,2}:\d{2}\s*(?:am|pm)?\b',
-            r'\b\d{1,2}\s*(?:am|pm)\b'
-        ]
+        time_patterns = [r"\b\d{1,2}:\d{2}\s*(?:am|pm)?\b", r"\b\d{1,2}\s*(?:am|pm)\b"]
 
         # Relative time patterns
         relative_time_patterns = [
-            r'\b(yesterday|today|tomorrow)\b',
-            r'\blast\s+(week|month|year|weekend|night|evening|morning)\b',
-            r'\bnext\s+(week|month|year|weekend|day)\b',
-            r'\b(a|one|two|three|four|five|six|seven)\s+(day|week|month|year)s?\s+ago\b',
-            r'\bin\s+(a|one|two|three|four|five|six|seven)\s+(day|week|month|year)s?\b',
-            r'\b\d+\s+(day|week|month|year)s?\s+ago\b',
-            r'\bin\s+\d+\s+(day|week|month|year)s?\b'
+            r"\b(yesterday|today|tomorrow)\b",
+            r"\blast\s+(week|month|year|weekend|night|evening|morning)\b",
+            r"\bnext\s+(week|month|year|weekend|day)\b",
+            r"\b(a|one|two|three|four|five|six|seven)\s+(day|week|month|year)s?\s+ago\b",
+            r"\bin\s+(a|one|two|three|four|five|six|seven)\s+(day|week|month|year)s?\b",
+            r"\b\d+\s+(day|week|month|year)s?\s+ago\b",
+            r"\bin\s+\d+\s+(day|week|month|year)s?\b",
         ]
 
         # Time keywords
         time_keywords = [
-            "recent", "recently", "latest", "newest", "earlier", "earlier",
-            "before", "after", "during", "previous", "past", "last week",
-            "last month", "this week", "this year", "right now", "current",
-            "previously", "formerly", "when", "old", "new", "ancient", "modern",
-            "morning", "afternoon", "evening", "night"
+            "recent",
+            "recently",
+            "latest",
+            "newest",
+            "earlier",
+            "earlier",
+            "before",
+            "after",
+            "during",
+            "previous",
+            "past",
+            "last week",
+            "last month",
+            "this week",
+            "this year",
+            "right now",
+            "current",
+            "previously",
+            "formerly",
+            "when",
+            "old",
+            "new",
+            "ancient",
+            "modern",
+            "morning",
+            "afternoon",
+            "evening",
+            "night",
         ]
 
         # Check for date patterns
@@ -152,23 +172,34 @@ class TemporalContextBuilder(Component):
             if matches:
                 result["has_temporal_reference"] = True
                 result["time_type"] = "absolute"
-                
+
                 # Convert matches to strings if they're tuples (capturing groups)
-                string_matches = [m if isinstance(m, str) else ' '.join(m) for m in matches]
+                string_matches = [m if isinstance(m, str) else " ".join(m) for m in matches]
                 result["time_expressions"].extend(string_matches)
-                
+
                 # Parse absolute date from month + day format
                 for match in string_matches:
                     # Try to parse "Month DD" format
                     month_day_match = re.search(
-                        r'(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})',
-                        match, re.IGNORECASE
+                        r"(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})",
+                        match,
+                        re.IGNORECASE,
                     )
                     if month_day_match:
                         month_name, day = month_day_match.groups()
                         month_map = {
-                            'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
-                            'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+                            "january": 1,
+                            "february": 2,
+                            "march": 3,
+                            "april": 4,
+                            "may": 5,
+                            "june": 6,
+                            "july": 7,
+                            "august": 8,
+                            "september": 9,
+                            "october": 10,
+                            "november": 11,
+                            "december": 12,
                         }
                         month_num = month_map.get(month_name.lower())
                         if month_num:
@@ -204,14 +235,18 @@ class TemporalContextBuilder(Component):
             if matches:
                 result["has_temporal_reference"] = True
                 result["time_type"] = "relative"
-                result["time_expressions"].extend([m if isinstance(m, str) else ' '.join(m) for m in matches])
+                result["time_expressions"].extend(
+                    [m if isinstance(m, str) else " ".join(m) for m in matches]
+                )
 
                 # Attempt to parse relative time
                 for match in result["time_expressions"]:
                     parsed_time = self._parse_relative_time(match)
                     if parsed_time:
                         result["relative_time"] = parsed_time
-                        result["debug_info"]["parsed_relative"] = datetime.fromtimestamp(parsed_time).isoformat()
+                        result["debug_info"]["parsed_relative"] = datetime.fromtimestamp(
+                            parsed_time
+                        ).isoformat()
                         break
 
         # Check for time keywords
@@ -228,10 +263,10 @@ class TemporalContextBuilder(Component):
     def _parse_relative_time(self, time_expression: str) -> Optional[float]:
         """
         Parse a relative time expression into a timestamp.
-        
+
         Args:
             time_expression: The time expression to parse
-            
+
         Returns:
             Timestamp for the expression, or None if parsing fails
         """
@@ -260,15 +295,25 @@ class TemporalContextBuilder(Component):
             return (today - timedelta(days=365)).timestamp()
 
         # Handle "X days/weeks/months/years ago"
-        ago_match = re.search(r'(\w+|\d+)\s+(day|week|month|year)s?\s+ago', time_expression, re.IGNORECASE)
+        ago_match = re.search(
+            r"(\w+|\d+)\s+(day|week|month|year)s?\s+ago", time_expression, re.IGNORECASE
+        )
         if ago_match:
             amount, unit = ago_match.groups()
             try:
                 # Convert word numbers to digits
                 word_to_number = {
-                    "a": 1, "one": 1, "two": 2, "three": 3, "four": 4,
-                    "five": 5, "six": 6, "seven": 7, "eight": 8,
-                    "nine": 9, "ten": 10
+                    "a": 1,
+                    "one": 1,
+                    "two": 2,
+                    "three": 3,
+                    "four": 4,
+                    "five": 5,
+                    "six": 6,
+                    "seven": 7,
+                    "eight": 8,
+                    "nine": 9,
+                    "ten": 10,
                 }
                 if amount.lower() in word_to_number:
                     amount = word_to_number[amount.lower()]
@@ -292,15 +337,25 @@ class TemporalContextBuilder(Component):
                 return None
 
         # Handle "in X days/weeks/months/years"
-        in_match = re.search(r'in\s+(\w+|\d+)\s+(day|week|month|year)s?', time_expression, re.IGNORECASE)
+        in_match = re.search(
+            r"in\s+(\w+|\d+)\s+(day|week|month|year)s?", time_expression, re.IGNORECASE
+        )
         if in_match:
             amount, unit = in_match.groups()
             try:
                 # Convert word numbers to digits
                 word_to_number = {
-                    "a": 1, "one": 1, "two": 2, "three": 3, "four": 4,
-                    "five": 5, "six": 6, "seven": 7, "eight": 8,
-                    "nine": 9, "ten": 10
+                    "a": 1,
+                    "one": 1,
+                    "two": 2,
+                    "three": 3,
+                    "four": 4,
+                    "five": 5,
+                    "six": 6,
+                    "seven": 7,
+                    "eight": 8,
+                    "nine": 9,
+                    "ten": 10,
                 }
                 if amount.lower() in word_to_number:
                     amount = word_to_number[amount.lower()]
@@ -328,7 +383,7 @@ class TemporalContextBuilder(Component):
     def _build_episodes(self) -> None:
         """
         Build episodic clusters from memory timestamps.
-        
+
         This method groups memories into episodes based on temporal proximity.
         """
         if self.memory_store is None:
@@ -359,18 +414,18 @@ class TemporalContextBuilder(Component):
         # Perform hierarchical clustering
         if len(timestamps_array) > 1:
             # Calculate linkage matrix
-            Z = linkage(timestamps_array, method='single')
+            Z = linkage(timestamps_array, method="single")
 
             # Form flat clusters with distance threshold based on temporal window
             # Use absolute time difference instead of scaled value to better match query time references
             # Convert to seconds for consistent units
             threshold = self.temporal_window  # Time window in seconds (e.g., 3600 for 1 hour)
-            clusters = fcluster(Z, threshold, criterion='distance')
+            clusters = fcluster(Z, threshold, criterion="distance")
 
             # Group memories by cluster
             cluster_memories = defaultdict(list)
             cluster_times = defaultdict(list)
-            
+
             # Also create date-based indexing for efficient lookup
             date_to_episode = {}  # Maps date string (YYYY-MM-DD) to episode ID
 
@@ -390,12 +445,12 @@ class TemporalContextBuilder(Component):
                 start_date = datetime.fromtimestamp(min(cluster_timestamps))
                 end_date = datetime.fromtimestamp(max(cluster_timestamps))
                 center_time = sum(cluster_timestamps) / len(cluster_timestamps)
-                
+
                 # Calculate date representation for the entire episode
                 episode_date = datetime.fromtimestamp(center_time)
                 date_str = episode_date.strftime("%Y-%m-%d")
                 month_day_str = episode_date.strftime("%B %d").lower()
-                
+
                 self.episodes[episode_id] = {
                     "memory_ids": set(mem_ids),
                     "start_time": min(cluster_timestamps),
@@ -404,9 +459,9 @@ class TemporalContextBuilder(Component):
                     "date_str": date_str,
                     "month_day": month_day_str,
                     "start_date": start_date.strftime("%Y-%m-%d"),
-                    "end_date": end_date.strftime("%Y-%m-%d")
+                    "end_date": end_date.strftime("%Y-%m-%d"),
                 }
-                
+
                 # Add to date index
                 date_to_episode[date_str] = episode_id
                 date_to_episode[month_day_str] = episode_id
@@ -422,13 +477,11 @@ class TemporalContextBuilder(Component):
             if len(self.episodes) > self.max_temporal_clusters:
                 # Sort by end time (most recent first)
                 sorted_episodes = sorted(
-                    self.episodes.items(),
-                    key=lambda x: x[1]["end_time"],
-                    reverse=True
+                    self.episodes.items(), key=lambda x: x[1]["end_time"], reverse=True
                 )
 
                 # Keep only max_temporal_clusters
-                kept_episodes = dict(sorted_episodes[:self.max_temporal_clusters])
+                kept_episodes = dict(sorted_episodes[: self.max_temporal_clusters])
 
                 # Update mappings
                 self.episodes = kept_episodes
@@ -440,7 +493,7 @@ class TemporalContextBuilder(Component):
                     # Rebuild memory mapping
                     for mem_id in episode["memory_ids"]:
                         self.memory_to_episode[mem_id] = episode_id
-                    
+
                     # Rebuild date mapping
                     self.date_to_episode[episode["date_str"]] = episode_id
                     self.date_to_episode[episode["month_day"]] = episode_id
@@ -449,19 +502,16 @@ class TemporalContextBuilder(Component):
         self.last_cluster_time = time.time()
 
     def apply_temporal_context(
-        self,
-        query: str,
-        results: List[Dict[str, Any]],
-        context: Dict[str, Any]
+        self, query: str, results: List[Dict[str, Any]], context: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Apply temporal context to retrieval results.
-        
+
         Args:
             query: The query string
             results: The retrieval results to process
             context: Context information
-            
+
         Returns:
             Updated results with temporal context applied
         """
@@ -491,17 +541,15 @@ class TemporalContextBuilder(Component):
             return self._apply_temporal_keyword_boost(results, time_info, context)
 
     def _apply_recency_boost(
-        self,
-        results: List[Dict[str, Any]],
-        context: Dict[str, Any]
+        self, results: List[Dict[str, Any]], context: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Apply recency boost to results.
-        
+
         Args:
             results: The retrieval results to process
             context: Context information
-            
+
         Returns:
             Updated results with recency boost applied
         """
@@ -528,7 +576,9 @@ class TemporalContextBuilder(Component):
                 # Apply recency boost if within window
                 if time_diff <= self.recency_window:
                     # Calculate boost factor (linear decay)
-                    boost_factor = 1.0 + (self.recency_boost_factor - 1.0) * (1.0 - time_diff / self.recency_window)
+                    boost_factor = 1.0 + (self.recency_boost_factor - 1.0) * (
+                        1.0 - time_diff / self.recency_window
+                    )
 
                     # Apply boost to relevance score
                     original_score = boosted_result.get("relevance_score", 0.0)
@@ -543,19 +593,16 @@ class TemporalContextBuilder(Component):
         return boosted_results
 
     def _score_by_temporal_relevance(
-        self,
-        results: List[Dict[str, Any]],
-        target_time: float,
-        context: Dict[str, Any]
+        self, results: List[Dict[str, Any]], target_time: float, context: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Score results by temporal relevance to a target time.
-        
+
         Args:
             results: The retrieval results to process
             target_time: The target timestamp to compare against
             context: Context information
-            
+
         Returns:
             Updated results with temporal relevance applied
         """
@@ -567,12 +614,14 @@ class TemporalContextBuilder(Component):
         # Default is 1-day but use query-specific scale when available
         query = context.get("query", "")
         time_info = self.extract_time_references(query)
-        
+
         # Use more flexible scale when searching for specific dates (e.g., "March 02")
-        is_specific_date_query = time_info.get("time_type") == "absolute" and time_info.get("time_expressions")
+        is_specific_date_query = time_info.get("time_type") == "absolute" and time_info.get(
+            "time_expressions"
+        )
         # Default 1-day scale
         default_scale = 86400
-        
+
         # Use wider temporal window for specific date queries
         if is_specific_date_query:
             # Use a full-day window (86400 seconds) for date queries
@@ -580,11 +629,11 @@ class TemporalContextBuilder(Component):
         else:
             # Use context-provided or default scale
             temporal_scale = context.get("temporal_scale", default_scale)
-        
+
         # First, check if we can directly match using date-based lookup
         # This handles queries like "What happened on March 02?"
         date_matched_results = []
-        if is_specific_date_query and hasattr(self, 'date_to_episode'):
+        if is_specific_date_query and hasattr(self, "date_to_episode"):
             for expr in time_info["time_expressions"]:
                 # Normalize to lowercase for matching
                 expr_lower = expr.lower()
@@ -606,13 +655,15 @@ class TemporalContextBuilder(Component):
                                 result_copy["direct_episode_match"] = True
                                 result_copy["episode_id"] = episode_id
                                 date_matched_results.append(result_copy)
-        
+
         # If we found direct date matches, return them immediately
         if date_matched_results:
             # Sort by original relevance as a tiebreaker
-            date_matched_results.sort(key=lambda x: x.get("original_relevance_score", 0.0), reverse=True)
+            date_matched_results.sort(
+                key=lambda x: x.get("original_relevance_score", 0.0), reverse=True
+            )
             return date_matched_results
-        
+
         # Otherwise, proceed with the standard temporal relevance approach
         # Create a copy of results to avoid modifying originals
         scored_results = []
@@ -620,7 +671,7 @@ class TemporalContextBuilder(Component):
         for result in results:
             # Deep copy the result
             scored_result = dict(result)
-            
+
             # Store original score for reference
             original_score = scored_result.get("relevance_score", 0.0)
             scored_result["original_relevance_score"] = original_score
@@ -633,12 +684,12 @@ class TemporalContextBuilder(Component):
                 time_diff = abs(target_time - creation_time)
 
                 # Calculate temporal relevance (Gaussian decay)
-                temporal_relevance = np.exp(-(time_diff ** 2) / (2 * temporal_scale ** 2))
+                temporal_relevance = np.exp(-(time_diff**2) / (2 * temporal_scale**2))
 
                 # Check if memory is in an episode that matches the target time
                 memory_id = str(result.get("memory_id"))
                 episode_id = self.memory_to_episode.get(memory_id)
-                
+
                 # Episode boost - if the memory is part of a relevant episode
                 episode_boost = 0.0
                 if episode_id and episode_id in self.episodes:
@@ -647,7 +698,7 @@ class TemporalContextBuilder(Component):
                     if episode["start_time"] <= target_time <= episode["end_time"]:
                         episode_boost = 0.5  # Significant boost for being in the right episode
                         scored_result["in_target_episode"] = True
-                        
+
                 # Enhanced temporal relevance with episode boost
                 enhanced_relevance = min(1.0, temporal_relevance + episode_boost)
 
@@ -660,7 +711,9 @@ class TemporalContextBuilder(Component):
                     temporal_weight = context.get("temporal_weight", base_temporal_weight)
 
                 # Combine original score with temporal relevance
-                combined_score = (1.0 - temporal_weight) * original_score + temporal_weight * enhanced_relevance
+                combined_score = (
+                    1.0 - temporal_weight
+                ) * original_score + temporal_weight * enhanced_relevance
 
                 # Update relevance score
                 scored_result["relevance_score"] = combined_score
@@ -677,19 +730,16 @@ class TemporalContextBuilder(Component):
         return scored_results
 
     def _apply_temporal_keyword_boost(
-        self,
-        results: List[Dict[str, Any]],
-        time_info: Dict[str, Any],
-        context: Dict[str, Any]
+        self, results: List[Dict[str, Any]], time_info: Dict[str, Any], context: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Apply boost for temporal keywords.
-        
+
         Args:
             results: The retrieval results to process
             time_info: Temporal information extracted from query
             context: Context information
-            
+
         Returns:
             Updated results with temporal keyword boost applied
         """
@@ -725,7 +775,9 @@ class TemporalContextBuilder(Component):
                     # Boost recent memories
                     time_diff = current_time - creation_time
                     if time_diff <= self.recency_window:
-                        boost_factor = 1.0 + (self.recency_boost_factor - 1.0) * (1.0 - time_diff / self.recency_window)
+                        boost_factor = 1.0 + (self.recency_boost_factor - 1.0) * (
+                            1.0 - time_diff / self.recency_window
+                        )
 
                 elif is_oldness_query:
                     # Boost older memories
@@ -751,10 +803,10 @@ class TemporalContextBuilder(Component):
     def get_episode_for_memory(self, memory_id: MemoryID) -> Optional[str]:
         """
         Get the episode ID for a memory.
-        
+
         Args:
             memory_id: The memory ID to check
-            
+
         Returns:
             Episode ID if memory is part of an episode, None otherwise
         """
@@ -763,10 +815,10 @@ class TemporalContextBuilder(Component):
     def get_memories_in_episode(self, episode_id: str) -> Set[MemoryID]:
         """
         Get all memories in an episode.
-        
+
         Args:
             episode_id: The episode ID to check
-            
+
         Returns:
             Set of memory IDs in the episode
         """
@@ -775,17 +827,15 @@ class TemporalContextBuilder(Component):
         return set()
 
     def get_temporally_related_memories(
-        self,
-        memory_id: MemoryID,
-        time_window: Optional[float] = None
+        self, memory_id: MemoryID, time_window: Optional[float] = None
     ) -> List[Tuple[MemoryID, float]]:
         """
         Get memories that are temporally related to a given memory.
-        
+
         Args:
             memory_id: The memory ID to find related memories for
             time_window: Custom time window (default: use instance temporal_window)
-            
+
         Returns:
             List of (memory_id, temporal_proximity) tuples
         """
@@ -836,7 +886,7 @@ class TemporalContextBuilder(Component):
 class TemporalDecayComponent(MemoryComponent):
     """
     Component that applies temporal decay to memory activations.
-    
+
     This component simulates the natural decay of memory activation over time,
     making older memories less accessible unless they are frequently accessed
     or have strong connections.
@@ -854,7 +904,7 @@ class TemporalDecayComponent(MemoryComponent):
     def initialize(self, config: Dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
-        
+
         Args:
             config: Configuration dictionary with parameters:
                 - short_term_half_life: Half-life for short-term decay (default: 3600s)
@@ -870,11 +920,11 @@ class TemporalDecayComponent(MemoryComponent):
     def process(self, data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process memory data to apply temporal decay.
-        
+
         Args:
             data: Memory data to process
             context: Context information
-                
+
         Returns:
             Updated memory data with decayed activation
         """
@@ -924,7 +974,7 @@ class TemporalDecayComponent(MemoryComponent):
         result["decay_info"] = {
             "time_since_access": time_since_access,
             "decay_factor": decay_factor,
-            "half_life": half_life
+            "half_life": half_life,
         }
 
         return result
@@ -932,7 +982,7 @@ class TemporalDecayComponent(MemoryComponent):
     def apply_decay_to_store(self, memory_store: IMemoryStore, current_time: float) -> None:
         """
         Apply decay to all memories in a store.
-        
+
         Args:
             memory_store: The memory store to update
             current_time: Current timestamp for decay calculation
@@ -949,7 +999,9 @@ class TemporalDecayComponent(MemoryComponent):
             activation = memory.metadata.get("activation", 1.0)
 
             # Get access and creation times
-            last_accessed = memory.metadata.get("last_accessed", memory.metadata.get("created_at", current_time))
+            last_accessed = memory.metadata.get(
+                "last_accessed", memory.metadata.get("created_at", current_time)
+            )
             created_at = memory.metadata.get("created_at", current_time)
 
             # Apply decay

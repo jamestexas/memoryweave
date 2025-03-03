@@ -1,6 +1,7 @@
 """
 Component for ART-inspired clustering of memories into categories.
 """
+
 from typing import Any, Dict, List, Optional, Set
 
 import numpy as np
@@ -12,25 +13,25 @@ from memoryweave.core.category_manager import CategoryManager as CoreCategoryMan
 class CategoryManager(Component):
     """
     Component for ART-inspired clustering of memories into categories.
-    
+
     This component provides dynamic categorization of memories based on
     their embedding similarity, following principles from Adaptive
     Resonance Theory.
     """
-    
+
     def __init__(self, core_category_manager: Optional[CoreCategoryManager] = None):
         """Initialize with optional existing category manager."""
         self.core_manager = core_category_manager
         self.vigilance_threshold = 0.8
         self.learning_rate = 0.2
         self.embedding_dim = 768
-        
+
     def initialize(self, config: Dict[str, Any]) -> None:
         """Initialize with configuration."""
         self.vigilance_threshold = config.get("vigilance_threshold", 0.8)
         self.learning_rate = config.get("learning_rate", 0.2)
         self.embedding_dim = config.get("embedding_dim", 768)
-        
+
         # Create core manager if not provided
         if not self.core_manager:
             self.core_manager = CoreCategoryManager(
@@ -52,25 +53,25 @@ class CategoryManager(Component):
             # Update existing core manager parameters if they exist
             self.core_manager.vigilance_threshold = self.vigilance_threshold
             self.core_manager.learning_rate = self.learning_rate
-    
+
     def assign_to_category(self, embedding: np.ndarray) -> int:
         """
         Assign a memory embedding to a category.
-        
+
         Args:
             embedding: The memory embedding to categorize
-            
+
         Returns:
             Index of the assigned category
         """
         if not self.core_manager:
             self.initialize({})  # Initialize with default settings
         return self.core_manager.assign_to_category(embedding)
-    
+
     def add_memory_category_mapping(self, memory_idx: int, category_idx: int) -> None:
         """
         Add a mapping between a memory and its category.
-        
+
         Args:
             memory_idx: Index of the memory
             category_idx: Index of the category
@@ -78,68 +79,70 @@ class CategoryManager(Component):
         if not self.core_manager:
             self.initialize({})  # Initialize with default settings
         self.core_manager.add_memory_category_mapping(memory_idx, category_idx)
-    
+
     def update_category_activation(self, category_idx: int) -> None:
         """
         Update activation level for a category that's been accessed.
-        
+
         Args:
             category_idx: Index of the category to update
         """
         if not self.core_manager:
             return
         self.core_manager.update_category_activation(category_idx)
-    
+
     def get_category_for_memory(self, memory_idx: int) -> int:
         """
         Get the category index for a memory.
-        
+
         Args:
             memory_idx: Index of the memory
-            
+
         Returns:
             Category index for the memory
         """
         if not self.core_manager:
-            raise IndexError(f"Memory index {memory_idx} out of range - no category manager initialized")
+            raise IndexError(
+                f"Memory index {memory_idx} out of range - no category manager initialized"
+            )
         return self.core_manager.get_category_for_memory(memory_idx)
-    
+
     def get_memories_for_category(self, category_idx: int) -> List[int]:
         """
         Get all memory indices for a category.
-        
+
         Args:
             category_idx: Index of the category
-            
+
         Returns:
             List of memory indices in the category
         """
         if not self.core_manager:
             return []
         return self.core_manager.get_memories_for_category(category_idx)
-    
+
     def get_category_similarities(self, query_embedding: np.ndarray) -> np.ndarray:
         """
         Calculate similarities between query and all category prototypes.
-        
+
         This method provides optimized similarity calculation between
         a query embedding and all category prototypes, with activation
         weighting for better retrieval accuracy.
-        
+
         Args:
             query_embedding: Query embedding vector
-            
+
         Returns:
             Array of similarity scores for each category
         """
         if not self.core_manager:
             return np.array([], dtype=np.float32)
         return self.core_manager.get_category_similarities(query_embedding)
-    
+
     def get_category_statistics(self) -> Dict[str, Any]:
         """
         Get statistics about the current categories.
-        
+
         Returns:
             Dictionary with category statistics
         """
@@ -147,14 +150,14 @@ class CategoryManager(Component):
         if not self.core_manager:
             return {"num_categories": 0, "memories_per_category": {}, "category_activations": {}}
         return self.core_manager.get_category_statistics()
-    
+
     def consolidate_categories(self, threshold: Optional[float] = None) -> int:
         """
         Trigger category consolidation with an optional custom threshold.
-        
+
         Args:
             threshold: Custom similarity threshold
-            
+
         Returns:
             Number of categories after consolidation
         """

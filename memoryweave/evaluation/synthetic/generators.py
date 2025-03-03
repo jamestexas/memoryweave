@@ -444,11 +444,13 @@ class SyntheticMemoryGenerator:
         # Convert to a serializable format
         serializable_memories = []
         for text, metadata, embedding in memories:
-            serializable_memories.append({
-                "text": text,
-                "metadata": metadata,
-                "embedding": embedding.tolist(),
-            })
+            serializable_memories.append(
+                {
+                    "text": text,
+                    "metadata": metadata,
+                    "embedding": embedding.tolist(),
+                }
+            )
 
         # Write to file
         with open(file_path, "w") as f:
@@ -827,11 +829,13 @@ class SyntheticQueryGenerator:
         """
         serializable_queries = []
         for text, indices, embedding in queries:
-            serializable_queries.append({
-                "query": text,
-                "relevant_indices": indices,
-                "embedding": embedding.tolist(),
-            })
+            serializable_queries.append(
+                {
+                    "query": text,
+                    "relevant_indices": indices,
+                    "embedding": embedding.tolist(),
+                }
+            )
 
         with open(file_path, "w") as f:
             json.dump(serializable_queries, f, indent=2)

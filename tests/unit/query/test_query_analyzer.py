@@ -109,12 +109,14 @@ class TestSimpleQueryAnalyzer:
         assert analyzer._config["max_keywords"] == 10
 
         # Configure analyzer
-        analyzer.configure({
-            "min_keyword_length": 4,
-            "max_keywords": 5,
-            "stopwords": {"test", "example"},
-            "personal_patterns": ["\\bours\\b", "\\bwe\\b"],
-        })
+        analyzer.configure(
+            {
+                "min_keyword_length": 4,
+                "max_keywords": 5,
+                "stopwords": {"test", "example"},
+                "personal_patterns": ["\\bours\\b", "\\bwe\\b"],
+            }
+        )
 
         # Check updated configuration
         assert analyzer._config["min_keyword_length"] == 4

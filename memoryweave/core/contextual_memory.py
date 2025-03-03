@@ -33,7 +33,7 @@ class ContextualMemory:
 
     This class is deprecated and will be removed in a future version.
     Please use memoryweave.components.memory_manager.MemoryManager instead.
-    
+
     This class combines CoreMemory, CategoryManager, and MemoryRetriever
     to provide a unified interface for memory operations while maintaining
     the original API of the monolithic implementation.
@@ -102,7 +102,7 @@ class ContextualMemory:
             embedding_dim=embedding_dim,
             max_memories=max_memories,
         )
-        
+
         # Store key parameters
         self.use_ann = use_ann
 

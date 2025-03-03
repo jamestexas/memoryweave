@@ -15,8 +15,12 @@ from memoryweave.components.retrieval_strategies_impl import (
 )
 
 # Import new strategies
-from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import HybridBM25VectorStrategy
-from memoryweave.components.retrieval_strategies.contextual_fabric_strategy import ContextualFabricStrategy
+from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import (
+    HybridBM25VectorStrategy,
+)
+from memoryweave.components.retrieval_strategies.contextual_fabric_strategy import (
+    ContextualFabricStrategy,
+)
 
 __all__ = [
     "SimilarityRetrievalStrategy",

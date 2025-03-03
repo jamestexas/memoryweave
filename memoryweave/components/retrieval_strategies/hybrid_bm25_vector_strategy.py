@@ -53,7 +53,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
         self.schema = Schema(
             id=ID(stored=True, unique=True),
             content=TEXT(analyzer=self.analyzer, stored=True),
-            metadata=STORED
+            metadata=STORED,
         )
 
         # Create the index
@@ -78,13 +78,15 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
         """
         # Vector retrieval parameters
         self.vector_weight = config.get("vector_weight", 0.2)  # Default to favoring BM25
-        self.bm25_weight = config.get("bm25_weight", 0.8)     # Give BM25 more weight by default
+        self.bm25_weight = config.get("bm25_weight", 0.8)  # Give BM25 more weight by default
         self.confidence_threshold = config.get("confidence_threshold", 0.0)
         self.activation_boost = config.get("activation_boost", True)
-        
+
         # Dynamic weighting parameters
         self.enable_dynamic_weighting = config.get("enable_dynamic_weighting", True)
-        self.keyword_weight_bias = config.get("keyword_weight_bias", 0.7)  # How much to bias toward BM25 for keyword-rich queries
+        self.keyword_weight_bias = config.get(
+            "keyword_weight_bias", 0.7
+        )  # How much to bias toward BM25 for keyword-rich queries
 
         # BM25 parameters
         self.b = config.get("bm25_b", 0.75)
@@ -100,6 +102,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
     def _initialize_bm25_index(self) -> None:
         """Initialize BM25 index with memory contents."""
         import logging
+
         logger = logging.getLogger(__name__)
 
         writer = self.index.writer()
@@ -117,7 +120,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             elif "content" in metadata:
                 # Try to convert content to string if it's not already
                 memory_text = str(metadata["content"])
-            
+
             # For benchmark formats, sometimes content is a string directly
             if not memory_text and isinstance(metadata.get("content"), str):
                 memory_text = metadata["content"]
@@ -125,7 +128,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             # Debug info for benchmark troubleshooting
             logger.debug(f"Memory {idx} text: '{memory_text}'")
             logger.debug(f"Memory {idx} metadata: {metadata}")
-                
+
             # Skip if no text to index
             if not memory_text:
                 logger.warning(f"Skipping memory {idx}: No text content found")
@@ -134,11 +137,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
 
             try:
                 # Add to index
-                writer.add_document(
-                    id=str(idx),
-                    content=memory_text,
-                    metadata={"memory_id": idx}
-                )
+                writer.add_document(id=str(idx), content=memory_text, metadata={"memory_id": idx})
 
                 # Store in lookup for retrieval
                 self.memory_lookup[str(idx)] = idx
@@ -165,6 +164,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             Dictionary mapping memory IDs to relevance scores
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         # Create query parser for the content field
@@ -176,32 +176,33 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
 
         # Clean query text to avoid Whoosh parsing errors
         import re
-        cleaned_query = re.sub(r'[?!&|\'"-:;.,()~/*]', ' ', query_text)
-        cleaned_query = re.sub(r'\s+', ' ', cleaned_query).strip()
+
+        cleaned_query = re.sub(r'[?!&|\'"-:;.,()~/*]', " ", query_text)
+        cleaned_query = re.sub(r"\s+", " ", cleaned_query).strip()
 
         logger.info(f"HybridBM25VectorStrategy: BM25 query: '{cleaned_query}'")
-        
+
         # Extract keywords for a more lenient keyword search
         words = [w for w in cleaned_query.lower().split() if len(w) > 3]
         if not words:
             words = cleaned_query.lower().split()
-            
+
         # For the third query "What food do I like to eat", we need special handling
         # Look for variations or similar phrases
         extra_terms = []
         if "food" in cleaned_query.lower() or "eat" in cleaned_query.lower():
             extra_terms.extend(["pizza", "friday", "watching"])
-        
+
         # Add the extra terms
         if extra_terms:
             words.extend(extra_terms)
             logger.info(f"Added extra search terms for food query: {extra_terms}")
-            
+
         # For small benchmark datasets, we need to be more lenient
         # Create an OR query with all keywords to increase chances of matches
         keywords_query = " OR ".join(words)
         logger.info(f"HybridBM25VectorStrategy: Using keywords query: '{keywords_query}'")
-        
+
         try:
             # Use the keyword query format for better results
             q = parser.parse(keywords_query)
@@ -211,7 +212,9 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             try:
                 q = parser.parse(cleaned_query)
             except Exception as e2:
-                logger.warning(f"HybridBM25VectorStrategy: Error parsing fallback query '{cleaned_query}': {e2}")
+                logger.warning(
+                    f"HybridBM25VectorStrategy: Error parsing fallback query '{cleaned_query}': {e2}"
+                )
                 return {}
 
         # Search using BM25
@@ -219,8 +222,10 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
         try:
             with self.index.searcher(weighting=BM25F(B=self.b, K1=self.k1)) as searcher:
                 # Log the number of documents in the searcher for debugging
-                logger.info(f"HybridBM25VectorStrategy: Searcher has {searcher.doc_count()} documents")
-                
+                logger.info(
+                    f"HybridBM25VectorStrategy: Searcher has {searcher.doc_count()} documents"
+                )
+
                 # Use all_terms=False to match any term rather than requiring all terms
                 search_results = searcher.search(q, limit=top_k, scored=True, sortedby=None)
 
@@ -230,29 +235,37 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
                 # Check if results exist and get the max score
                 max_score = 1.0
                 if search_results and len(search_results) > 0:
-                    if hasattr(search_results, 'top_score') and search_results.top_score:
+                    if hasattr(search_results, "top_score") and search_results.top_score:
                         max_score = search_results.top_score
-                    elif hasattr(search_results[0], 'score'):
+                    elif hasattr(search_results[0], "score"):
                         # Find the highest score from individual results
-                        max_score = max([r.score for r in search_results]) if len(search_results) > 0 else 1.0
-                    
+                        max_score = (
+                            max([r.score for r in search_results])
+                            if len(search_results) > 0
+                            else 1.0
+                        )
+
                     logger.info(f"HybridBM25VectorStrategy: Max score: {max_score}")
 
                 # Process results
                 for result in search_results:
                     if "id" not in result:
-                        logger.warning(f"HybridBM25VectorStrategy: Missing ID in search result: {result}")
+                        logger.warning(
+                            f"HybridBM25VectorStrategy: Missing ID in search result: {result}"
+                        )
                         continue
-                        
+
                     memory_id = result["id"]
-                    
+
                     # Debug the lookup
                     if memory_id not in self.memory_lookup:
-                        logger.warning(f"Memory ID {memory_id} not in lookup dictionary (keys: {list(self.memory_lookup.keys())})")
+                        logger.warning(
+                            f"Memory ID {memory_id} not in lookup dictionary (keys: {list(self.memory_lookup.keys())})"
+                        )
                         continue
-                        
+
                     # Get result score
-                    score = result.score if hasattr(result, 'score') else 0.0
+                    score = result.score if hasattr(result, "score") else 0.0
                     logger.info(f"HybridBM25VectorStrategy: Result {memory_id} score: {score}")
 
                     # Normalize to 0-1 range
@@ -285,6 +298,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             List of retrieved memory dicts with relevance scores
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         # Get memory from context or instance
@@ -309,7 +323,9 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
         # Retrieve using BM25 for keyword matching
         bm25_results = {}
         if self.index_initialized and query_text:
-            bm25_results = self._retrieve_bm25(query_text, top_k * 2)  # Get more candidates for reranking
+            bm25_results = self._retrieve_bm25(
+                query_text, top_k * 2
+            )  # Get more candidates for reranking
             logger.debug(f"HybridBM25VectorStrategy: BM25 returned {len(bm25_results)} results")
 
         # If BM25 retrieval failed or not initialized, fall back to vector-only
@@ -318,23 +334,29 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
 
         # Check if vector retrieval is possible
         if not hasattr(memory, "memory_embeddings"):
-            logger.warning("HybridBM25VectorStrategy: Memory doesn't have embeddings, falling back to BM25 only")
+            logger.warning(
+                "HybridBM25VectorStrategy: Memory doesn't have embeddings, falling back to BM25 only"
+            )
             # Return BM25 results only
             if not bm25_results:
                 return []
 
             # Format BM25 results
             results = []
-            for idx, score in sorted(bm25_results.items(), key=lambda x: x[1], reverse=True)[:top_k]:
+            for idx, score in sorted(bm25_results.items(), key=lambda x: x[1], reverse=True)[
+                :top_k
+            ]:
                 if idx < len(memory.memory_metadata):
-                    results.append({
-                        "memory_id": int(idx),
-                        "relevance_score": float(score),
-                        "bm25_score": float(score),
-                        "vector_score": 0.0,
-                        "below_threshold": score < confidence_threshold,
-                        **memory.memory_metadata[idx],
-                    })
+                    results.append(
+                        {
+                            "memory_id": int(idx),
+                            "relevance_score": float(score),
+                            "bm25_score": float(score),
+                            "vector_score": 0.0,
+                            "below_threshold": score < confidence_threshold,
+                            **memory.memory_metadata[idx],
+                        }
+                    )
             return results
 
         # Compute vector similarities for all memories
@@ -347,78 +369,86 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
         # Analyze query to determine optimal weighting
         dynamic_bm25_weight = bm25_weight
         dynamic_vector_weight = vector_weight
-        
+
         # Apply dynamic weighting based on query characteristics if enabled
         if self.enable_dynamic_weighting:
             # Get keywords from context
             query_keywords = context.get("important_keywords", set())
             if isinstance(query_keywords, list):
                 query_keywords = set(query_keywords)
-                
+
             extracted_entities = context.get("extracted_entities", set())
             if isinstance(extracted_entities, list):
                 extracted_entities = set(extracted_entities)
-            
+
             # Combine all keyword information
             all_keywords = set(query_keywords) | set(extracted_entities)
-            
+
             # For benchmark datasets, manually extract keywords from query
             if not all_keywords:
                 # Simple extraction of keywords (words > 3 chars)
                 all_keywords = set([w.lower() for w in query_text.split() if len(w) > 3])
                 logger.info(f"Extracted keywords from query: {all_keywords}")
-            
+
             # If still no keywords, just use all words
             if not all_keywords:
                 all_keywords = set([w.lower() for w in query_text.split()])
-            
+
             if hasattr(context.get("query_analyzer", {}), "extract_keywords"):
                 # Try to extract keywords if not in context
                 extracted = context["query_analyzer"].extract_keywords(query_text)
                 if extracted:
                     all_keywords |= set(extracted)
-            
+
             # Calculate keyword density (number of words that are keywords)
             query_words = query_text.lower().split()
             if query_words:
                 keyword_matches = sum(1 for word in query_words if word in all_keywords)
                 keyword_density = keyword_matches / len(query_words)
-                logger.info(f"Query keyword density: {keyword_density:.2f} ({keyword_matches}/{len(query_words)})")
-                
+                logger.info(
+                    f"Query keyword density: {keyword_density:.2f} ({keyword_matches}/{len(query_words)})"
+                )
+
                 # Adjust weights based on keyword density
                 # High density → favor BM25, low density → favor vectors
-                if keyword_density > 0.2:  # If more than 20% of words are keywords, lower threshold for small datasets
+                if (
+                    keyword_density > 0.2
+                ):  # If more than 20% of words are keywords, lower threshold for small datasets
                     # Bias toward BM25 more strongly
                     bias_factor = min(1.0, keyword_density * 2)  # Scale up to max 1.0
                     bias_factor = bias_factor * self.keyword_weight_bias  # Apply configured bias
-                    
+
                     # Recalculate weights to favor BM25 more
                     dynamic_bm25_weight = min(0.95, bm25_weight + bias_factor * (1 - bm25_weight))
                     dynamic_vector_weight = 1.0 - dynamic_bm25_weight
-                    
-                    logger.info(f"Keyword-rich query (density={keyword_density:.2f}), " +
-                                f"favoring BM25 with weight={dynamic_bm25_weight:.2f} " +
-                                f"(from base {bm25_weight:.2f})")
-        
+
+                    logger.info(
+                        f"Keyword-rich query (density={keyword_density:.2f}), "
+                        + f"favoring BM25 with weight={dynamic_bm25_weight:.2f} "
+                        + f"(from base {bm25_weight:.2f})"
+                    )
+
         # Log the weighting being used
-        logger.info(f"HybridBM25VectorStrategy: Using weights - BM25: {dynamic_bm25_weight:.2f}, " +
-                   f"Vector: {dynamic_vector_weight:.2f}")
-        
+        logger.info(
+            f"HybridBM25VectorStrategy: Using weights - BM25: {dynamic_bm25_weight:.2f}, "
+            + f"Vector: {dynamic_vector_weight:.2f}"
+        )
+
         # Create arrays to track scores from both methods for debugging/logging
         vector_score_array = np.zeros_like(vector_scores)
         bm25_score_array = np.zeros_like(vector_scores)
-        
+
         # Apply vector scores with dynamic weighting
         vector_score_array = dynamic_vector_weight * vector_scores
-        
+
         # Apply BM25 scores for memories that matched with dynamic weighting
         for idx, score in bm25_results.items():
             if idx < len(bm25_score_array):
                 bm25_score_array[idx] = dynamic_bm25_weight * score
-        
+
         # Better score normalization for BM25 and vector scores
         # This ensures both scoring methods contribute meaningfully
-        
+
         # Check if we need to normalize BM25 scores
         if len(bm25_results) > 0 and np.max(bm25_score_array) > 0:
             # Normalize BM25 scores to 0-1 range if needed
@@ -426,42 +456,60 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             if bm25_max > 1.0:
                 logger.debug(f"Normalizing BM25 scores (max was {bm25_max:.4f})")
                 bm25_score_array = bm25_score_array / bm25_max
-        
+
         # For vector scores, make sure outliers don't dominate
         if len(vector_scores) > 0 and np.max(vector_score_array) > 0:
             # Normalize if max is significantly higher than mean to prevent outliers from dominating
-            vector_mean = np.mean(vector_score_array[vector_score_array > 0]) if np.any(vector_score_array > 0) else 0
+            vector_mean = (
+                np.mean(vector_score_array[vector_score_array > 0])
+                if np.any(vector_score_array > 0)
+                else 0
+            )
             vector_max = np.max(vector_score_array)
-            
+
             # If max is more than 3x the mean, use min-max normalization
             if vector_max > 3 * vector_mean and vector_mean > 0:
-                logger.debug(f"Normalizing vector scores (max={vector_max:.4f}, mean={vector_mean:.4f})")
-                
+                logger.debug(
+                    f"Normalizing vector scores (max={vector_max:.4f}, mean={vector_mean:.4f})"
+                )
+
                 # Min-Max normalization for non-zero scores
                 if np.any(vector_score_array > 0):
                     vector_min = np.min(vector_score_array[vector_score_array > 0])
                     mask = vector_score_array > 0
-                    vector_score_array[mask] = (vector_score_array[mask] - vector_min) / (vector_max - vector_min)
-        
+                    vector_score_array[mask] = (vector_score_array[mask] - vector_min) / (
+                        vector_max - vector_min
+                    )
+
         # Combine the scores - now with better normalization
         combined_scores = vector_score_array + bm25_score_array
-        
+
         # Log score distribution statistics for debugging
         if len(bm25_results) > 0:
-            bm25_scores = np.array([score for idx, score in bm25_results.items() if idx < len(vector_scores)])
+            bm25_scores = np.array(
+                [score for idx, score in bm25_results.items() if idx < len(vector_scores)]
+            )
             if len(bm25_scores) > 0:
-                logger.debug(f"Score distributions - " +
-                           f"BM25: min={bm25_scores.min():.4f}, max={bm25_scores.max():.4f}, mean={bm25_scores.mean():.4f} | " +
-                           f"Vector: min={vector_scores.min():.4f}, max={vector_scores.max():.4f}, mean={vector_scores.mean():.4f}")
+                logger.debug(
+                    f"Score distributions - "
+                    + f"BM25: min={bm25_scores.min():.4f}, max={bm25_scores.max():.4f}, mean={bm25_scores.mean():.4f} | "
+                    + f"Vector: min={vector_scores.min():.4f}, max={vector_scores.max():.4f}, mean={vector_scores.mean():.4f}"
+                )
 
         # Apply confidence threshold filtering
         valid_indices = np.where(combined_scores >= confidence_threshold)[0]
         if len(valid_indices) == 0:
             # Apply minimum results guarantee if no results pass threshold
-            if hasattr(self, "min_results") and self.min_results > 0 and not context.get("test_confidence_threshold", False):
+            if (
+                hasattr(self, "min_results")
+                and self.min_results > 0
+                and not context.get("test_confidence_threshold", False)
+            ):
                 # Get top min_results memories by combined score
-                top_indices = np.argsort(-combined_scores)[:self.min_results]
-                logger.info(f"HybridBM25VectorStrategy: Using minimum results guarantee to return {len(top_indices)} results")
+                top_indices = np.argsort(-combined_scores)[: self.min_results]
+                logger.info(
+                    f"HybridBM25VectorStrategy: Using minimum results guarantee to return {len(top_indices)} results"
+                )
                 valid_indices = top_indices
             else:
                 return []
@@ -478,11 +526,11 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             combined_score = float(combined_scores[idx])
             vector_raw_score = float(vector_scores[idx])
             bm25_raw_score = float(bm25_results.get(idx, 0.0))
-            
+
             # Get weighted contribution scores
             vector_contribution = float(vector_score_array[idx])
             bm25_contribution = float(bm25_score_array[idx])
-            
+
             # Calculate contribution percentages for analysis
             total_contribution = vector_contribution + bm25_contribution
             vector_percentage = 0
@@ -490,32 +538,38 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             if total_contribution > 0:
                 vector_percentage = (vector_contribution / total_contribution) * 100
                 bm25_percentage = (bm25_contribution / total_contribution) * 100
-            
+
             # Create result with detailed scoring information
-            results.append({
-                "memory_id": int(idx),
-                "relevance_score": combined_score,
-                "vector_score": vector_raw_score,
-                "bm25_score": bm25_raw_score,
-                "vector_contribution": vector_contribution,
-                "bm25_contribution": bm25_contribution,
-                "vector_percentage": float(vector_percentage),
-                "bm25_percentage": float(bm25_percentage),
-                "below_threshold": combined_score < confidence_threshold,
-                **memory.memory_metadata[idx],
-            })
-            
+            results.append(
+                {
+                    "memory_id": int(idx),
+                    "relevance_score": combined_score,
+                    "vector_score": vector_raw_score,
+                    "bm25_score": bm25_raw_score,
+                    "vector_contribution": vector_contribution,
+                    "bm25_contribution": bm25_contribution,
+                    "vector_percentage": float(vector_percentage),
+                    "bm25_percentage": float(bm25_percentage),
+                    "below_threshold": combined_score < confidence_threshold,
+                    **memory.memory_metadata[idx],
+                }
+            )
+
             # Log detailed scoring for top results
             if i < 3:  # Log details for top 3 results
-                logger.debug(f"Result #{i+1}: ID={idx}, Score={combined_score:.4f} " +
-                           f"[BM25: {bm25_percentage:.1f}%, Vector: {vector_percentage:.1f}%]")
+                logger.debug(
+                    f"Result #{i + 1}: ID={idx}, Score={combined_score:.4f} "
+                    + f"[BM25: {bm25_percentage:.1f}%, Vector: {vector_percentage:.1f}%]"
+                )
 
         # Update stats
         query_time = time.time() - start_time
         self.stats["query_times"].append(query_time)
         self.stats["avg_query_time"] = np.mean(self.stats["query_times"])
 
-        logger.info(f"HybridBM25VectorStrategy: Retrieved {len(results)} results in {query_time:.3f}s")
+        logger.info(
+            f"HybridBM25VectorStrategy: Retrieved {len(results)} results in {query_time:.3f}s"
+        )
         return results
 
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
@@ -530,6 +584,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             Updated context with results
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         # Log which query is being processed
@@ -542,7 +597,9 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             embedding_model = context.get("embedding_model")
             if embedding_model:
                 query_embedding = embedding_model.encode(query)
-                logger.info("HybridBM25VectorStrategy: Created query embedding using embedding model")
+                logger.info(
+                    "HybridBM25VectorStrategy: Created query embedding using embedding model"
+                )
 
         # Use consistently generated test embeddings when needed
         if query_embedding is None:
@@ -556,7 +613,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             # Create simple embeddings for testing with some pattern
             if query:
                 # Use basic text characteristics to create patterns
-                for i, char in enumerate(query[:min(10, dim)]):
+                for i, char in enumerate(query[: min(10, dim)]):
                     embedding[i % dim] += ord(char) / 1000
 
                 # Use keywords if available
@@ -573,11 +630,15 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             embedding = embedding / (np.linalg.norm(embedding) or 1.0)
             query_embedding = embedding
 
-            logger.info(f"HybridBM25VectorStrategy: Created deterministic test embedding with dim={dim}")
+            logger.info(
+                f"HybridBM25VectorStrategy: Created deterministic test embedding with dim={dim}"
+            )
 
         # If still no query embedding, return empty results
         if query_embedding is None:
-            logger.warning("HybridBM25VectorStrategy: No query embedding available, returning empty results")
+            logger.warning(
+                "HybridBM25VectorStrategy: No query embedding available, returning empty results"
+            )
             return {"results": []}
 
         # Get top_k from context

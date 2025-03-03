@@ -30,14 +30,15 @@ class SimpleVectorStore(IVectorStore):
         self._dirty: bool = True
         self._matrix: Optional[np.ndarray] = None
         self.component_id = "simple_vector_store"
-        
+
     def get_id(self) -> str:
         """Get the unique identifier for this component."""
         return self.component_id
-        
+
     def get_type(self):
         """Get the type of this component."""
         from memoryweave.interfaces.pipeline import ComponentType
+
         return ComponentType.VECTOR_STORE
 
     def add(self, id: MemoryID, vector: EmbeddingVector) -> None:
@@ -145,14 +146,15 @@ class ActivationVectorStore(IVectorStore):
         self._activations: Dict[MemoryID, float] = {}
         self._activation_weight = activation_weight
         self.component_id = "activation_vector_store"
-        
+
     def get_id(self) -> str:
         """Get the unique identifier for this component."""
         return self.component_id
-        
+
     def get_type(self):
         """Get the type of this component."""
         from memoryweave.interfaces.pipeline import ComponentType
+
         return ComponentType.VECTOR_STORE
 
     def add(self, id: MemoryID, vector: EmbeddingVector) -> None:
@@ -211,12 +213,12 @@ class ActivationVectorStore(IVectorStore):
 
 class ANNVectorStore(IVectorStore):
     """Vector store implementation using Approximate Nearest Neighbor search with FAISS.
-    
+
     This implementation is optimized for large memory stores (500+ memories) and provides
     significantly better performance compared to the SimpleVectorStore for large datasets.
     It uses FAISS for efficient approximate nearest neighbor search.
     """
-    
+
     def __init__(
         self,
         dimension: int = 768,
@@ -227,7 +229,7 @@ class ANNVectorStore(IVectorStore):
         quantize: bool = False,
     ):
         """Initialize the ANN vector store.
-        
+
         Args:
             dimension: Dimensionality of the embedding vectors
             index_type: FAISS index type (e.g., "Flat", "IVF100,Flat", "IVF100,PQ32")
@@ -240,33 +242,34 @@ class ANNVectorStore(IVectorStore):
         self._id_to_idx: Dict[MemoryID, int] = {}
         self._idx_to_id: Dict[int, MemoryID] = {}
         self._faiss_ids = np.array([], dtype=np.int64)
-        
+
         self._dimension = dimension
         self._index_type = index_type
         self._metric = metric
         self._nprobe = nprobe
         self._build_threshold = build_threshold
         self._quantize = quantize
-        
+
         self._index = None
         self._initialized = False
         self._dirty = True
         self._count = 0
         self.component_id = "ann_vector_store"
-        
+
         # Performance tracking
         self._last_build_time = 0
         self._last_search_time = 0
-    
+
     def get_id(self) -> str:
         """Get the unique identifier for this component."""
         return self.component_id
-        
+
     def get_type(self):
         """Get the type of this component."""
         from memoryweave.interfaces.pipeline import ComponentType
+
         return ComponentType.VECTOR_STORE
-    
+
     def add(self, id: MemoryID, vector: EmbeddingVector) -> None:
         """Add a vector to the store."""
         # Store the vector
@@ -280,43 +283,43 @@ class ANNVectorStore(IVectorStore):
             if id not in self._id_to_idx:
                 self._id_to_idx[id] = id
                 self._idx_to_id[id] = id
-        
+
         self._vectors[id] = vector
         self._dirty = True
         self._count += 1
-        
+
         # Rebuild index if we've reached the threshold
         if self._dirty and self._count >= self._build_threshold:
             self._build_index()
-    
+
     def search(
         self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
     ) -> List[Tuple[MemoryID, float]]:
         """Search for similar vectors using approximate nearest neighbor search."""
         if not self._vectors:
             return []
-        
+
         # If we have fewer vectors than the threshold, use exact search
         if len(self._vectors) < self._build_threshold:
             return self._exact_search(query_vector, k, threshold)
-        
+
         # Build the index if necessary
         if self._dirty:
             self._build_index()
-        
+
         # Normalize query vector for cosine similarity if needed
         search_vector = query_vector
         if self._metric == "cosine" or self._metric == "ip":
             norm = np.linalg.norm(query_vector)
             if norm > 0:
                 search_vector = query_vector / norm
-        
+
         # Search the index
         start_time = time.time()
         k_search = min(k * 2, len(self._vectors))  # Get more results for filtering
         D, I = self._index.search(np.array([search_vector]), k_search)
         self._last_search_time = time.time() - start_time
-        
+
         # Convert scores based on the metric
         scores = D[0]
         if self._metric == "cosine" or self._metric == "ip":
@@ -328,24 +331,24 @@ class ANNVectorStore(IVectorStore):
             if max_dist == 0:
                 max_dist = 1.0
             scores = np.array([1.0 - (d / max_dist) for d in D[0]])
-        
+
         # Filter by threshold if provided
         results = []
         for idx, score in zip(I[0], scores):
             if idx == -1:  # FAISS returns -1 for padded results
                 continue
-                
+
             memory_id = self._idx_to_id.get(int(idx))
             if memory_id is None:
                 continue
-                
+
             if threshold is None or score >= threshold:
                 results.append((memory_id, float(score)))
-        
+
         # Sort by score (descending) and limit to k
         results.sort(key=lambda x: x[1], reverse=True)
         return results[:k]
-    
+
     def remove(self, id: MemoryID) -> None:
         """Remove a vector from the store."""
         if id in self._vectors:
@@ -357,7 +360,7 @@ class ANNVectorStore(IVectorStore):
                     del self._idx_to_id[idx]
             self._dirty = True
             self._count -= 1
-    
+
     def clear(self) -> None:
         """Clear all vectors from the store."""
         self._vectors.clear()
@@ -367,7 +370,7 @@ class ANNVectorStore(IVectorStore):
         self._initialized = False
         self._dirty = True
         self._count = 0
-    
+
     def get_performance_stats(self) -> Dict[str, Any]:
         """Get performance statistics for the vector store."""
         return {
@@ -379,61 +382,63 @@ class ANNVectorStore(IVectorStore):
             "nprobe": self._nprobe,
             "initialized": self._initialized,
         }
-    
+
     def progressive_filtering(
-        self, 
-        query_vector: EmbeddingVector, 
-        initial_k: int = 100, 
+        self,
+        query_vector: EmbeddingVector,
+        initial_k: int = 100,
         final_k: int = 10,
-        filter_fn: Optional[Callable[[List[Tuple[MemoryID, float]]], List[Tuple[MemoryID, float]]]] = None
+        filter_fn: Optional[
+            Callable[[List[Tuple[MemoryID, float]]], List[Tuple[MemoryID, float]]]
+        ] = None,
     ) -> List[Tuple[MemoryID, float]]:
         """Perform two-stage retrieval with progressive filtering.
-        
+
         Args:
             query_vector: The query vector
             initial_k: Number of initial candidates to retrieve
             final_k: Final number of results to return
             filter_fn: Optional function to filter/rerank candidates
-            
+
         Returns:
             Filtered list of (memory_id, score) tuples
         """
         # First stage: Get initial candidates
         candidates = self.search(query_vector, initial_k, threshold=None)
-        
+
         if not candidates:
             return []
-        
+
         # Second stage: Apply filter function if provided
         if filter_fn:
             filtered_results = filter_fn(candidates)
         else:
             filtered_results = candidates
-        
+
         # Return top k results
         return filtered_results[:final_k]
-    
+
     def _build_index(self) -> None:
         """Build the FAISS index for fast approximate search."""
         if not self._vectors:
             self._initialized = False
             self._dirty = False
             return
-        
+
         start_time = time.time()
         vector_dim = next(iter(self._vectors.values())).shape[0]
-        
+
         # Create ID mapping for original memory IDs
         ids = np.array(list(self._id_to_idx.values()), dtype=np.int64)
         self._faiss_ids = ids
-        
+
         # Prepare vectors for indexing
         vectors = np.vstack([self._vectors[self._idx_to_id[idx]] for idx in ids])
-        
+
         # Normalize vectors for cosine similarity if needed
         if self._metric == "cosine" or self._metric == "ip":
             faiss.normalize_L2(vectors)
-        
+
         # Determine the FAISS index type based on our configuration
         if self._index_type == "Flat":
             if self._metric == "l2":
@@ -446,7 +451,7 @@ class ANNVectorStore(IVectorStore):
                 quantizer = faiss.IndexFlatL2(vector_dim)
                 base_index = self._index_type.replace("IVF", "")
                 nlist = int(base_index.split(",")[0])
-                
+
                 if "PQ" in self._index_type:
                     # Product Quantization for memory efficiency
                     pq_param = base_index.split(",")[1]
@@ -459,13 +464,15 @@ class ANNVectorStore(IVectorStore):
                 quantizer = faiss.IndexFlatIP(vector_dim)
                 base_index = self._index_type.replace("IVF", "")
                 nlist = int(base_index.split(",")[0])
-                
+
                 if "PQ" in self._index_type:
                     m = int(base_index.split("PQ")[1])
                     index = faiss.IndexIVFPQ(quantizer, vector_dim, nlist, m, 8)
                 else:
-                    index = faiss.IndexIVFFlat(quantizer, vector_dim, nlist, faiss.METRIC_INNER_PRODUCT)
-            
+                    index = faiss.IndexIVFFlat(
+                        quantizer, vector_dim, nlist, faiss.METRIC_INNER_PRODUCT
+                    )
+
             # Train the index with our vectors
             index.train(vectors)
         else:
@@ -474,37 +481,37 @@ class ANNVectorStore(IVectorStore):
                 index = faiss.IndexFlatL2(vector_dim)
             else:  # cosine or inner product
                 index = faiss.IndexFlatIP(vector_dim)
-        
+
         # Apply scalar quantization if requested (reduces memory usage)
-        if self._quantize and hasattr(index, 'quantizer'):
+        if self._quantize and hasattr(index, "quantizer"):
             index.quantizer = faiss.IndexScalarQuantizer(vector_dim, faiss.ScalarQuantizer.QT_fp16)
-        
+
         # Map the vectors to their original IDs
         index = faiss.IndexIDMap(index)
         index.add_with_ids(vectors, ids)
-        
+
         # Set the number of clusters to probe during search
-        if hasattr(index, 'nprobe'):
+        if hasattr(index, "nprobe"):
             index.nprobe = self._nprobe
-        
+
         self._index = index
         self._initialized = True
         self._dirty = False
         self._last_build_time = time.time() - start_time
-    
+
     def _exact_search(
         self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
     ) -> List[Tuple[MemoryID, float]]:
         """Perform exact search when we have few vectors."""
         if not self._vectors:
             return []
-        
+
         # Normalize query vector for cosine similarity
         query_norm = np.linalg.norm(query_vector)
         if query_norm == 0:
             query_norm = 1e-10
         normalized_query = query_vector / query_norm
-        
+
         # Compute similarities for all vectors
         results = []
         for memory_id, vector in self._vectors.items():
@@ -513,7 +520,7 @@ class ANNVectorStore(IVectorStore):
             if vector_norm == 0:
                 vector_norm = 1e-10
             normalized_vector = vector / vector_norm
-            
+
             # Compute similarity
             if self._metric == "cosine" or self._metric == "ip":
                 similarity = float(np.dot(normalized_query, normalized_vector))
@@ -521,11 +528,11 @@ class ANNVectorStore(IVectorStore):
                 distance = float(np.linalg.norm(normalized_query - normalized_vector))
                 max_dist = 2.0  # Maximum L2 distance between normalized vectors
                 similarity = 1.0 - (distance / max_dist)
-            
+
             # Filter by threshold
             if threshold is None or similarity >= threshold:
                 results.append((memory_id, similarity))
-        
+
         # Sort by similarity and take top k
         results.sort(key=lambda x: x[1], reverse=True)
         return results[:k]
@@ -536,15 +543,13 @@ VectorStoreScaleType = Literal["small", "medium", "large", "auto"]
 IndexTypeOptions = Literal["Flat", "IVF", "IVFPQ", "HNSW"]
 
 
-def get_optimal_faiss_config(
-    scale: VectorStoreScaleType, dimension: int = 768
-) -> Dict[str, Any]:
+def get_optimal_faiss_config(scale: VectorStoreScaleType, dimension: int = 768) -> Dict[str, Any]:
     """Get optimal FAISS configuration based on memory store scale.
-    
+
     Args:
         scale: The scale of the memory store ("small", "medium", "large", "auto")
         dimension: Dimensionality of the embedding vectors
-        
+
     Returns:
         Dictionary with optimal FAISS configuration parameters
     """
@@ -580,15 +585,15 @@ def get_optimal_faiss_config(
 
 class ANNActivationVectorStore(IVectorStore):
     """Vector store that combines ANN search with activation levels.
-    
+
     This implementation enhances approximate nearest neighbor search with activation levels,
     making recently accessed or important memories more likely to be retrieved.
     It is optimized for large memory stores (500+ memories) and provides significantly
     better performance compared to the ActivationVectorStore.
     """
-    
+
     def __init__(
-        self, 
+        self,
         activation_weight: float = 0.2,
         dimension: int = 768,
         index_type: str = "IVF100,Flat",
@@ -598,7 +603,7 @@ class ANNActivationVectorStore(IVectorStore):
         quantize: bool = False,
     ):
         """Initialize the vector store with ANN and activation.
-        
+
         Args:
             activation_weight: Weight of activation in final similarity score (0-1)
             dimension: Dimensionality of the embedding vectors
@@ -619,33 +624,32 @@ class ANNActivationVectorStore(IVectorStore):
         self._activations: Dict[MemoryID, float] = {}
         self._activation_weight = activation_weight
         self.component_id = "ann_activation_vector_store"
-        
+
     def get_id(self) -> str:
         """Get the unique identifier for this component."""
         return self.component_id
-        
+
     def get_type(self):
         """Get the type of this component."""
         from memoryweave.interfaces.pipeline import ComponentType
+
         return ComponentType.VECTOR_STORE
-    
+
     def add(self, id: MemoryID, vector: EmbeddingVector) -> None:
         """Add a vector to the store."""
         self._vector_store.add(id, vector)
         self._activations[id] = 0.0
-    
+
     def search(
         self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
     ) -> List[Tuple[MemoryID, float]]:
         """Search for similar vectors with activation boost."""
         # Determine how many candidates to fetch for activation boosting
         initial_k = min(k * 3, len(self._activations)) if self._activations else k
-        
+
         # Get similarity results
-        similarity_results = self._vector_store.search(
-            query_vector, initial_k, threshold
-        )
-        
+        similarity_results = self._vector_store.search(query_vector, initial_k, threshold)
+
         # Apply activation boost
         boosted_results = []
         for memory_id, similarity in similarity_results:
@@ -655,7 +659,7 @@ class ANNActivationVectorStore(IVectorStore):
             if max_activation == 0:
                 max_activation = 1.0
             normalized_activation = activation / max_activation
-            
+
             # Combine similarity and activation with a smooth function that avoids
             # overprioritizing activation for large memory sets
             memory_count = len(self._activations)
@@ -665,77 +669,83 @@ class ANNActivationVectorStore(IVectorStore):
                 # For large memory stores, reduce the activation weight
                 adjusted_weight = self._activation_weight * (100 / memory_count) ** 0.5
                 adjusted_weight = max(0.05, min(self._activation_weight, adjusted_weight))
-            
+
             # Calculate combined score with adjusted weight
             combined_score = (
                 1 - adjusted_weight
             ) * similarity + adjusted_weight * normalized_activation
-            
+
             boosted_results.append((memory_id, combined_score))
-        
+
         # Sort by combined score and take top k
         boosted_results.sort(key=lambda x: x[1], reverse=True)
         return boosted_results[:k]
-    
+
     def remove(self, id: MemoryID) -> None:
         """Remove a vector from the store."""
         self._vector_store.remove(id)
         if id in self._activations:
             del self._activations[id]
-    
+
     def clear(self) -> None:
         """Clear all vectors from the store."""
         self._vector_store.clear()
         self._activations.clear()
-    
+
     def update_activation(self, id: MemoryID, activation_delta: float) -> None:
         """Update activation level for a memory."""
         if id not in self._activations:
             raise KeyError(f"Memory with ID {id} not found")
-        
+
         self._activations[id] += activation_delta
-    
+
     def progressive_filtering(
         self,
         query_vector: EmbeddingVector,
         initial_k: int = 100,
         final_k: int = 10,
-        filter_fn: Optional[Callable[[List[Tuple[MemoryID, float]]], List[Tuple[MemoryID, float]]]] = None
+        filter_fn: Optional[
+            Callable[[List[Tuple[MemoryID, float]]], List[Tuple[MemoryID, float]]]
+        ] = None,
     ) -> List[Tuple[MemoryID, float]]:
         """Perform two-stage retrieval with progressive filtering and activation boost.
-        
+
         Args:
             query_vector: The query vector
             initial_k: Number of initial candidates to retrieve
             final_k: Final number of results to return
             filter_fn: Optional function to filter/rerank candidates
-            
+
         Returns:
             Filtered list of (memory_id, score) tuples with activation boost
         """
         # Get more candidates than needed for better activation boosting
-        effective_initial_k = min(initial_k * 2, len(self._activations)) if self._activations else initial_k
-        
+        effective_initial_k = (
+            min(initial_k * 2, len(self._activations)) if self._activations else initial_k
+        )
+
         # First stage: Get initial candidates with activation boost
         candidates = self.search(query_vector, effective_initial_k, threshold=None)
-        
+
         if not candidates:
             return []
-        
+
         # Second stage: Apply filter function if provided
         if filter_fn:
             filtered_results = filter_fn(candidates)
         else:
             filtered_results = candidates
-        
+
         # Return top k results
         return filtered_results[:final_k]
-    
+
     def get_performance_stats(self) -> Dict[str, Any]:
         """Get performance statistics for the vector store."""
         stats = self._vector_store.get_performance_stats()
-        stats.update({
-            "activation_weight": self._activation_weight,
-            "activation_count": len(self._activations),
-        })
+        stats.update(
+            {
+                "activation_weight": self._activation_weight,
+                "activation_count": len(self._activations),
+            }
+        )
         return stats

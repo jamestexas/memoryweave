@@ -75,29 +75,33 @@ class PersonalAttributeManager(RetrievalComponent):
         if "preferences_color" in attributes:
             self._ensure_category_exists("preferences")
             self.personal_attributes["preferences"]["color"] = attributes["preferences_color"]
-            
+
         # Handle structured attributes with nested dictionaries
-        if "favorite" in attributes and isinstance(attributes["favorite"], dict) and "color" in attributes["favorite"]:
+        if (
+            "favorite" in attributes
+            and isinstance(attributes["favorite"], dict)
+            and "color" in attributes["favorite"]
+        ):
             self._ensure_category_exists("preferences")
             self.personal_attributes["preferences"]["color"] = attributes["favorite"]["color"]
-            
+
         # Standard processing for attributes
         for category, items in attributes.items():
             if not items:
                 continue  # Skip empty attributes
-                
+
             # Special handling for attributes with underscore format (from extracted attributes)
             if "_" in category and category not in self.personal_attributes:
                 main_category, sub_key = category.split("_", 1)
-                
+
                 # Create category if it doesn't exist
                 self._ensure_category_exists(main_category)
-                    
+
                 # Handle family relationships
                 if main_category == "relationships" and sub_key == "family":
                     if "family" not in self.personal_attributes["relationships"]:
                         self.personal_attributes["relationships"]["family"] = {}
-                    
+
                     # Update family relationships based on input format
                     if isinstance(items, dict):
                         for k, v in items.items():
@@ -105,7 +109,7 @@ class PersonalAttributeManager(RetrievalComponent):
                     elif isinstance(items, str):
                         # Skip if it's just a string with no relation specified
                         pass
-                        
+
                 # Handle hobbies (always ensure it's a list)
                 elif main_category == "traits" and sub_key == "hobbies":
                     if sub_key not in self.personal_attributes[main_category]:
@@ -143,13 +147,13 @@ class PersonalAttributeManager(RetrievalComponent):
 
             else:
                 self.personal_attributes[category] = items
-                
+
         # Ensure all standard categories exist
         self._ensure_category_exists("preferences")
         self._ensure_category_exists("demographics")
         self._ensure_category_exists("traits")
         self._ensure_category_exists("relationships")
-        
+
     def _ensure_category_exists(self, category: str) -> None:
         """Ensure a category exists in the personal attributes."""
         if category not in self.personal_attributes:
@@ -162,17 +166,21 @@ class PersonalAttributeManager(RetrievalComponent):
 
         # Extract important keywords from query
         keywords = self.nlp_extractor.extract_important_keywords(query)
-        
+
         # Check for favorite color questions
         if "what's my favorite color" in query_lower or "what is my favorite color" in query_lower:
             if self.personal_attributes.get("preferences", {}).get("color"):
-                relevant_attributes["preferences_color"] = self.personal_attributes["preferences"]["color"]
+                relevant_attributes["preferences_color"] = self.personal_attributes["preferences"][
+                    "color"
+                ]
             return relevant_attributes
 
         # Check for location questions
         if "where do i live" in query_lower or ("where" in query_lower and "live" in query_lower):
             if self.personal_attributes.get("demographics", {}).get("location"):
-                relevant_attributes["demographic_location"] = self.personal_attributes["demographics"]["location"]
+                relevant_attributes["demographic_location"] = self.personal_attributes[
+                    "demographics"
+                ]["location"]
             return relevant_attributes
 
         # Check different attribute categories based on query keywords

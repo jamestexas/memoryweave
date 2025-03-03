@@ -23,11 +23,13 @@ class TestCategoryManager:
         assert manager.core_manager is None
 
         # Test with custom parameters using initialize
-        manager.initialize({
-            "vigilance_threshold": 0.7,
-            "learning_rate": 0.3,
-            "embedding_dim": 384,
-        })
+        manager.initialize(
+            {
+                "vigilance_threshold": 0.7,
+                "learning_rate": 0.3,
+                "embedding_dim": 384,
+            }
+        )
         assert manager.vigilance_threshold == 0.7
         assert manager.learning_rate == 0.3
         assert manager.embedding_dim == 384
@@ -43,10 +45,12 @@ class TestCategoryManager:
         """Test assigning memories to categories."""
         # Initialize with small embedding dimension for testing and forced high vigilance
         manager = CategoryManager()
-        manager.initialize({
-            "embedding_dim": 4,
-            "vigilance_threshold": 0.99,  # Set very high to force new categories
-        })
+        manager.initialize(
+            {
+                "embedding_dim": 4,
+                "vigilance_threshold": 0.99,  # Set very high to force new categories
+            }
+        )
 
         # Create clearly distinct embeddings to ensure categories are different
         embed1 = np.array([1.0, 0.0, 0.0, 0.0])
@@ -65,10 +69,10 @@ class TestCategoryManager:
 
         # Very similar embedding might still be in same category
         cat2 = manager.assign_to_category(embed2)
-        
+
         # Different embedding should get new category
         cat3 = manager.assign_to_category(embed3)
-        
+
         # Main assertion: verify we've created at least 2 distinct categories
         assigned_categories = {cat1, cat2, cat3}
         assert len(assigned_categories) >= 2, "Should create at least 2 distinct categories"
@@ -101,10 +105,12 @@ class TestCategoryManager:
     def test_category_similarities(self):
         """Test calculating similarities between query and categories."""
         manager = CategoryManager()
-        manager.initialize({
-            "embedding_dim": 4,
-            "vigilance_threshold": 0.99  # Set vigilance very high to create distinct categories
-        })
+        manager.initialize(
+            {
+                "embedding_dim": 4,
+                "vigilance_threshold": 0.99,  # Set vigilance very high to create distinct categories
+            }
+        )
 
         # Create test embeddings with very distinct patterns
         embeddings = [
@@ -112,7 +118,7 @@ class TestCategoryManager:
             np.array([0.0, 1.0, 0.0, 0.0]),  # Dog pattern
             np.array([0.0, 0.0, 1.0, 0.0]),  # Weather pattern
         ]
-        
+
         # Normalize
         for i in range(len(embeddings)):
             embeddings[i] = embeddings[i] / np.linalg.norm(embeddings[i])
@@ -129,7 +135,7 @@ class TestCategoryManager:
         # Create query embeddings that are similar to our categories
         cat_query = np.array([0.9, 0.1, 0.0, 0.0])
         cat_query = cat_query / np.linalg.norm(cat_query)
-        
+
         dog_query = np.array([0.1, 0.9, 0.0, 0.0])
         dog_query = dog_query / np.linalg.norm(dog_query)
 
@@ -153,73 +159,75 @@ class TestCategoryManager:
             embedding_dim=4,
             vigilance_threshold=0.999,  # Extremely high to force separate categories
             enable_category_consolidation=True,
-            consolidation_threshold=0.5
+            consolidation_threshold=0.5,
         )
         manager = CategoryManager(core_manager)
-        
+
         # Create clearly distinct embeddings
         cat_group = [
             np.array([0.9, 0.1, 0.0, 0.0]),  # Cat pattern 1
             np.array([0.85, 0.15, 0.0, 0.0]),  # Cat pattern 2
         ]
-        
+
         dog_group = [
             np.array([0.0, 0.0, 0.9, 0.1]),  # Dog pattern 1
             np.array([0.0, 0.0, 0.85, 0.15]),  # Dog pattern 2
         ]
-        
+
         # Normalize all embeddings
         for i in range(len(cat_group)):
             cat_group[i] = cat_group[i] / np.linalg.norm(cat_group[i])
             dog_group[i] = dog_group[i] / np.linalg.norm(dog_group[i])
-        
+
         # Assign to categories with high vigilance
         cat_categories = []
         dog_categories = []
-        
+
         # Add cat group
         for embed in cat_group:
             cat_id = manager.assign_to_category(embed)
             cat_categories.append(cat_id)
-            
+
         # Add dog group
         for embed in dog_group:
             cat_id = manager.assign_to_category(embed)
             dog_categories.append(cat_id)
-        
+
         # Count initial categories
         initial_categories = set(cat_categories + dog_categories)
-        
+
         # We should have at least 2 categories
-        assert len(initial_categories) >= 2, f"Should have at least 2 categories, got {initial_categories}"
-        
+        assert len(initial_categories) >= 2, (
+            f"Should have at least 2 categories, got {initial_categories}"
+        )
+
         # Create memory-category mappings
         for i, cat_id in enumerate(cat_categories):
             manager.add_memory_category_mapping(i, cat_id)
-            
+
         for i, cat_id in enumerate(dog_categories):
-            manager.add_memory_category_mapping(i+len(cat_categories), cat_id)
-        
+            manager.add_memory_category_mapping(i + len(cat_categories), cat_id)
+
         # Consolidate using a custom threshold that should merge similar categories
         manager.vigilance_threshold = 0.5  # Lower vigilance
         manager.core_manager.vigilance_threshold = 0.5
-        
+
         # Get current stats
         before_stats = manager.get_category_statistics()
-        
+
         # Explicitly run consolidation
         threshold = 0.6  # Higher threshold means more merging
         num_categories = manager.consolidate_categories(threshold=threshold)
-        
+
         # Get after stats
         after_stats = manager.get_category_statistics()
-        
+
         # Should reduce number of categories or stay the same
         assert num_categories <= len(initial_categories)
-        
+
         # Verify we didn't break anything
         assert num_categories >= 1
-        
+
         # After consolidation, check that similar embeddings are categorized together
         if num_categories < len(initial_categories):
             # Only test this if categories were actually consolidated
@@ -230,10 +238,12 @@ class TestCategoryManager:
         """Test retrieving category statistics."""
         # Create a manager with high vigilance to create multiple categories
         manager = CategoryManager()
-        manager.initialize({
-            "embedding_dim": 4,
-            "vigilance_threshold": 0.99  # Very high to force distinct categories
-        })
+        manager.initialize(
+            {
+                "embedding_dim": 4,
+                "vigilance_threshold": 0.99,  # Very high to force distinct categories
+            }
+        )
 
         # Create distinct embeddings to ensure multiple categories
         embeddings = [
@@ -266,7 +276,7 @@ class TestCategoryManager:
         assert "num_categories" in stats
         assert stats["num_categories"] >= 1  # At least one category
         assert "category_activations" in stats
-        
+
         # Verify the stats contain information about our categories
         if "memories_per_category" in stats:
             # There should be counts for the categories we created
