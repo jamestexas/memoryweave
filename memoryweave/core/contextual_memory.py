@@ -48,6 +48,7 @@ class ContextualMemory:
         adaptive_retrieval: bool = False,
         semantic_coherence_check: bool = False,
         coherence_threshold: float = 0.2,
+        use_ann: bool = True,  # Enable Approximate Nearest Neighbor by default
     ):
         """
         Initialize the contextual memory system.
@@ -73,12 +74,16 @@ class ContextualMemory:
             adaptive_retrieval: Whether to use adaptive k selection
             semantic_coherence_check: Whether to check semantic coherence of retrieved memories
             coherence_threshold: Threshold for semantic coherence between memories
+            use_ann: Whether to use Approximate Nearest Neighbor search for efficient retrieval at scale
         """
         # Initialize the core memory storage
         self.core_memory = CoreMemory(
             embedding_dim=embedding_dim,
             max_memories=max_memories,
         )
+        
+        # Store key parameters
+        self.use_ann = use_ann
 
         # Initialize the category manager if ART clustering is enabled
         self.category_manager = None
@@ -107,6 +112,7 @@ class ContextualMemory:
             adaptive_retrieval=adaptive_retrieval,
             semantic_coherence_check=semantic_coherence_check,
             coherence_threshold=coherence_threshold,
+            use_ann=self.use_ann,
         )
 
         # Store configuration

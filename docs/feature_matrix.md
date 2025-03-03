@@ -16,6 +16,9 @@ This document tracks the implementation status of features from the original `Co
 | Temporal retrieval | ✅ | TemporalRetrievalStrategy | Recency-based retrieval implemented |
 | Hybrid retrieval | ✅ | HybridRetrievalStrategy | Combines similarity and recency |
 | Two-stage retrieval | ✅ | TwoStageRetrievalStrategy | Implemented with first and second stage processing |
+| Approximate Nearest Neighbor search | ✅ | ANNVectorStore, ANNActivationVectorStore | Optimized vector storage for large memory sets |
+| Progressive filtering | ✅ | ANNVectorStore | Two-stage retrieval with filtering for large sets |
+| Dynamic scale adaptation | ✅ | VectorStoreFactory | Automatic configuration based on memory size |
 | Confidence thresholding | ✅ | RetrievalStrategy | Implemented in all strategies |
 | Query type adaptation | ✅ | QueryTypeAdapter | Dynamically adjusts parameters based on query type |
 | Dynamic threshold adjustment | ✅ | DynamicThresholdAdjuster | Enhanced implementation with advanced features |

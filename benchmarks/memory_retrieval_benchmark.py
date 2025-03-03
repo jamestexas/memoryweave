@@ -75,6 +75,7 @@ class BenchmarkConfig:
     query_type_adaptation: bool = False
     dynamic_threshold_adjustment: bool = False
     memory_decay_enabled: bool = False
+    use_ann: bool = False  # Whether to use Approximate Nearest Neighbor search
 
 
 @dataclass
@@ -210,6 +211,7 @@ class MemoryRetrievalBenchmark:
             embedding_dim=config.embedding_dim,
             max_memories=config.max_memories,
             use_art_clustering=config.use_art_clustering,
+            use_ann=config.use_ann,
         )
 
         # Load test data
@@ -525,6 +527,22 @@ def main():
             use_two_stage_retrieval=True,
             query_type_adaptation=True,
             dynamic_threshold_adjustment=True,
+        ),
+    )
+    
+    # Add ANN-based optimized config 
+    configs.append(
+        BenchmarkConfig(
+            name="ANN-Optimized",
+            retriever_type="components",
+            confidence_threshold=0.1,
+            use_art_clustering=False,
+            semantic_coherence_check=True,
+            adaptive_retrieval=True,
+            use_two_stage_retrieval=True,
+            query_type_adaptation=True,
+            dynamic_threshold_adjustment=True,
+            use_ann=True,  # Enable Approximate Nearest Neighbor search
         ),
     )
 
