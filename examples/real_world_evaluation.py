@@ -13,26 +13,26 @@ Features:
 - Provides detailed visualization of results
 
 Usage:
-    python -m examples.real_world_evaluation [--dataset DATASET] [--save-path PATH] [--debug]
+    python -m examples.real_world_evaluation --dataset datasets/enhanced_evaluation.json --save-path results.json
 """
 
-import argparse
 import json
-import os
+import logging
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
-from rich.console import Console
+import rich_click as click
+from rich.console import Console, Group
 from rich.logging import RichHandler
-from rich.progress import Progress, TaskID
+from rich.panel import Panel
+from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
-import logging
-
-# Set up rich logging
+# set up rich logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
@@ -44,13 +44,13 @@ console = Console()
 # Attempt to import MemoryWeave components
 try:
     from memoryweave.components.memory_manager import MemoryManager
-    from memoryweave.components.retriever import Retriever
     from memoryweave.components.retrieval_strategies import (
-        SimilarityRetrievalStrategy,
         HybridRetrievalStrategy,
+        SimilarityRetrievalStrategy,
         TemporalRetrievalStrategy,
         TwoStageRetrievalStrategy,
     )
+    from memoryweave.components.retriever import Retriever
     from memoryweave.core.contextual_memory import ContextualMemory
 except ImportError as e:
     logger.error(f"[bold red]Error importing MemoryWeave components: {e}[/bold red]")
@@ -58,15 +58,16 @@ except ImportError as e:
 
 # Try to import sentence_transformers; use a mock if not available
 try:
-    from sentence_transformers import SentenceTransformer
     import logging as python_logging
+
+    from sentence_transformers import SentenceTransformer
 
     # Suppress sentence-transformers progress bars by setting higher log level
     for logger_name in ["sentence_transformers", "transformers"]:
         python_logging.getLogger(logger_name).setLevel(python_logging.ERROR)
 
     # Use a model with 384 dimensions to match the expected size
-    embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+    embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device="mps")
     EMBEDDING_DIM = 384  # This model outputs 384-dimensional embeddings
 
     logger.info("[green]Using SentenceTransformer for embeddings (dim=%d)[/green]" % EMBEDDING_DIM)
@@ -137,7 +138,7 @@ class MemoryEntry:
     """Represents a single memory entry."""
 
     text: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     embedding: Optional[np.ndarray] = None
 
     def __post_init__(self):
@@ -172,8 +173,9 @@ class EvaluationConfig:
     # System parameters
     embedding_dim: int = 384  # Match the SentenceTransformer output dimension
     max_memories: int = 1000
+    result_count: int = 10  # Number of results to retrieve
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert config to a dictionary."""
         return asdict(self)
 
@@ -186,7 +188,7 @@ class EvaluationResults:
 
     # Performance metrics
     setup_time: float
-    query_times: List[float] = field(default_factory=list)
+    query_times: list[float] = field(default_factory=list)
     memory_usage: float = 0.0
 
     # Retrieval metrics
@@ -194,10 +196,10 @@ class EvaluationResults:
     recall: float = 0.0
     f1_score: float = 0.0
     semantic_similarity: float = 0.0
-    retrieval_counts: List[int] = field(default_factory=list)
+    retrieval_counts: list[int] = field(default_factory=list)
 
     # Additional metrics
-    by_query_type: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    by_query_type: dict[str, dict[str, float]] = field(default_factory=dict)
     error_rate: float = 0.0
 
     # Derived metrics
@@ -219,7 +221,7 @@ class EvaluationResults:
             return 0.6 * self.f1_score + 0.4 * self.semantic_similarity
         return self.f1_score
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert results to a dictionary."""
         return {
             "config": self.config.to_dict(),
@@ -240,12 +242,12 @@ class EvaluationResults:
 class RealWorldEvaluator:
     """Evaluates MemoryWeave on real-world use cases."""
 
-    def __init__(self, configs: List[EvaluationConfig]):
+    def __init__(self, configs: list[EvaluationConfig]):
         """Initialize with configurations to test."""
         self.configs = configs
-        self.memories: List[MemoryEntry] = []
-        self.test_queries: List[Dict[str, Any]] = []
-        self.results: List[EvaluationResults] = []
+        self.memories: list[MemoryEntry] = []
+        self.test_queries: list[dict[str, Any]] = []
+        self.results: list[EvaluationResults] = []
 
     def load_dataset(self, dataset_path: str) -> None:
         """Load evaluation dataset from file."""
@@ -255,7 +257,7 @@ class RealWorldEvaluator:
             raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
 
         try:
-            with open(dataset_path, "r") as f:
+            with open(dataset_path) as f:
                 data = json.load(f)
 
             # Check if this is new format or old format
@@ -330,7 +332,7 @@ class RealWorldEvaluator:
         for category, count in categories.items():
             logger.info(f"[green]  - {category}: {count} memories[/green]")
 
-    def prepare_memory_system(self, config: EvaluationConfig) -> Tuple[Any, Any]:
+    def prepare_memory_system(self, config: EvaluationConfig) -> tuple[Any, Any]:
         """Prepare memory system based on configuration."""
         logger.info(f"Preparing memory system for: [bold cyan]{config.name}[/bold cyan]")
 
@@ -354,21 +356,21 @@ class RealWorldEvaluator:
 
             # Try to bypass the component pipeline for baseline
             try:
-                # Set a flag to bypass the component pipeline if the attribute exists
+                # set a flag to bypass the component pipeline if the attribute exists
                 if hasattr(retriever, "use_component_pipeline"):
                     retriever.use_component_pipeline = False
-                    logger.info("[green]Disabled component pipeline for baseline config[/green]")
+                    logger.debug("[green]Disabled component pipeline for baseline config[/green]")
 
                 # If there's a memory manager, disable all components
                 if hasattr(retriever, "memory_manager"):
                     if hasattr(retriever.memory_manager, "disable_all_pipeline_components"):
                         retriever.memory_manager.disable_all_pipeline_components()
-                        logger.info(
+                        logger.debug(
                             "[green]Disabled all pipeline components for baseline config[/green]"
                         )
                     elif hasattr(retriever.memory_manager, "pipeline_components"):
                         retriever.memory_manager.pipeline_components = {}
-                        logger.info(
+                        logger.debug(
                             "[green]Cleared pipeline components for baseline config[/green]"
                         )
             except Exception as e:
@@ -391,7 +393,7 @@ class RealWorldEvaluator:
                         retriever.memory_manager, "pipeline_components", {}
                     )
                     if "memory_decay" in pipeline_components:
-                        logger.info(
+                        logger.debug(
                             "[green]Disabling memory decay component for contextual config[/green]"
                         )
                         pipeline_components.pop("memory_decay")
@@ -428,7 +430,7 @@ class RealWorldEvaluator:
                     )
                     if "memory_decay" in pipeline_components:
                         if not hasattr(pipeline_components["memory_decay"], "process_query"):
-                            logger.info(
+                            logger.debug(
                                 "[green]Working around memory decay component issue[/green]"
                             )
                             # Either remove it or fix it
@@ -492,24 +494,44 @@ class RealWorldEvaluator:
         return memory, retriever
 
     def run_evaluation(
-        self, save_path: Optional[str] = None, debug: bool = False
-    ) -> List[EvaluationResults]:
+        self,
+        save_path: Optional[str] = None,
+        quiet: bool = False,
+        debug: bool = False,
+        visualize: bool = True,
+    ) -> list[EvaluationResults]:
         """Run evaluation for all configurations."""
         if not self.test_queries:
             logger.error("[bold red]No test queries loaded. Load a dataset first.[/bold red]")
             return []
 
-        # Set debug level
+        # set log level based on options
         if debug:
             logger.setLevel(logging.DEBUG)
+            # Enable more verbose logging for components
+            logging.getLogger("memoryweave.components").setLevel(logging.DEBUG)
+            logging.getLogger("memoryweave.pipeline").setLevel(logging.DEBUG)
+        elif quiet:
+            # Quiet mode - reduce log output
+            logger.setLevel(logging.WARNING)
+            logging.getLogger("memoryweave").setLevel(logging.WARNING)
+            logging.getLogger("rich").setLevel(logging.WARNING)
 
         self.results = []
 
-        with Progress() as progress:
+        # Create progress display
+        progress_columns = [
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            TextColumn("[cyan]{task.completed}/{task.total}"),
+            TimeElapsedColumn(),
+        ]
+
+        with Progress(*progress_columns) as progress:
             # Run each configuration
             for config in self.configs:
                 config_task = progress.add_task(
-                    f"[cyan]Evaluating {config.name}...",
+                    f"Evaluating {config.name}",
                     total=len(self.test_queries) + 1,  # +1 for setup
                 )
 
@@ -545,7 +567,11 @@ class RealWorldEvaluator:
                             expected_ids = self._find_memories_with_text(expected_answer, query)
 
                         # Debug finding the right expected IDs
-                        if not expected_ids and not query_data.get("category") == "out-of-domain":
+                        if (
+                            debug
+                            and not expected_ids
+                            and not query_data.get("category") == "out-of-domain"
+                        ):
                             logger.debug(
                                 f"[yellow]No expected IDs found for query: {query}[/yellow]"
                             )
@@ -557,52 +583,37 @@ class RealWorldEvaluator:
                             if config.retriever_type == "baseline":
                                 # For baseline, try direct approach to bypass component pipeline
                                 start_time = time.time()
-                                query_embedding = embedding_model.encode(query)
+                                query_embedding = embedding_model.encode(
+                                    query,
+                                    show_progress_bar=False,
+                                )
 
                                 # Try direct memory retrieval if available
                                 if hasattr(memory, "retrieve_memories"):
-                                    # Use direct retrieval with configuration-specific top_k
-                                    # This will make each configuration retrieve a different number of results
-                                    retrieval_k = 2  # Baseline uses fewer results
+                                    # Use direct retrieval with configuration-specific result count
                                     memory_results = memory.retrieve_memories(
                                         query_embedding,
-                                        top_k=retrieval_k,
+                                        top_k=config.result_count,
                                         confidence_threshold=config.confidence_threshold,
                                     )
 
                                     # Convert to standard format
                                     results = []
                                     for idx, score, metadata in memory_results:
-                                        results.append(
-                                            {
-                                                "memory_id": idx,
-                                                "relevance_score": score,
-                                                "content": metadata.get("content", ""),
-                                            }
-                                        )
+                                        results.append({
+                                            "memory_id": idx,
+                                            "relevance_score": score,
+                                            "content": metadata.get("content", ""),
+                                        })
                                 else:
                                     # Fall back to regular retrieval
-                                    # Note: Can't pass context parameter to retrieve() method
-                                    results = retriever.retrieve(query, top_k=10)
+                                    results = retriever.retrieve(query, top_k=config.result_count)
 
                                 query_time = time.time() - start_time
                             else:
                                 # Normal approach for other retriever types
                                 start_time = time.time()
-                                # Use different top_k for different configurations
-                                # to demonstrate their unique behavior
-                                if config.name == "Hybrid-Basic":
-                                    top_k = 5  # Hybrid uses 5 results
-                                elif config.name == "TwoStage-Balanced":
-                                    top_k = 8  # Balanced uses 8 results
-                                elif config.name == "Optimized-Precision":
-                                    top_k = 3  # Precision model uses fewer, better results
-                                elif config.name == "Optimized-Recall":
-                                    top_k = 15  # Recall model uses more results
-                                else:
-                                    top_k = 10  # Default
-
-                                results = retriever.retrieve(query, top_k=top_k)
+                                results = retriever.retrieve(query, top_k=config.result_count)
                                 query_time = time.time() - start_time
 
                             query_times.append(query_time)
@@ -638,6 +649,10 @@ class RealWorldEvaluator:
                     logger.error(
                         f"[bold red]Error evaluating config '{config.name}': {e}[/bold red]"
                     )
+                    if debug:
+                        import traceback
+
+                        logger.error(traceback.format_exc())
                     # Skip to next config
                     progress.update(config_task, completed=True)
                     continue
@@ -711,417 +726,318 @@ class RealWorldEvaluator:
                         # Calculate semantic similarity if we have real embeddings
                         if USE_REAL_EMBEDDINGS and retrieved and query:
                             # Get query embedding
-                            query_embedding = embedding_model.encode(query)
+                            query_embedding = embedding_model.encode(query, show_progress_bar=False)
 
-                            # Get embeddings of retrieved documents
+                            # Get embeddings of retrieved documents and their scores
                             retrieved_embeddings = []
                             retrieved_scores = []
 
-                            for memory_id in retrieved:
-                                for memory in self.memories:
-                                    if (
-                                        memory.metadata.get("memory_id") == memory_id
-                                        and memory.embedding is not None
-                                    ):
-                                        retrieved_embeddings.append(memory.embedding)
-                                        retrieved_scores.append(1.0)  # Default score
-                                        break
+                            for (
+                                r
+                            ) in results:  # Corrected: iterate through results, not retrieved IDs
+                                memory_id = r.get("memory_id")
+                                if memory_id is not None:  # Check if memory_id is valid
+                                    for memory in self.memories:
+                                        if (
+                                            memory.metadata.get("memory_id") == memory_id
+                                            and memory.embedding is not None
+                                        ):
+                                            retrieved_embeddings.append(memory.embedding)
+                                            retrieved_scores.append(
+                                                r.get("relevance_score", 0.0)
+                                            )  # Fallback to 0 if score missing
 
-                            # Calculate semantic similarity if we have retrieved embeddings
                             if retrieved_embeddings:
-                                # Calculate cosine similarity between query and each retrieved document
-                                similarities = []
-                                for emb in retrieved_embeddings:
-                                    similarity = np.dot(query_embedding, emb) / (
-                                        np.linalg.norm(query_embedding) * np.linalg.norm(emb)
-                                    )
-                                    similarities.append(similarity)
+                                # Calculate average semantic similarity (using relevance scores for now as a proxy)
+                                avg_semantic_score = np.mean(retrieved_scores)
+                                semantic_scores.append(avg_semantic_score)
+                            else:
+                                semantic_scores.append(0.0)  # No retrieved docs, no similarity.
+                        else:
+                            semantic_scores.append(
+                                0.0
+                            )  # No real embeddings or nothing retrieved, no semantic score
 
-                                # Use mean of similarities as the score for this query
-                                semantic_scores.append(np.mean(similarities))
-
-                    # Calculate average metrics
+                    # Finalize metrics for config
                     avg_precision = np.mean(precisions) if precisions else 0.0
                     avg_recall = np.mean(recalls) if recalls else 0.0
                     avg_f1 = np.mean(f1_scores) if f1_scores else 0.0
-                    avg_semantic = np.mean(semantic_scores) if semantic_scores else 0.0
-
-                    # Calculate error rate
+                    avg_semantic_similarity = np.mean(semantic_scores) if semantic_scores else 0.0
                     error_rate = error_count / len(self.test_queries) if self.test_queries else 0.0
 
-                    # Calculate per-category metrics
-                    categories_summary = {}
+                    # Calculate category-specific metrics
                     for category, metrics in query_type_metrics.items():
-                        if metrics["precisions"]:
-                            avg_cat_precision = np.mean(metrics["precisions"])
-                            avg_cat_recall = np.mean(metrics["recalls"])
-                            avg_cat_f1 = np.mean(metrics["f1_scores"])
-                            count = metrics["counts"]
+                        category_precisions = metrics["precisions"]
+                        category_recalls = metrics["recalls"]
+                        category_f1s = metrics["f1_scores"]
 
-                            categories_summary[category] = {
-                                "precision": avg_cat_precision,
-                                "recall": avg_cat_recall,
-                                "f1_score": avg_cat_f1,
-                                "count": count,
-                            }
+                        query_type_metrics[category] = {
+                            "precision": np.mean(category_precisions)
+                            if category_precisions
+                            else 0.0,
+                            "recall": np.mean(category_recalls) if category_recalls else 0.0,
+                            "f1_score": np.mean(category_f1s) if category_f1s else 0.0,
+                            "count": metrics["counts"],
+                        }
 
-                    # Create results
-                    result = EvaluationResults(
+                    # Record results
+                    results = EvaluationResults(
                         config=config,
                         setup_time=setup_time,
                         query_times=query_times,
                         precision=avg_precision,
                         recall=avg_recall,
                         f1_score=avg_f1,
-                        semantic_similarity=avg_semantic,
+                        semantic_similarity=avg_semantic_similarity,
                         retrieval_counts=retrieval_counts,
-                        by_query_type=categories_summary,
+                        by_query_type=query_type_metrics,
                         error_rate=error_rate,
+                        memory_usage=memory.get_memory_usage()
+                        if hasattr(memory, "get_memory_usage")
+                        else 0.0,  # Optional memory usage
                     )
+                    self.results.append(results)
 
-                    self.results.append(result)
-                else:
-                    # Create empty results for failed runs
-                    logger.warning(
-                        f"[yellow]No results data for {config.name}, adding empty result[/yellow]"
-                    )
-                    result = EvaluationResults(
-                        config=config,
-                        setup_time=setup_time,
-                        query_times=[0.0],
-                        precision=0.0,
-                        recall=0.0,
-                        f1_score=0.0,
-                        retrieval_counts=[0],
-                    )
-                    self.results.append(result)
+                    # Output results to console
+                    self._output_results_console(results)
 
-        # Report results
-        self._report_results()
+                    # Save results if path provided
+                    if save_path:
+                        self.save_results(save_path)
 
-        # Save results if path provided
-        if save_path:
-            self._save_results(save_path)
+                progress.update(config_task, completed=True)
+
+        if visualize:
+            self.visualize_results()
 
         return self.results
 
-    def _find_memories_with_text(self, text: str, query: str = "") -> Set[int]:
-        """Find memory IDs that contain the given text."""
-        matching_ids = set()
-
-        # Exact match first
+    def _find_memories_with_text(self, text: str, query: Optional[str] = None) -> set[int]:
+        """Find memory IDs that contain specific text."""
+        found_ids = set()
         for memory in self.memories:
-            if memory.text == text:
-                if "memory_id" in memory.metadata:
-                    matching_ids.add(memory.metadata["memory_id"])
+            if text.lower() in memory.text.lower():  # Case-insensitive matching
+                found_ids.add(memory.metadata.get("memory_id"))
+        return found_ids
 
-        # If no exact match, try substring match
-        if not matching_ids:
-            for memory in self.memories:
-                if text in memory.text or memory.text in text:
-                    if "memory_id" in memory.metadata:
-                        matching_ids.add(memory.metadata["memory_id"])
+    def _output_results_console(self, results: EvaluationResults) -> None:
+        """Output evaluation results to the console in a rich table."""
+        console.rule(f"[bold magenta]Evaluation Results: {results.config.name}[/bold magenta]")
 
-        # If still no match and we have real embeddings, use semantic similarity
-        if not matching_ids and USE_REAL_EMBEDDINGS and text and len(self.memories) > 0:
-            # Get embedding for query text
-            text_embedding = embedding_model.encode(text)
+        # Summary Panel
+        config_table = Table(show_header=False, box=None)
+        config_table.add_row("[bold]Configuration Name:[/bold]", results.config.name)
+        config_table.add_row("[bold]Description:[/bold]", results.config.description)
+        config_table.add_row("[bold]Retriever Type:[/bold]", results.config.retriever_type)
 
-            # Find most similar memories using cosine similarity
-            similarities = []
-            for memory in self.memories:
-                if memory.embedding is not None:
-                    sim = np.dot(text_embedding, memory.embedding) / (
-                        np.linalg.norm(text_embedding) * np.linalg.norm(memory.embedding)
-                    )
-                    similarities.append((memory.metadata.get("memory_id"), sim))
+        # Feature Flags Table
+        features_table = Table(title="Feature Flags", show_header=True, header_style="bold cyan")
+        features_table.add_column("Feature", style="dim", no_wrap=True)
+        features_table.add_column("Enabled", style="magenta")
+        config_dict = results.config.to_dict()  # Get config as dict to iterate over flags
+        for key, value in config_dict.items():
+            if (
+                key.startswith("use_")
+                or key.endswith("_enabled")
+                or key
+                in [
+                    "semantic_coherence_check",
+                    "adaptive_retrieval",
+                    "query_type_adaptation",
+                    "dynamic_threshold_adjustment",
+                    "use_two_stage_retrieval",
+                ]
+            ):
+                features_table.add_row(key, "[green]Yes[/green]" if value else "[red]No[/red]")
 
-            # Sort by similarity and take top 2
-            similarities.sort(key=lambda x: x[1], reverse=True)
-            top_memories = similarities[:2]
+        # Metrics Table
+        metrics_table = Table(
+            title="Performance Metrics", show_header=True, header_style="bold cyan"
+        )
+        metrics_table.add_column("Metric", style="dim", no_wrap=True)
+        metrics_table.add_column("Value", justify="right", style="green")
+        metrics_table.add_row("setup Time", f"{results.setup_time:.4f} sec")
+        metrics_table.add_row("Avg. Query Time", f"{results.avg_query_time:.4f} sec")
+        metrics_table.add_row(
+            "Memory Usage", f"{results.memory_usage:.2f} MB" if results.memory_usage > 0 else "N/A"
+        )
+        metrics_table.add_row("Precision", f"{results.precision:.4f}")
+        metrics_table.add_row("Recall", f"{results.recall:.4f}")
+        metrics_table.add_row("F1 Score", f"{results.f1_score:.4f}")
+        metrics_table.add_row("Semantic Similarity", f"{results.semantic_similarity:.4f}")
+        metrics_table.add_row("Overall Score", f"{results.overall_score:.4f}")
+        metrics_table.add_row("Avg. Retrieval Count", f"{results.avg_retrieval_count:.2f}")
+        metrics_table.add_row("Error Rate", f"{results.error_rate:.4f}")
 
-            # Only include if similarity is above threshold
-            for memory_id, sim in top_memories:
-                if sim > 0.7 and memory_id is not None:  # Semantic similarity threshold
-                    matching_ids.add(memory_id)
-
-        # Debug info
-        if len(matching_ids) > 10:
-            logger.debug(
-                f"[yellow]Warning: Found {len(matching_ids)} matching memories for '{text[:30]}...' - this may indicate an issue with matching logic[/yellow]"
+        # Query Type Metrics Table (if available)
+        if results.by_query_type:
+            query_type_table = Table(
+                title="Metrics by Query Type", show_header=True, header_style="bold cyan"
             )
+            query_type_table.add_column("Query Type", style="dim", no_wrap=True)
+            query_type_table.add_column("Precision", justify="right", style="green")
+            query_type_table.add_column("Recall", justify="right", style="green")
+            query_type_table.add_column("F1 Score", justify="right", style="green")
+            query_type_table.add_column("Count", justify="right", style="dim")
 
-        return matching_ids
+            for q_type, q_metrics in results.by_query_type.items():
+                query_type_table.add_row(
+                    q_type,
+                    f"{q_metrics['precision']:.4f}",
+                    f"{q_metrics['recall']:.4f}",
+                    f"{q_metrics['f1_score']:.4f}",
+                    str(q_metrics["count"]),
+                )
+        else:
+            query_type_table = None
 
-    def _report_results(self) -> None:
-        """Report evaluation results to console."""
+        # Combine tables into a panel
+        panel_elements = [config_table, features_table, metrics_table]
+        if query_type_table:
+            panel_elements.append(query_type_table)
+
+        results_panel = Panel(
+            Group(*panel_elements),
+            title="[bold magenta]Evaluation Summary[/bold magenta]",
+            border_style="magenta",
+            padding=(1, 2),
+        )
+        console.print(results_panel)
+
+    def save_results(self, save_path: str) -> None:
+        """Save evaluation results to a JSON file."""
+        all_results_json = [r.to_dict() for r in self.results]
+        try:
+            with open(save_path, "w") as f:
+                json.dump(all_results_json, f, indent=4)
+            logger.info(f"[green]Results saved to [bold]{save_path}[/bold][/green]")
+        except Exception as e:
+            logger.error(f"[bold red]Error saving results to {save_path}: {e}[/bold red]")
+
+    def visualize_results(self) -> None:
+        """Visualize evaluation results using matplotlib."""
         if not self.results:
-            logger.warning("[yellow]No results to report[/yellow]")
+            logger.warning("[yellow]No results available to visualize.[/yellow]")
             return
 
-        # Create a rich table for main metrics
-        table = Table(title="MemoryWeave Evaluation Results")
+        config_names = [res.config.name for res in self.results]
+        f1_scores = [res.f1_score for res in self.results]
+        semantic_similarity_scores = [res.semantic_similarity for res in self.results]
+        overall_scores = [res.overall_score for res in self.results]
+        query_times = [res.avg_query_time for res in self.results]
 
-        # Add columns
-        table.add_column("Configuration", style="cyan")
-        table.add_column("Setup Time (s)", justify="right")
-        table.add_column("Avg Query Time (s)", justify="right")
-        table.add_column("Precision", justify="right")
-        table.add_column("Recall", justify="right")
-        table.add_column("F1 Score", justify="right")
-        table.add_column("Sem. Sim", justify="right")
-        table.add_column("Overall", justify="right", style="bold")
+        # set up matplotlib figure and axes
+        fig, axes = plt.subplots(2, 2, figsize=(16, 12))  # Adjusted for 4 subplots
+        fig.suptitle("MemoryWeave Evaluation Metrics Comparison", fontsize=16)
 
-        # Add rows for each result
-        for result in self.results:
-            table.add_row(
-                result.config.name,
-                f"{result.setup_time:.4f}",
-                f"{result.avg_query_time:.4f}",
-                f"{result.precision:.4f}",
-                f"{result.recall:.4f}",
-                f"{result.f1_score:.4f}",
-                f"{result.semantic_similarity:.4f}",
-                f"{result.overall_score:.4f}",
-            )
+        # F1 Score Bar Chart
+        axes[0, 0].bar(config_names, f1_scores, color="skyblue")
+        axes[0, 0].set_ylabel("F1 Score")
+        axes[0, 0].set_title("F1 Score Comparison")
+        axes[0, 0].tick_params(axis="x", rotation=45)
 
-        # Print the table
-        console.print(table)
+        # Semantic Similarity Bar Chart
+        axes[0, 1].bar(config_names, semantic_similarity_scores, color="lightcoral")
+        axes[0, 1].set_ylabel("Semantic Similarity")
+        axes[0, 1].set_title("Semantic Similarity Comparison")
+        axes[0, 1].tick_params(axis="x", rotation=45)
 
-        # Second table for additional metrics
-        details_table = Table(title="Detailed Metrics")
-        details_table.add_column("Configuration", style="cyan")
-        details_table.add_column("Avg Results", justify="right")
-        details_table.add_column("Error Rate", justify="right")
+        # Overall Score Bar Chart
+        axes[1, 0].bar(config_names, overall_scores, color="lightgreen")
+        axes[1, 0].set_ylabel("Overall Score")
+        axes[1, 0].set_title("Overall Score Comparison")
+        axes[1, 0].tick_params(axis="x", rotation=45)
 
-        # Add query type breakdown if available
-        has_query_types = False
-        for result in self.results:
-            if result.by_query_type:
-                has_query_types = True
-                break
+        # Query Time Bar Chart
+        axes[1, 1].bar(config_names, query_times, color="gold")
+        axes[1, 1].set_ylabel("Avg. Query Time (seconds)")
+        axes[1, 1].set_title("Average Query Time Comparison")
+        axes[1, 1].tick_params(axis="x", rotation=45)
 
-        if has_query_types:
-            details_table.add_column("Personal", justify="right")
-            details_table.add_column("General", justify="right")
-            details_table.add_column("Domain", justify="right")
-
-        # Add rows for each result
-        for result in self.results:
-            row = [
-                result.config.name,
-                f"{result.avg_retrieval_count:.2f}",
-                f"{result.error_rate:.2%}",
-            ]
-
-            # Add query type specific scores if available
-            if has_query_types:
-                for query_type in ["personal", "general", "domain-specific"]:
-                    type_metrics = result.by_query_type.get(query_type, {})
-                    f1 = type_metrics.get("f1_score", 0.0)
-                    row.append(f"{f1:.4f}")
-
-            details_table.add_row(*row)
-
-        # Print the details table
-        console.print("\n")
-        console.print(details_table)
-
-        # Performance summary
-        console.print("\n[bold]Performance Summary:[/bold]")
-
-        # Print the winner based on overall score
-        best_result = max(self.results, key=lambda r: r.overall_score)
-        console.print(
-            f"[bold green]Best performing: {best_result.config.name} (Overall: {best_result.overall_score:.4f})[/bold green]"
-        )
-
-        # Print fastest configuration
-        fastest = min(self.results, key=lambda r: r.avg_query_time)
-        console.print(
-            f"[bold green]Fastest: {fastest.config.name} (Avg time: {fastest.avg_query_time:.4f}s)[/bold green]"
-        )
-
-        # Print best precision and recall
-        best_precision = max(self.results, key=lambda r: r.precision)
-        console.print(
-            f"[green]Best precision: {best_precision.config.name} ({best_precision.precision:.4f})[/green]"
-        )
-
-        best_recall = max(self.results, key=lambda r: r.recall)
-        console.print(
-            f"[green]Best recall: {best_recall.config.name} ({best_recall.recall:.4f})[/green]"
-        )
-
-        # Print additional insights if we have real embeddings
-        if USE_REAL_EMBEDDINGS:
-            best_semantic = max(self.results, key=lambda r: r.semantic_similarity)
-            console.print(
-                f"[green]Best semantic similarity: {best_semantic.config.name} ({best_semantic.semantic_similarity:.4f})[/green]"
-            )
-
-    def _save_results(self, save_path: str) -> None:
-        """Save results to a JSON file."""
-        # Ensure directory exists
-        save_path = Path(save_path)
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-
-        try:
-            # Convert results to dictionary with numpy values converted to Python types
-            results_dict = {}
-            for r in self.results:
-                result_dict = r.to_dict()
-
-                # Helper function to convert numpy types to Python types
-                def convert_numpy(obj):
-                    if isinstance(obj, (np.integer, np.int32, np.int64)):
-                        return int(obj)
-                    elif isinstance(obj, (np.float32, np.float64)):
-                        return float(obj)
-                    elif isinstance(obj, (np.ndarray,)):
-                        return obj.tolist()
-                    elif isinstance(obj, dict):
-                        return {k: convert_numpy(v) for k, v in obj.items()}
-                    elif isinstance(obj, list):
-                        return [convert_numpy(i) for i in obj]
-                    else:
-                        return obj
-
-                # Convert all values
-                result_dict = convert_numpy(result_dict)
-                results_dict[r.config.name] = result_dict
-
-            # Write to file
-            with open(save_path, "w") as f:
-                json.dump(results_dict, f, indent=2)
-
-            logger.info(f"[green]Results saved to {save_path}[/green]")
-        except (OSError, TypeError) as e:
-            logger.error(f"[bold red]Error saving results: {e}[/bold red]")
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to make room for suptitle
+        plt.show()
 
 
-def main():
-    """Main function to run the evaluation."""
-    parser = argparse.ArgumentParser(description="MemoryWeave Real-World Evaluation")
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default="datasets/enhanced_evaluation.json",
-        help="Path to dataset file",
-    )
-    parser.add_argument(
-        "--save-path", type=str, default="evaluation_results.json", help="Path to save results"
-    )
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    parser.add_argument(
-        "--use-mock",
-        action="store_true",
-        help="Force use of mock embedding model even if SentenceTransformer is available",
-    )
-    parser.add_argument(
-        "--single-config",
-        type=str,
-        choices=["baseline", "contextual", "component", "precision", "recall"],
-        help="Run only a single configuration type to test specific issues",
-    )
-    args = parser.parse_args()
+@click.command()
+@click.option(
+    "--dataset",
+    "-d",
+    type=click.Path(exists=True),
+    default="datasets/enhanced_evaluation.json",
+    help="Path to the evaluation dataset JSON file.",
+)
+@click.option(
+    "--save-path",
+    "-s",
+    type=click.Path(),
+    default="results.json",
+    help="Path to save the evaluation results as JSON.",
+)
+@click.option(
+    "--quiet", "-q", is_flag=True, default=False, help="Enable quiet mode (less logging)."
+)
+@click.option(
+    "--debug", "-D", is_flag=True, default=False, help="Enable debug mode (more verbose logging)."
+)
+@click.option("--no-visualize", is_flag=True, default=False, help="Disable result visualization.")
+def main(dataset: str, save_path: str, quiet: bool, debug: bool, no_visualize: bool):
+    """
+    Run real-world evaluation of MemoryWeave with different configurations.
+    """
+    visualize = not no_visualize  # Invert flag logic
 
     # Define configurations to evaluate
     configs = [
         EvaluationConfig(
-            name="Baseline-Simple",
-            description="Simple similarity-based retrieval with minimal features",
+            name="Baseline",
+            description="Simple baseline retriever with minimal features.",
             retriever_type="baseline",
-            confidence_threshold=0.3,
         ),
         EvaluationConfig(
-            name="Hybrid-Basic",
-            description="Hybrid retrieval with minimal features",
+            name="Contextual",
+            description="Retriever with contextual features and hybrid retrieval.",
             retriever_type="contextual",
-            confidence_threshold=0.3,
-            semantic_coherence_check=False,
-            adaptive_retrieval=False,
-            use_two_stage_retrieval=False,  # Use HybridRetrievalStrategy only
-        ),
-        EvaluationConfig(
-            name="TwoStage-Balanced",
-            description="Two-stage retrieval with balanced parameters",
-            retriever_type="component",
-            confidence_threshold=0.3,
-            semantic_coherence_check=True,
-            adaptive_retrieval=True,
-            use_two_stage_retrieval=True,  # Use TwoStageRetrievalStrategy
-            first_stage_k=20,
-            first_stage_threshold_factor=0.7,
-            query_type_adaptation=True,
-            dynamic_threshold_adjustment=False,
-            memory_decay_enabled=False,
-        ),
-        # Optimized configuration with tuned parameters
-        EvaluationConfig(
-            name="Optimized-Precision",
-            description="Configuration optimized for precision",
-            retriever_type="component",
-            confidence_threshold=0.5,  # Much higher threshold for better precision
-            use_two_stage_retrieval=True,
-            first_stage_k=10,  # Fewer candidates
-            first_stage_threshold_factor=0.8,  # Higher first stage threshold
             semantic_coherence_check=True,
             query_type_adaptation=True,
-            dynamic_threshold_adjustment=False,
         ),
         EvaluationConfig(
-            name="Optimized-Recall",
-            description="Configuration optimized for recall",
+            name="Component",
+            description="Full component architecture with advanced features.",
             retriever_type="component",
-            confidence_threshold=0.1,  # Much lower threshold for better recall
-            use_two_stage_retrieval=True,
-            first_stage_k=30,  # More candidates
-            first_stage_threshold_factor=0.5,  # Lower first stage threshold
-            semantic_coherence_check=False,  # Don't filter for coherence
+            semantic_coherence_check=True,
             query_type_adaptation=True,
-            dynamic_threshold_adjustment=False,
+            dynamic_threshold_adjustment=True,
+            memory_decay_enabled=True,
+            use_two_stage_retrieval=True,
+        ),
+        EvaluationConfig(
+            name="Component (No Decay)",
+            description="Component architecture without memory decay.",
+            retriever_type="component",
+            semantic_coherence_check=True,
+            query_type_adaptation=True,
+            dynamic_threshold_adjustment=True,
+            memory_decay_enabled=False,  # Memory decay disabled for this config
+            use_two_stage_retrieval=True,
         ),
     ]
 
-    # Filter configurations if single-config specified
-    if args.single_config:
-        logger.info(f"[yellow]Running only the {args.single_config} configuration[/yellow]")
-        if args.single_config == "baseline":
-            configs = [c for c in configs if c.retriever_type == "baseline"]
-        elif args.single_config == "contextual":
-            configs = [c for c in configs if c.retriever_type == "contextual"]
-        elif args.single_config == "component":
-            configs = [
-                c for c in configs if c.retriever_type == "component" and "Optimized" not in c.name
-            ]
-        elif args.single_config == "precision":
-            configs = [c for c in configs if "Precision" in c.name]
-        elif args.single_config == "recall":
-            configs = [c for c in configs if "Recall" in c.name]
+    # Initialize and run evaluator
+    evaluator = RealWorldEvaluator(configs=configs)
 
-    # Force mock model if requested
-    if args.use_mock and "USE_REAL_EMBEDDINGS" in globals():
-        global USE_REAL_EMBEDDINGS
-        USE_REAL_EMBEDDINGS = False
-        logger.info("[yellow]Forcing use of mock embedding model[/yellow]")
-
-    # Create and run evaluator
     try:
-        # Enable more verbose logging for components if in debug mode
-        if args.debug:
-            logging.getLogger("memoryweave.components").setLevel(logging.DEBUG)
-            logging.getLogger("memoryweave.pipeline").setLevel(logging.DEBUG)
+        evaluator.load_dataset(dataset)
+        evaluator.run_evaluation(save_path, quiet, debug, visualize)
 
-        evaluator = RealWorldEvaluator(configs)
-        evaluator.load_dataset(args.dataset)
-        evaluator.run_evaluation(save_path=args.save_path, debug=args.debug)
+    except FileNotFoundError:
+        logger.error("[bold red]Dataset file not found. Please check the path.[/bold red]")
     except Exception as e:
-        logger.exception(f"[bold red]Error during evaluation: {e}[/bold red]")
-        return 1
+        logger.error(f"[bold red]Evaluation failed: {e}[/bold red]")
+        if debug:
+            import traceback
 
-    return 0
+            logger.error(traceback.format_exc())
 
 
 if __name__ == "__main__":
-    exit(main())
+    main()

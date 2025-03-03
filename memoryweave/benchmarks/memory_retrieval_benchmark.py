@@ -12,20 +12,14 @@ import json
 import os
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
+from memoryweave.components.retrieval_strategies import SimilarityRetrievalStrategy
 from memoryweave.components.retriever import Retriever
-from memoryweave.components.memory_manager import MemoryManager
-from memoryweave.components.retrieval_strategies import (
-    SimilarityRetrievalStrategy,
-    HybridRetrievalStrategy,
-    TemporalRetrievalStrategy,
-    TwoStageRetrievalStrategy,
-)
 from memoryweave.core.contextual_memory import ContextualMemory
 
 # Try to import sentence_transformers; use a mock if not available
@@ -88,16 +82,16 @@ class BenchmarkResults:
 
     config: BenchmarkConfig
     setup_time: float
-    query_times: List[float]
+    query_times: list[float]
     avg_query_time: float
     precision: float
     recall: float
     f1_score: float
     memory_usage: float
-    retrieval_counts: List[int]
+    retrieval_counts: list[int]
     avg_retrieval_count: float
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert results to a dictionary."""
         return {
             "config": {
@@ -123,7 +117,7 @@ class BenchmarkResults:
 class MemoryRetrievalBenchmark:
     """Benchmark for memory retrieval performance."""
 
-    def __init__(self, configs: List[BenchmarkConfig]):
+    def __init__(self, configs: list[BenchmarkConfig]):
         """Initialize the benchmark with configurations to test."""
         self.configs = configs
         self.test_data = []
@@ -174,7 +168,7 @@ class MemoryRetrievalBenchmark:
         # Generate embeddings
         memory_embeddings = []
         for text, _ in memory_texts:
-            embedding = embedding_model.encode(text)
+            embedding = embedding_model.encode(text, show_progress_bar=False)
             memory_embeddings.append(embedding)
 
         # Generate test queries with ground truth relevant memories
@@ -206,7 +200,7 @@ class MemoryRetrievalBenchmark:
 
         return self.test_data
 
-    def prepare_memory(self, config: BenchmarkConfig) -> Tuple[Any, Any]:
+    def prepare_memory(self, config: BenchmarkConfig) -> tuple[Any, Any]:
         """Prepare memory and retriever based on the configuration."""
         print(f"Preparing memory for config: {config.name}")
 
@@ -236,9 +230,10 @@ class MemoryRetrievalBenchmark:
             retriever.retrieval_strategy = SimilarityRetrievalStrategy(memory)
             # Configure it
             if hasattr(retriever.retrieval_strategy, "initialize"):
-                retriever.retrieval_strategy.initialize(
-                    {"confidence_threshold": config.confidence_threshold, "activation_boost": True}
-                )
+                retriever.retrieval_strategy.initialize({
+                    "confidence_threshold": config.confidence_threshold,
+                    "activation_boost": True,
+                })
 
             # Configure based on settings
             if hasattr(retriever, "configure_semantic_coherence"):
@@ -301,7 +296,7 @@ class MemoryRetrievalBenchmark:
 
             # Time setup
             setup_start = time.time()
-            memory, retriever = self.prepare_memory(config)
+            _memory, retriever = self.prepare_memory(config)
             setup_time = time.time() - setup_start
 
             # Run queries
@@ -414,7 +409,7 @@ class MemoryRetrievalBenchmark:
         avg_counts = [r.avg_retrieval_count for r in self.results]
 
         # Create figure with subplots
-        fig, axs = plt.subplots(2, 2, figsize=(15, 10))
+        _fig, axs = plt.subplots(2, 2, figsize=(15, 10))
 
         # Query time
         axs[0, 0].bar(names, avg_times)
