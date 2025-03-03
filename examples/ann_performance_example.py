@@ -59,10 +59,36 @@ def benchmark_vector_stores(memory_counts: List[int], dimension: int = 768,
         results["ActivationVectorStore"]["search_time"].append(search_time)
         results["ActivationVectorStore"]["memory_size"].append(memory_count)
         
+        # For ANN tests, we need to make sure we have enough vectors for the cluster count
+        # Skip ANN tests if we have fewer vectors than the minimum required
+        if memory_count < 100:  # Skip for small test sets
+            # Just add empty data to keep the results structure consistent
+            results["ANNVectorStore"]["add_time"].append(0)
+            results["ANNVectorStore"]["search_time"].append(0)
+            results["ANNVectorStore"]["memory_size"].append(memory_count)
+            results["ANNActivationVectorStore"]["add_time"].append(0)
+            results["ANNActivationVectorStore"]["search_time"].append(0)
+            results["ANNActivationVectorStore"]["memory_size"].append(memory_count)
+            continue
+            
+        # Only test ANNVectorStore for large enough memory sets
         # Test ANNVectorStore
+        # Adjust index settings to avoid training errors
+        if memory_count < 200:
+            # Use Flat index for small datasets (100-200 memories)
+            ann_index_type = "Flat"
+        else:
+            # Use IVF with a reasonable number of clusters based on data size
+            # FAISS requires at least 39*k data points for k clusters (we'll use a safer 40*k)
+            # so we ensure the number of clusters is always appropriate for the dataset size
+            max_possible_clusters = memory_count // 40
+            # Use at least 5 clusters but don't exceed max_possible_clusters
+            num_clusters = min(50, max(max_possible_clusters, 5))
+            ann_index_type = f"IVF{num_clusters},Flat"
+            
         store = ANNVectorStore(
             dimension=dimension,
-            index_type=faiss_config["index_type"],
+            index_type=ann_index_type,
             nprobe=faiss_config["nprobe"],
             build_threshold=faiss_config["build_threshold"],
             quantize=faiss_config["quantize"]
@@ -77,7 +103,7 @@ def benchmark_vector_stores(memory_counts: List[int], dimension: int = 768,
         store = ANNActivationVectorStore(
             activation_weight=0.2,
             dimension=dimension, 
-            index_type=faiss_config["index_type"],
+            index_type=ann_index_type,  # Use the same adjusted index type from above
             nprobe=faiss_config["nprobe"],
             build_threshold=faiss_config["build_threshold"],
             quantize=faiss_config["quantize"]
