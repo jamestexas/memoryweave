@@ -86,7 +86,13 @@ Several components still have legacy/deprecated versions:
   - Created documentation in `docs/DEPRECATED_CODE_REMOVAL.md`
 - [x] Phase 2: Convert core components to stubs
   - Updated `memoryweave/core/__init__.py` with clearer deprecation warnings
-  - Updated `memoryweave/core/memory_encoding.py` to stub implementation
+  - Converted ALL core modules to stub implementations with warnings:
+    - `memoryweave/core/memory_encoding.py`
+    - `memoryweave/core/memory_retriever.py`
+    - `memoryweave/core/core_memory.py`
+    - `memoryweave/core/category_manager.py`
+    - `memoryweave/core/contextual_memory.py`
+    - `memoryweave/core/refactored_retrieval.py`
   - Documented phased approach in `docs/DEPRECATED_CODE_REMOVAL.md`
 - [ ] Phase 3: Complete removal of legacy code
   - Complete final migration of dependent code
