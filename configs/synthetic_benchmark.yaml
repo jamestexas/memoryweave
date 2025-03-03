@@ -1,0 +1,47 @@
+name: "Synthetic Benchmark"
+type: "synthetic"
+description: "Tests with synthetic data having controlled properties"
+output_file: "benchmark_results/synthetic_benchmark_results.json"
+visualize: true
+parameters:
+  random_seed: 42
+  dataset: null # Will be generated if not provided
+
+configurations:
+  - name: "Basic"
+    retriever_type: "basic"
+    confidence_threshold: 0.3
+    top_k: 5
+    evaluation_mode: true
+
+  - name: "Semantic-Coherence"
+    retriever_type: "components"
+    confidence_threshold: 0.3
+    top_k: 5
+    semantic_coherence_check: true
+    evaluation_mode: true
+
+  - name: "Query-Adaptation"
+    retriever_type: "components"
+    confidence_threshold: 0.3
+    top_k: 5
+    query_type_adaptation: true
+    evaluation_mode: true
+
+  - name: "Two-Stage"
+    retriever_type: "components"
+    confidence_threshold: 0.3
+    top_k: 5
+    use_two_stage_retrieval: true
+    evaluation_mode: true
+
+  - name: "Full-Advanced"
+    retriever_type: "components"
+    confidence_threshold: 0.3
+    top_k: 5
+    semantic_coherence_check: true
+    adaptive_retrieval: true
+    use_two_stage_retrieval: true
+    query_type_adaptation: true
+    dynamic_threshold_adjustment: true
+    evaluation_mode: true

@@ -1,0 +1,11 @@
+name: "Baseline Comparison"
+type: "baseline"
+description: "Compares MemoryWeave against standard baseline methods"
+output_file: "benchmark_results/baseline_comparison_results.json"
+visualize: true
+parameters:
+  dataset: "sample_baseline_dataset.json"
+  config: "baselines_config.yaml"
+  retriever: "hybrid_bm25"
+  max_results: 10
+  threshold: 0.0

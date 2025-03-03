@@ -1,0 +1,44 @@
+name: "Memory Retrieval Comparison"
+type: "memory_retrieval"
+description: "Compares different memory retrieval configurations"
+memories: 500
+queries: 50
+embedding_dim: 384
+output_file: "benchmark_results/memory_retrieval_results.json"
+visualize: true
+
+configurations:
+  - name: "Legacy-Basic"
+    retriever_type: "legacy"
+    confidence_threshold: 0.3
+    semantic_coherence_check: false
+    adaptive_retrieval: false
+    use_two_stage_retrieval: false
+    query_type_adaptation: false
+
+  - name: "Components-Advanced"
+    retriever_type: "components"
+    confidence_threshold: 0.3
+    semantic_coherence_check: true
+    adaptive_retrieval: true
+    use_two_stage_retrieval: true
+    query_type_adaptation: true
+
+  - name: "Optimized-Performance"
+    retriever_type: "components"
+    confidence_threshold: 0.1
+    semantic_coherence_check: true
+    adaptive_retrieval: true
+    use_two_stage_retrieval: true
+    query_type_adaptation: true
+    dynamic_threshold_adjustment: true
+
+  - name: "ANN-Optimized"
+    retriever_type: "components"
+    confidence_threshold: 0.1
+    semantic_coherence_check: true
+    adaptive_retrieval: true
+    use_two_stage_retrieval: true
+    query_type_adaptation: true
+    dynamic_threshold_adjustment: true
+    use_ann: true

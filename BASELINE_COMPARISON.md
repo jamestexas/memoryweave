@@ -8,19 +8,28 @@ The baseline comparison framework allows you to objectively evaluate MemoryWeave
 
 ## Running the Comparison
 
-### Quick Start with the Sample Dataset
+### Quick Start with the Unified Benchmark System
 
-The simplest way to run the baseline comparison is to use the provided sample dataset:
+The recommended way to run baseline comparisons is to use the unified benchmark system:
+
+```bash
+# Run with the sample dataset and configuration
+uv run python run_benchmark.py --config configs/baseline_comparison.yaml
+```
+
+This will:
+1. Load the sample dataset with memories and queries
+2. Compare MemoryWeave against BM25 and vector search baselines
+3. Generate results in JSON, visualization, and HTML report formats
+
+### Legacy Method (Deprecated)
+
+For backward compatibility, you can still use the direct script:
 
 ```bash
 # Run with the sample dataset and configuration
 uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json --config baselines_config.yaml
 ```
-
-This will:
-1. Load the sample dataset with 8 memories and 3 queries
-2. Compare MemoryWeave against BM25 and vector search baselines
-3. Generate results in JSON, visualization, and HTML report formats
 
 ### Using Your Own Dataset
 
@@ -60,10 +69,27 @@ To compare on your own dataset, create a JSON file with the following structure:
 }
 ```
 
-Then run the comparison with your dataset:
+Then update your configuration file to point to your dataset:
+
+```yaml
+# In configs/baseline_comparison.yaml
+name: "Baseline Comparison"
+type: "baseline"
+description: "Compares MemoryWeave against standard baseline methods"
+output_file: "benchmark_results/baseline_comparison_results.json"
+visualize: true
+parameters:
+  dataset: "path/to/your_dataset.json"  # Update this line
+  config: "baselines_config.yaml"
+  retriever: "hybrid_bm25"
+  max_results: 10
+  threshold: 0.0
+```
+
+And run the benchmark:
 
 ```bash
-uv run python run_baseline_comparison.py --dataset your_dataset.json --config baselines_config.yaml
+uv run python run_benchmark.py --config configs/baseline_comparison.yaml
 ```
 
 ### Customizing Baseline Configurations
@@ -89,17 +115,17 @@ You can customize the baseline configurations by modifying the `baselines_config
 
 ### Additional Options
 
-The comparison tool supports several options:
+The unified benchmark system supports several options:
 
 ```bash
-# Specify a different retriever type
-uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json --config baselines_config.yaml --retriever hybrid
+# Override the output path
+uv python run_benchmark.py --config configs/baseline_comparison.yaml --output my_results.json
 
-# Change the output paths
-uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json --config baselines_config.yaml --output my_results.json --html-report my_report.html --visualization my_viz.png
+# Enable debug logging
+uv python run_benchmark.py --config configs/baseline_comparison.yaml --debug
 
-# Adjust retrieval parameters
-uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json --config baselines_config.yaml --max-results 20 --threshold 0.3
+# Disable visualization generation
+uv python run_benchmark.py --config configs/baseline_comparison.yaml --no-viz
 ```
 
 ## Example Visualization
@@ -130,7 +156,7 @@ Performance metrics are also recorded, allowing you to compare query time and ef
 
 ## Using in Custom Benchmarks
 
-You can also integrate the baseline comparison into your own benchmarking code:
+You can integrate the baseline comparison into your own benchmarking code:
 
 ```python
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
@@ -176,4 +202,28 @@ comparison.generate_html_report(result, "report.html")
 comparison.save_results(result, "results.json")
 ```
 
-This allows you to incorporate baseline comparison into any custom evaluation pipeline.
+## Creating Custom Benchmark Configurations
+
+You can create custom baseline comparison configurations by creating a new YAML file:
+
+```yaml
+name: "Custom Baseline Comparison"
+type: "baseline"
+description: "Your custom comparison description"
+output_file: "custom_results.json"
+visualize: true
+parameters:
+  dataset: "your_dataset.json"
+  config: "your_baselines_config.yaml"
+  retriever: "hybrid_bm25"  # Options: "similarity", "hybrid", "hybrid_bm25"
+  max_results: 10
+  threshold: 0.0
+```
+
+Save this to a file (e.g., `configs/custom_baseline.yaml`) and run:
+
+```bash
+uv python run_benchmark.py --config configs/custom_baseline.yaml
+```
+
+This approach allows you to maintain different comparison configurations for different use cases.

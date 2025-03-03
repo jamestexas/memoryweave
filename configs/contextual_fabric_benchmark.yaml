@@ -1,0 +1,18 @@
+name: "Contextual Fabric Evaluation"
+type: "contextual_fabric"
+description: "Evaluates the contextual fabric architecture against a baseline"
+memories: 100
+embedding_dim: 384
+output_file: "benchmark_results/contextual_fabric_results.json"
+visualize: true
+parameters:
+  contextual_fabric_strategy:
+    confidence_threshold: 0.1
+    similarity_weight: 0.6
+    associative_weight: 0.2
+    temporal_weight: 0.1
+    activation_weight: 0.1
+  baseline_strategy:
+    confidence_threshold: 0.1
+    vector_weight: 0.5
+    bm25_weight: 0.5

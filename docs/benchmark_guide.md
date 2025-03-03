@@ -2,6 +2,24 @@
 
 This guide explains how to run benchmarks to evaluate and compare MemoryWeave's retrieval capabilities, with a special focus on comparing the contextual fabric approach with traditional retrieval methods.
 
+## Unified Benchmark System
+
+MemoryWeave now uses a unified benchmark system that can be configured through YAML files. This makes it easier to run consistent, reproducible benchmarks.
+
+```bash
+# Run a benchmark with its configuration file
+uv run python run_benchmark.py --config configs/contextual_fabric_benchmark.yaml
+
+# Override number of memories
+uv run python run_benchmark.py --config configs/memory_retrieval_benchmark.yaml --memories 200
+
+# Specify custom output file
+uv run python run_benchmark.py --config configs/baseline_comparison.yaml --output my_results.json
+
+# Enable debug output
+uv run python run_benchmark.py --config configs/contextual_fabric_benchmark.yaml --debug
+```
+
 ## Available Benchmarks
 
 MemoryWeave includes several benchmarking tools:
@@ -17,7 +35,14 @@ The contextual fabric benchmark is the most comprehensive evaluation, specifical
 
 ### Quick Run
 
-To run the contextual fabric benchmark with all memory sizes (20, 100, and 500) and generate visualizations:
+```bash
+# Run using the unified benchmark system
+uv run python run_benchmark.py --config configs/contextual_fabric_benchmark.yaml
+```
+
+### Legacy Script (For Backward Compatibility)
+
+To run the contextual fabric benchmark with all memory sizes (20, 100, and 500) and generate visualizations using the legacy script:
 
 ```bash
 # Run the benchmark script (handles everything)
@@ -28,18 +53,6 @@ This script will:
 1. Run benchmarks with 20, 100, and 500 memories
 2. Save results to `benchmark_results/contextual_fabric_*.json`
 3. Generate visualizations in `evaluation_charts/contextual_fabric_*/`
-
-### Manual Execution
-
-If you prefer to run specific tests manually:
-
-```bash
-# Run with a specific memory size
-uv run python -m benchmarks.contextual_fabric_benchmark --memories 100 --output my_results.json
-
-# Visualize the results
-uv run python benchmarks/visualize_contextual_fabric.py my_results.json output_folder/
-```
 
 ### Understanding the Results
 
@@ -67,7 +80,10 @@ The main metrics reported are:
 This benchmark evaluates different retrieval configurations:
 
 ```bash
-# Run the memory retrieval benchmark
+# Run the memory retrieval benchmark with the unified system
+uv run python run_benchmark.py --config configs/memory_retrieval_benchmark.yaml
+
+# Legacy method (deprecated)
 uv run python -m benchmarks.memory_retrieval_benchmark
 ```
 
@@ -76,11 +92,11 @@ uv run python -m benchmarks.memory_retrieval_benchmark
 Compare against industry-standard BM25 and vector search:
 
 ```bash
-# Run baseline comparison with default settings
-uv run python run_baseline_comparison.py
+# Run with the unified benchmark system
+uv run python run_benchmark.py --config configs/baseline_comparison.yaml
 
-# Run with custom settings
-uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json --config baselines_config.yaml --output results.json --html-report report.html
+# Legacy method (deprecated)
+uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json --config baselines_config.yaml
 ```
 
 ### Synthetic Benchmark
@@ -88,11 +104,11 @@ uv run python run_baseline_comparison.py --dataset sample_baseline_dataset.json 
 Test with generated datasets with controlled properties:
 
 ```bash
-# Run synthetic benchmark with default settings
-uv run python run_synthetic_benchmark.py
+# Run with the unified benchmark system
+uv run python run_benchmark.py --config configs/synthetic_benchmark.yaml
 
-# Run with custom configuration
-uv run python run_synthetic_benchmark.py --config configs/benchmark_advanced.json
+# Legacy method (deprecated)
+uv run python run_synthetic_benchmark.py
 ```
 
 ## Visualizing Benchmark Results
@@ -100,7 +116,8 @@ uv run python run_synthetic_benchmark.py --config configs/benchmark_advanced.jso
 For all benchmarks, you can create visualizations:
 
 ```bash
-# Visualize any benchmark results
+# Visualizations are automatically generated when running benchmarks
+# To only visualize existing results:
 python examples/visualize_results.py results.json
 
 # Create comparison charts
@@ -109,30 +126,73 @@ python examples/visualize_results.py --compare result1.json result2.json --outpu
 
 ## Customizing Benchmarks
 
-You can customize benchmark parameters by modifying the benchmark scripts or using configuration files:
+You can customize benchmark parameters by creating or modifying configuration files:
 
-### For Contextual Fabric Benchmark:
+### Example: Customizing the Contextual Fabric Benchmark
 
-```python
-# In your own script:
-from benchmarks.contextual_fabric_benchmark import ContextualFabricBenchmark
+Create a new configuration file `configs/contextual_fabric_custom.yaml`:
 
-benchmark = ContextualFabricBenchmark(embedding_dim=768)
-
-# Customize components
-benchmark.contextual_fabric_strategy.initialize({
-    "confidence_threshold": 0.1,
-    "similarity_weight": 0.6,  # Adjust weights
-    "associative_weight": 0.2,
-    "temporal_weight": 0.1,
-    "activation_weight": 0.1,
-})
-
-# Run benchmark
-benchmark.run_benchmark(num_memories=200, output_file="custom_results.json")
+```yaml
+name: "Contextual Fabric Custom"
+type: "contextual_fabric"
+description: "Custom contextual fabric evaluation with tuned parameters"
+memories: 200
+embedding_dim: 384
+output_file: "benchmark_results/contextual_fabric_custom.json"
+visualize: true
+parameters:
+  contextual_fabric_strategy:
+    confidence_threshold: 0.1
+    similarity_weight: 0.7
+    associative_weight: 0.1
+    temporal_weight: 0.1
+    activation_weight: 0.1
+    max_associative_hops: 2
+  baseline_strategy:
+    confidence_threshold: 0.1
+    vector_weight: 0.4
+    bm25_weight: 0.6
+    bm25_b: 0.5
+    bm25_k1: 1.5
 ```
 
-## Adding the DynamicContextAdapter to Benchmarks
+Then run it:
+
+```bash
+uv run python run_benchmark.py --config configs/contextual_fabric_custom.yaml
+```
+
+### Example: Customizing Memory Retrieval Configurations
+
+Create a new configuration file `configs/memory_retrieval_custom.yaml`:
+
+```yaml
+name: "Memory Retrieval Custom Configurations"
+type: "memory_retrieval"
+description: "Tests optimized configurations"
+memories: 300
+queries: 30
+output_file: "benchmark_results/memory_retrieval_custom.json"
+visualize: true
+configurations:
+  - name: "Precision-Focused"
+    retriever_type: "components"
+    confidence_threshold: 0.5
+    semantic_coherence_check: true
+    adaptive_retrieval: true
+    use_two_stage_retrieval: true
+    query_type_adaptation: true
+  
+  - name: "Recall-Focused"
+    retriever_type: "components"
+    confidence_threshold: 0.1
+    semantic_coherence_check: false
+    adaptive_retrieval: true
+    use_two_stage_retrieval: true
+    query_type_adaptation: true
+```
+
+## Using the DynamicContextAdapter in Benchmarks
 
 If you want to evaluate the newly implemented DynamicContextAdapter:
 
@@ -181,10 +241,11 @@ Benchmarks with large memory sizes (500+) may require significant memory. If you
 
 1. Reduce the number of memories:
 ```bash
-uv run python -m benchmarks.contextual_fabric_benchmark --memories 200
+uv run python run_benchmark.py --config configs/contextual_fabric_benchmark.yaml --memories 200
 ```
 
-2. Run with a smaller embedding dimension:
-```bash
-uv run python -m benchmarks.contextual_fabric_benchmark --embedding-dim 384
+2. Run with a smaller embedding dimension (if configurable in your benchmark):
+```yaml
+# In your config file
+embedding_dim: 128  # Reduced from default 384
 ```
