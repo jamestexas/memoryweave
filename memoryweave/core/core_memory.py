@@ -1,18 +1,31 @@
 """
-Core memory storage implementation for MemoryWeave.
+DEPRECATED: Core memory storage implementation for MemoryWeave.
+
+This module is deprecated. Please use the component-based architecture instead:
+- Use memoryweave.storage.memory_store.MemoryStore for memory storage
+- Use memoryweave.storage.vector_store.VectorStore for vector storage
+- Use memoryweave.storage.activation.ActivationManager for activation management
 """
 
+import warnings
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+warnings.warn(
+    "memoryweave.core.core_memory is deprecated. "
+    "Use memoryweave.storage.memory_store and memoryweave.storage.vector_store instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 class CoreMemory:
     """
-    Implements core memory storage and basic operations.
+    DEPRECATED: Implements core memory storage and basic operations.
 
-    This class is responsible for the fundamental storage and management of
-    memory embeddings, metadata, activation levels, and temporal markers.
+    This class is deprecated and will be removed in a future version.
+    Please use memoryweave.storage.memory_store.MemoryStore instead.
     """
 
     def __init__(
@@ -27,6 +40,12 @@ class CoreMemory:
             embedding_dim: Dimension of the contextual embeddings
             max_memories: Maximum number of memory traces to maintain
         """
+        warnings.warn(
+            "CoreMemory is deprecated and will be removed in a future version. "
+            "Use memoryweave.storage.memory_store.MemoryStore instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.embedding_dim = embedding_dim
         self.max_memories = max_memories
 

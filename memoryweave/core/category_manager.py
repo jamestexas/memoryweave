@@ -1,17 +1,32 @@
 """
-Implementation of the ART-inspired category management for MemoryWeave.
+DEPRECATED: Implementation of the ART-inspired category management for MemoryWeave.
+
+This module is deprecated. Please use the component-based architecture instead:
+- Use memoryweave.components.category_manager.CategoryManager for category management
+- Use memoryweave.storage.category.CategoryStore for category storage
 """
 
+import warnings
 from typing import List, Literal
 
 import numpy as np
 from scipy.cluster.hierarchy import fcluster, linkage
 
+warnings.warn(
+    "memoryweave.core.category_manager is deprecated. "
+    "Use memoryweave.components.category_manager.CategoryManager instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 class CategoryManager:
     """
-    Implements Adaptive Resonance Theory (ART) inspired category management.
+    DEPRECATED: Implements Adaptive Resonance Theory (ART) inspired category management.
 
+    This class is deprecated and will be removed in a future version.
+    Please use memoryweave.components.category_manager.CategoryManager instead.
+    
     This class handles the categorization of memories, including dynamic
     category formation, prototype updates, and category consolidation.
     """
@@ -53,6 +68,12 @@ class CategoryManager:
             consolidation_frequency: How often to run consolidation (every N memories added)
             hierarchical_method: Method for hierarchical clustering linkage
         """
+        warnings.warn(
+            "CategoryManager is deprecated and will be removed in a future version. "
+            "Use memoryweave.components.category_manager.CategoryManager instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.embedding_dim = embedding_dim
         self.initial_vigilance = vigilance_threshold
         self.vigilance_threshold = vigilance_threshold

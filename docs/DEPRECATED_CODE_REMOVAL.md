@@ -39,6 +39,27 @@ We are taking a phased approach to removing deprecated code:
    - Converted to a stub with deprecation warnings
    - Still maintains the original interface for backward compatibility
 
+3. **memoryweave/core/memory_retriever.py**
+   - Converted to a stub with deprecation warnings
+   - Still maintains original implementation for backward compatibility
+   - Points to memoryweave.components.retriever.Retriever as replacement
+
+4. **memoryweave/core/core_memory.py**
+   - Converted to a stub with deprecation warnings
+   - Points to memoryweave.storage components as replacements
+
+5. **memoryweave/core/category_manager.py**
+   - Converted to a stub with deprecation warnings
+   - Points to memoryweave.components.category_manager.CategoryManager as replacement
+
+6. **memoryweave/core/contextual_memory.py**
+   - Converted to a stub with deprecation warnings
+   - Points to memoryweave.components.memory_manager.MemoryManager as replacement
+
+7. **memoryweave/core/refactored_retrieval.py**
+   - Converted to a stub with deprecation warnings
+   - Points to direct use of memoryweave.components.retriever.Retriever
+
 ## Transition Guide
 
 If you were using any of the removed or deprecated code in your application, please follow these guidelines to update your code:
