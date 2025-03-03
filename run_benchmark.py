@@ -66,6 +66,82 @@ logger = logging.getLogger("memoryweave")
 console = Console()
 
 
+# Create retriever adaptable for baseline comparison
+class MemoryWeaveRetriever:
+    """Simplified retriever that works with MemoryManager for benchmark purposes."""
+
+    def __init__(self, memory_manager: MemoryManager):
+        self.memory_manager = memory_manager
+
+    def retrieve(self, query, top_k=10, threshold=0.0, **kwargs):
+        """Basic vector similarity retrieval implementation."""
+        # For benchmark purposes, implement a simple vector similarity search
+        # that's compatible with our Memory objects
+
+        if query.embedding is None or not hasattr(query, "embedding"):
+            return {
+                "memories": [],
+                "scores": [],
+                "strategy": "memoryweave",
+                "parameters": {"max_results": top_k, "threshold": threshold},
+                "metadata": {"query_time": 0.0},
+            }
+
+        # Get all memories
+        all_memories = self.memory_manager.get_all_memories()
+        if not all_memories:
+            return {
+                "memories": [],
+                "scores": [],
+                "strategy": "memoryweave",
+                "parameters": {"max_results": top_k, "threshold": threshold},
+                "metadata": {"query_time": 0.0},
+            }
+
+        # Calculate similarities
+        query_embedding = np.array(query.embedding).reshape(1, -1)
+        results = []
+
+        for memory in all_memories:
+            if memory.embedding is not None:
+                # Use cosine similarity
+                memory_embedding = np.array(memory.embedding).reshape(1, -1)
+
+                # Ensure same dimensions by padding if necessary
+                if memory_embedding.shape[1] < query_embedding.shape[1]:
+                    pad_width = query_embedding.shape[1] - memory_embedding.shape[1]
+                    memory_embedding = np.pad(memory_embedding, ((0, 0), (0, pad_width)))
+                elif memory_embedding.shape[1] > query_embedding.shape[1]:
+                    # Use only the first dimensions of memory embedding
+                    memory_embedding = memory_embedding[:, : query_embedding.shape[1]]
+
+                # Calculate dot product
+                similarity = np.dot(query_embedding, memory_embedding.T)[0][0]
+
+                # Normalize
+                query_norm = np.linalg.norm(query_embedding)
+                memory_norm = np.linalg.norm(memory_embedding)
+                if query_norm > 0 and memory_norm > 0:
+                    similarity = similarity / (query_norm * memory_norm)
+
+                if similarity >= threshold:
+                    results.append((memory, float(similarity)))
+
+        # Sort by similarity (descending)
+        results.sort(key=lambda x: x[1], reverse=True)
+
+        # Take top_k
+        results = results[:top_k]
+
+        return {
+            "memories": [memory for memory, _ in results],
+            "scores": [score for _, score in results],
+            "strategy": "memoryweave",
+            "parameters": {"max_results": top_k, "threshold": threshold},
+            "metadata": {"query_time": 0.0},
+        }
+
+
 @dataclass
 class BenchmarkConfig:
     """Configuration for a benchmark run."""
@@ -296,83 +372,6 @@ class UnifiedBenchmark:
             memory_store = MemoryStore()
             memory_store.add_multiple(memories)
             memory_manager = MemoryManager(memory_store=memory_store)
-
-            # Create retriever adaptable for baseline comparison
-            class MemoryWeaveRetriever:
-                """Simplified retriever that works with MemoryManager for benchmark purposes."""
-
-                def __init__(self, memory_manager):
-                    self.memory_manager = memory_manager
-
-                def retrieve(self, query, top_k=10, threshold=0.0, **kwargs):
-                    """Basic vector similarity retrieval implementation."""
-                    # For benchmark purposes, implement a simple vector similarity search
-                    # that's compatible with our Memory objects
-
-                    if query.embedding is None or not hasattr(query, "embedding"):
-                        return {
-                            "memories": [],
-                            "scores": [],
-                            "strategy": "memoryweave",
-                            "parameters": {"max_results": top_k, "threshold": threshold},
-                            "metadata": {"query_time": 0.0},
-                        }
-
-                    # Get all memories
-                    all_memories = self.memory_manager.get_all_memories()
-                    if not all_memories:
-                        return {
-                            "memories": [],
-                            "scores": [],
-                            "strategy": "memoryweave",
-                            "parameters": {"max_results": top_k, "threshold": threshold},
-                            "metadata": {"query_time": 0.0},
-                        }
-
-                    # Calculate similarities
-                    query_embedding = np.array(query.embedding).reshape(1, -1)
-                    results = []
-
-                    for memory in all_memories:
-                        if memory.embedding is not None:
-                            # Use cosine similarity
-                            memory_embedding = np.array(memory.embedding).reshape(1, -1)
-
-                            # Ensure same dimensions by padding if necessary
-                            if memory_embedding.shape[1] < query_embedding.shape[1]:
-                                pad_width = query_embedding.shape[1] - memory_embedding.shape[1]
-                                memory_embedding = np.pad(
-                                    memory_embedding, ((0, 0), (0, pad_width))
-                                )
-                            elif memory_embedding.shape[1] > query_embedding.shape[1]:
-                                # Use only the first dimensions of memory embedding
-                                memory_embedding = memory_embedding[:, : query_embedding.shape[1]]
-
-                            # Calculate dot product
-                            similarity = np.dot(query_embedding, memory_embedding.T)[0][0]
-
-                            # Normalize
-                            query_norm = np.linalg.norm(query_embedding)
-                            memory_norm = np.linalg.norm(memory_embedding)
-                            if query_norm > 0 and memory_norm > 0:
-                                similarity = similarity / (query_norm * memory_norm)
-
-                            if similarity >= threshold:
-                                results.append((memory, float(similarity)))
-
-                    # Sort by similarity (descending)
-                    results.sort(key=lambda x: x[1], reverse=True)
-
-                    # Take top_k
-                    results = results[:top_k]
-
-                    return {
-                        "memories": [memory for memory, _ in results],
-                        "scores": [score for _, score in results],
-                        "strategy": "memoryweave",
-                        "parameters": {"max_results": top_k, "threshold": threshold},
-                        "metadata": {"query_time": 0.0},
-                    }
 
             # Create memoryweave retriever
             memoryweave_retriever = MemoryWeaveRetriever(memory_manager)
@@ -630,12 +629,32 @@ This tool provides a consistent interface for running different types of MemoryW
 )
 @click.option("--no-viz", is_flag=True, help="Disable visualization generation")
 @click.option("--debug", is_flag=True, help="Enable debug logging")
-def main(config, output, memories, queries, no_viz, debug):
+@click.option(
+    "--quiet",
+    is_flag=True,
+    help="Reduce log output (suppress progress bars and debug messages)",
+)
+def main(config, output, memories, queries, no_viz, debug, quiet: bool):
     """Run the unified benchmark system."""
     # set up logging level
     if debug:
         logger.setLevel(logging.DEBUG)
+    elif quiet:
+        # Set higher log level and configure components to be quieter
+        logger.setLevel(logging.WARNING)
 
+        # Try to suppress sentence-transformers progress bars if available
+        try:
+            import logging as python_logging
+
+            # Suppress sentence-transformers logs
+            python_logging.getLogger("sentence_transformers").setLevel(python_logging.WARNING)
+            # Suppress transformers logs
+            python_logging.getLogger("transformers").setLevel(python_logging.WARNING)
+            # Suppress tqdm logs
+            python_logging.getLogger("tqdm").setLevel(python_logging.WARNING)
+        except ImportError:
+            pass
     try:
         # Load configuration
         benchmark_config = BenchmarkConfig.from_file(config)
@@ -665,7 +684,7 @@ def main(config, output, memories, queries, no_viz, debug):
         # Run benchmark
         start_time = time.time()
         benchmark = UnifiedBenchmark(benchmark_config)
-        results = benchmark.run()
+        benchmark.run()
         elapsed_time = time.time() - start_time
 
         console.print(

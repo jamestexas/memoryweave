@@ -5,9 +5,12 @@ This module provides components for adapting retrieval parameters based on
 query type analysis.
 """
 
+import logging
 from typing import Any
 
 from memoryweave.components.base import RetrievalComponent
+
+logger = logging.getLogger(__name__)
 
 
 class QueryTypeAdapter(RetrievalComponent):
@@ -46,9 +49,6 @@ class QueryTypeAdapter(RetrievalComponent):
         Returns:
             Updated context with adapted parameters
         """
-        import logging
-
-        logger = logging.getLogger(__name__)
 
         # Check if query type adaptation is explicitly enabled in context
         enable_query_type_adaptation = context.get("enable_query_type_adaptation", False)
@@ -62,13 +62,13 @@ class QueryTypeAdapter(RetrievalComponent):
             config_name = "unknown"
 
         # Log context for debugging
-        logger.info(
+        logger.debug(
             f"QueryTypeAdapter: Context: enable_query_type_adaptation={enable_query_type_adaptation}, config_name={config_name}"
         )
 
         # Skip processing if query type adaptation is not enabled for this configuration
         if not enable_query_type_adaptation:
-            logger.info(
+            logger.debug(
                 f"QueryTypeAdapter: Skipping - query type adaptation not enabled for config {config_name}"
             )
             # Return default params instead of empty dict to ensure consistent behavior
