@@ -7,7 +7,7 @@ relationships, memory chains, contradictions, and temporal structures.
 """
 
 import json
-import random
+import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -80,8 +80,8 @@ class SemanticDataGenerator:
         """
         self.random_seed = random_seed
         self.complexity = complexity
-        random.seed(random_seed)
-        np.random.seed(random_seed)
+        secrets.seed(random_seed)
+        np.secrets.seed(random_seed)
 
         # set up embedding model
         self.embedding_model = embedding_model
@@ -155,14 +155,14 @@ class SemanticDataGenerator:
             end_date = datetime.now()
 
         time_diff = (end_date - start_date).total_seconds()
-        random_seconds = random.randint(0, int(time_diff))
+        random_seconds = secrets.randbelow(int(time_diff) + 1)
         return start_date + timedelta(seconds=random_seconds)
 
     def _compute_semantic_similarity(self, text1: str, text2: str) -> float:
         """Compute semantic similarity between two texts."""
         if not self.embedding_model:
             # Return random similarity if no embedding model
-            return random.uniform(0.1, 0.9)
+            return secrets.uniform(0.1, 0.9)
 
         try:
             # Get embeddings
@@ -182,7 +182,7 @@ class SemanticDataGenerator:
             return float(similarity)
         except Exception:
             # Fall back to random similarity if any error occurs
-            return random.uniform(0.1, 0.9)
+            return secrets.uniform(0.1, 0.9)
 
     def _generate_contradiction(self, original_text: str) -> str:
         """Generate a contradictory version of the given text."""
@@ -260,17 +260,17 @@ class SemanticDataGenerator:
             description = f"A series of memories related to {theme}."
 
             # Determine number of memories in this series
-            series_size = random.randint(3, min(5, len(self.memories) // 2))
+            series_size = secrets.randint(3, min(5, len(self.memories) // 2))
 
             # Select random memories for this series
-            memory_indices = random.sample(range(len(self.memories)), series_size)
+            memory_indices = secrets.sample(range(len(self.memories)), series_size)
 
             # Create the series
             series = MemorySeries(
                 name=f"Series {i + 1}: {theme.title()}",
                 description=description,
                 memory_indices=memory_indices,
-                temporal_order=random.random() > 0.2,  # 80% chance of temporal ordering
+                temporal_order=secrets.random() > 0.2,  # 80% chance of temporal ordering
             )
 
             # Add relationships between memories in the series
@@ -282,16 +282,16 @@ class SemanticDataGenerator:
                     # Update timestamps to ensure temporal order
                     if self.memories[target_idx].timestamp <= self.memories[source_idx].timestamp:
                         new_timestamp = self.memories[source_idx].timestamp + timedelta(
-                            days=random.randint(1, 30)
+                            days=secrets.randint(1, 30)
                         )
                         self.memories[target_idx].timestamp = new_timestamp
 
                 # Add relationship
                 relationship = MemoryRelationship(
-                    type="elaborates" if random.random() > 0.3 else "supports",
+                    type="elaborates" if secrets.random() > 0.3 else "supports",
                     source_idx=source_idx,
                     target_idx=target_idx,
-                    strength=random.uniform(0.7, 1.0),
+                    strength=secrets.uniform(0.7, 1.0),
                 )
 
                 self.memories[source_idx].related_memories.append(relationship)
@@ -314,7 +314,7 @@ class SemanticDataGenerator:
         # Generate contradictions
         for _ in range(num_contradictions):
             # Select a random memory to contradict
-            source_idx = random.randint(0, len(self.memories) - 1)
+            source_idx = secrets.randint(0, len(self.memories) - 1)
             source_memory = self.memories[source_idx]
 
             # Generate contradictory text
@@ -332,11 +332,11 @@ class SemanticDataGenerator:
                 embedding = self.embedding_model.encode(contradictory_text)
             else:
                 # Generate random embedding with similar dimension
-                embedding = np.random.randn(source_memory.embedding.shape[0])
+                embedding = np.secrets.randn(source_memory.embedding.shape[0])
                 embedding = embedding / np.linalg.norm(embedding)  # Normalize
 
             # Create timestamp (usually later than the original)
-            timestamp = source_memory.timestamp + timedelta(days=random.randint(1, 60))
+            timestamp = source_memory.timestamp + timedelta(days=secrets.randint(1, 60))
 
             # Create the contradictory memory
             contradiction_memory = SemanticMemory(
@@ -344,7 +344,7 @@ class SemanticDataGenerator:
                 metadata=metadata,
                 embedding=embedding,
                 timestamp=timestamp,
-                importance=random.uniform(0.4, 0.8),
+                importance=secrets.uniform(0.4, 0.8),
             )
 
             # Add relationship
@@ -352,7 +352,7 @@ class SemanticDataGenerator:
                 type="contradicts",
                 source_idx=len(self.memories),  # This will be the index of the new memory
                 target_idx=source_idx,
-                strength=random.uniform(0.7, 1.0),
+                strength=secrets.uniform(0.7, 1.0),
             )
 
             contradiction_memory.related_memories.append(relationship)
@@ -389,12 +389,12 @@ class SemanticDataGenerator:
         # Generate memories
         for i in range(num_memories):
             # Select a category
-            category = random.choice(categories)
+            category = secrets.choice(categories)
 
             # Generate text based on category
             if category == "personal_fact":
                 attributes = ["name", "age", "hometown", "occupation", "birthday"]
-                attribute = random.choice(attributes)
+                attribute = secrets.choice(attributes)
                 values = {
                     "name": ["Alex", "Jordan", "Taylor", "Sam", "Morgan"],
                     "age": ["25", "30", "35", "40", "45"],
@@ -408,12 +408,12 @@ class SemanticDataGenerator:
                     ],
                     "birthday": ["January 15", "March 22", "July 8", "October 30", "December 5"],
                 }
-                value = random.choice(values.get(attribute, ["unknown"]))
+                value = secrets.choice(values.get(attribute, ["unknown"]))
                 text = f"My {attribute} is {value}."
 
             elif category == "preference":
                 pref_types = ["food", "color", "movie", "book", "music", "hobby"]
-                pref_type = random.choice(pref_types)
+                pref_type = secrets.choice(pref_types)
                 pref_values = {
                     "food": ["pizza", "sushi", "pasta", "tacos", "curry"],
                     "color": ["blue", "green", "purple", "red", "yellow"],
@@ -434,7 +434,7 @@ class SemanticDataGenerator:
                     "music": ["rock", "jazz", "pop", "classical", "hip-hop"],
                     "hobby": ["hiking", "reading", "gaming", "cooking", "painting"],
                 }
-                value = random.choice(pref_values.get(pref_type, ["unknown"]))
+                value = secrets.choice(pref_values.get(pref_type, ["unknown"]))
                 text = f"My favorite {pref_type} is {value}."
 
             elif category == "event":
@@ -451,8 +451,8 @@ class SemanticDataGenerator:
                     "went hiking",
                 ]
                 locations = ["at home", "in the city", "at work", "in the park", "online"]
-                event = random.choice(events)
-                location = random.choice(locations)
+                event = secrets.choice(events)
+                location = secrets.choice(locations)
                 text = f"I {event} {location}."
 
             elif category == "opinion":
@@ -464,8 +464,8 @@ class SemanticDataGenerator:
                     "is overrated",
                     "is important",
                 ]
-                topic = random.choice(topics)
-                opinion = random.choice(opinions)
+                topic = secrets.choice(topics)
+                opinion = secrets.choice(opinions)
                 text = f"I think {topic} {opinion}."
 
             elif category == "knowledge":
@@ -481,7 +481,7 @@ class SemanticDataGenerator:
                     "The speed of light is approximately 300,000 km/s.",
                     "DNA stands for deoxyribonucleic acid.",
                 ]
-                text = random.choice(facts)
+                text = secrets.choice(facts)
 
             elif category == "goal":
                 goals = [
@@ -503,8 +503,8 @@ class SemanticDataGenerator:
                     "by next summer",
                     "within 5 years",
                 ]
-                goal = random.choice(goals)
-                timeframe = random.choice(timeframes)
+                goal = secrets.choice(goals)
+                timeframe = secrets.choice(timeframes)
                 text = f"My goal is to {goal} {timeframe}."
 
             elif category == "reflection":
@@ -520,7 +520,7 @@ class SemanticDataGenerator:
                     "I appreciate the support from my friends and family.",
                     "I should take more time to enjoy the simple things.",
                 ]
-                text = random.choice(reflections)
+                text = secrets.choice(reflections)
 
             else:
                 text = f"This is memory {i} of category {category}."
@@ -530,7 +530,7 @@ class SemanticDataGenerator:
                 "category": category,
                 "content": text,
                 "type": category,
-                "importance": random.uniform(0.1, 1.0),
+                "importance": secrets.uniform(0.1, 1.0),
             }
 
             # Generate embedding
@@ -538,7 +538,7 @@ class SemanticDataGenerator:
                 embedding = self.embedding_model.encode(text)
             else:
                 # Generate random embedding
-                embedding = np.random.randn(768)  # Default dimension
+                embedding = np.secrets.randn(768)  # Default dimension
                 embedding = embedding / np.linalg.norm(embedding)  # Normalize
 
             # Generate timestamp
@@ -569,8 +569,8 @@ class SemanticDataGenerator:
 
         # Add random relationships
         for _ in range(num_relationships):
-            source_idx = random.randint(0, num_memories - 1)
-            target_idx = random.randint(0, num_memories - 1)
+            source_idx = secrets.randint(0, num_memories - 1)
+            target_idx = secrets.randint(0, num_memories - 1)
 
             # Avoid self-relationships
             if source_idx == target_idx:
@@ -578,7 +578,7 @@ class SemanticDataGenerator:
 
             # Generate relationship type
             rel_types = ["supports", "elaborates", "references", "temporal_after"]
-            rel_type = random.choice(rel_types)
+            rel_type = secrets.choice(rel_types)
 
             # If temporal relationship, ensure timestamps are consistent
             if rel_type == "temporal_after":
@@ -591,7 +591,7 @@ class SemanticDataGenerator:
                 type=rel_type,
                 source_idx=source_idx,
                 target_idx=target_idx,
-                strength=random.uniform(0.3, 0.9),
+                strength=secrets.uniform(0.3, 0.9),
             )
 
             # Add to source memory
@@ -617,10 +617,10 @@ class SemanticDataGenerator:
         # Generate queries
         for i in range(num_queries):
             # Select query type
-            query_type = random.choice(query_types)
+            query_type = secrets.choice(query_types)
 
             # Select template
-            template = random.choice(self.query_templates[query_type])
+            template = secrets.choice(self.query_templates[query_type])
 
             # Select relevant memories based on query type
             relevant_indices = self._select_relevant_memories(query_type, used_memory_indices)
@@ -642,7 +642,7 @@ class SemanticDataGenerator:
                 embedding = self.embedding_model.encode(query_text)
             else:
                 # Generate random embedding
-                embedding = np.random.randn(768)  # Default dimension
+                embedding = np.secrets.randn(768)  # Default dimension
                 embedding = embedding / np.linalg.norm(embedding)  # Normalize
 
             # Create query object
@@ -674,7 +674,7 @@ class SemanticDataGenerator:
 
             if knowledge_indices:
                 # Select one primary knowledge memory
-                primary_idx = random.choice(knowledge_indices)
+                primary_idx = secrets.choice(knowledge_indices)
                 relevant_indices.append(primary_idx)
 
                 # Look for related memories
@@ -693,7 +693,7 @@ class SemanticDataGenerator:
 
             if personal_indices:
                 # Select one personal memory
-                relevant_indices.append(random.choice(personal_indices))
+                relevant_indices.append(secrets.choice(personal_indices))
 
         elif query_type == "temporal":
             # Find events within a similar timeframe
@@ -710,7 +710,7 @@ class SemanticDataGenerator:
                 "recently",
                 "a few days ago",
             ]
-            timeframe = random.choice(timeframes)
+            timeframe = secrets.choice(timeframes)
 
             # Find memories with appropriate timestamps
             if "yesterday" in timeframe:
@@ -724,7 +724,7 @@ class SemanticDataGenerator:
             elif "morning" in timeframe:
                 cutoff = datetime.now() - timedelta(hours=12)
             else:
-                cutoff = datetime.now() - timedelta(days=random.randint(3, 10))
+                cutoff = datetime.now() - timedelta(days=secrets.randint(3, 10))
 
             # Find events after cutoff
             event_indices = [
@@ -736,9 +736,9 @@ class SemanticDataGenerator:
             ]
 
             # Select random events
-            num_events = min(len(event_indices), random.randint(1, 3))
+            num_events = min(len(event_indices), secrets.randint(1, 3))
             if event_indices and num_events > 0:
-                relevant_indices.extend(random.sample(event_indices, num_events))
+                relevant_indices.extend(secrets.sample(event_indices, num_events))
 
         elif query_type == "causal":
             # Find events with causal relationships
@@ -756,7 +756,7 @@ class SemanticDataGenerator:
                 if causal_relations:
                     # Select this memory and one of its causal relations
                     relevant_indices.append(i)
-                    relation = random.choice(causal_relations)
+                    relation = secrets.choice(causal_relations)
                     relevant_indices.append(relation.target_idx)
                     break
 
@@ -779,10 +779,10 @@ class SemanticDataGenerator:
             ]
 
             if comparable_categories:
-                category = random.choice(comparable_categories)
+                category = secrets.choice(comparable_categories)
                 indices = categories[category]
                 # Select 2 random memories from this category
-                selected = random.sample(indices, 2)
+                selected = secrets.sample(indices, 2)
                 relevant_indices.extend(selected)
 
         elif query_type == "conditional":
@@ -802,7 +802,7 @@ class SemanticDataGenerator:
             start_indices = [i for i in range(len(self.memories)) if i not in used_indices]
 
             if start_indices:
-                start_idx = random.choice(start_indices)
+                start_idx = secrets.choice(start_indices)
                 chain = [start_idx]
 
                 # Try to build a chain
@@ -817,7 +817,7 @@ class SemanticDataGenerator:
                             if rel.target_idx not in chain and rel.target_idx not in used_indices
                         ]
                         if unused_relations:
-                            next_rel = random.choice(unused_relations)
+                            next_rel = secrets.choice(unused_relations)
                             chain.append(next_rel.target_idx)
                             current_idx = next_rel.target_idx
 
@@ -838,9 +838,9 @@ class SemanticDataGenerator:
                 ]
 
                 # Select 1-3 random memories from top indices
-                num_selected = min(len(top_indices), random.randint(1, 3))
+                num_selected = min(len(top_indices), secrets.randint(1, 3))
                 if num_selected > 0:
-                    relevant_indices.extend(random.sample(top_indices, num_selected))
+                    relevant_indices.extend(secrets.sample(top_indices, num_selected))
 
         return relevant_indices
 
@@ -896,7 +896,7 @@ class SemanticDataGenerator:
                 "recently",
                 "a few days ago",
             ]
-            template_data["timeframe"] = random.choice(timeframes)
+            template_data["timeframe"] = secrets.choice(timeframes)
 
         elif query_type == "causal":
             if not relevant_indices:
@@ -970,11 +970,11 @@ class SemanticDataGenerator:
             attributes = ["likes", "studies", "lives in", "works on", "visited"]
             entities = ["person", "place", "book", "movie", "project"]
 
-            template_data["relation"] = random.choice(relations)
-            template_data["attribute"] = random.choice(attributes)
-            template_data["entity"] = random.choice(entities)
-            template_data["other_entity"] = random.choice(entities)
-            template_data["action"] = random.choice(["go", "stay", "leave", "return"])
+            template_data["relation"] = secrets.choice(relations)
+            template_data["attribute"] = secrets.choice(attributes)
+            template_data["entity"] = secrets.choice(entities)
+            template_data["other_entity"] = secrets.choice(entities)
+            template_data["action"] = secrets.choice(["go", "stay", "leave", "return"])
 
             # Extract specific attribute if available
             if "My " in memory1.text and " is " in memory1.text:

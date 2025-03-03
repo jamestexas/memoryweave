@@ -6,13 +6,13 @@ including protocols, data models, and base classes for retrieval components.
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Protocol, TypedDict
+from typing import Any, Protocol, TypedDict
 
 from memoryweave.interfaces.memory import EmbeddingVector, MemoryID
 
 
 class QueryType(Enum):
-    """Types of queries that can be processed."""
+    """types of queries that can be processed."""
 
     FACTUAL = auto()
     PERSONAL = auto()
@@ -26,9 +26,9 @@ class QueryType(Enum):
 class QueryContext:
     """Context information for a query."""
 
-    recent_interactions: List[Dict[str, Any]]
-    conversation_attributes: Dict[str, Any]
-    personal_attributes: Dict[str, Any]
+    recent_interactions: list[dict[str, Any]]
+    conversation_attributes: dict[str, Any]
+    personal_attributes: dict[str, Any]
 
 
 @dataclass
@@ -38,10 +38,11 @@ class Query:
     text: str
     embedding: EmbeddingVector
     query_type: QueryType
-    extracted_keywords: List[str]
-    extracted_entities: List[str]
-    context: Optional[QueryContext] = None
+    extracted_keywords: list[str]
+    extracted_entities: list[str]
+    context: QueryContext | None = None
 
+    # TODO: Move to dataclasses.asdict() to facilitate dict conversion or pydantic
     def __iter__(self):
         """Make the Query object iterable for dict conversion."""
         yield "text", self.text
@@ -58,7 +59,7 @@ class RetrievalResult(TypedDict):
 
     memory_id: MemoryID
     content: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     relevance_score: float
 
 
@@ -71,8 +72,8 @@ class RetrievalParameters(TypedDict, total=False):
     activation_boost: float
     keyword_weight: float
     min_results: int
-    include_categories: List[int]
-    exclude_categories: List[int]
+    include_categories: list[int]
+    exclude_categories: list[int]
 
 
 class IRetrievalStrategy(Protocol):
@@ -80,11 +81,11 @@ class IRetrievalStrategy(Protocol):
 
     def retrieve(
         self, query_embedding: EmbeddingVector, parameters: RetrievalParameters
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """Retrieve memories based on a query embedding."""
         ...
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the retrieval strategy."""
         ...
 
@@ -93,12 +94,12 @@ class IPostProcessor(Protocol):
     """Interface for post-processing retrieval results."""
 
     def process(
-        self, results: List[RetrievalResult], query: Query, context: QueryContext
-    ) -> List[RetrievalResult]:
+        self, results: list[RetrievalResult], query: Query, context: QueryContext
+    ) -> list[RetrievalResult]:
         """Process retrieval results."""
         ...
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the post-processor."""
         ...
 
@@ -114,10 +115,10 @@ class IRetrievalPipeline(Protocol):
         """Add a post-processor to the pipeline."""
         ...
 
-    def retrieve(self, query: Query) -> List[RetrievalResult]:
+    def retrieve(self, query: Query) -> list[RetrievalResult]:
         """Execute the retrieval pipeline."""
         ...
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the retrieval pipeline."""
         ...

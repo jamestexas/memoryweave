@@ -8,7 +8,7 @@ evaluation data that can test diverse memory retrieval scenarios.
 """
 
 import json
-import random
+import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -41,8 +41,8 @@ class MockEmbeddingModel:
         """Create a single embedding."""
         # Use hash for deterministic but unique embeddings
         hash_val = hash(text) % 1000000
-        np.random.seed(hash_val)
-        embedding = np.random.randn(self.embedding_dim)
+        np.secrets.seed(hash_val)
+        embedding = np.secrets.randn(self.embedding_dim)
         return embedding / np.linalg.norm(embedding)  # Normalize
 
 
@@ -197,8 +197,8 @@ class SyntheticMemoryGenerator:
         """
         self.categories = categories or self.DEFAULT_CATEGORIES
         self.random_seed = random_seed
-        random.seed(random_seed)
-        np.random.seed(random_seed)
+        secrets.seed(random_seed)
+        np.secrets.seed(random_seed)
 
         # set up embedding model
         if embedding_model is None:
@@ -319,7 +319,7 @@ class SyntheticMemoryGenerator:
 
         # Return a random value from the attribute values, or a generic one if not found
         if attribute in attribute_values:
-            return random.choice(attribute_values[attribute])
+            return secrets.choice(attribute_values[attribute])
         return f"example {attribute}"
 
     def generate_memory_data(
@@ -376,8 +376,8 @@ class SyntheticMemoryGenerator:
             attempts += 1
 
             # Select a random category and template
-            category = random.choice(self.categories)
-            template = random.choice(category.templates)
+            category = secrets.choice(self.categories)
+            template = secrets.choice(category.templates)
 
             # Fill in the template with data
             data = {}
@@ -392,7 +392,7 @@ class SyntheticMemoryGenerator:
                 found = False
                 for cat_name in potential_categories:
                     if cat_name in memory_data and slot in memory_data[cat_name]:
-                        data[slot] = random.choice(memory_data[cat_name][slot])
+                        data[slot] = secrets.choice(memory_data[cat_name][slot])
                         found = True
                         break
 
@@ -428,7 +428,7 @@ class SyntheticMemoryGenerator:
                 continue
 
         # Shuffle memories
-        random.shuffle(memories)
+        secrets.shuffle(memories)
         return memories[:num_memories]
 
     def save_memories_to_file(
@@ -608,7 +608,7 @@ class SyntheticQueryGenerator:
         """
         self.templates = templates or self.DEFAULT_QUERY_TEMPLATES
         self.random_seed = random_seed
-        random.seed(random_seed)
+        secrets.seed(random_seed)
 
         # set up embedding model
         if embedding_model is None:
@@ -714,12 +714,12 @@ class SyntheticQueryGenerator:
         queries = []
         for _ in range(num_queries):
             # Select complexity based on distribution
-            complexity = random.choices(
+            complexity = secrets.choices(
                 list(complexity_distribution.keys()), weights=list(complexity_distribution.values())
             )[0]
 
             # Select template
-            template = random.choice(templates_by_complexity[complexity])
+            template = secrets.choice(templates_by_complexity[complexity])
 
             # Try to generate a query using this template
             query_text, relevant_indices = self._generate_query_from_template(
@@ -770,15 +770,15 @@ class SyntheticQueryGenerator:
         for slot in slots:
             # Try to get from category data first
             if slot in category_data and category_data[slot]:
-                slot_values[slot] = random.choice(category_data[slot])
+                slot_values[slot] = secrets.choice(category_data[slot])
             # Try generic data next
             elif slot in query_data.get("generic", {}):
-                slot_values[slot] = random.choice(query_data["generic"][slot])
+                slot_values[slot] = secrets.choice(query_data["generic"][slot])
             # If still not found, try any category
             else:
                 for cat, attrs in query_data.items():
                     if slot in attrs and attrs[slot]:
-                        slot_values[slot] = random.choice(attrs[slot])
+                        slot_values[slot] = secrets.choice(attrs[slot])
                         break
 
             # If still not filled, use a placeholder

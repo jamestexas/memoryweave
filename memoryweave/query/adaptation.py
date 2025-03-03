@@ -5,7 +5,7 @@ based on query type and characteristics.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
 from memoryweave.interfaces.query import IQueryAdapter
 from memoryweave.interfaces.retrieval import Query, QueryType, RetrievalParameters
@@ -142,7 +142,7 @@ class QueryTypeAdapter(IQueryAdapter):
 
         return params
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the query adapter."""
         if "apply_keyword_boost" in config:
             self._config["apply_keyword_boost"] = config["apply_keyword_boost"]
@@ -177,7 +177,7 @@ class QueryTypeAdapter(IQueryAdapter):
         """Get the IDs of components this component depends on."""
         return []
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the component with configuration."""
         self.configure(config)
 

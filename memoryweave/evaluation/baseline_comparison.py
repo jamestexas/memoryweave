@@ -5,7 +5,9 @@ Framework for comparing MemoryWeave against baseline retrieval methods.
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional, Type
+
+# Define a protocol for the memory manager interface
+from typing import Any, Dict, List, Optional, Protocol, Type
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,12 +15,8 @@ from pydantic import BaseModel
 
 from memoryweave.baselines.base import BaselineRetriever
 from memoryweave.evaluation.coherence_metrics import calculate_semantic_coherence
-from memoryweave.components.memory_manager import MemoryManager
-from memoryweave.interfaces.retrieval import IRetrievalStrategy, Query, RetrievalResult
-
-# Define a protocol for the memory manager interface
-from typing import Protocol
 from memoryweave.interfaces.memory import Memory
+from memoryweave.interfaces.retrieval import IRetrievalStrategy, Query, RetrievalResult
 
 
 class IMemoryManager(Protocol):
@@ -431,7 +429,11 @@ class BaselineComparison:
         else:
             plt.show()
 
-    def save_results(self, comparison_result: ComparisonResult, output_path: str) -> None:
+    def save_results(
+        self,
+        comparison_result: ComparisonResult,
+        output_path: str,
+    ) -> None:
         """Save comparison results to a file.
 
         Args:
