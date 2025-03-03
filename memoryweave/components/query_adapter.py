@@ -82,7 +82,7 @@ class QueryTypeAdapter(RetrievalComponent):
                     "adapted_by_query_type": False,
                 }
             }
-            logger.info(f"QueryTypeAdapter: Returning default params: {default_params}")
+            logger.debug(f"QueryTypeAdapter: Returning default params: {default_params}")
             return default_params
 
         # Log initial state
