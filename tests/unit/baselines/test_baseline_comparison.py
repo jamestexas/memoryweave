@@ -2,26 +2,19 @@
 Tests for baseline comparison framework.
 """
 
-import pytest
-import numpy as np
-from typing import List, Dict, Any
-import uuid
-import tempfile
 import os
+import tempfile
+from typing import List
 
+import numpy as np
+import pytest
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.evaluation.baseline_comparison import (
     BaselineComparison,
     BaselineConfig,
     ComparisonResult,
 )
-from memoryweave.interfaces.memory import IMemoryStore
-from memoryweave.interfaces.retrieval import (
-    IRetrievalStrategy,
-    Query,
-    RetrievalResult,
-    RetrievalParameters,
-)
+from memoryweave.interfaces.retrieval import Query, QueryType, RetrievalParameters, RetrievalResult
 from memoryweave.storage.memory_store import Memory
 
 
@@ -129,9 +122,24 @@ def sample_queries() -> List[Query]:
         Query(
             text="What programming language is easy to learn?",
             embedding=np.array([0.11, 0.21, 0.31]),
+            query_type=QueryType.UNKNOWN,  # Add required parameter
+            extracted_keywords=["programming", "language", "learn"],  # Add required parameter
+            extracted_entities=[],  # Add required parameter
         ),
-        Query(text="What is the capital of France?", embedding=np.array([0.31, 0.41, 0.51])),
-        Query(text="What food do I like?", embedding=np.array([0.21, 0.31, 0.41])),
+        Query(
+            text="What is the capital of France?",
+            embedding=np.array([0.31, 0.41, 0.51]),
+            query_type=QueryType.UNKNOWN,
+            extracted_keywords=["capital", "France"],
+            extracted_entities=["France"],
+        ),
+        Query(
+            text="What food do I like?",
+            embedding=np.array([0.21, 0.31, 0.41]),
+            query_type=QueryType.UNKNOWN,
+            extracted_keywords=["food", "like"],
+            extracted_entities=[],
+        ),
     ]
 
 

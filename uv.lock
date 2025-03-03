@@ -884,6 +884,7 @@ dev = [
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "rich-click" },
     { name = "ruff" },
 ]
 
@@ -923,6 +924,7 @@ dev = [
     { name = "mypy", specifier = ">=1.15.0" },
     { name = "pytest", specifier = ">=8.3.4" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
+    { name = "rich-click", specifier = ">=1.8.6" },
     { name = "ruff", specifier = ">=0.9.7" },
 ]
 
