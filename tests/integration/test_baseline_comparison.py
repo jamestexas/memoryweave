@@ -14,7 +14,7 @@ from typing import List, Dict, Any
 
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.components.memory_manager import MemoryManager
-from memoryweave.components.retrieval_strategies import SimilarityRetriever
+from memoryweave.components.retrieval_strategies import SimilarityRetrievalStrategy
 from memoryweave.evaluation.baseline_comparison import (
     BaselineComparison, BaselineConfig, ComparisonResult
 )
@@ -122,7 +122,7 @@ def test_baseline_comparison_integration(
 ):
     """Test the baseline comparison framework with actual retrievers."""
     # Create a MemoryWeave similarity retriever
-    memoryweave_retriever = SimilarityRetriever()
+    memoryweave_retriever = SimilarityRetrievalStrategy()
     
     # Define baseline configurations
     baseline_configs = [

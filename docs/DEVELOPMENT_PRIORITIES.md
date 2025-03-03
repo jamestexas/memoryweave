@@ -80,11 +80,13 @@ Several components still have legacy/deprecated versions:
 - [ ] Remove redundant implementations once migration is complete
 - [ ] Standardize on consistent models (TypedDict vs dataclass) throughout codebase
 - [ ] Update all tests to use new architecture
-- [ ] Remove deprecated modules in `memoryweave/deprecated/`
+- [x] Remove deprecated modules in `memoryweave/deprecated/`
+  - Removed the entire `memoryweave/deprecated/` directory
+  - Removed `memoryweave/core/contextual_fabric.py`
+  - Created documentation in `docs/DEPRECATED_CODE_REMOVAL.md`
 
 **Relevant Files:**
 - `memoryweave/core/` (legacy implementations)
-- `memoryweave/deprecated/`
 - `tests/unit/core/`
 
 ## Medium-Term Development Priorities

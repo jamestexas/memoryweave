@@ -11,7 +11,7 @@ import json
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple, Union, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 
@@ -30,7 +30,7 @@ class MockEmbeddingModel:
         self.embedding_dim = embedding_dim
         self.call_count = 0
 
-    def encode(self, text, batch_size=32):
+    def encode(self, text, batch_size=32, **kwargs):
         """Create a deterministic but unique embedding for any text."""
         self.call_count += 1
         if isinstance(text, list):
@@ -51,9 +51,9 @@ class MemoryCategory:
     """Represents a category of memories with related attributes."""
 
     name: str
-    attributes: List[str]
-    templates: List[str]
-    related_categories: List[str] = field(default_factory=list)
+    attributes: list[str]
+    templates: list[str]
+    related_categories: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -62,18 +62,18 @@ class QueryTemplate:
 
     template: str
     category: str
-    expected_memory_types: List[str]
+    expected_memory_types: list[str]
     complexity: str = "simple"  # simple, moderate, complex
 
-    def generate(self, data: Dict[str, Any]) -> Tuple[str, List[str]]:
+    def generate(self, data: dict[str, Any]) -> tuple[str, list[str]]:
         """
         Generate a query from this template.
 
         Args:
-            data: Dictionary of data to fill template slots
+            data: dictionary of data to fill template slots
 
         Returns:
-            Tuple of (query_text, list_of_relevant_memory_types)
+            tuple of (query_text, list_of_relevant_memory_types)
         """
         # Format the template with the provided data
         query = self.template.format(**data)
@@ -181,7 +181,7 @@ class SyntheticMemoryGenerator:
 
     def __init__(
         self,
-        categories: Optional[List[MemoryCategory]] = None,
+        categories: Optional[list[MemoryCategory]] = None,
         embedding_model: Any = None,
         embedding_dim: int = 768,
         random_seed: int = 42,
@@ -190,7 +190,7 @@ class SyntheticMemoryGenerator:
         Initialize the memory generator.
 
         Args:
-            categories: List of memory categories to use (defaults to DEFAULT_CATEGORIES)
+            categories: list of memory categories to use (defaults to DEFAULT_CATEGORIES)
             embedding_model: Model to use for generating embeddings
             embedding_dim: Dimension of embeddings if using mock model
             random_seed: Seed for random number generation
@@ -200,7 +200,7 @@ class SyntheticMemoryGenerator:
         random.seed(random_seed)
         np.random.seed(random_seed)
 
-        # Set up embedding model
+        # set up embedding model
         if embedding_model is None:
             if HAS_SENTENCE_TRANSFORMERS:
                 self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -211,7 +211,7 @@ class SyntheticMemoryGenerator:
 
     def generate_memory_value(self, attribute: str) -> str:
         """Generate a realistic value for a memory attribute."""
-        # Dictionary of example values for different attributes
+        # dictionary of example values for different attributes
         attribute_values = {
             "name": ["Alex", "Taylor", "Jordan", "Casey", "Morgan", "Jamie", "Riley"],
             "age": ["25", "30", "35", "40", "45"],
@@ -324,7 +324,7 @@ class SyntheticMemoryGenerator:
 
     def generate_memory_data(
         self, num_values_per_category: int = 3
-    ) -> Dict[str, Dict[str, List[str]]]:
+    ) -> dict[str, dict[str, list[str]]]:
         """
         Generate a dataset of memory values for each attribute in each category.
 
@@ -332,7 +332,7 @@ class SyntheticMemoryGenerator:
             num_values_per_category: Number of values to generate for each attribute
 
         Returns:
-            Dictionary of category -> attribute -> list of values
+            dictionary of category -> attribute -> list of values
         """
         data = {}
 
@@ -350,9 +350,9 @@ class SyntheticMemoryGenerator:
     def generate_memories(
         self,
         num_memories: int = 100,
-        memory_data: Optional[Dict[str, Dict[str, List[str]]]] = None,
+        memory_data: Optional[dict[str, dict[str, list[str]]]] = None,
         unique_memories: bool = True,
-    ) -> List[Tuple[str, Dict[str, Any], np.ndarray]]:
+    ) -> list[tuple[str, dict[str, Any], np.ndarray]]:
         """
         Generate synthetic memories.
 
@@ -362,7 +362,7 @@ class SyntheticMemoryGenerator:
             unique_memories: Whether to ensure all memories are unique
 
         Returns:
-            List of (memory_text, metadata, embedding) tuples
+            list of (memory_text, metadata, embedding) tuples
         """
         if memory_data is None:
             memory_data = self.generate_memory_data()
@@ -417,13 +417,13 @@ class SyntheticMemoryGenerator:
                 }
 
                 # Generate embedding
-                embedding = self.embedding_model.encode(memory_text)
+                embedding = self.embedding_model.encode(memory_text, show_progress_bar=False)
 
                 # Add to memories
                 memories.append((memory_text, metadata, embedding))
                 generated_texts.add(memory_text)
 
-            except KeyError as e:
+            except KeyError:
                 # Template had a slot we couldn't fill, try again
                 continue
 
@@ -432,27 +432,29 @@ class SyntheticMemoryGenerator:
         return memories[:num_memories]
 
     def save_memories_to_file(
-        self, memories: List[Tuple[str, Dict[str, Any], np.ndarray]], file_path: Union[str, Path]
+        self, memories: list[tuple[str, dict[str, Any], np.ndarray]], file_path: Union[str, Path]
     ) -> None:
         """
         Save generated memories to a file.
 
         Args:
-            memories: List of memory tuples
+            memories: list of memory tuples
             file_path: Path to save the memories
         """
         # Convert to a serializable format
         serializable_memories = []
         for text, metadata, embedding in memories:
-            serializable_memories.append(
-                {"text": text, "metadata": metadata, "embedding": embedding.tolist()}
-            )
+            serializable_memories.append({
+                "text": text,
+                "metadata": metadata,
+                "embedding": embedding.tolist(),
+            })
 
         # Write to file
         with open(file_path, "w") as f:
             json.dump(serializable_memories, f, indent=2)
 
-    def _extract_slots(self, template: str) -> Set[str]:
+    def _extract_slots(self, template: str) -> set[str]:
         """Extract slot names from a template string."""
         slots = set()
         start = 0
@@ -588,7 +590,7 @@ class SyntheticQueryGenerator:
 
     def __init__(
         self,
-        templates: Optional[List[QueryTemplate]] = None,
+        templates: Optional[list[QueryTemplate]] = None,
         embedding_model: Any = None,
         embedding_dim: int = 768,
         random_seed: int = 42,
@@ -606,7 +608,7 @@ class SyntheticQueryGenerator:
         self.random_seed = random_seed
         random.seed(random_seed)
 
-        # Set up embedding model
+        # set up embedding model
         if embedding_model is None:
             if HAS_SENTENCE_TRANSFORMERS:
                 self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -616,16 +618,16 @@ class SyntheticQueryGenerator:
             self.embedding_model = embedding_model
 
     def generate_query_data(
-        self, memories: List[Tuple[str, Dict[str, Any], np.ndarray]]
-    ) -> Dict[str, Dict[str, List[str]]]:
+        self, memories: list[tuple[str, dict[str, Any], np.ndarray]]
+    ) -> dict[str, dict[str, list[str]]]:
         """
         Extract data from memories that can be used for generating queries.
 
         Args:
-            memories: List of memory tuples (text, metadata, embedding)
+            memories: list of memory tuples (text, metadata, embedding)
 
         Returns:
-            Dictionary of category -> attribute -> list of values
+            dictionary of category -> attribute -> list of values
         """
         data = {}
 
@@ -670,23 +672,23 @@ class SyntheticQueryGenerator:
 
     def generate_queries(
         self,
-        memories: List[Tuple[str, Dict[str, Any], np.ndarray]],
+        memories: list[tuple[str, dict[str, Any], np.ndarray]],
         num_queries: int = 50,
-        query_data: Optional[Dict[str, Dict[str, List[str]]]] = None,
-        complexity_distribution: Optional[Dict[str, float]] = None,
-    ) -> List[Tuple[str, List[int], np.ndarray]]:
+        query_data: Optional[dict[str, dict[str, list[str]]]] = None,
+        complexity_distribution: Optional[dict[str, float]] = None,
+    ) -> list[tuple[str, list[int], np.ndarray]]:
         """
         Generate synthetic queries with ground truth relevant memory indices.
 
         Args:
-            memories: List of memory tuples (text, metadata, embedding)
+            memories: list of memory tuples (text, metadata, embedding)
             num_queries: Number of queries to generate
             query_data: Pre-generated query data (will be generated if None)
             complexity_distribution: Distribution of query complexity (simple, moderate, complex)
                                     e.g. {"simple": 0.6, "moderate": 0.3, "complex": 0.1}
 
         Returns:
-            List of (query_text, relevant_memory_indices, embedding) tuples
+            list of (query_text, relevant_memory_indices, embedding) tuples
         """
         if query_data is None:
             query_data = self.generate_query_data(memories)
@@ -724,7 +726,7 @@ class SyntheticQueryGenerator:
 
             if query_text and relevant_indices:
                 # Generate embedding
-                embedding = self.embedding_model.encode(query_text)
+                embedding = self.embedding_model.encode(query_text, show_progress_bar=False)
                 queries.append((query_text, relevant_indices, embedding))
 
         return queries[:num_queries]
@@ -732,19 +734,19 @@ class SyntheticQueryGenerator:
     def _generate_query_from_template(
         self,
         template: QueryTemplate,
-        memories: List[Tuple[str, Dict[str, Any], np.ndarray]],
-        query_data: Dict[str, Dict[str, List[str]]],
-    ) -> Tuple[str, List[int]]:
+        memories: list[tuple[str, dict[str, Any], np.ndarray]],
+        query_data: dict[str, dict[str, list[str]]],
+    ) -> tuple[str, list[int]]:
         """
         Generate a query from a template and find relevant memories.
 
         Args:
             template: Query template
-            memories: List of memory tuples
+            memories: list of memory tuples
             query_data: Data for filling templates
 
         Returns:
-            Tuple of (query_text, list_of_relevant_memory_indices)
+            tuple of (query_text, list_of_relevant_memory_indices)
         """
         # Extract slots from template
         slots = self._extract_slots(template.template)
@@ -814,40 +816,42 @@ class SyntheticQueryGenerator:
         return query_text, relevant_indices
 
     def save_queries_to_file(
-        self, queries: List[Tuple[str, List[int], np.ndarray]], file_path: Union[str, Path]
+        self, queries: list[tuple[str, list[int], np.ndarray]], file_path: Union[str, Path]
     ) -> None:
         """
         Save generated queries to a file.
 
         Args:
-            queries: List of query tuples
+            queries: list of query tuples
             file_path: Path to save the queries
         """
         serializable_queries = []
         for text, indices, embedding in queries:
-            serializable_queries.append(
-                {"query": text, "relevant_indices": indices, "embedding": embedding.tolist()}
-            )
+            serializable_queries.append({
+                "query": text,
+                "relevant_indices": indices,
+                "embedding": embedding.tolist(),
+            })
 
         with open(file_path, "w") as f:
             json.dump(serializable_queries, f, indent=2)
 
     def generate_evaluation_dataset(
         self,
-        memories: List[Tuple[str, Dict[str, Any], np.ndarray]],
+        memories: list[tuple[str, dict[str, Any], np.ndarray]],
         num_queries: int = 50,
         file_path: Union[str, Path] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Generate a complete evaluation dataset with memories and queries.
 
         Args:
-            memories: List of memory tuples
+            memories: list of memory tuples
             num_queries: Number of queries to generate
             file_path: Path to save the dataset (optional)
 
         Returns:
-            Dictionary with memories and queries
+            dictionary with memories and queries
         """
         # Generate queries
         queries = self.generate_queries(memories, num_queries)
@@ -871,7 +875,7 @@ class SyntheticQueryGenerator:
 
         return dataset
 
-    def _extract_slots(self, template: str) -> Set[str]:
+    def _extract_slots(self, template: str) -> set[str]:
         """Extract slot names from a template string."""
         slots = set()
         start = 0

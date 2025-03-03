@@ -96,7 +96,9 @@ class DynamicContextAdapter(Component):
         """
         # Skip processing if adaptation is disabled
         if context.get("enable_dynamic_adaptation", True) is False:
-            return {"adapted_retrieval_params": self.default_parameters.copy()}
+            default_params = self.default_parameters.copy()
+            default_params["adapted_by_dynamic_context"] = False
+            return {"adapted_retrieval_params": default_params}
         
         # Start with default parameters
         adapted_params = self.default_parameters.copy()
@@ -172,7 +174,7 @@ class DynamicContextAdapter(Component):
                 if memory_size > 20:
                     # Take a sample of embeddings for large stores
                     indices = np.random.choice(memory_size, 20, replace=False)
-                    embedding_sample = embedding_store.memory_embeddings[indices]
+                    embedding_sample = memory_store.memory_embeddings[indices]
                 
                 # Calculate pairwise similarities
                 similarity_matrix = np.dot(embedding_sample, embedding_sample.T)

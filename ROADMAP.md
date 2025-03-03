@@ -133,7 +133,10 @@ We've completed the first three phases of the implementation plan:
 1. Continue feature migration from old architecture to new
 2. Complete test coverage for all components
 3. Organize integration demo of the full architecture
-4. Begin removing deprecated code after full migration
+4. ✅ Begin removing deprecated code after full migration
+   - Removed `memoryweave/deprecated/` directory
+   - Removed `memoryweave/core/contextual_fabric.py`
+   - Created documentation in `docs/DEPRECATED_CODE_REMOVAL.md`
 5. Review backward compatibility requirements
 6. Implement advanced memory organization features
 
