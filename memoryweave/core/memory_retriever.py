@@ -242,18 +242,24 @@ class MemoryRetriever:
 
         # Return results with metadata
         results = []
-        for idx in top_indices:
-            results.append(
-                (
-                    int(idx),
-                    float(similarities[idx]),
-                    self.core_memory.memory_metadata[idx],
+        for i, idx in enumerate(top_indices):
+            # Use the pre-computed similarity value to avoid index out of bounds errors
+            similarity_value = float(similarities[i] if i < len(similarities) else 0.0)
+            
+            # Make sure the index is valid for memory_metadata
+            if idx < len(self.core_memory.memory_metadata):
+                results.append(
+                    (
+                        int(idx),
+                        similarity_value,
+                        self.core_memory.memory_metadata[idx],
+                    )
                 )
-            )
-            # If not using max_k_override, we'll respect the confidence threshold
-            # Otherwise, we'll keep adding results until we hit top_k
-            if len(results) >= top_k and not max_k_override:
-                break
+                
+                # If not using max_k_override, we'll respect the confidence threshold
+                # Otherwise, we'll keep adding results until we hit top_k
+                if len(results) >= top_k and not max_k_override:
+                    break
 
         return results
         

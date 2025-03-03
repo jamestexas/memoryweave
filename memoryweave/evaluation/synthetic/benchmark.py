@@ -404,7 +404,7 @@ class SyntheticBenchmark:
                         "enable_semantic_coherence": config.semantic_coherence_check,
                         "enable_two_stage_retrieval": config.use_two_stage_retrieval,
                         "config_name": config.name,
-                        "query_embedding": query_embedding,
+                        "query_embedding": query_embedding,  # We will hide this in logs but need it in context
                         "top_k": config.top_k,
                         "minimum_relevance": config.confidence_threshold
                     }
@@ -439,7 +439,11 @@ class SyntheticBenchmark:
                                 component.max_penalty = 0.0
                                 evaluation_logger.info(f"Benchmark: Disabled coherence processor for {config.name}")
                     
-                    evaluation_logger.info(f"Benchmark: Set working_context for {config.name}: {retriever.memory_manager.working_context}")
+                    # Log that context was set, but without the complete array data to avoid excessive log output
+                    context_log = retriever.memory_manager.working_context.copy()
+                    if 'query_embedding' in context_log:
+                        context_log['query_embedding'] = "[EMBEDDING ARRAY HIDDEN]"
+                    evaluation_logger.info(f"Benchmark: Set working_context for {config.name}: {context_log}")
 
                 # Modify retriever.retrieve to directly use our query context
                 # Normally this would be built inside retrieve, but we need to ensure consistency

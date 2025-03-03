@@ -33,11 +33,15 @@ try:
     from sentence_transformers import SentenceTransformer
 
     embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+    # Get embedding dimension from the model to ensure consistency
+    embedding_dim = embedding_model.get_sentence_embedding_dimension()
 except ImportError:
     print("SentenceTransformer not available, using mock embedding model")
+    # Default to 384 dimensions to match all-MiniLM-L6-v2 model
+    embedding_dim = 384
 
     class MockEmbeddingModel:
-        def __init__(self, embedding_dim=768):
+        def __init__(self, embedding_dim=384):  # Changed to 384 to match all-MiniLM-L6-v2
             self.embedding_dim = embedding_dim
             self.call_count = 0
 
@@ -65,7 +69,7 @@ class BenchmarkConfig:
 
     name: str
     retriever_type: str  # "legacy", "refactored", or "components"
-    embedding_dim: int = 768
+    embedding_dim: int = 384  # Changed to 384 to match all-MiniLM-L6-v2
     max_memories: int = 1000
     use_art_clustering: bool = False
     confidence_threshold: float = 0.3
