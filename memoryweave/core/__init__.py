@@ -1,24 +1,28 @@
 """
-Core module for MemoryWeave.
+DEPRECATED: Core module for MemoryWeave.
 
-This module contains the core functionality for the MemoryWeave memory management system.
+This module is completely deprecated. Please use the component-based architecture instead.
 
-DEPRECATION WARNING:
-The core module is being deprecated in favor of the component-based architecture.
-Please use the components module instead:
+Migration guide:
 - Use memoryweave.components.memory_manager.MemoryManager instead of ContextualMemory
-- Use memoryweave.components.retriever.Retriever instead of ContextualRetriever
+- Use memoryweave.components.retriever.Retriever instead of ContextualRetriever 
+- Use memoryweave.adapters for bridge components during migration
+
+See MIGRATION_GUIDE.md for detailed migration instructions.
 """
 
 import warnings
 
+# Re-export the core classes for backward compatibility
+# These imports will trigger their own deprecation warnings
 from memoryweave.core.contextual_memory import ContextualMemory
 from memoryweave.core.memory_encoding import MemoryEncoder
 
 # Emit deprecation warning
 warnings.warn(
     "The memoryweave.core module is deprecated. "
-    "Use memoryweave.components module instead for the new architecture.",
+    "Use memoryweave.components module instead for the new architecture. "
+    "This module will be removed in a future version.",
     DeprecationWarning,
     stacklevel=2,
 )
