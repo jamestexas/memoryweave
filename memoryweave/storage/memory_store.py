@@ -6,7 +6,7 @@ which handles storage and retrieval of memories.
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -27,7 +27,7 @@ class MemoryMetadata:
     last_accessed: float = field(default_factory=time.time)
     activation: float = 0.0
     access_count: int = 0
-    user_metadata: Dict[str, Any] = field(default_factory=dict)
+    user_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class MemoryStore(IMemoryStore):
@@ -35,9 +35,9 @@ class MemoryStore(IMemoryStore):
 
     def __init__(self):
         """Initialize the memory store."""
-        self._memories: Dict[MemoryID, EmbeddingVector] = {}
-        self._contents: Dict[MemoryID, MemoryContent] = {}
-        self._metadata: Dict[MemoryID, MemoryMetadata] = {}
+        self._memories: dict[MemoryID, EmbeddingVector] = {}
+        self._contents: dict[MemoryID, MemoryContent] = {}
+        self._metadata: dict[MemoryID, MemoryMetadata] = {}
         self._next_id: int = 0
         self.component_id: str = "memory_store"
 
@@ -52,7 +52,7 @@ class MemoryStore(IMemoryStore):
         return ComponentType.MEMORY_STORE
 
     def add(
-        self, embedding: EmbeddingVector, content: str, metadata: Optional[Dict[str, Any]] = None
+        self, embedding: EmbeddingVector, content: str, metadata: Optional[dict[str, Any]] = None
     ) -> MemoryID:
         """Add a memory and return its ID."""
         memory_id = self._generate_id()
@@ -84,7 +84,7 @@ class MemoryStore(IMemoryStore):
             metadata=metadata.user_metadata,
         )
 
-    def get_all(self) -> List[Memory]:
+    def get_all(self) -> list[Memory]:
         """Retrieve all memories."""
         return [self.get(memory_id) for memory_id in self._memories.keys()]
 
@@ -97,7 +97,7 @@ class MemoryStore(IMemoryStore):
         # Stack all embeddings into a matrix
         return np.stack(list(self._memories.values()))
 
-    def get_ids(self) -> List[MemoryID]:
+    def get_ids(self) -> list[MemoryID]:
         """Get all memory IDs."""
         return list(self._memories.keys())
 
@@ -108,7 +108,7 @@ class MemoryStore(IMemoryStore):
 
         self._metadata[memory_id].activation += activation_delta
 
-    def update_metadata(self, memory_id: MemoryID, metadata: Dict[str, Any]) -> None:
+    def update_metadata(self, memory_id: MemoryID, metadata: dict[str, Any]) -> None:
         """Update metadata of a memory."""
         if memory_id not in self._metadata:
             raise KeyError(f"Memory with ID {memory_id} not found")
@@ -131,7 +131,7 @@ class MemoryStore(IMemoryStore):
         self._metadata.clear()
         self._next_id = 0
 
-    def consolidate(self, max_memories: int) -> List[MemoryID]:
+    def consolidate(self, max_memories: int) -> list[MemoryID]:
         """Consolidate memories to stay within capacity."""
         if len(self._memories) <= max_memories:
             # No consolidation needed
@@ -150,14 +150,14 @@ class MemoryStore(IMemoryStore):
 
         return memories_to_remove
 
-    def add_multiple(self, memories: List[Memory]) -> List[MemoryID]:
+    def add_multiple(self, memories: list[Memory]) -> list[MemoryID]:
         """Add multiple memories at once.
 
         Args:
-            memories: List of Memory objects to add
+            memories: list of Memory objects to add
 
         Returns:
-            List of memory IDs that were added
+            list of memory IDs that were added
         """
         memory_ids = []
 

@@ -82,6 +82,23 @@ class MemoryManager:
                     raise ValueError(f"Component {component_name} not registered") from e
 
     def execute_pipeline(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
+        """
+        Execute the retrieval pipeline.
+
+        This method processes a query through a series of pipeline steps, each of which
+        is a component that can modify the pipeline context. The context is updated
+        with the results from each component.
+
+        Args:
+            query (str): The query string to be processed by the pipeline.
+            context (dict[str, Any]): The initial context for the pipeline, which may
+                include existing results and other relevant data.
+
+        Returns:
+            dict[str, Any]: The final pipeline context after processing the query
+            through all components, including any results and modifications made
+            by the components.
+        """
         """Execute the retrieval pipeline."""
         pipeline_context = dict(
             query=query,

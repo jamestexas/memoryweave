@@ -2,7 +2,7 @@
 Component for ART-inspired clustering of memories into categories.
 """
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 import numpy as np
 
@@ -26,7 +26,7 @@ class CategoryManager(Component):
         self.learning_rate = 0.2
         self.embedding_dim = 768
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
         self.vigilance_threshold = config.get("vigilance_threshold", 0.8)
         self.learning_rate = config.get("learning_rate", 0.2)
@@ -107,7 +107,7 @@ class CategoryManager(Component):
             )
         return self.core_manager.get_category_for_memory(memory_idx)
 
-    def get_memories_for_category(self, category_idx: int) -> List[int]:
+    def get_memories_for_category(self, category_idx: int) -> list[int]:
         """
         Get all memory indices for a category.
 
@@ -115,7 +115,7 @@ class CategoryManager(Component):
             category_idx: Index of the category
 
         Returns:
-            List of memory indices in the category
+            list of memory indices in the category
         """
         if not self.core_manager:
             return []
@@ -139,12 +139,12 @@ class CategoryManager(Component):
             return np.array([], dtype=np.float32)
         return self.core_manager.get_category_similarities(query_embedding)
 
-    def get_category_statistics(self) -> Dict[str, Any]:
+    def get_category_statistics(self) -> dict[str, Any]:
         """
         Get statistics about the current categories.
 
         Returns:
-            Dictionary with category statistics
+            dictionary with category statistics
         """
         # Make sure we have a core manager
         if not self.core_manager:
