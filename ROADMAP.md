@@ -134,9 +134,12 @@ We've completed the first three phases of the implementation plan:
 2. Complete test coverage for all components
 3. Organize integration demo of the full architecture
 4. ✅ Begin removing deprecated code after full migration
-   - Removed `memoryweave/deprecated/` directory
-   - Removed `memoryweave/core/contextual_fabric.py`
-   - Created documentation in `docs/DEPRECATED_CODE_REMOVAL.md`
+   - Phase 1: Removed `memoryweave/deprecated/` directory and `memoryweave/core/contextual_fabric.py`
+   - Phase 2: Converting core components to stubs with deprecation warnings
+     - Updated `memoryweave/core/__init__.py` with clearer warnings
+     - Updated `memoryweave/core/memory_encoding.py` to stub implementation
+   - Phase 3: Complete removal planned for future release
+   - Created comprehensive documentation in `docs/DEPRECATED_CODE_REMOVAL.md`
 5. Review backward compatibility requirements
 6. Implement advanced memory organization features
 

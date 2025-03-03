@@ -99,7 +99,7 @@ This document tracks the implementation status of features from the original `Co
 | 4 | Create adapters | ✅ | Implemented memory, retrieval, pipeline, and category adapters |
 | 4 | Migrate feature implementations | ✅ | Added component migration utility and completed feature migration |
 | 4 | Update tests | ✅ | Added unit and integration tests for all components |
-| 5 | Remove deprecated code | 🟡 | Removed deprecated directory and contextual_fabric.py, more to be removed in future |
+| 5 | Remove deprecated code | 🟡 | Phase 1: Removed deprecated directory and contextual_fabric.py; Phase 2: Converting core components to stubs; Phase 3: Complete removal planned |
 | 5 | Update documentation | ✅ | Architecture ADR added, feature matrix updated |
 | 5 | Update examples | ✅ | Added migration example demonstrating all migration approaches |
 | 5 | Add baseline comparison | ✅ | Implemented BM25 and vector search baselines for evaluation |

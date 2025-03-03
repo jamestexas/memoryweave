@@ -1,17 +1,27 @@
 """
-Handles encoding of different content types into the contextual fabric.
+DEPRECATED: Handles encoding of different content types into the contextual fabric.
+
+This module is deprecated. Please use the new component-based architecture instead.
 """
 
+import warnings
 from typing import Any, Optional
 
 import numpy as np
 
+warnings.warn(
+    "memoryweave.core.memory_encoding is deprecated. "
+    "Use memoryweave.components.memory_adapter instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 class MemoryEncoder:
     """
-    Encodes different types of content (text, interactions, etc.) into
-    context-rich memory representations that capture both the content
-    and its contextual signature.
+    DEPRECATED: Encodes different types of content into memory representations.
+
+    This class is deprecated and will be removed in a future version.
+    Please use the component-based architecture instead.
     """
 
     def __init__(
@@ -28,6 +38,12 @@ class MemoryEncoder:
             use_episodic_markers: Whether to use episodic markers in encoding
             context_window_size: Size of context window for enriching embeddings
         """
+        warnings.warn(
+            "MemoryEncoder is deprecated and will be removed in a future version. "
+            "Use memoryweave.components architecture instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.embedding_model = embedding_model
         self.use_episodic_markers = use_episodic_markers
         self.context_window_size = context_window_size
