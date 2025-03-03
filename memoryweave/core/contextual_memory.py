@@ -1,24 +1,39 @@
 """
-Implementation of MemoryWeave's contextual memory system.
+DEPRECATED: Implementation of MemoryWeave's contextual memory system.
 
-This module provides a unified interface to the core memory components,
-combining the CoreMemory storage, CategoryManager, and MemoryRetriever
-into a cohesive memory system that maintains the original API.
+This module is deprecated. Please use the component-based architecture instead:
+- Use memoryweave.components.memory_manager.MemoryManager for memory management
+- Use memoryweave.components.retriever.Retriever for memory retrieval
+- Use memoryweave.components.category_manager.CategoryManager for category management
+
+See MIGRATION_GUIDE.md for detailed migration instructions.
 """
 
+import warnings
 from typing import Literal, Optional
 
 import numpy as np
 
+# These imports will trigger their own deprecation warnings
 from memoryweave.core.category_manager import CategoryManager
 from memoryweave.core.core_memory import CoreMemory
 from memoryweave.core.memory_retriever import MemoryRetriever
 
+warnings.warn(
+    "memoryweave.core.contextual_memory is deprecated. "
+    "Use memoryweave.components.memory_manager.MemoryManager instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 class ContextualMemory:
     """
-    Implements a contextual fabric approach to memory management.
+    DEPRECATED: Implements a contextual fabric approach to memory management.
 
+    This class is deprecated and will be removed in a future version.
+    Please use memoryweave.components.memory_manager.MemoryManager instead.
+    
     This class combines CoreMemory, CategoryManager, and MemoryRetriever
     to provide a unified interface for memory operations while maintaining
     the original API of the monolithic implementation.
@@ -76,6 +91,12 @@ class ContextualMemory:
             coherence_threshold: Threshold for semantic coherence between memories
             use_ann: Whether to use Approximate Nearest Neighbor search for efficient retrieval at scale
         """
+        warnings.warn(
+            "ContextualMemory is deprecated and will be removed in a future version. "
+            "Use memoryweave.components.memory_manager.MemoryManager instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # Initialize the core memory storage
         self.core_memory = CoreMemory(
             embedding_dim=embedding_dim,

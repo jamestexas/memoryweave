@@ -1,22 +1,36 @@
 """
-Refactored retriever implementation for MemoryWeave.
+DEPRECATED: Refactored retriever implementation for MemoryWeave.
 
-This module provides a bridge between the new component-based architecture
-and the original retriever interface to ensure compatibility during the
-transition period.
+This module is a transitional bridge and is deprecated. 
+Please use the component-based architecture directly:
+- Use memoryweave.components.retriever.Retriever for memory retrieval
+- Use memoryweave.adapters for bridging to legacy code if needed
+
+See MIGRATION_GUIDE.md for detailed migration instructions.
 """
 
+import warnings
 from typing import Any, Dict, List
 
 from memoryweave.components import Retriever
 from memoryweave.core.memory_retriever import MemoryRetriever
 from memoryweave.nlp.extraction import NLPExtractor
 
+warnings.warn(
+    "memoryweave.core.refactored_retrieval is deprecated. "
+    "Use memoryweave.components.retriever.Retriever directly instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 class RefactoredRetriever:
     """
-    Refactored retriever that implements the same interface as ContextualRetriever.
+    DEPRECATED: Refactored retriever that implements the same interface as ContextualRetriever.
 
+    This class is deprecated and will be removed in a future version.
+    Please use memoryweave.components.retriever.Retriever directly.
+    
     This class serves as a bridge between the new component-based architecture
     and the original retriever interface to ensure compatibility during the
     transition period.
@@ -46,6 +60,12 @@ class RefactoredRetriever:
             use_two_stage_retrieval: Whether to use two-stage retrieval
             query_type_adaptation: Whether to adapt to query type
         """
+        warnings.warn(
+            "RefactoredRetriever is deprecated and will be removed in a future version. "
+            "Use memoryweave.components.retriever.Retriever directly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # Store references to memory and embedding model
         self.memory = memory
         self.embedding_model = embedding_model

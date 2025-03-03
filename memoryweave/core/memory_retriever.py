@@ -1,10 +1,22 @@
 """
-Memory retriever implementation for MemoryWeave.
+DEPRECATED: Memory retriever implementation for MemoryWeave.
+
+This module is deprecated. Please use the component-based architecture instead:
+- Use memoryweave.components.retriever.Retriever for memory retrieval
+- Use memoryweave.components.retrieval_strategies for specialized retrieval strategies
 """
 
+import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+
+warnings.warn(
+    "memoryweave.core.memory_retriever is deprecated. "
+    "Use memoryweave.components.retriever and memoryweave.components.retrieval_strategies instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 try:
     import faiss
@@ -15,7 +27,10 @@ except ImportError:
 
 class MemoryRetriever:
     """
-    Retrieves memories from the memory system based on various strategies.
+    DEPRECATED: Retrieves memories from the memory system based on various strategies.
+    
+    This class is deprecated and will be removed in a future version.
+    Please use memoryweave.components.retriever.Retriever instead.
     """
 
     def __init__(
@@ -40,6 +55,12 @@ class MemoryRetriever:
             coherence_threshold: Threshold for semantic coherence between memories
             use_ann: Whether to use Approximate Nearest Neighbor search for efficient retrieval at scale
         """
+        warnings.warn(
+            "MemoryRetriever is deprecated and will be removed in a future version. "
+            "Use memoryweave.components.retriever.Retriever instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.core_memory = core_memory
         self.category_manager = category_manager
         self.default_confidence_threshold = default_confidence_threshold
