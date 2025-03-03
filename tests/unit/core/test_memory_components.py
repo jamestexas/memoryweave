@@ -3,12 +3,13 @@ Unit tests for the refactored memory components.
 """
 
 import unittest
+
 import numpy as np
 
-from memoryweave.core.core_memory import CoreMemory
 from memoryweave.core.category_manager import CategoryManager
-from memoryweave.core.memory_retriever import MemoryRetriever
 from memoryweave.core.contextual_memory import ContextualMemory
+from memoryweave.core.core_memory import CoreMemory
+from memoryweave.core.memory_retriever import MemoryRetriever
 
 
 class CoreMemoryTest(unittest.TestCase):

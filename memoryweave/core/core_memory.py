@@ -8,7 +8,7 @@ This module is deprecated. Please use the component-based architecture instead:
 """
 
 import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -168,22 +168,20 @@ class CoreMemory:
 
         return self.memory_embeddings[idx], self.memory_metadata[idx]
 
-    def get_all_memories(self) -> List[Dict[str, Any]]:
+    def get_all_memories(self) -> list[dict[str, Any]]:
         """
         Get all memories with their metadata and indices.
 
         Returns:
-            List of dictionaries containing memory information
+            list of dictionaries containing memory information
         """
         memories = []
         for i in range(len(self.memory_metadata)):
-            memories.append(
-                {
-                    "index": i,
-                    "embedding": self.memory_embeddings[i],
-                    "metadata": self.memory_metadata[i],
-                    "activation": float(self.activation_levels[i]),
-                    "temporal_marker": int(self.temporal_markers[i]),
-                }
-            )
+            memories.append({
+                "index": i,
+                "embedding": self.memory_embeddings[i],
+                "metadata": self.memory_metadata[i],
+                "activation": float(self.activation_levels[i]),
+                "temporal_marker": int(self.temporal_markers[i]),
+            })
         return memories

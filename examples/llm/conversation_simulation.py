@@ -18,7 +18,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from memoryweave_llm_wrapper import MemoryWeaveLLM
 
 # Default model to use - choose a very small model to avoid timeouts
-DEFAULT_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # Smaller model to avoid timeouts
+# DEFAULT_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # Smaller model to avoid timeouts
+DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 
 
 def run_simulation(model_name: str, with_memory: bool = True):
@@ -66,7 +67,9 @@ def run_simulation(model_name: str, with_memory: bool = True):
         response = (
             llm.chat("I'm doing well. What can you help me with?", max_new_tokens=100)
             if with_memory
-            else llm.chat_without_memory("I'm doing well. What can you help me with?", max_new_tokens=100)
+            else llm.chat_without_memory(
+                "I'm doing well. What can you help me with?", max_new_tokens=100
+            )
         )
         elapsed = time.time() - start_time
         print(f"Assistant ({elapsed:.2f}s): {response}\n")
@@ -80,9 +83,13 @@ def run_simulation(model_name: str, with_memory: bool = True):
     start_time = time.time()
     try:
         response = (
-            llm.chat("I really like pizza with mushrooms. It's my favorite food.", max_new_tokens=100)
+            llm.chat(
+                "I really like pizza with mushrooms. It's my favorite food.", max_new_tokens=100
+            )
             if with_memory
-            else llm.chat_without_memory("I really like pizza with mushrooms. It's my favorite food.", max_new_tokens=100)
+            else llm.chat_without_memory(
+                "I really like pizza with mushrooms. It's my favorite food.", max_new_tokens=100
+            )
         )
         elapsed = time.time() - start_time
         print(f"Assistant ({elapsed:.2f}s): {response}\n")
@@ -94,7 +101,9 @@ def run_simulation(model_name: str, with_memory: bool = True):
     start_time = time.time()
     try:
         response = (
-            llm.chat("I also enjoy hiking on the weekends when the weather is nice.", max_new_tokens=100)
+            llm.chat(
+                "I also enjoy hiking on the weekends when the weather is nice.", max_new_tokens=100
+            )
             if with_memory
             else llm.chat_without_memory(
                 "I also enjoy hiking on the weekends when the weather is nice.", max_new_tokens=100
@@ -112,8 +121,8 @@ def run_simulation(model_name: str, with_memory: bool = True):
     start_time = time.time()
     try:
         response = (
-            llm.chat("Where do I live?", max_new_tokens=100) 
-            if with_memory 
+            llm.chat("Where do I live?", max_new_tokens=100)
+            if with_memory
             else llm.chat_without_memory("Where do I live?", max_new_tokens=100)
         )
         elapsed = time.time() - start_time
@@ -174,7 +183,9 @@ def run_simulation(model_name: str, with_memory: bool = True):
         response = (
             llm.chat("Tell me about myself and what I enjoy.", max_new_tokens=100)
             if with_memory
-            else llm.chat_without_memory("Tell me about myself and what I enjoy.", max_new_tokens=100)
+            else llm.chat_without_memory(
+                "Tell me about myself and what I enjoy.", max_new_tokens=100
+            )
         )
         elapsed = time.time() - start_time
         print(f"Assistant ({elapsed:.2f}s): {response}\n")

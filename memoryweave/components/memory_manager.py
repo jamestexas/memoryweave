@@ -1,5 +1,5 @@
 # memoryweave/components/memory_manager.py
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from memoryweave.components.base import Component
 from memoryweave.components.pipeline_config import PipelineConfig
@@ -17,7 +17,7 @@ class MemoryManager:
         self.pipeline: list[PipelineConfig] = []
         self.memory_store = memory_store or MemoryStore()
 
-    def get_all_memories(self) -> List[Memory]:
+    def get_all_memories(self) -> list[Memory]:
         """Get all memories from the store."""
         return self.memory_store.get_all()
 
@@ -72,12 +72,10 @@ class MemoryManager:
                     component = self.components[component_name]
                     # Initialize the component with its configuration when building the pipeline
                     component.initialize(step.get("config", {}))
-                    self.pipeline.append(
-                        {
-                            "component": component,
-                            "config": step.get("config", {}),
-                        }
-                    )
+                    self.pipeline.append({
+                        "component": component,
+                        "config": step.get("config", {}),
+                    })
                 else:
                     raise ValueError(f"Component {component_name} not registered") from e
 

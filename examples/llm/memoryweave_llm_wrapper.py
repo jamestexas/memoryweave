@@ -5,7 +5,7 @@ This module provides a simple wrapper to use MemoryWeave with locally running Hu
 """
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 import torch
 from sentence_transformers import SentenceTransformer
@@ -14,15 +14,18 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from memoryweave.components import Retriever
 from memoryweave.components.memory_manager import MemoryManager
 
+DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
+DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
 
 class MemoryWeaveLLM:
     """A simple wrapper for using MemoryWeave with local Hugging Face models."""
 
     def __init__(
         self,
-        model_name: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-        embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-        device: str = "auto",
+        model_name: str = DEFAULT_MODEL,
+        embedding_model_name: str = DEFAULT_EMBEDDING_MODEL,
+        device: str = "mps",
     ):
         """
         Initialize the MemoryWeaveLLM wrapper.
@@ -88,10 +91,10 @@ class MemoryWeaveLLM:
         memory_text = ""
         if relevant_memories:
             memory_text = "Previous information that might be relevant:\n"
-            for i, memory in enumerate(relevant_memories):
-                if isinstance(memory, dict) and 'content' in memory:
-                    content = memory.get('content', '')
-                    if isinstance(content, dict) and 'text' in content:
+            for memory in relevant_memories:
+                if isinstance(memory, dict) and "content" in memory:
+                    content = memory.get("content", "")
+                    if isinstance(content, dict) and "text" in content:
                         memory_text += f"- {content['text']}\n"
                     else:
                         memory_text += f"- {content}\n"
@@ -177,12 +180,20 @@ class MemoryWeaveLLM:
         if "my favorite" in user_message.lower() or "i like" in user_message.lower():
             preference_embedding = self.embedding_model.encode(f"User preference: {user_message}")
             self.memory_manager.memory_store.add(
-                preference_embedding,
-                f"User preference: {user_message}",
-                {"type": "preference", "timestamp": time.time(), "importance": 0.8},
+                embedding=preference_embedding,
+                content=f"User preference: {user_message}",
+                metadata=dict(
+                    type="preference",
+                    timestamp=time.time(),
+                    importance=0.8,
+                ),
             )
 
-    def add_memory(self, text: str, metadata: Optional[Dict[str, Any]] = None):
+    def add_memory(
+        self,
+        text: str,
+        metadata: dict[str, Any] | None = None,
+    ):
         """Add a memory directly to the memory store."""
         if metadata is None:
             metadata = {"type": "fact", "importance": 0.7}
