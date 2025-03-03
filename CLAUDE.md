@@ -28,6 +28,8 @@
 ## Project Status
 The project has undergone a major architectural refactoring from a monolithic design to a component-based architecture. Most features have been implemented in the new architecture, but some work remains to eliminate legacy code.
 
+Current development priorities are tracked in `docs/DEVELOPMENT_PRIORITIES.md`, which should be referenced and updated when implementing new features.
+
 ## Documentation Structure
 - **README.md**: Overview, installation, quick start, features
 - **MIGRATION_GUIDE.md**: Guide for migrating from legacy to component architecture
@@ -41,6 +43,7 @@ The project has undergone a major architectural refactoring from a monolithic de
 - **docs/plan_for_improvement.md**: Detailed plan for addressing current issues
 - **docs/refactoring_progress.md**: Detailed progress on architectural refactoring
 - **docs/NEXT_STEPS.md**: Next steps for the refactoring process
+- **docs/DEVELOPMENT_PRIORITIES.md**: Prioritized development tasks and timelines
 - **memoryweave/components/README.md**: Component architecture documentation
 - **memoryweave/components/retrieval_strategies/README.md**: Retrieval strategies documentation
 - **tests/README.md**: Testing documentation and guidelines
@@ -83,6 +86,25 @@ The project has undergone a major architectural refactoring from a monolithic de
 - **Memory Decay**: Process of reducing activation levels over time
 - **Dynamic Threshold Adjustment**: Automatic adjustment of thresholds based on query performance
 
+## Development Process and Priorities
+When implementing new features or fixes:
+1. **Check the development priorities**: Review `docs/DEVELOPMENT_PRIORITIES.md` to see where this work fits
+2. **Update feature matrix**: Add new entries or modify existing ones in `docs/feature_matrix.md`
+3. **Maintain architectural consistency**: Follow component-based approach in the new architecture
+4. **Add appropriate tests**: Create unit and integration tests for all changes
+5. **Run benchmarks**: Verify there's no performance regression
+6. **Update documentation**: Modify relevant documentation to reflect changes
+
+## Current Development Focus
+The primary focus areas are:
+1. Improving performance at scale for large memory stores
+2. Enhancing episodic memory handling and temporal context
+3. Fixing query analyzer issues and improving classification
+4. Completing the removal of legacy code
+5. Adding a persistence layer for long-term memory storage
+
+Refer to `docs/DEVELOPMENT_PRIORITIES.md` for detailed tasks and timelines.
+
 ## Contributing
 When contributing new features or fixes, follow these guidelines:
 1. Check the feature matrix to understand current implementation status
@@ -90,3 +112,11 @@ When contributing new features or fixes, follow these guidelines:
 3. Add proper tests for all new functionality
 4. Update documentation to reflect changes
 5. Run benchmarks to ensure no performance regression
+6. Update the development priorities document if completing tasks
+
+## Documentation Maintenance
+When making significant changes:
+1. Update relevant documentation files
+2. Keep the feature matrix (`docs/feature_matrix.md`) current
+3. Mark completed tasks in `docs/DEVELOPMENT_PRIORITIES.md`
+4. Add new tasks to the development priorities if identified
