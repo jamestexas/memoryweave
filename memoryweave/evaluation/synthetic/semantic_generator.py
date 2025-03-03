@@ -8,7 +8,6 @@ relationships, memory chains, contradictions, and temporal structures.
 
 import json
 import random
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -167,8 +166,16 @@ class SemanticDataGenerator:
 
         try:
             # Get embeddings
-            embedding1 = self.embedding_model.encode(text1, convert_to_tensor=True)
-            embedding2 = self.embedding_model.encode(text2, convert_to_tensor=True)
+            embedding1 = self.embedding_model.encode(
+                text1,
+                convert_to_tensor=True,
+                show_progress_bar=False,
+            )
+            embedding2 = self.embedding_model.encode(
+                text2,
+                convert_to_tensor=True,
+                show_progress_bar=False,
+            )
 
             # Compute cosine similarity
             similarity = util.pytorch_cos_sim(embedding1, embedding2).item()
@@ -1088,7 +1095,7 @@ class SemanticDataGenerator:
         cls, file_path: Union[str, Path], embedding_model=None
     ) -> "SemanticDataGenerator":
         """Load data from a file into a new generator instance."""
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             data = json.load(f)
 
         # Create new instance

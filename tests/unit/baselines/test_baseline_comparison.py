@@ -13,7 +13,7 @@ from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.evaluation.baseline_comparison import (
     BaselineComparison, BaselineConfig, ComparisonResult
 )
-from memoryweave.interfaces.memory import IMemoryManager
+from memoryweave.interfaces.memory import IMemoryStore
 from memoryweave.interfaces.retrieval import (
     IRetrievalStrategy, Query, RetrievalResult, RetrievalParameters
 )
@@ -54,7 +54,8 @@ class MockRetriever:
         scores = []
         
         for memory in self.memories:
-            memory_terms = set(memory.text.lower().split())
+            memory_text = memory.content["text"]
+            memory_terms = set(memory_text.lower().split())
             
             # Simple term overlap scoring
             overlap = query_terms.intersection(memory_terms)
@@ -91,32 +92,32 @@ def sample_memories() -> List[Memory]:
     memories = [
         Memory(
             id="1",
-            text="Python is a programming language",
             embedding=np.array([0.1, 0.2, 0.3]),
+            content={"text": "Python is a programming language", "metadata": {}},
             metadata={"category": "fact"}
         ),
         Memory(
             id="2",
-            text="I like to eat pizza on Fridays",
             embedding=np.array([0.2, 0.3, 0.4]),
+            content={"text": "I like to eat pizza on Fridays", "metadata": {}},
             metadata={"category": "preference"}
         ),
         Memory(
             id="3",
-            text="The capital of France is Paris",
             embedding=np.array([0.3, 0.4, 0.5]),
+            content={"text": "The capital of France is Paris", "metadata": {}},
             metadata={"category": "fact"}
         ),
         Memory(
             id="4",
-            text="My favorite color is blue",
             embedding=np.array([0.4, 0.5, 0.6]),
+            content={"text": "My favorite color is blue", "metadata": {}},
             metadata={"category": "preference"}
         ),
         Memory(
             id="5",
-            text="Python has simple and easy to learn syntax",
             embedding=np.array([0.12, 0.22, 0.32]),
+            content={"text": "Python has simple and easy to learn syntax", "metadata": {}},
             metadata={"category": "fact"}
         ),
     ]
