@@ -81,28 +81,62 @@ class MemoryWeaveLLM:
             The assistant's response
         """
         # 1. Retrieve relevant memories
-        try:
-            relevant_memories = self.retriever.retrieve(user_message, top_k=3)
-        except Exception as e:
-            print(f"Retrieval error: {e}")
-            relevant_memories = []
+        relevant_memories = self.retriever.retrieve(user_message, top_k=5)
 
-        # 2. Format memories for the prompt
+        # 2. Format memories for the prompt in a more structured way
         memory_text = ""
-        if relevant_memories:
-            memory_text = "Previous information that might be relevant:\n"
-            for memory in relevant_memories:
-                if isinstance(memory, dict) and "content" in memory:
-                    content = memory.get("content", "")
-                    if isinstance(content, dict) and "text" in content:
-                        memory_text += f"- {content['text']}\n"
-                    else:
-                        memory_text += f"- {content}\n"
-                else:
-                    memory_text += f"- {str(memory)}\n"
+        facts_about_user = []
+        preferences = []
+
+        # Categorize and extract structured information from memories
+        for memory in relevant_memories:
+            if not memory or not isinstance(memory, dict):
+                continue
+
+            memory_type = memory.get("metadata", {}).get("type", "")
+            content = memory.get("content", "")
+
+            # Skip conversation memories to reduce noise
+            if memory_type in ["user_message", "assistant_message"]:
+                continue
+
+            # Categorize memories by type
+            if (
+                memory_type == "personal_info"
+                or memory_type == "location"
+                or memory_type == "pet_name"
+            ):
+                facts_about_user.append(content)
+            elif memory_type == "preference":
+                preferences.append(content)
+
+        # Format user information in a clean, structured way
+        if facts_about_user or preferences:
+            memory_text = "USER INFORMATION:\n"
+
+            for fact in facts_about_user:
+                # Clean up fact text if it starts with "User..."
+                if fact.startswith("User "):
+                    parts = fact.split(": ", 1)
+                    if len(parts) > 1:
+                        fact = parts[1]
+                memory_text += f"- {fact}\n"
+
+            if preferences:
+                if facts_about_user:  # Add a separator if we had facts
+                    memory_text += "\n"
+                memory_text += "USER PREFERENCES:\n"
+                for pref in preferences:
+                    # Clean up preference text
+                    if pref.startswith("User preference:"):
+                        pref = pref.replace("User preference:", "").strip()
+                    memory_text += f"- {pref}\n"
+
+            # Add instruction to use this information subtly
+            memory_text += "\nUse this information to personalize your responses naturally. Don't explicitly mention that you're using stored information.\n\n"
 
         # 3. Prepare prompt with conversation history and memories
-        system_prompt = "You are a helpful assistant with memory capabilities."
+        system_prompt = "You are a helpful assistant. Provide accurate, relevant responses based on the conversation context."
 
         if memory_text:
             system_prompt += f"\n\n{memory_text}"
@@ -152,6 +186,8 @@ class MemoryWeaveLLM:
     def _store_interaction(self, user_message: str, assistant_message: str):
         """Store the conversation turn in MemoryWeave."""
         # Store the user's message
+        # TODO: This could be enhanced with a more sophisticated extraction mechanism
+
         user_embedding = self.embedding_model.encode(user_message)
         self.memory_manager.memory_store.add(
             user_embedding,
@@ -175,20 +211,6 @@ class MemoryWeaveLLM:
             },
         )
 
-        # Extract and store any personal information or preferences
-        # This could be enhanced with a more sophisticated extraction mechanism
-        if "my favorite" in user_message.lower() or "i like" in user_message.lower():
-            preference_embedding = self.embedding_model.encode(f"User preference: {user_message}")
-            self.memory_manager.memory_store.add(
-                embedding=preference_embedding,
-                content=f"User preference: {user_message}",
-                metadata=dict(
-                    type="preference",
-                    timestamp=time.time(),
-                    importance=0.8,
-                ),
-            )
-
     def add_memory(
         self,
         text: str,
@@ -196,7 +218,7 @@ class MemoryWeaveLLM:
     ):
         """Add a memory directly to the memory store."""
         if metadata is None:
-            metadata = {"type": "fact", "importance": 0.7}
+            metadata = dict(tyoe="fact", importance=0.7)
 
         # Get embedding for the text
         embedding = self.embedding_model.encode(text)
