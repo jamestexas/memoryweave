@@ -17,8 +17,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from memoryweave_llm_wrapper import MemoryWeaveLLM
 
-# Default model to use
-DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
+# Default model to use - choose a very small model to avoid timeouts
+DEFAULT_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # Smaller model to avoid timeouts
 
 
 def run_simulation(model_name: str, with_memory: bool = True):
@@ -48,101 +48,139 @@ def run_simulation(model_name: str, with_memory: bool = True):
     print("\n=== Conversation 1: Small Talk ===")
     print("User: Hello! How are you today?")
     start_time = time.time()
-    response = (
-        llm.chat("Hello! How are you today?")
-        if with_memory
-        else llm.chat_without_memory("Hello! How are you today?")
-    )
-    elapsed = time.time() - start_time
-    print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    try:
+        response = (
+            llm.chat("Hello! How are you today?", max_new_tokens=100)
+            if with_memory
+            else llm.chat_without_memory("Hello! How are you today?", max_new_tokens=100)
+        )
+        elapsed = time.time() - start_time
+        print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    except Exception as e:
+        print(f"Error: {e}")
+        return llm.get_conversation_history() if with_memory else []
 
     print("User: I'm doing well. What can you help me with?")
     start_time = time.time()
-    response = (
-        llm.chat("I'm doing well. What can you help me with?")
-        if with_memory
-        else llm.chat_without_memory("I'm doing well. What can you help me with?")
-    )
-    elapsed = time.time() - start_time
-    print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    try:
+        response = (
+            llm.chat("I'm doing well. What can you help me with?", max_new_tokens=100)
+            if with_memory
+            else llm.chat_without_memory("I'm doing well. What can you help me with?", max_new_tokens=100)
+        )
+        elapsed = time.time() - start_time
+        print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    except Exception as e:
+        print(f"Error: {e}")
+        return llm.get_conversation_history() if with_memory else []
 
     # Simulation 2: Personal preference being stored
     print("\n=== Conversation 2: Sharing Preferences ===")
     print("User: I really like pizza with mushrooms. It's my favorite food.")
     start_time = time.time()
-    response = (
-        llm.chat("I really like pizza with mushrooms. It's my favorite food.")
-        if with_memory
-        else llm.chat_without_memory("I really like pizza with mushrooms. It's my favorite food.")
-    )
-    elapsed = time.time() - start_time
-    print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    try:
+        response = (
+            llm.chat("I really like pizza with mushrooms. It's my favorite food.", max_new_tokens=100)
+            if with_memory
+            else llm.chat_without_memory("I really like pizza with mushrooms. It's my favorite food.", max_new_tokens=100)
+        )
+        elapsed = time.time() - start_time
+        print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    except Exception as e:
+        print(f"Error: {e}")
+        return llm.get_conversation_history() if with_memory else []
 
     print("User: I also enjoy hiking on the weekends when the weather is nice.")
     start_time = time.time()
-    response = (
-        llm.chat("I also enjoy hiking on the weekends when the weather is nice.")
-        if with_memory
-        else llm.chat_without_memory(
-            "I also enjoy hiking on the weekends when the weather is nice."
+    try:
+        response = (
+            llm.chat("I also enjoy hiking on the weekends when the weather is nice.", max_new_tokens=100)
+            if with_memory
+            else llm.chat_without_memory(
+                "I also enjoy hiking on the weekends when the weather is nice.", max_new_tokens=100
+            )
         )
-    )
-    elapsed = time.time() - start_time
-    print(f"Assistant ({elapsed:.2f}s): {response}\n")
+        elapsed = time.time() - start_time
+        print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    except Exception as e:
+        print(f"Error: {e}")
+        return llm.get_conversation_history() if with_memory else []
 
     # Simulation 3: Testing memory recall of personal information
     print("\n=== Conversation 3: Memory Recall Test ===")
     print("User: Where do I live?")
     start_time = time.time()
-    response = (
-        llm.chat("Where do I live?") if with_memory else llm.chat_without_memory("Where do I live?")
-    )
-    elapsed = time.time() - start_time
-    print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    try:
+        response = (
+            llm.chat("Where do I live?", max_new_tokens=100) 
+            if with_memory 
+            else llm.chat_without_memory("Where do I live?", max_new_tokens=100)
+        )
+        elapsed = time.time() - start_time
+        print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    except Exception as e:
+        print(f"Error: {e}")
+        return llm.get_conversation_history() if with_memory else []
 
     print("User: What's my pet's name?")
     start_time = time.time()
-    response = (
-        llm.chat("What's my pet's name?")
-        if with_memory
-        else llm.chat_without_memory("What's my pet's name?")
-    )
-    elapsed = time.time() - start_time
-    print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    try:
+        response = (
+            llm.chat("What's my pet's name?", max_new_tokens=100)
+            if with_memory
+            else llm.chat_without_memory("What's my pet's name?", max_new_tokens=100)
+        )
+        elapsed = time.time() - start_time
+        print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    except Exception as e:
+        print(f"Error: {e}")
+        return llm.get_conversation_history() if with_memory else []
 
     # Simulation 4: Testing memory of stated preferences
     print("\n=== Conversation 4: Preference Recall ===")
     print("User: What food do I like?")
     start_time = time.time()
-    response = (
-        llm.chat("What food do I like?")
-        if with_memory
-        else llm.chat_without_memory("What food do I like?")
-    )
-    elapsed = time.time() - start_time
-    print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    try:
+        response = (
+            llm.chat("What food do I like?", max_new_tokens=100)
+            if with_memory
+            else llm.chat_without_memory("What food do I like?", max_new_tokens=100)
+        )
+        elapsed = time.time() - start_time
+        print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    except Exception as e:
+        print(f"Error: {e}")
+        return llm.get_conversation_history() if with_memory else []
 
     print("User: What activities do I enjoy?")
     start_time = time.time()
-    response = (
-        llm.chat("What activities do I enjoy?")
-        if with_memory
-        else llm.chat_without_memory("What activities do I enjoy?")
-    )
-    elapsed = time.time() - start_time
-    print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    try:
+        response = (
+            llm.chat("What activities do I enjoy?", max_new_tokens=100)
+            if with_memory
+            else llm.chat_without_memory("What activities do I enjoy?", max_new_tokens=100)
+        )
+        elapsed = time.time() - start_time
+        print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    except Exception as e:
+        print(f"Error: {e}")
+        return llm.get_conversation_history() if with_memory else []
 
     # Final summary question
     print("\n=== Final Summary Question ===")
     print("User: Tell me about myself and what I enjoy.")
     start_time = time.time()
-    response = (
-        llm.chat("Tell me about myself and what I enjoy.")
-        if with_memory
-        else llm.chat_without_memory("Tell me about myself and what I enjoy.")
-    )
-    elapsed = time.time() - start_time
-    print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    try:
+        response = (
+            llm.chat("Tell me about myself and what I enjoy.", max_new_tokens=100)
+            if with_memory
+            else llm.chat_without_memory("Tell me about myself and what I enjoy.", max_new_tokens=100)
+        )
+        elapsed = time.time() - start_time
+        print(f"Assistant ({elapsed:.2f}s): {response}\n")
+    except Exception as e:
+        print(f"Error: {e}")
+        return llm.get_conversation_history() if with_memory else []
 
     return llm.get_conversation_history() if with_memory else []
 
