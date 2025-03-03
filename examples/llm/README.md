@@ -28,11 +28,11 @@ pip install bitsandbytes unsloth
 Run the conversation simulation with default settings:
 
 ```bash
-# Navigate to the examples/llm directory
-cd examples/llm
+# Navigate to the root directory of the project
+cd /path/to/memoryweave
 
 # Run the simulation
-python conversation_simulation.py
+uv run python examples/llm/conversation_simulation.py
 ```
 
 ### Using a specific model
@@ -40,7 +40,7 @@ python conversation_simulation.py
 You can specify a different Hugging Face model:
 
 ```bash
-python conversation_simulation.py --model "meta-llama/Llama-2-7b-chat-hf"
+uv run python examples/llm/conversation_simulation.py --model "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 ```
 
 ### Comparing with and without memory
@@ -48,7 +48,7 @@ python conversation_simulation.py --model "meta-llama/Llama-2-7b-chat-hf"
 To see the difference MemoryWeave makes, run a comparison:
 
 ```bash
-python conversation_simulation.py --compare
+uv run python examples/llm/conversation_simulation.py --compare
 ```
 
 This will run the simulation twice - once with memory features enabled and once without - so you can directly compare the results.
@@ -90,6 +90,38 @@ Assistant (1.31s): Based on the information I have, you live in Boston.
 User: What's my pet's name?
 Assistant (1.22s): Based on what you've shared previously, your dog's name is Max.
 ```
+
+## Implementation Notes
+
+The MemoryWeaveLLM class in `memoryweave_llm_wrapper.py` interacts with the memory store as follows:
+
+1. Adding memories:
+   ```python
+   # Create an embedding for the text
+   embedding = embedding_model.encode(text)
+   
+   # Add the memory to the store with optional metadata
+   memory_manager.memory_store.add(embedding, text, metadata)
+   ```
+
+2. Retrieving memories:
+   ```python
+   # Retrieve relevant memories for a query
+   relevant_memories = retriever.retrieve(query, top_k=3)
+   ```
+
+3. Storing conversation interactions:
+   ```python
+   # Store a user message
+   user_embedding = embedding_model.encode(user_message)
+   memory_manager.memory_store.add(user_embedding, user_message, metadata)
+   
+   # Store the assistant's response
+   assistant_embedding = embedding_model.encode(assistant_message)
+   memory_manager.memory_store.add(assistant_embedding, assistant_message, metadata)
+   ```
+
+For detailed implementation, see the `memoryweave_llm_wrapper.py` file.
 
 ## Customizing the Integration
 

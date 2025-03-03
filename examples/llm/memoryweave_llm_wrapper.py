@@ -20,7 +20,7 @@ class MemoryWeaveLLM:
 
     def __init__(
         self,
-        model_name: str = "unsloth/Llama-3.2-3B-Instruct",
+        model_name: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
         device: str = "auto",
     ):
@@ -78,14 +78,25 @@ class MemoryWeaveLLM:
             The assistant's response
         """
         # 1. Retrieve relevant memories
-        relevant_memories = self.retriever.retrieve(user_message, top_k=3)
+        try:
+            relevant_memories = self.retriever.retrieve(user_message, top_k=3)
+        except Exception as e:
+            print(f"Retrieval error: {e}")
+            relevant_memories = []
 
         # 2. Format memories for the prompt
         memory_text = ""
         if relevant_memories:
             memory_text = "Previous information that might be relevant:\n"
             for i, memory in enumerate(relevant_memories):
-                memory_text += f"- {memory.get('content', '')}\n"
+                if isinstance(memory, dict) and 'content' in memory:
+                    content = memory.get('content', '')
+                    if isinstance(content, dict) and 'text' in content:
+                        memory_text += f"- {content['text']}\n"
+                    else:
+                        memory_text += f"- {content}\n"
+                else:
+                    memory_text += f"- {str(memory)}\n"
 
         # 3. Prepare prompt with conversation history and memories
         system_prompt = "You are a helpful assistant with memory capabilities."
@@ -139,7 +150,7 @@ class MemoryWeaveLLM:
         """Store the conversation turn in MemoryWeave."""
         # Store the user's message
         user_embedding = self.embedding_model.encode(user_message)
-        self.memory_manager.add_memory(
+        self.memory_manager.memory_store.add(
             user_embedding,
             user_message,
             {
@@ -151,7 +162,7 @@ class MemoryWeaveLLM:
 
         # Store the assistant's response
         assistant_embedding = self.embedding_model.encode(assistant_message)
-        self.memory_manager.add_memory(
+        self.memory_manager.memory_store.add(
             assistant_embedding,
             assistant_message,
             {
@@ -165,7 +176,7 @@ class MemoryWeaveLLM:
         # This could be enhanced with a more sophisticated extraction mechanism
         if "my favorite" in user_message.lower() or "i like" in user_message.lower():
             preference_embedding = self.embedding_model.encode(f"User preference: {user_message}")
-            self.memory_manager.add_memory(
+            self.memory_manager.memory_store.add(
                 preference_embedding,
                 f"User preference: {user_message}",
                 {"type": "preference", "timestamp": time.time(), "importance": 0.8},
@@ -179,9 +190,8 @@ class MemoryWeaveLLM:
         # Get embedding for the text
         embedding = self.embedding_model.encode(text)
 
-        # Based on your README, the correct signature is:
-        # memory_manager.add_memory(embedding, text)
-        self.memory_manager.add_memory(embedding, text, metadata)
+        # Use the memory_store.add method from MemoryStore
+        self.memory_manager.memory_store.add(embedding, text, metadata)
 
     def get_conversation_history(self):
         """Get the current conversation history."""
