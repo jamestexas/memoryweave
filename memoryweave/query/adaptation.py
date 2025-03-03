@@ -25,24 +25,24 @@ class QueryTypeConfig:
 
 class QueryTypeAdapter(IQueryAdapter):
     """Adapter that adjusts retrieval parameters based on query type."""
-    
+
     def process(self, input_data: Any) -> Any:
         """Process the input data as a pipeline stage.
-        
+
         This method implements IPipelineStage.process to make the component
         usable in a pipeline.
         """
         # Expects a Query object and adds adapted parameters to it
-        if hasattr(input_data, 'query_type'):
+        if hasattr(input_data, "query_type"):
             # Input is a Query object
             query = input_data
-            
+
             # Adapt parameters
             params = self.adapt_parameters(query)
-            
+
             # Return the query with adapted parameters
             result = dict(query)
-            result['parameters'] = params
+            result["parameters"] = params
             return result
         else:
             # Just pass through input if it's not a Query
@@ -52,7 +52,7 @@ class QueryTypeAdapter(IQueryAdapter):
         """Initialize the query type adapter."""
         # Component ID for pipeline registration
         self.component_id = "query_adapter"
-        
+
         # Default parameters for different query types
         self._type_configs = {
             QueryType.PERSONAL: QueryTypeConfig(
@@ -166,20 +166,21 @@ class QueryTypeAdapter(IQueryAdapter):
     def get_id(self) -> str:
         """Get the unique identifier for this component."""
         return self.component_id
-        
+
     def get_type(self):
         """Get the type of this component."""
         from memoryweave.interfaces.pipeline import ComponentType
+
         return ComponentType.QUERY_ADAPTER
-        
+
     def get_dependencies(self) -> list[str]:
         """Get the IDs of components this component depends on."""
         return []
-        
+
     def initialize(self, config: Dict[str, Any]) -> None:
         """Initialize the component with configuration."""
         self.configure(config)
-    
+
     def _adjust_for_query_length(
         self, params: RetrievalParameters, query_text: str
     ) -> RetrievalParameters:

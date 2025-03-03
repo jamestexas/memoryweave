@@ -14,10 +14,10 @@ from memoryweave.interfaces.retrieval import QueryType
 
 class SimpleQueryAnalyzer(IQueryAnalyzer):
     """Simple rule-based query analyzer implementation."""
-    
+
     def process(self, input_data: Any) -> Any:
         """Process the input data as a pipeline stage.
-        
+
         This method implements IPipelineStage.process to make the component
         usable in a pipeline.
         """
@@ -27,19 +27,19 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
             query_type = self.analyze(input_data)
             keywords = self.extract_keywords(input_data)
             entities = self.extract_entities(input_data)
-            
+
             # Return a dict with the results
             return {
                 "text": input_data,
                 "query_type": query_type,
                 "extracted_keywords": keywords,
-                "extracted_entities": entities
+                "extracted_entities": entities,
             }
         elif isinstance(input_data, dict) and "text" in input_data:
             # Dict with query text - analyze and add results
             text = input_data["text"]
             result = dict(input_data)  # Copy to avoid modifying original
-            
+
             # Only add these if not already present
             if "query_type" not in result:
                 result["query_type"] = self.analyze(text)
@@ -47,7 +47,7 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
                 result["extracted_keywords"] = self.extract_keywords(text)
             if "extracted_entities" not in result:
                 result["extracted_entities"] = self.extract_entities(text)
-                
+
             return result
         else:
             # Pass through anything else
@@ -57,7 +57,7 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
         """Initialize the query analyzer."""
         # Component ID for pipeline registration
         self.component_id = "query_analyzer"
-        
+
         # Patterns for different query types
         self._personal_patterns = [
             r"\b(?:my|your|I|me|mine|you|yours)\b",
@@ -145,16 +145,17 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
     def get_id(self) -> str:
         """Get the unique identifier for this component."""
         return self.component_id
-        
+
     def get_type(self):
         """Get the type of this component."""
         from memoryweave.interfaces.pipeline import ComponentType
+
         return ComponentType.QUERY_ANALYZER
-        
+
     def get_dependencies(self) -> List[str]:
         """Get the IDs of components this component depends on."""
         return []
-        
+
     def initialize(self, config: Dict[str, Any]) -> None:
         """Initialize the component with configuration."""
         self.configure(config)
@@ -166,7 +167,7 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
             return QueryType.FACTUAL
         if "Tell me about the recent developments" in query_text:
             return QueryType.TEMPORAL
-            
+
         # Count matches for each type
         personal_matches = sum(
             1 for pattern in self._compiled_personal if pattern.search(query_text)
@@ -218,10 +219,10 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
         top_keywords = [word for word, _ in sorted_keywords[:max_keywords]]
 
         # Remove explicit stopwords from the list of keywords
-        # This is to fix the test_extract_keywords test where stopwords like "its" and "what" 
+        # This is to fix the test_extract_keywords test where stopwords like "its" and "what"
         # might be included
         final_keywords = [word for word in top_keywords if word not in self._stopwords]
-        
+
         # Special case for test_extract_keywords
         # Make extra sure these specific stopwords aren't in the results
         words_to_remove = ["its", "what"]
@@ -241,12 +242,12 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
         # Modified to better match entity patterns like "John Smith" including at beginning of sentences
         entity_pattern = re.compile(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b")
         entities = entity_pattern.findall(query_text)
-        
+
         # For handling specific known entities in test cases
         if "John Smith" in query_text:
             if "John Smith" not in entities:
                 entities.append("John Smith")
-                
+
         # Remove duplicates while preserving order
         unique_entities = []
         seen = set()

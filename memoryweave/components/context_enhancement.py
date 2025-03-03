@@ -18,12 +18,12 @@ from memoryweave.components.component_names import ComponentName
 class ContextualEmbeddingEnhancer(MemoryComponent):
     """
     Component that enhances memory embeddings with contextual information.
-    
+
     This component modifies memory embeddings by incorporating:
     1. Conversation history context
     2. Temporal context
     3. Topical context
-    
+
     The enhanced embeddings improve retrieval by capturing the multi-dimensional
     relationships between memories beyond pure semantic similarity.
     """
@@ -42,7 +42,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
     def initialize(self, config: Dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
-        
+
         Args:
             config: Configuration dictionary with parameters:
                 - conversation_weight: Weight for conversation context (default: 0.2)
@@ -62,14 +62,14 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
     def process(self, data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process memory data to enhance embeddings with contextual information.
-        
+
         Args:
             data: Memory data to process
             context: Context information including:
                 - conversation_history: List of previous conversation turns
                 - current_time: Current timestamp
                 - topics: Current or detected topics
-                
+
         Returns:
             Updated memory data with enhanced embeddings
         """
@@ -100,10 +100,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
 
         # Combine all contextual enhancements
         enhanced_embedding = self._combine_embeddings(
-            embedding,
-            conversation_embedding,
-            temporal_embedding,
-            topical_embedding
+            embedding, conversation_embedding, temporal_embedding, topical_embedding
         )
 
         # Store both original and enhanced embeddings
@@ -112,7 +109,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
         result["contextual_enhancements"] = {
             "conversation_weight": self.conversation_weight,
             "temporal_weight": self.temporal_weight,
-            "topical_weight": self.topical_weight
+            "topical_weight": self.topical_weight,
         }
 
         return result
@@ -120,7 +117,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
     def _update_context_history(self, data: Dict[str, Any], context: Dict[str, Any]) -> None:
         """
         Update the internal context history with new information.
-        
+
         Args:
             data: Current memory data
             context: Current context information
@@ -130,7 +127,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
             "timestamp": context.get("current_time", time.time()),
             "topics": list(context.get("topics", set())),
             "memory_id": data.get("id"),
-            "query": context.get("query", "")
+            "query": context.get("query", ""),
         }
 
         # Add to history
@@ -138,15 +135,17 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
 
         # Limit history size
         if len(self.context_history) > self.max_history_items:
-            self.context_history = self.context_history[-self.max_history_items:]
+            self.context_history = self.context_history[-self.max_history_items :]
 
-    def _extract_conversation_context(self, conversation_history: List[Dict[str, Any]]) -> np.ndarray:
+    def _extract_conversation_context(
+        self, conversation_history: List[Dict[str, Any]]
+    ) -> np.ndarray:
         """
         Extract context embedding from conversation history.
-        
+
         Args:
             conversation_history: List of previous conversation turns with embeddings
-            
+
         Returns:
             Context embedding extracted from conversation history
         """
@@ -156,7 +155,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
             return np.zeros(768)
 
         # Get recent history within window size
-        recent_history = conversation_history[-self.context_window_size:]
+        recent_history = conversation_history[-self.context_window_size :]
 
         # Extract embeddings with recency weighting
         weighted_embeddings = []
@@ -186,11 +185,11 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
     def _extract_temporal_context(self, current_time: float, data: Dict[str, Any]) -> np.ndarray:
         """
         Extract temporal context embedding.
-        
+
         Args:
             current_time: Current timestamp
             data: Memory data containing creation time
-            
+
         Returns:
             Temporal context embedding
         """
@@ -217,7 +216,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
             if i % 2 == 0:
                 time_vector[i] = np.sin(days_diff / (10000 ** (i / 50)))
             else:
-                time_vector[i] = np.cos(days_diff / (10000 ** ((i-1) / 50)))
+                time_vector[i] = np.cos(days_diff / (10000 ** ((i - 1) / 50)))
 
         # Add recency marker (more recent = higher value)
         recency_value = np.exp(-time_diff / (30 * seconds_in_day))  # 30-day scale
@@ -233,11 +232,11 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
     def _extract_topical_context(self, topics, data: Dict[str, Any]) -> np.ndarray:
         """
         Extract topical context embedding.
-        
+
         Args:
             topics: Set or list of current topics
             data: Memory data with potential topic information
-            
+
         Returns:
             Topical context embedding
         """
@@ -247,7 +246,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
 
         # Get memory topics and ensure it's a set
         memory_topics = set(data.get("topics", []))
-        
+
         # Convert topics to set if it's not already
         if not isinstance(topics, set):
             topics_set = set(topics)
@@ -288,17 +287,17 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
         base_embedding: np.ndarray,
         conversation_embedding: np.ndarray,
         temporal_embedding: np.ndarray,
-        topical_embedding: np.ndarray
+        topical_embedding: np.ndarray,
     ) -> np.ndarray:
         """
         Combine all embeddings into a single enhanced embedding.
-        
+
         Args:
             base_embedding: Original memory embedding
             conversation_embedding: Conversation context embedding
             temporal_embedding: Temporal context embedding
             topical_embedding: Topical context embedding
-            
+
         Returns:
             Combined enhanced embedding
         """
@@ -316,10 +315,10 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
         # Apply weighted combination
         base_weight = 1.0 - (self.conversation_weight + self.temporal_weight + self.topical_weight)
         enhanced_embedding = (
-            base_weight * base_embedding +
-            self.conversation_weight * conversation_embedding +
-            self.temporal_weight * temporal_embedding +
-            self.topical_weight * topical_embedding
+            base_weight * base_embedding
+            + self.conversation_weight * conversation_embedding
+            + self.temporal_weight * temporal_embedding
+            + self.topical_weight * topical_embedding
         )
 
         # Normalize the enhanced embedding
@@ -333,13 +332,13 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
 class ContextSignalExtractor(Component):
     """
     Utility component for extracting contextual signals from different sources.
-    
+
     This component provides methods to extract contextual information from:
     - Conversation history
     - User behavior
     - Documents and content
     - Temporal patterns
-    
+
     It can be used by other contextual components to extract meaningful signals.
     """
 
@@ -350,22 +349,21 @@ class ContextSignalExtractor(Component):
     def initialize(self, config: Dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
-        
+
         Args:
             config: Configuration dictionary
         """
         pass
 
     def extract_conversation_signals(
-        self,
-        conversation_history: List[Dict[str, Any]]
+        self, conversation_history: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
         Extract signals from conversation history.
-        
+
         Args:
             conversation_history: List of conversation turns
-            
+
         Returns:
             Dictionary of extracted signals
         """
@@ -374,7 +372,7 @@ class ContextSignalExtractor(Component):
             "entities": set(),
             "sentiment": 0.0,
             "question_count": 0,
-            "average_turn_length": 0
+            "average_turn_length": 0,
         }
 
         if not conversation_history:
@@ -398,17 +396,19 @@ class ContextSignalExtractor(Component):
 
         # Calculate averages
         signals["question_count"] = question_count
-        signals["average_turn_length"] = total_length / len(conversation_history) if conversation_history else 0
+        signals["average_turn_length"] = (
+            total_length / len(conversation_history) if conversation_history else 0
+        )
 
         return signals
 
     def extract_temporal_signals(self, timestamps: List[float]) -> Dict[str, Any]:
         """
         Extract temporal signals from a list of timestamps.
-        
+
         Args:
             timestamps: List of timestamps
-            
+
         Returns:
             Dictionary of temporal signals
         """
@@ -419,10 +419,10 @@ class ContextSignalExtractor(Component):
         timestamps.sort()
 
         # Calculate recency (how recent is the latest timestamp)
-        recency = current_time - timestamps[-1] if timestamps else float('inf')
+        recency = current_time - timestamps[-1] if timestamps else float("inf")
 
         # Calculate intervals between timestamps
-        intervals = [timestamps[i] - timestamps[i-1] for i in range(1, len(timestamps))]
+        intervals = [timestamps[i] - timestamps[i - 1] for i in range(1, len(timestamps))]
 
         # Calculate frequency (average interval)
         frequency = sum(intervals) / len(intervals) if intervals else 0
@@ -431,29 +431,25 @@ class ContextSignalExtractor(Component):
         pattern = "random"
         if len(intervals) >= 3:
             # Check for regular intervals (consistent frequency)
-            variance = np.var(intervals) if len(intervals) > 1 else float('inf')
+            variance = np.var(intervals) if len(intervals) > 1 else float("inf")
             mean = np.mean(intervals)
 
             if variance / mean < 0.2:  # Low variance indicates regularity
                 pattern = "regular"
-            elif all(intervals[i] < intervals[i-1] for i in range(1, len(intervals))):
+            elif all(intervals[i] < intervals[i - 1] for i in range(1, len(intervals))):
                 pattern = "accelerating"
-            elif all(intervals[i] > intervals[i-1] for i in range(1, len(intervals))):
+            elif all(intervals[i] > intervals[i - 1] for i in range(1, len(intervals))):
                 pattern = "decelerating"
 
-        return {
-            "pattern": pattern,
-            "frequency": frequency,
-            "recency": recency
-        }
+        return {"pattern": pattern, "frequency": frequency, "recency": recency}
 
     def extract_content_signals(self, content: str) -> Dict[str, Any]:
         """
         Extract signals from content text.
-        
+
         Args:
             content: Text content to analyze
-            
+
         Returns:
             Dictionary of content signals
         """
@@ -462,11 +458,12 @@ class ContextSignalExtractor(Component):
 
         # Simple topic extraction (just keywords for now)
         import re
-        words = re.findall(r'\b\w{4,}\b', content.lower())
+
+        words = re.findall(r"\b\w{4,}\b", content.lower())
         keywords = set([word for word in words if len(word) > 4])
 
         # Simple entity extraction (capitalized words)
-        entity_matches = re.findall(r'\b[A-Z][a-z]{2,}\b', content)
+        entity_matches = re.findall(r"\b[A-Z][a-z]{2,}\b", content)
         entities = set(entity_matches)
 
         # Calculate reading level (very basic approximation)
@@ -476,5 +473,5 @@ class ContextSignalExtractor(Component):
             "word_count": word_count,
             "keywords": keywords,
             "entities": entities,
-            "avg_word_length": avg_word_length
+            "avg_word_length": avg_word_length,
         }

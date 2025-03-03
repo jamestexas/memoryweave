@@ -533,8 +533,8 @@ def main():
             dynamic_threshold_adjustment=True,
         ),
     )
-    
-    # Add ANN-based optimized config 
+
+    # Add ANN-based optimized config
     configs.append(
         BenchmarkConfig(
             name="ANN-Optimized",

@@ -22,10 +22,10 @@ from memoryweave.interfaces.retrieval import (
 
 class HybridRetrievalStrategy(IRetrievalStrategy):
     """Retrieval strategy combining similarity and temporal factors."""
-    
+
     def process(self, input_data: Any) -> Any:
         """Process the input data as a pipeline stage.
-        
+
         This method implements IPipelineStage.process to make the component
         usable in a pipeline.
         """
@@ -36,24 +36,24 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
                 # Get query embedding and parameters
                 query_embedding = input_data["embedding"]
                 parameters = input_data.get("parameters", {})
-                
+
                 # Retrieve memories based on the query
                 memories = self.retrieve(query_embedding, parameters)
-                
+
                 # Return the memories
                 return memories
-                
+
             # Check if this is just a vector
             elif "query_embedding" in input_data:
                 query_embedding = input_data["query_embedding"]
                 parameters = input_data.get("parameters", {})
-                
+
                 # Retrieve memories based on the query
                 memories = self.retrieve(query_embedding, parameters)
-                
+
                 # Return the memories
                 return memories
-        
+
         # Pass through for unsupported input types
         return input_data
 
@@ -80,14 +80,15 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
             "activation_boost": 0.2,
         }
         self.component_id = "hybrid_retrieval_strategy"
-        
+
     def get_id(self) -> str:
         """Get the unique identifier for this component."""
         return self.component_id
-        
+
     def get_type(self):
         """Get the type of this component."""
         from memoryweave.interfaces.pipeline import ComponentType
+
         return ComponentType.RETRIEVAL_STRATEGY
 
     def retrieve(
@@ -151,16 +152,16 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
 
         # Sort by combined score and take top k
         ranked_results = sorted(initial_results, key=lambda x: x["relevance_score"], reverse=True)
-        
+
         # If no results meet the threshold but min_results is set, return at least that many
         if len(ranked_results) < min_results and min_results > 0:
             # Special case when memory store has no memories
             if len(self._memory_store._memories) == 0:
                 return []
-                
+
             # Just get all memories if we need to ensure minimum results
             all_memory_ids = list(self._memory_store._memories.keys())
-            
+
             # Calculate similarity scores for all memories
             similarity_scores = {}
             for memory_id in all_memory_ids:
@@ -176,13 +177,13 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
                         similarity_scores[memory_id] = similarity
                 except Exception:
                     pass  # Skip memories with missing or invalid embeddings
-            
+
             # Sort by similarity
             sorted_scores = sorted(similarity_scores.items(), key=lambda x: x[1], reverse=True)
-            
+
             # Get top min_results
             more_vectors = sorted_scores[:min_results]
-            
+
             # Only add memories not already in results
             existing_ids = {r["memory_id"] for r in ranked_results}
             for memory_id, similarity_score in more_vectors:
@@ -196,9 +197,11 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
                     )
                     ranked_results.append(result)
                     existing_ids.add(memory_id)
-            
+
             # Re-sort the results
-            ranked_results = sorted(ranked_results, key=lambda x: x["relevance_score"], reverse=True)
+            ranked_results = sorted(
+                ranked_results, key=lambda x: x["relevance_score"], reverse=True
+            )
 
         return ranked_results[:max_results]
 

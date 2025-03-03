@@ -16,7 +16,7 @@ class MemoryManager:
         self.components = {}
         self.pipeline: list[PipelineConfig] = []
         self.memory_store = memory_store or MemoryStore()
-    
+
     def get_all_memories(self) -> List[Memory]:
         """Get all memories from the store."""
         return self.memory_store.get_all()

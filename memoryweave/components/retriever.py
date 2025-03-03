@@ -30,7 +30,9 @@ from memoryweave.components.retrieval_strategies import (
     TemporalRetrievalStrategy,
     TwoStageRetrievalStrategy,
 )
-from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import HybridBM25VectorStrategy
+from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import (
+    HybridBM25VectorStrategy,
+)
 
 
 class Retriever:
@@ -121,18 +123,22 @@ class Retriever:
 
         temporal_retrieval = TemporalRetrievalStrategy(self.memory)
         self.memory_manager.register_component("temporal_retrieval", temporal_retrieval)
-        
+
         # Register the new hybrid BM25 + vector retrieval strategy
         hybrid_bm25_vector_retrieval = HybridBM25VectorStrategy(self.memory)
-        hybrid_bm25_vector_retrieval.initialize({
-            "vector_weight": 0.2,          # Favor BM25 more heavily
-            "bm25_weight": 0.8,            # Give BM25 dominance by default
-            "confidence_threshold": self.minimum_relevance,
-            "activation_boost": True,
-            "enable_dynamic_weighting": True,  # Enable dynamic adjustment
-            "keyword_weight_bias": 0.7,        # Strong bias toward BM25 for keyword queries
-        })
-        self.memory_manager.register_component("hybrid_bm25_vector_retrieval", hybrid_bm25_vector_retrieval)
+        hybrid_bm25_vector_retrieval.initialize(
+            {
+                "vector_weight": 0.2,  # Favor BM25 more heavily
+                "bm25_weight": 0.8,  # Give BM25 dominance by default
+                "confidence_threshold": self.minimum_relevance,
+                "activation_boost": True,
+                "enable_dynamic_weighting": True,  # Enable dynamic adjustment
+                "keyword_weight_bias": 0.7,  # Strong bias toward BM25 for keyword queries
+            }
+        )
+        self.memory_manager.register_component(
+            "hybrid_bm25_vector_retrieval", hybrid_bm25_vector_retrieval
+        )
 
         # Create and initialize post-processors
         keyword_processor = KeywordBoostProcessor()
@@ -198,14 +204,17 @@ class Retriever:
         # Ensure all components are properly registered and available
         self._ensure_components_registered()
 
-        # Configure query adapter - IMPORTANT: fixed bug where adaptation_strength was 0 
+        # Configure query adapter - IMPORTANT: fixed bug where adaptation_strength was 0
         # even if query_type_adaptation was True
         adaptation_strength = self.adaptation_strength if self.query_type_adaptation else 0.0
-        
+
         import logging
+
         logger = logging.getLogger(__name__)
-        logger.info(f"Retriever._build_default_pipeline: query_type_adaptation={self.query_type_adaptation}, adaptation_strength={adaptation_strength}")
-        
+        logger.info(
+            f"Retriever._build_default_pipeline: query_type_adaptation={self.query_type_adaptation}, adaptation_strength={adaptation_strength}"
+        )
+
         query_adapter_config = dict(
             # Enable query type adaptation if enabled
             adaptation_strength=adaptation_strength,
@@ -308,7 +317,9 @@ class Retriever:
             "query_adapter": self.query_adapter,
             "two_stage_retrieval": self.two_stage_strategy,
             "hybrid_retrieval": self.retrieval_strategy,
-            "hybrid_bm25_vector_retrieval": self.memory_manager.components.get("hybrid_bm25_vector_retrieval"),
+            "hybrid_bm25_vector_retrieval": self.memory_manager.components.get(
+                "hybrid_bm25_vector_retrieval"
+            ),
             "similarity_retrieval": self.memory_manager.components.get("similarity_retrieval"),
             "temporal_retrieval": self.memory_manager.components.get("temporal_retrieval"),
             "keyword_boost": self.memory_manager.components.get("keyword_boost"),
@@ -365,29 +376,38 @@ class Retriever:
             enable: Whether to enable semantic coherence checking
         """
         import logging
+
         logger = logging.getLogger(__name__)
         logger.info(f"Retriever.configure_semantic_coherence: Setting enable={enable}")
-        
+
         # Create semantic coherence processor if it doesn't exist
         if not hasattr(self, "semantic_coherence_processor"):
             self.semantic_coherence_processor = SemanticCoherenceProcessor()
             # Initialize with proper configuration
-            self.semantic_coherence_processor.initialize({
-                "coherence_threshold": 0.2,
-                "enable_query_type_filtering": True,
-                "enable_pairwise_coherence": True,
-                "enable_clustering": False,
-            })
-            logger.info("Retriever.configure_semantic_coherence: Created new SemanticCoherenceProcessor")
+            self.semantic_coherence_processor.initialize(
+                {
+                    "coherence_threshold": 0.2,
+                    "enable_query_type_filtering": True,
+                    "enable_pairwise_coherence": True,
+                    "enable_clustering": False,
+                }
+            )
+            logger.info(
+                "Retriever.configure_semantic_coherence: Created new SemanticCoherenceProcessor"
+            )
 
         # Add to post-processors if enabled and not already there
         if enable and self.semantic_coherence_processor not in self.post_processors:
             self.post_processors.append(self.semantic_coherence_processor)
-            logger.info("Retriever.configure_semantic_coherence: Added processor to post_processors")
+            logger.info(
+                "Retriever.configure_semantic_coherence: Added processor to post_processors"
+            )
         # Remove from post-processors if disabled but present
         elif not enable and self.semantic_coherence_processor in self.post_processors:
             self.post_processors.remove(self.semantic_coherence_processor)
-            logger.info("Retriever.configure_semantic_coherence: Removed processor from post_processors")
+            logger.info(
+                "Retriever.configure_semantic_coherence: Removed processor from post_processors"
+            )
 
     def retrieve(
         self,
@@ -442,7 +462,9 @@ class Retriever:
             "in_evaluation": True,  # Set this flag to true to use normal retrieval paths
             # Set feature flags to control component behavior
             "enable_query_type_adaptation": self.query_type_adaptation,
-            "enable_semantic_coherence": self.semantic_coherence_processor in self.post_processors if hasattr(self, "semantic_coherence_processor") else False,
+            "enable_semantic_coherence": self.semantic_coherence_processor in self.post_processors
+            if hasattr(self, "semantic_coherence_processor")
+            else False,
             "enable_two_stage_retrieval": self.use_two_stage_retrieval,
             # Set the config name for better tracking in logs
             "config_name": strategy or "default",
@@ -581,7 +603,7 @@ class Retriever:
             # Update pipeline context with correct config name
             if hasattr(self.memory_manager, "config_name"):
                 query_context["config_name"] = self.memory_manager.config_name
-                
+
             # Use the configured pipeline
             pipeline_result = self.memory_manager.execute_pipeline(query, query_context)
 

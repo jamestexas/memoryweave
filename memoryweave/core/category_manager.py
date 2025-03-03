@@ -26,7 +26,7 @@ class CategoryManager:
 
     This class is deprecated and will be removed in a future version.
     Please use memoryweave.components.category_manager.CategoryManager instead.
-    
+
     This class handles the categorization of memories, including dynamic
     category formation, prototype updates, and category consolidation.
     """

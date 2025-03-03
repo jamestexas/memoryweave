@@ -18,10 +18,10 @@ from memoryweave.interfaces.retrieval import (
 
 class TwoStageRetrievalStrategy(IRetrievalStrategy):
     """Two-stage retrieval strategy with initial broad search and refinement."""
-    
+
     def process(self, input_data: Any) -> Any:
         """Process the input data as a pipeline stage.
-        
+
         This method implements IPipelineStage.process to make the component
         usable in a pipeline.
         """
@@ -32,27 +32,27 @@ class TwoStageRetrievalStrategy(IRetrievalStrategy):
                 # Get query embedding and parameters
                 query_embedding = input_data["embedding"]
                 parameters = input_data.get("parameters", {})
-                
+
                 # Retrieve memories based on the query
                 memories = self.retrieve(query_embedding, parameters)
-                
+
                 # Return the memories
                 return memories
-                
+
             # Check if this is just a vector
             elif "query_embedding" in input_data:
                 query_embedding = input_data["query_embedding"]
                 parameters = input_data.get("parameters", {})
-                
+
                 # Retrieve memories based on the query
                 memories = self.retrieve(query_embedding, parameters)
-                
+
                 # Return the memories
                 return memories
-        
+
         # Pass through for unsupported input types
         return input_data
-    
+
     def __init__(
         self,
         memory_store: IMemoryStore,
@@ -80,14 +80,15 @@ class TwoStageRetrievalStrategy(IRetrievalStrategy):
             "keyword_boost": 0.2,
         }
         self.component_id = "two_stage_retrieval_strategy"
-        
+
     def get_id(self) -> str:
         """Get the unique identifier for this component."""
         return self.component_id
-        
+
     def get_type(self):
         """Get the type of this component."""
         from memoryweave.interfaces.pipeline import ComponentType
+
         return ComponentType.RETRIEVAL_STRATEGY
 
     def retrieve(

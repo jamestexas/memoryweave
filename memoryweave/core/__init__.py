@@ -5,7 +5,7 @@ This module is completely deprecated. Please use the component-based architectur
 
 Migration guide:
 - Use memoryweave.components.memory_manager.MemoryManager instead of ContextualMemory
-- Use memoryweave.components.retriever.Retriever instead of ContextualRetriever 
+- Use memoryweave.components.retriever.Retriever instead of ContextualRetriever
 - Use memoryweave.adapters for bridge components during migration
 
 See MIGRATION_GUIDE.md for detailed migration instructions.

@@ -160,28 +160,32 @@ class TestPipeline:
         # Create real mock stages with specific behavior
         stage1 = MagicMock(spec=IPipelineStage)
         stage1.process.return_value = {"processed_by": "stage1", "data": "modified"}
-        
+
         stage2 = MagicMock(spec=IPipelineStage)
+
         # Define the side effect as a function to correctly handle the input
         def stage2_process(data):
             return {
                 "processed_by": data["processed_by"] + ",stage2",
                 "data": data["data"],
-                "additional": "value"
+                "additional": "value",
             }
+
         stage2.process.side_effect = stage2_process
-        
+
         stage3 = MagicMock(spec=IPipelineStage)
+
         # Define the side effect for stage3
         def stage3_process(data):
             return {
                 "processed_by": data["processed_by"] + ",stage3",
                 "data": data["data"],
                 "additional": data["additional"],
-                "final": True
+                "final": True,
             }
+
         stage3.process.side_effect = stage3_process
-        
+
         mock_stages = [stage1, stage2, stage3]
         pipeline = Pipeline(mock_stages)
 
@@ -191,7 +195,7 @@ class TestPipeline:
 
         # Verify each stage was called
         stage1.process.assert_called_once_with(input_data)
-        
+
         # Add a check that the output has the expected elements
         assert "processed_by" in output_data
         assert output_data["processed_by"] == "stage1,stage2,stage3"

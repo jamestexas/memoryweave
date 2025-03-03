@@ -11,7 +11,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 
@@ -39,7 +39,7 @@ class MemorySeries:
 
     name: str
     description: str
-    memory_indices: List[int]
+    memory_indices: list[int]
     temporal_order: bool = True  # Whether the series has a temporal ordering
 
 
@@ -48,10 +48,10 @@ class SemanticMemory:
     """Enhanced memory representation with semantic relationships."""
 
     text: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
     embedding: np.ndarray
     timestamp: datetime
-    related_memories: List[MemoryRelationship] = field(default_factory=list)
+    related_memories: list[MemoryRelationship] = field(default_factory=list)
     importance: float = 0.5  # 0.0 to 1.0
 
 
@@ -83,17 +83,17 @@ class SemanticDataGenerator:
         random.seed(random_seed)
         np.random.seed(random_seed)
 
-        # Set up embedding model
+        # set up embedding model
         self.embedding_model = embedding_model
         if self.embedding_model is None and HAS_SENTENCE_TRANSFORMERS:
             self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
         # Initialize storage
-        self.memories: List[SemanticMemory] = []
-        self.memory_series: List[MemorySeries] = []
+        self.memories: list[SemanticMemory] = []
+        self.memory_series: list[MemorySeries] = []
         self.query_templates = self._load_query_templates()
 
-    def _load_query_templates(self) -> Dict[str, Any]:
+    def _load_query_templates(self) -> dict[str, Any]:
         """Load query templates for different query types."""
         return {
             "factual": [
@@ -232,7 +232,7 @@ class SemanticDataGenerator:
 
         return "The opposite is true: " + original_text.replace("not ", "")
 
-    def generate_memory_series(self, num_series: int) -> List[MemorySeries]:
+    def generate_memory_series(self, num_series: int) -> list[MemorySeries]:
         """Generate series of related memories."""
         if not self.memories:
             raise ValueError("No memories generated yet. Call generate_memories first.")
@@ -364,8 +364,8 @@ class SemanticDataGenerator:
         return contradiction_count
 
     def generate_memories(
-        self, num_memories: int = 100, categories: Optional[List[str]] = None
-    ) -> List[SemanticMemory]:
+        self, num_memories: int = 100, categories: Optional[list[str]] = None
+    ) -> list[SemanticMemory]:
         """Generate semantically structured memories."""
         # Define default categories if not provided
         if categories is None:
@@ -598,8 +598,8 @@ class SemanticDataGenerator:
             self.memories[source_idx].related_memories.append(relationship)
 
     def generate_queries(
-        self, num_queries: int = 20, query_types: Optional[List[str]] = None
-    ) -> List[Dict[str, Any]]:
+        self, num_queries: int = 20, query_types: Optional[list[str]] = None
+    ) -> list[dict[str, Any]]:
         """Generate semantically meaningful queries with known relevant memories."""
         if not self.memories:
             raise ValueError("No memories generated yet. Call generate_memories first.")
@@ -659,7 +659,7 @@ class SemanticDataGenerator:
 
         return queries
 
-    def _select_relevant_memories(self, query_type: str, used_indices: Set[int]) -> List[int]:
+    def _select_relevant_memories(self, query_type: str, used_indices: set[int]) -> list[int]:
         """Select relevant memories for a query based on type."""
         # Initialize result
         relevant_indices = []
@@ -845,8 +845,8 @@ class SemanticDataGenerator:
         return relevant_indices
 
     def _fill_query_template(
-        self, template: str, query_type: str, relevant_indices: List[int]
-    ) -> Tuple[str, Dict[str, Any]]:
+        self, template: str, query_type: str, relevant_indices: list[int]
+    ) -> tuple[str, dict[str, Any]]:
         """Fill a query template with data from relevant memories."""
         template_data = {}
 
@@ -994,7 +994,7 @@ class SemanticDataGenerator:
 
         return filled_template, template_data
 
-    def _generate_expected_answer(self, query: str, relevant_indices: List[int]) -> str:
+    def _generate_expected_answer(self, query: str, relevant_indices: list[int]) -> str:
         """Generate expected answer for a query based on relevant memories."""
         if not relevant_indices:
             return "No relevant information available."
@@ -1151,7 +1151,7 @@ def generate_semantic_dataset(
     contradiction_rate: float = 0.1,
     complexity: str = "medium",
     random_seed: int = 42,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Generate a complete semantic dataset for evaluation.
 
@@ -1165,7 +1165,7 @@ def generate_semantic_dataset(
         random_seed: Random seed for reproducibility
 
     Returns:
-        Dictionary containing the generated dataset
+        dictionary containing the generated dataset
     """
     # Create generator
     generator = SemanticDataGenerator(random_seed=random_seed, complexity=complexity)

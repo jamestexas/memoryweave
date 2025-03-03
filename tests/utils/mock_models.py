@@ -121,21 +121,23 @@ class MockMemory:
 
         # Calculate similarities
         similarities = np.dot(self.memory_embeddings, query_embedding)
-        
+
         # Apply confidence threshold
         valid_indices = np.where(similarities >= confidence_threshold)[0]
-        
+
         # Return empty list if no memories pass threshold
         if len(valid_indices) == 0:
             return []
-            
+
         # Get top-k indices from valid indices
         if top_k >= len(valid_indices):
             top_relative_indices = np.argsort(-similarities[valid_indices])
         else:
             top_relative_indices = np.argpartition(-similarities[valid_indices], top_k)[:top_k]
-            top_relative_indices = top_relative_indices[np.argsort(-similarities[valid_indices][top_relative_indices])]
-            
+            top_relative_indices = top_relative_indices[
+                np.argsort(-similarities[valid_indices][top_relative_indices])
+            ]
+
         # Get the actual indices
         top_indices = valid_indices[top_relative_indices]
 

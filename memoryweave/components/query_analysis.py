@@ -55,7 +55,7 @@ class QueryAnalyzer(RetrievalComponent):
         query_lower = query.lower()
 
         # Special handling for test cases
-        
+
         # Personal queries - check first to prioritize these for tests
         if any(
             pattern in query_lower
@@ -65,7 +65,7 @@ class QueryAnalyzer(RetrievalComponent):
                 "what is my favorite",
                 "tell me about my job",
                 "who is my wife",
-                "my job"  # Added to match "Tell me about my job"
+                "my job",  # Added to match "Tell me about my job"
             ]
         ):
             return "personal"

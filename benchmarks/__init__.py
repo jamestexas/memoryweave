@@ -8,7 +8,4 @@ memory retrieval approaches in MemoryWeave.
 from benchmarks.memory_retrieval_benchmark import MemoryRetrievalBenchmark
 from benchmarks.contextual_fabric_benchmark import ContextualFabricBenchmark
 
-__all__ = [
-    "MemoryRetrievalBenchmark",
-    "ContextualFabricBenchmark"
-]
+__all__ = ["MemoryRetrievalBenchmark", "ContextualFabricBenchmark"]

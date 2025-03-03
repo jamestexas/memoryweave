@@ -21,13 +21,13 @@ from memoryweave.interfaces.memory import IMemoryStore, MemoryID
 class ActivationManager(Component):
     """
     Component that manages activation levels for memories in the system.
-    
+
     This component implements:
     1. Memory activation tracking
     2. Spreading activation through associative links
     3. Decay functions for activation over time
     4. Visualization of activation patterns
-    
+
     The activation mechanisms simulate how real memory systems access and
     retrieve information through associative patterns.
     """
@@ -35,11 +35,11 @@ class ActivationManager(Component):
     def __init__(
         self,
         memory_store: Optional[IMemoryStore] = None,
-        associative_linker: Optional[AssociativeMemoryLinker] = None
+        associative_linker: Optional[AssociativeMemoryLinker] = None,
     ):
         """
         Initialize the activation manager.
-        
+
         Args:
             memory_store: Optional memory store to manage activations for
             associative_linker: Optional associative memory linker for spreading activation
@@ -66,7 +66,7 @@ class ActivationManager(Component):
     def initialize(self, config: Dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
-        
+
         Args:
             config: Configuration dictionary with parameters:
                 - base_activation: Base activation level for memories (default: 0.1)
@@ -115,7 +115,9 @@ class ActivationManager(Component):
                 self.activation_levels[memory.id] = self.base_activation
 
             # Track activation time
-            self.activation_timestamps[memory.id] = memory.metadata.get("last_accessed", current_time)
+            self.activation_timestamps[memory.id] = memory.metadata.get(
+                "last_accessed", current_time
+            )
 
             # Initialize history
             self.activation_history[memory.id] = [(current_time, self.activation_levels[memory.id])]
@@ -124,19 +126,16 @@ class ActivationManager(Component):
         self.last_update_time = current_time
 
     def activate_memory(
-        self,
-        memory_id: MemoryID,
-        activation_level: float = 1.0,
-        spread: bool = True
+        self, memory_id: MemoryID, activation_level: float = 1.0, spread: bool = True
     ) -> Dict[MemoryID, float]:
         """
         Activate a specific memory and optionally spread activation.
-        
+
         Args:
             memory_id: ID of the memory to activate
             activation_level: Activation level to set (default: 1.0)
             spread: Whether to spread activation to connected memories (default: True)
-            
+
         Returns:
             Dictionary mapping memory IDs to their updated activation levels
         """
@@ -157,10 +156,9 @@ class ActivationManager(Component):
         # Update memory store if available
         if self.memory_store is not None:
             try:
-                self.memory_store.update_metadata(memory_id, {
-                    "activation": activation_level,
-                    "last_accessed": current_time
-                })
+                self.memory_store.update_metadata(
+                    memory_id, {"activation": activation_level, "last_accessed": current_time}
+                )
             except KeyError:
                 # Memory might not exist in store
                 pass
@@ -174,14 +172,16 @@ class ActivationManager(Component):
 
         return activated_memories
 
-    def _spread_activation(self, source_id: MemoryID, source_activation: float) -> Dict[MemoryID, float]:
+    def _spread_activation(
+        self, source_id: MemoryID, source_activation: float
+    ) -> Dict[MemoryID, float]:
         """
         Spread activation from a source memory through associative links.
-        
+
         Args:
             source_id: ID of the source memory
             source_activation: Activation level of the source memory
-            
+
         Returns:
             Dictionary mapping memory IDs to their updated activation levels
         """
@@ -190,9 +190,7 @@ class ActivationManager(Component):
 
         # Use associative linker to traverse network
         activations = self.associative_linker.traverse_associative_network(
-            start_id=source_id,
-            max_hops=self.max_spreading_hops,
-            min_strength=0.1
+            start_id=source_id, max_hops=self.max_spreading_hops, min_strength=0.1
         )
 
         # Remove source memory from results
@@ -228,11 +226,14 @@ class ActivationManager(Component):
             # Update memory store if available
             if self.memory_store is not None:
                 try:
-                    self.memory_store.update_metadata(memory_id, {
-                        "activation": new_activation,
-                        "activation_source": source_id,
-                        "last_accessed": current_time
-                    })
+                    self.memory_store.update_metadata(
+                        memory_id,
+                        {
+                            "activation": new_activation,
+                            "activation_source": source_id,
+                            "last_accessed": current_time,
+                        },
+                    )
                 except KeyError:
                     # Memory might not exist in store
                     pass
@@ -245,7 +246,7 @@ class ActivationManager(Component):
     def apply_activation_decay(self, current_time: Optional[float] = None) -> None:
         """
         Apply activation decay to all memories.
-        
+
         Args:
             current_time: Current timestamp for decay calculation (default: current time)
         """
@@ -287,9 +288,7 @@ class ActivationManager(Component):
             # Update memory store if available
             if self.memory_store is not None:
                 try:
-                    self.memory_store.update_metadata(memory_id, {
-                        "activation": decayed_activation
-                    })
+                    self.memory_store.update_metadata(memory_id, {"activation": decayed_activation})
                 except KeyError:
                     # Memory might not exist in store
                     pass
@@ -300,10 +299,10 @@ class ActivationManager(Component):
     def get_activation_level(self, memory_id: MemoryID) -> float:
         """
         Get the current activation level for a memory.
-        
+
         Args:
             memory_id: ID of the memory
-            
+
         Returns:
             Current activation level (0.0-1.0)
         """
@@ -312,10 +311,10 @@ class ActivationManager(Component):
     def get_activated_memories(self, threshold: Optional[float] = None) -> Dict[MemoryID, float]:
         """
         Get all memories with activation above a threshold.
-        
+
         Args:
             threshold: Activation threshold (default: self.activation_threshold)
-            
+
         Returns:
             Dictionary mapping memory IDs to activation levels
         """
@@ -335,23 +334,25 @@ class ActivationManager(Component):
     def get_activation_history(self, memory_id: MemoryID) -> List[Tuple[float, float]]:
         """
         Get activation history for a memory.
-        
+
         Args:
             memory_id: ID of the memory
-            
+
         Returns:
             List of (timestamp, activation) tuples
         """
         return self.activation_history.get(memory_id, [])
 
-    def boost_by_recency(self, results: List[Dict[str, Any]], boost_factor: float = 2.0) -> List[Dict[str, Any]]:
+    def boost_by_recency(
+        self, results: List[Dict[str, Any]], boost_factor: float = 2.0
+    ) -> List[Dict[str, Any]]:
         """
         Boost retrieval results by activation level.
-        
+
         Args:
             results: Retrieval results to boost
             boost_factor: Maximum boost factor (default: 2.0)
-            
+
         Returns:
             Boosted results with updated relevance scores
         """
@@ -397,10 +398,10 @@ class ActivationManager(Component):
     def generate_activation_heatmap(self, top_k: int = 20) -> Dict[str, Any]:
         """
         Generate data for visualizing activation heatmap.
-        
+
         Args:
             top_k: Number of top activated memories to include
-            
+
         Returns:
             Dictionary with heatmap data
         """
@@ -408,11 +409,9 @@ class ActivationManager(Component):
         self.apply_activation_decay()
 
         # Get top activated memories
-        activations = sorted(
-            self.activation_levels.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )[:top_k]
+        activations = sorted(self.activation_levels.items(), key=lambda x: x[1], reverse=True)[
+            :top_k
+        ]
 
         # Format for visualization
         memory_ids = [memory_id for memory_id, _ in activations]
@@ -441,13 +440,13 @@ class ActivationManager(Component):
             "memory_ids": memory_ids,
             "activation_values": activation_values,
             "memory_contents": memory_contents,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
     def get_activation_pattern(self) -> Dict[str, Any]:
         """
         Get the current activation pattern across all memories.
-        
+
         Returns:
             Dictionary with activation pattern data
         """
@@ -456,7 +455,9 @@ class ActivationManager(Component):
 
         # Calculate activation statistics
         total_memories = len(self.activation_levels)
-        activated_memories = sum(1 for a in self.activation_levels.values() if a >= self.activation_threshold)
+        activated_memories = sum(
+            1 for a in self.activation_levels.values() if a >= self.activation_threshold
+        )
         average_activation = sum(self.activation_levels.values()) / max(1, total_memories)
 
         # Find activation clusters (memories that are similar in activation)
@@ -472,5 +473,5 @@ class ActivationManager(Component):
             "average_activation": average_activation,
             "activation_distribution": hist.tolist(),
             "activation_bins": bins,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
