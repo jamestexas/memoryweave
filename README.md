@@ -363,7 +363,7 @@ While MemoryWeave has undergone significant architectural improvements, there ar
 - Limited testing with large-scale models and large memory stores
 - No persistence layer for long-term storage
 - Query analyzer needs improvements for certain query types
-- Performance could be further optimized for large memory sets
+- ✅ Performance with large memory sets is now optimized through ANN implementation
 - Vector retrieval performance in benchmarks lags behind BM25 for some query types
 - Hybrid retrieval still needs tuning to combine BM25 and vector advantages
 
@@ -374,7 +374,7 @@ See the [ROADMAP.md](ROADMAP.md) file for detailed information on planned develo
 
 - Fix and improve query analyzer accuracy
 - Add persistence layer for long-term memory storage
-- Optimize performance for large memory sets
+- ✅ Optimize performance for large memory sets (implemented ANN search)
 - Improve hybrid retrieval to combine BM25 and vector search advantages
 - Expand benchmarking datasets for more diverse query types
 - Implement visualization improvements for benchmark results

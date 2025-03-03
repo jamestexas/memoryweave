@@ -17,7 +17,14 @@ from memoryweave.interfaces.memory import (
 from memoryweave.storage.activation import ActivationManager, TemporalActivationManager
 from memoryweave.storage.category import CategoryManager
 from memoryweave.storage.memory_store import MemoryStore
-from memoryweave.storage.vector_store import ActivationVectorStore, SimpleVectorStore
+from memoryweave.storage.vector_store import (
+    ActivationVectorStore, 
+    SimpleVectorStore,
+    ANNVectorStore,
+    ANNActivationVectorStore,
+    get_optimal_faiss_config,
+    VectorStoreScaleType
+)
 
 
 class MemoryFactory:
@@ -78,11 +85,55 @@ class MemoryFactory:
         if not is_valid:
             raise ConfigValidationError(errors, "vector_store")
 
+        # Get the scale setting (auto, small, medium, large)
+        scale = merged_config.get("scale", "auto")
+        dimension = merged_config.get("dimension", 768)
+        
+        # If memory count is provided explicitly, set scale based on that
+        memory_count = merged_config.get("memory_count", 0)
+        if memory_count > 0:
+            if memory_count < 100:
+                scale = "small"
+            elif memory_count < 500:
+                scale = "medium"
+            else:
+                scale = "large"
+        
+        # Get optimization parameters based on scale
+        faiss_config = get_optimal_faiss_config(scale, dimension)
+        
         # Check if we should use activation-weighted store
-        if merged_config.get("activation_weight", 0.0) > 0:
-            return ActivationVectorStore(activation_weight=merged_config["activation_weight"])
+        activation_weight = merged_config.get("activation_weight", 0.0)
+        use_ann = merged_config.get("use_ann", True)
+        
+        # Create the appropriate vector store based on settings
+        if not use_ann:
+            # Use simple implementations without ANN
+            if activation_weight > 0:
+                return ActivationVectorStore(activation_weight=activation_weight)
+            else:
+                return SimpleVectorStore()
         else:
-            return SimpleVectorStore()
+            # Use ANN-based implementations
+            if activation_weight > 0:
+                return ANNActivationVectorStore(
+                    activation_weight=activation_weight,
+                    dimension=dimension,
+                    index_type=faiss_config["index_type"],
+                    metric=merged_config.get("metric", "cosine"),
+                    nprobe=faiss_config["nprobe"],
+                    build_threshold=faiss_config["build_threshold"],
+                    quantize=faiss_config["quantize"],
+                )
+            else:
+                return ANNVectorStore(
+                    dimension=dimension,
+                    index_type=faiss_config["index_type"],
+                    metric=merged_config.get("metric", "cosine"),
+                    nprobe=faiss_config["nprobe"],
+                    build_threshold=faiss_config["build_threshold"],
+                    quantize=faiss_config["quantize"],
+                )
 
     @staticmethod
     def create_activation_manager(config: Optional[Dict[str, Any]] = None) -> IActivationManager:

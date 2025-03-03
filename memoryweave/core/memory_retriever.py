@@ -2,9 +2,15 @@
 Memory retriever implementation for MemoryWeave.
 """
 
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+
+try:
+    import faiss
+    FAISS_AVAILABLE = True
+except ImportError:
+    FAISS_AVAILABLE = False
 
 
 class MemoryRetriever:
@@ -20,6 +26,7 @@ class MemoryRetriever:
         adaptive_retrieval: bool = False,
         semantic_coherence_check: bool = False,
         coherence_threshold: float = 0.2,
+        use_ann: bool = True,
     ):
         """
         Initialize the memory retriever.
@@ -31,6 +38,7 @@ class MemoryRetriever:
             adaptive_retrieval: Whether to use adaptive k selection based on relevance distribution
             semantic_coherence_check: Whether to check semantic coherence of retrieved memories
             coherence_threshold: Threshold for semantic coherence between memories
+            use_ann: Whether to use Approximate Nearest Neighbor search for efficient retrieval at scale
         """
         self.core_memory = core_memory
         self.category_manager = category_manager
@@ -38,6 +46,19 @@ class MemoryRetriever:
         self.adaptive_retrieval = adaptive_retrieval
         self.semantic_coherence_check = semantic_coherence_check
         self.coherence_threshold = coherence_threshold
+        self.use_ann = use_ann
+        
+        # Initialize ANN index if enabled and available
+        self.ann_index = None
+        self.ann_id_mapping = {}
+        self.memory_count = 0
+        self.ann_initialized = False
+        
+        # Only use ANN if FAISS is available
+        self.use_ann = self.use_ann and FAISS_AVAILABLE
+        
+        if self.use_ann:
+            self._initialize_ann_index()
 
     def retrieve_memories(
         self,
@@ -149,32 +170,71 @@ class MemoryRetriever:
                 confidence_threshold=confidence_threshold,
             )
 
-        # Otherwise, implement the retrieval logic here
-        # Compute similarities
-        similarities = np.dot(self.core_memory.memory_embeddings, query_embedding)
-
-        # Apply activation boosting if enabled
-        if activation_boost:
-            similarities = similarities * self.core_memory.activation_levels
-
-        # Filter by confidence threshold if specified
-        valid_indices = np.where(similarities >= confidence_threshold)[0]
-        if len(valid_indices) == 0:
-            return []
-
-        valid_similarities = similarities[valid_indices]
-
-        # Get top-k indices
-        if top_k >= len(valid_similarities):
-            top_relative_indices = np.argsort(-valid_similarities)
+        # Check if using ANN and if the memory is large enough to benefit
+        memory_count = len(self.core_memory.memory_embeddings)
+        use_ann = self.use_ann and memory_count >= 100  # Only use ANN for 100+ memories
+        
+        # Update ANN index if needed
+        if use_ann and (memory_count != self.memory_count or not self.ann_initialized):
+            self._initialize_ann_index()
+        
+        # Use approximate nearest neighbor search if enabled and index is available
+        if use_ann and self.ann_index is not None:
+            # Get results using ANN
+            top_indices, similarities = self._retrieve_with_ann(
+                query_embedding, 
+                top_k, 
+                confidence_threshold
+            )
+            
+            # Apply activation boosting if enabled
+            if activation_boost and len(top_indices) > 0:
+                # Get activation levels
+                activations = self.core_memory.activation_levels[top_indices]
+                # Normalize activations to 0-1 range
+                if len(activations) > 0:
+                    max_activation = max(activations) if max(activations) > 0 else 1.0
+                    normalized_activations = activations / max_activation
+                    # Combine similarity and activation (weighted by memory size)
+                    # Gradually reduce activation weight as memory store grows
+                    activation_weight = 0.2 * (100 / max(100, memory_count))**0.5
+                    activation_weight = max(0.05, min(0.2, activation_weight))
+                    
+                    # Apply activation boost to similarities
+                    similarities = (1 - activation_weight) * similarities + activation_weight * normalized_activations
+                    
+                    # Re-sort by combined score
+                    sorted_indices = np.argsort(-similarities)
+                    top_indices = top_indices[sorted_indices]
+                    similarities = similarities[sorted_indices]
         else:
-            top_relative_indices = np.argpartition(-valid_similarities, top_k)[:top_k]
-            top_relative_indices = top_relative_indices[
-                np.argsort(-valid_similarities[top_relative_indices])
-            ]
-
-        # Convert back to original indices
-        top_indices = valid_indices[top_relative_indices]
+            # Otherwise, implement the standard retrieval logic
+            # Compute similarities
+            similarities = np.dot(self.core_memory.memory_embeddings, query_embedding)
+    
+            # Apply activation boosting if enabled
+            if activation_boost:
+                similarities = similarities * self.core_memory.activation_levels
+    
+            # Filter by confidence threshold if specified
+            valid_indices = np.where(similarities >= confidence_threshold)[0]
+            if len(valid_indices) == 0:
+                return []
+    
+            valid_similarities = similarities[valid_indices]
+    
+            # Get top-k indices
+            if top_k >= len(valid_similarities):
+                top_relative_indices = np.argsort(-valid_similarities)
+            else:
+                top_relative_indices = np.argpartition(-valid_similarities, top_k)[:top_k]
+                top_relative_indices = top_relative_indices[
+                    np.argsort(-valid_similarities[top_relative_indices])
+                ]
+    
+            # Convert back to original indices
+            top_indices = valid_indices[top_relative_indices]
+            similarities = similarities[top_indices]
 
         # Update activation levels for retrieved memories
         for idx in top_indices:
@@ -196,6 +256,121 @@ class MemoryRetriever:
                 break
 
         return results
+        
+    def _initialize_ann_index(self) -> None:
+        """Initialize the ANN index for fast vector search."""
+        if not self.use_ann or not FAISS_AVAILABLE:
+            return
+            
+        try:
+            # Get memory embeddings
+            embeddings = self.core_memory.memory_embeddings
+            memory_count = len(embeddings)
+            
+            # Skip if no embeddings
+            if memory_count == 0:
+                return
+            
+            # Determine embedding dimension
+            dimension = embeddings.shape[1]
+            
+            # Choose index type based on memory size
+            if memory_count < 100:
+                # For small memory sets, use exact search
+                index = faiss.IndexFlatIP(dimension)
+            elif memory_count < 500:
+                # For medium memory sets, use IVF with fewer clusters
+                nlist = min(100, memory_count // 5)  # Rule of thumb: nlist ~= sqrt(N) * 4
+                quantizer = faiss.IndexFlatIP(dimension)
+                index = faiss.IndexIVFFlat(quantizer, dimension, nlist, faiss.METRIC_INNER_PRODUCT)
+                index.nprobe = min(10, nlist)  # Number of clusters to search
+            else:
+                # For large memory sets, use IVF with more clusters
+                nlist = min(256, memory_count // 4)
+                quantizer = faiss.IndexFlatIP(dimension)
+                index = faiss.IndexIVFFlat(quantizer, dimension, nlist, faiss.METRIC_INNER_PRODUCT)
+                index.nprobe = min(16, nlist // 2)  # More clusters to search for better recall
+            
+            # Create ID mapping
+            ids = np.arange(memory_count, dtype=np.int64)
+            self.ann_id_mapping = {i: i for i in range(memory_count)}
+            
+            # Normalize vectors for inner product search (equivalent to cosine similarity)
+            normalized_embeddings = embeddings.copy()
+            faiss.normalize_L2(normalized_embeddings)
+            
+            # For IVF indexes, we need to train first
+            if isinstance(index, faiss.IndexIVFFlat):
+                index.train(normalized_embeddings)
+            
+            # Add vectors to index
+            if hasattr(index, 'add_with_ids'):
+                index.add_with_ids(normalized_embeddings, ids)
+            else:
+                # Create index with ID mapping
+                index_with_ids = faiss.IndexIDMap(index)
+                index_with_ids.add_with_ids(normalized_embeddings, ids)
+                index = index_with_ids
+            
+            # Store index and count
+            self.ann_index = index
+            self.memory_count = memory_count
+            self.ann_initialized = True
+            
+        except Exception as e:
+            # Fallback to standard retrieval in case of errors
+            print(f"ANN initialization error: {e}")
+            self.ann_index = None
+            self.ann_initialized = False
+    
+    def _retrieve_with_ann(
+        self, 
+        query_embedding: np.ndarray, 
+        top_k: int, 
+        confidence_threshold: float
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Retrieve memories using ANN search."""
+        # Ensure valid parameters
+        if not self.ann_initialized or self.ann_index is None:
+            # Fallback to empty results
+            return np.array([], dtype=np.int64), np.array([], dtype=np.float32)
+        
+        # Normalize query for inner product search
+        query_norm = np.linalg.norm(query_embedding)
+        if query_norm > 0:
+            query_embedding = query_embedding / query_norm
+        
+        # Get more candidates than needed for filtering
+        k_search = min(top_k * 3, self.memory_count)
+        
+        # Search the index
+        try:
+            D, I = self.ann_index.search(np.array([query_embedding]), k_search)
+            
+            # Filter by threshold if specified
+            if confidence_threshold > 0:
+                mask = D[0] >= confidence_threshold
+                I = I[0][mask]
+                D = D[0][mask]
+            else:
+                I = I[0]
+                D = D[0]
+                
+            # Filter out invalid IDs
+            valid_mask = I >= 0
+            I = I[valid_mask]
+            D = D[valid_mask]
+            
+            # Limit to top-k
+            if len(I) > top_k:
+                I = I[:top_k]
+                D = D[:top_k]
+                
+            return I, D
+        except Exception as e:
+            # Fallback to empty results in case of errors
+            print(f"ANN search error: {e}")
+            return np.array([], dtype=np.int64), np.array([], dtype=np.float32)
 
     def _retrieve_with_categories(
         self,
