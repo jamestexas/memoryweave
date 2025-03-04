@@ -33,6 +33,9 @@ from memoryweave.components.activation import ActivationManager
 class MemoryStoreAdapter:
     """
     Adapter class to make MemoryStore compatible with ContextualFabricStrategy.
+    
+    This improved version properly maps between integer indices and string memory IDs
+    to prevent "Memory not found" errors.
     """
     
     def __init__(self, memory_store):
@@ -42,11 +45,14 @@ class MemoryStoreAdapter:
         self._embeddings_matrix = None
         self._metadata_dict = None
         self._ids_list = None
+        # Important: Map between integer indices (used by the strategy) and string IDs (used by memory store)
+        self._index_to_id_map = {}
     
     @property
     def memory_embeddings(self):
         """
         Property that returns all embeddings as a numpy matrix.
+        This is used by ContextualFabricStrategy for similarity computations.
         """
         if self._embeddings_matrix is None:
             self._build_cache()
@@ -56,6 +62,7 @@ class MemoryStoreAdapter:
     def memory_metadata(self):
         """
         Property that returns all metadata as a list.
+        This is used by ContextualFabricStrategy to access memory metadata.
         """
         if self._metadata_dict is None:
             self._build_cache()
@@ -63,35 +70,102 @@ class MemoryStoreAdapter:
     
     def _build_cache(self):
         """Build cache of embeddings and metadata for efficient access."""
-        # Get all memories
-        memories = self.memory_store.get_all()
-        
-        # If there are no memories, set empty values
-        if not memories:
-            self._embeddings_matrix = np.zeros((0, 384))  # Empty array with embedding dimension
+        try:
+            # Get all memories
+            print("DEBUG: Building memory adapter cache")
+            memories = self.memory_store.get_all()
+            
+            # If there are no memories, set empty values
+            if not memories:
+                self._embeddings_matrix = np.zeros((0, 384))  # Empty array with embedding dimension
+                self._metadata_dict = []
+                self._ids_list = []
+                self._index_to_id_map = {}
+                print("DEBUG: No memories found")
+                return
+            
+            # Extract embeddings into a matrix
+            embeddings = []
+            metadata_list = []
+            ids_list = []
+            
+            # Reset the ID mapping
+            self._index_to_id_map = {}
+            
+            # Build arrays in synchronized order
+            for idx, memory in enumerate(memories):
+                try:
+                    # Store the memory's embedding
+                    embeddings.append(memory.embedding)
+                    
+                    # Store the memory's metadata - make sure it's a dict
+                    if hasattr(memory, 'metadata') and memory.metadata is not None:
+                        metadata = memory.metadata.copy() if isinstance(memory.metadata, dict) else {"data": str(memory.metadata)}
+                    else:
+                        metadata = {}
+                    
+                    # Add memory_id field to metadata so strategy can find it
+                    metadata["memory_id"] = idx  # Use the INDEX as the memory_id for the strategy
+                    metadata["original_id"] = memory.id  # Store the original string ID for reference
+                    metadata_list.append(metadata)
+                    
+                    # Store the memory's ID
+                    ids_list.append(memory.id)
+                    
+                    # Map the index to the actual memory ID
+                    self._index_to_id_map[idx] = memory.id
+                except Exception as e:
+                    print(f"DEBUG: Error processing memory {memory.id}: {e}")
+            
+            # Convert to numpy array
+            self._embeddings_matrix = np.stack(embeddings) if embeddings else np.zeros((0, 384))
+            self._metadata_dict = metadata_list
+            self._ids_list = ids_list
+            
+            print(f"DEBUG: Built cache with {len(embeddings)} memories")
+            print(f"DEBUG: ID map has {len(self._index_to_id_map)} entries")
+            
+        except Exception as e:
+            print(f"ERROR in _build_cache: {e}")
+            import traceback
+            traceback.print_exc()
+            # Initialize with empty values
+            self._embeddings_matrix = np.zeros((0, 384))
             self._metadata_dict = []
             self._ids_list = []
-            return
-        
-        # Extract embeddings into a matrix
-        embeddings = [memory.embedding for memory in memories]
-        self._embeddings_matrix = np.stack(embeddings) if embeddings else np.array([])
-        
-        # Build metadata list in the same order
-        self._metadata_dict = [memory.metadata for memory in memories]
-        
-        # Store IDs in the same order
-        self._ids_list = [memory.id for memory in memories]
+            self._index_to_id_map = {}
     
     def invalidate_cache(self):
         """Invalidate the cache when memories change."""
         self._embeddings_matrix = None
         self._metadata_dict = None
         self._ids_list = None
+        self._index_to_id_map = {}
     
     def get(self, memory_id):
-        """Get a memory by ID, same as the original memory store."""
-        return self.memory_store.get(memory_id)
+        """
+        Get a memory by ID, translating between index and string ID if needed.
+        
+        Args:
+            memory_id: Either an integer index or string memory ID
+        """
+        # Check if memory_id is an integer index
+        if isinstance(memory_id, int) or memory_id.isdigit():
+            idx = int(memory_id)
+            # Convert to string ID if it's in our map
+            if idx in self._index_to_id_map:
+                actual_id = self._index_to_id_map[idx]
+                print(f"DEBUG: Translated index {idx} to ID {actual_id}")
+                return self.memory_store.get(actual_id)
+            else:
+                # Try direct lookup as fallback
+                try:
+                    return self.memory_store.get(str(memory_id))
+                except:
+                    raise KeyError(f"Memory with index {memory_id} not found in index map")
+        else:
+            # It's already a string ID, use directly
+            return self.memory_store.get(memory_id)
     
     def add(self, embedding, content, metadata=None):
         """Add a memory, same as the original memory store."""
@@ -275,7 +349,6 @@ class MemoryWeaveLLM:
             self.memory_store_adapter.invalidate_cache()
             
             # Use the retrieve method instead of process_query
-            # Make sure we're passing the right parameters
             print("DEBUG: Calling strategy.retrieve")
             relevant_memories = self.strategy.retrieve(
                 query_embedding=query_embedding,
@@ -291,26 +364,50 @@ class MemoryWeaveLLM:
             formatted_memories = []
             for result in relevant_memories:
                 try:
-                    # Extract content and metadata
+                    # Extract content and metadata properly
                     memory_id = result.get("memory_id")
+                    
                     if memory_id is not None:
-                        # Get the full memory from the store
-                        memory = self.memory_store.get(memory_id)
-                        # Format it for the rest of the code
+                        # Access the original string ID from our metadata
+                        if "original_id" in result:
+                            original_id = result["original_id"]
+                            print(f"DEBUG: Using original_id {original_id} for memory_id {memory_id}")
+                            # Get memory directly using the original ID
+                            memory = self.memory_store.get(original_id)
+                        else:
+                            # Use our adapter's get method which handles ID translation
+                            memory = self.memory_store_adapter.get(memory_id)
+                        
+                        # Now we have the memory, format it for the rest of the code
+                        if hasattr(memory, 'content'):
+                            if isinstance(memory.content, dict) and "text" in memory.content:
+                                content = memory.content["text"]
+                            else:
+                                content = str(memory.content)
+                        else:
+                            content = str(memory)
+                            
+                        # Get metadata
+                        metadata = memory.metadata if hasattr(memory, 'metadata') else {}
+                        
                         formatted_memory = {
-                            "content": memory.content["text"] if isinstance(memory.content, dict) and "text" in memory.content else str(memory.content),
-                            "metadata": memory.metadata,
+                            "content": content,
+                            "metadata": metadata,
                             "relevance_score": result.get("relevance_score", 0.5)
                         }
                         formatted_memories.append(formatted_memory)
+                        print(f"DEBUG: Successfully retrieved memory with content: {content[:30]}...")
                 except Exception as memory_err:
                     print(f"Error retrieving memory {memory_id}: {memory_err}")
+                    import traceback
+                    traceback.print_exc()
             
             relevant_memories = formatted_memories
             print(f"DEBUG: Retrieved {len(relevant_memories)} memories")
             
         except Exception as e:
             print(f"Error using contextual_fabric strategy: {e}")
+            import traceback
             traceback.print_exc()
             # Fall back to simpler retrieval if needed
             relevant_memories = []
@@ -408,6 +505,7 @@ class MemoryWeaveLLM:
             system_prompt += f"\n\n{memory_text}"
             system_prompt += "\nCRITICAL INSTRUCTION: When asked ANY questions about the user (their name, location, preferences, pets, hobbies, food likes, etc.), you MUST use ONLY the information provided above to answer. NEVER claim you don't know this information or that you can't access it. If the information IS provided above, use it with confidence. If it's NOT provided above, only then should you say you don't have that specific information."
 
+        # Rest of the method remains the same...
         # Format history for the model
         history_text = ""
         for msg in self.conversation_history[-5:]:  # Last 5 exchanges only
