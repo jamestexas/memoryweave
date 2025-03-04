@@ -63,13 +63,17 @@ class MemoryWeaveLLM:
         # First initialize components
         self.retriever.initialize_components()
         
-        # Then configure all features AFTER initialization
-        self.retriever._configure_all_features(enable=True)
+        # Then explicitly configure each feature for better control
+        self.retriever.configure_query_type_adaptation(enable=True, adaptation_strength=1.0)
+        self.retriever.configure_semantic_coherence(enable=True)
+        self.retriever.configure_two_stage_retrieval(enable=True, first_stage_k=30, first_stage_threshold_factor=0.5)
+        self.retriever.enable_dynamic_threshold_adjustment(enable=True, window_size=3)
         
-        # Individual feature configuration can be uncommented if needed
-        # self.retriever.configure_query_type_adaptation(enable=True)
-        # self.retriever.configure_semantic_coherence(enable=True)
-        # self.retriever.configure_two_stage_retrieval(enable=True)
+        # Set the default retrieval strategy to TwoStage
+        self.retriever.retrieval_strategy = self.retriever.memory_manager.components.get("two_stage_retrieval")
+        
+        # Force rebuild the pipeline to ensure all settings take effect
+        self.retriever._build_default_pipeline()
 
         # Track conversation for context
         self.conversation_history = []
@@ -157,15 +161,15 @@ class MemoryWeaveLLM:
                         pref = pref.replace("User preference:", "").strip()
                     memory_text += f"- {pref}\n"
 
-            # Add instruction to use this information subtly
-            memory_text += "\nUse this information to personalize your responses naturally. Don't explicitly mention that you're using stored information.\n\n"
+            # Add stronger instruction to use this information
+            memory_text += "\nIMPORTANT: Use ALL of this information to personalize your responses. Don't explicitly state you're using stored information, but DON'T claim you don't know this information. Incorporate it naturally in your answers.\n\n"
 
         # 3. Prepare prompt with conversation history and memories
         system_prompt = "You are a helpful assistant. Provide accurate, relevant responses based on the conversation context."
 
         if memory_text:
             system_prompt += f"\n\n{memory_text}"
-            system_prompt += "\nIMPORTANT: When asked specifically about the user (their name, location, preferences, pets, etc.), ALWAYS use the information above to answer. Never say you don't know when this information is provided."
+            system_prompt += "\nCRITICAL INSTRUCTION: When asked ANY questions about the user (their name, location, preferences, pets, hobbies, food likes, etc.), you MUST use ONLY the information provided above to answer. NEVER claim you don't know this information or that you can't access it. If the information IS provided above, use it with confidence. If it's NOT provided above, only then should you say you don't have that specific information."
 
         # Format history for the model
         history_text = ""
