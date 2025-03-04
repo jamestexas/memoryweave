@@ -17,24 +17,23 @@ Usage:
   python scenario_demo.py --debug
 """
 
-import time
 import logging
+import time
 
 # rich_click as a drop-in for Click to get pretty terminal formatting
 import rich_click as click
-from rich import print
+
+# Our MemoryWeave LLM wrapper (using the compatibility wrapper)
+from memoryweave_llm_wrapper import MemoryWeaveLLM
 from rich.console import Console
 from rich.logging import RichHandler
-
-# Our MemoryWeave LLM wrapper (assumes memoryweave_llm_wrapper.py is in the same directory)
-from memoryweave_llm_wrapper import MemoryWeaveLLM
 
 FORMAT = "%(message)s"
 logging.basicConfig(
     level=logging.INFO,  # default to INFO level
     format=FORMAT,
     datefmt="[%X]",
-    handlers=[RichHandler()]  # route logging through Rich for pretty logs
+    handlers=[RichHandler()],  # route logging through Rich for pretty logs
 )
 logger = logging.getLogger(__name__)
 console = Console(highlight=True)
@@ -74,8 +73,14 @@ def main(model, debug):
 
     conversation = [
         # (User message, short label/description for logging)
-        ("Hello! My name is Mark, and I'm allergic to peanuts. I also have a dog named Max.", "Initial info"),
-        ("Nice to meet you. I'd love to get some Thai food. Any suggestions?", "Allergy-based request"),
+        (
+            "Hello! My name is Mark, and I'm allergic to peanuts. I also have a dog named Max.",
+            "Initial info",
+        ),
+        (
+            "Nice to meet you. I'd love to get some Thai food. Any suggestions?",
+            "Allergy-based request",
+        ),
         ("Actually, I'd like to confirm: what's my dog's name?", "Memory recall check"),
         ("Oh, and do you remember my allergy?", "Another memory recall check"),
     ]
@@ -114,7 +119,7 @@ def main(model, debug):
 
     console.log(
         "[bold magenta]Done![/bold magenta] You can see how personal info (name, allergy, dog's name)"
-        " was stored and reused across multiple turns.\n", 
+        " was stored and reused across multiple turns.\n",
         newline_start=True,
     )
 

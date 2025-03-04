@@ -19,12 +19,13 @@ import secrets
 import time
 
 import numpy as np
-
-# Import our wrapper class
-from memoryweave_llm_wrapper import MemoryWeaveLLM, _get_device, get_llm, get_tokenizer
+from memoryweave_llm_wrapper import MemoryWeaveLLM, _get_device
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
+
+# Import the API and compatibility wrapper
+from memoryweave.api import MemoryWeaveAPI
 
 # Setup console and logging
 console = Console()
@@ -172,21 +173,21 @@ class MemoryBenchmark:
     def __init__(self, model_name=DEFAULT_MODEL):
         self.model_name = model_name
         self.device = _get_device()
-        self.tokenizer = get_tokenizer(model_name)
-        self.model = get_llm(model_name, device=self.device)
 
         # Create the memory systems to compare
         # 1. MemoryWeave
+        self.api = MemoryWeaveAPI(model_name=model_name)
+
+        # Create the compatibility wrapper for older examples
         self.memoryweave = MemoryWeaveLLM(model_name=model_name)
 
         # 2. Simple vector memory
-        self.vector_memory = SimpleVectorMemory(self.memoryweave.embedding_model)
+        self.vector_memory = SimpleVectorMemory(self.api.embedding_model)
 
         # 3. Recency-biased memory
-        self.recency_memory = RecencyMemory(self.memoryweave.embedding_model)
+        self.recency_memory = RecencyMemory(self.api.embedding_model)
 
-        # 4. No memory - we'll just use the bare model
-        # (No setup needed)
+        # 4. No memory - we'll just use the bare model without memory features
 
         self.results = {
             "memoryweave": {"correct": 0, "partial": 0, "incorrect": 0, "total": 0},
@@ -203,9 +204,10 @@ class MemoryBenchmark:
         facts = random.sample(TEST_FACTS, 4)  # Use 4 facts per trial
 
         # Clear memories between trials
+        self.api = MemoryWeaveAPI(model_name=self.model_name)
         self.memoryweave = MemoryWeaveLLM(model_name=self.model_name)
-        self.vector_memory = SimpleVectorMemory(self.memoryweave.embedding_model)
-        self.recency_memory = RecencyMemory(self.memoryweave.embedding_model)
+        self.vector_memory = SimpleVectorMemory(self.api.embedding_model)
+        self.recency_memory = RecencyMemory(self.api.embedding_model)
 
         # Phase 1: Inject facts with conversation drift between them
         console.print("[bold]Phase 1: Injecting facts with conversation drift[/bold]")
@@ -280,7 +282,7 @@ class MemoryBenchmark:
             self._update_results("recency", recency_score)
 
             # Test No Memory
-            no_memory_response = self.memoryweave.chat_without_memory(question)
+            no_memory_response = self.api.chat_without_memory(question)
             no_memory_score = self._evaluate_recall(no_memory_response, keywords)
             console.print(f"[red]No memory response:[/red] {no_memory_response[:80]}...")
             console.print(f"Score: {no_memory_score}")
@@ -361,7 +363,7 @@ class MemoryBenchmark:
     def _generate_with_context(self, question, context_items):
         """Generate a response using the LLM with provided context."""
         if not context_items:
-            return self.memoryweave.chat_without_memory(question)
+            return self.api.chat_without_memory(question)
 
         # Create a simple context-augmented prompt
         context_text = "\n".join(context_items)
@@ -374,23 +376,14 @@ Based on this context, please answer the user's question:
 User: {question}
 """
 
-        # Generate response
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-        with np.errstate(all="ignore"):  # Ignore numpy warnings
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=100,
-                temperature=0.7,
-                do_sample=True,
-                top_p=0.9,
-            )
+        # Generate response directly from the API
+        response = self.api.chat_without_memory(prompt)
 
-        full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-        # Extract just the assistant's response
-        assistant_response = full_response.split("User: " + question)[-1].strip()
-
-        return assistant_response
+        # Extract just the assistant's response (if needed)
+        if "User: " + question in response:
+            assistant_response = response.split("User: " + question)[-1].strip()
+            return assistant_response
+        return response
 
     def display_results(self):
         """Display the benchmark results."""
@@ -460,8 +453,23 @@ User: {question}
             )
 
 
+def run_benchmark(model_name, num_trials):
+    """Run the memory benchmark."""
+    console.print(f"[bold]Running Memory Benchmark with model: {model_name}[/bold]")
+    console.print(f"Number of trials: {num_trials}")
+
+    benchmark = MemoryBenchmark(model_name=model_name)
+
+    for i in range(1, num_trials + 1):
+        benchmark.run_trial(i)
+
+    console.print("\n[bold]Benchmark Results[/bold]")
+    benchmark.display_results()
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Compare different memory system approaches")
+    """Run the benchmark script."""
+    parser = argparse.ArgumentParser(description="Compare memory system approaches.")
     parser.add_argument(
         "--model",
         type=str,
@@ -474,28 +482,15 @@ def main():
         default=DEFAULT_TRIALS,
         help=f"Number of trials to run (default: {DEFAULT_TRIALS})",
     )
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug logging for more detailed output",
-    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
 
-    # Set up debug logging if requested
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
         console.print("[yellow]Debug logging enabled[/yellow]")
 
-    benchmark = MemoryBenchmark(model_name=args.model)
-
-    # Run the specified number of trials
-    for trial in range(1, args.trials + 1):
-        benchmark.run_trial(trial)
-
-    # Display the results
-    console.print("\n[bold cyan]Final Results[/bold cyan]")
-    benchmark.display_results()
+    run_benchmark(args.model, args.trials)
 
 
 if __name__ == "__main__":

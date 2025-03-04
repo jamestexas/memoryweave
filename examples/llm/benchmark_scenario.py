@@ -9,24 +9,20 @@ answers for correctness.
 """
 
 import logging
-import os
-import sys
 import time
 
 import rich_click as click
+
+# Import our wrapper class
+from memoryweave_llm_wrapper import MemoryWeaveLLM
 from rich import print
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
 
-# Adjust path if memoryweave_llm_wrapper.py is one folder up or in the same dir:
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from memoryweave_llm_wrapper import MemoryWeaveLLM
-
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 
-# We’ll define some user facts that we want to share and then quiz the LLM about.
+# We'll define some user facts that we want to share and then quiz the LLM about.
 USER_FACTS = [
     # (fact statement, question, expected substring)
     ("I am Alicia", "What's my name?", ["Alicia"]),
@@ -43,8 +39,6 @@ USER_FACTS = [
 
 # We can optionally lead into these facts with a preamble:
 PREAMBLE = "Hello, I'd like to share some details about myself:\n"
-
-# We'll ask the LLM about them after we've inserted them into conversation.
 
 console = Console()
 FORMAT = "%(message)s"
@@ -195,16 +189,16 @@ def main(model, debug):
     # Possibly enable debug
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
-        print("[yellow]Debug logging is enabled[/yellow]")
+        print("[yellow]Debug logging enabled[/yellow]")
 
     # 1) Run with memory
-    with_mem_results, with_mem_times, with_mem_history = run_benchmark(model, True)
+    with_mem_results, with_mem_times, _with_mem_history = run_benchmark(model, True)
     # Summarize
     with_mem_stats = summarize_results(with_mem_results)
     with_mem_avg = sum(with_mem_times) / len(with_mem_times)
 
     # 2) Run no memory
-    no_mem_results, no_mem_times, no_mem_history = run_benchmark(model, False)
+    no_mem_results, no_mem_times, _no_mem_history = run_benchmark(model, False)
     # Summarize
     no_mem_stats = summarize_results(no_mem_results)
     no_mem_avg = sum(no_mem_times) / len(no_mem_times)

@@ -7,20 +7,16 @@ including factual recall, conversational context, and nuanced queries.
 """
 
 import logging
-import os
-import sys
 import time
 
 import rich_click as click
+
+# Import our wrapper class
+from memoryweave_llm_wrapper import MemoryWeaveLLM
 from rich import print
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
-
-# Adjust path if memoryweave_llm_wrapper.py is one folder up or in the same dir:
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from memoryweave_llm_wrapper import MemoryWeaveLLM
 
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 
@@ -69,18 +65,8 @@ TEST_SCENARIOS = [
         "long_term",
     ),
     # 5. Ambiguous Questions
-    (
-        "I enjoy playing music.",
-        "What do I like to do?",
-        ["music", "play"],
-        "ambiguous"
-    ),
-    (
-        "Today is a beautiful day.",
-        "How is the weather?",
-        ["beautiful", "day"],
-        "ambiguous"
-    )
+    ("I enjoy playing music.", "What do I like to do?", ["music", "play"], "ambiguous"),
+    ("Today is a beautiful day.", "How is the weather?", ["beautiful", "day"], "ambiguous"),
 ]
 
 PREAMBLE = "Let's talk about me."
@@ -99,7 +85,10 @@ logger = logging.getLogger(__name__)
 def run_benchmark(model_name: str, with_memory: bool):
     llm = MemoryWeaveLLM(model_name=model_name)
     mode_label = "WITH Memory" if with_memory else "NO Memory"
-    logger.info(f"\n[bold cyan]--- Running Benchmark in mode: {mode_label} ---[/bold cyan]", extra=dict(markup=True))
+    logger.info(
+        f"\n[bold cyan]--- Running Benchmark in mode: {mode_label} ---[/bold cyan]",
+        extra=dict(markup=True),
+    )
 
     query_times = []
     results = []
@@ -128,7 +117,10 @@ def run_benchmark(model_name: str, with_memory: bool):
         elapsed = time.time() - start_time
         query_times.append(elapsed)
 
-        logger.info(f"[bold green]Assistant:[/bold green] {assistant_reply} (took {elapsed:.2f}s)\n", extra=dict(markup=True))
+        logger.info(
+            f"[bold green]Assistant:[/bold green] {assistant_reply} (took {elapsed:.2f}s)\n",
+            extra=dict(markup=True),
+        )
 
         assistant_lower = assistant_reply.lower()
         found_count = sum(1 for es in expected_substrs if es.lower() in assistant_lower)
@@ -157,7 +149,12 @@ def summarize_results(results):
             stats["failures"] += 1
 
         if scenario_type not in scenario_stats:
-            scenario_stats[scenario_type] = {"successes": 0, "failures": 0, "partial": 0, "total": 0}
+            scenario_stats[scenario_type] = {
+                "successes": 0,
+                "failures": 0,
+                "partial": 0,
+                "total": 0,
+            }
         scenario_stats[scenario_type]["total"] += 1
         if code == "success":
             scenario_stats[scenario_type]["successes"] += 1
@@ -173,6 +170,7 @@ def summarize_results(results):
     else:
         stats["score"] = (points / possible) * 100.0
     return stats, scenario_stats
+
 
 def display_table(name: str, stats: dict, avg_time: float, scenario_stats: dict):
     table = Table(title=f"{name} Results")
@@ -193,11 +191,18 @@ def display_table(name: str, stats: dict, avg_time: float, scenario_stats: dict)
     scenario_table.add_column("Failures", style="red")
     scenario_table.add_column("Partial", style="yellow")
     for scenario, s_stats in scenario_stats.items():
-        scenario_table.add_row(scenario, str(s_stats["successes"]), str(s_stats["failures"]), str(s_stats["partial"]))
+        scenario_table.add_row(
+            scenario, str(s_stats["successes"]), str(s_stats["failures"]), str(s_stats["partial"])
+        )
     console.print(scenario_table)
 
+
 @click.command()
-@click.option("--model", default=DEFAULT_MODEL, help=f"Name of the Hugging Face model to load (default: {DEFAULT_MODEL})")
+@click.option(
+    "--model",
+    default=DEFAULT_MODEL,
+    help=f"Name of the Hugging Face model to load (default: {DEFAULT_MODEL})",
+)
 @click.option("--debug", is_flag=True, help="Enable debug logging for more detailed output.")
 def main(model, debug):
     if debug:
@@ -216,7 +221,9 @@ def main(model, debug):
     display_table("NO Memory", no_mem_stats, no_mem_avg, no_mem_scenario_stats)
 
     improvement = with_mem_stats["score"] - no_mem_stats["score"]
-    logger.info(f"\n[bold cyan]Score improvement with memory: {improvement:.1f} percentage points[/bold cyan]")
+    logger.info(
+        f"\n[bold cyan]Score improvement with memory: {improvement:.1f} percentage points[/bold cyan]"
+    )
 
 
 if __name__ == "__main__":

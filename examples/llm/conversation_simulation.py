@@ -5,20 +5,17 @@ This script demonstrates how MemoryWeave improves conversation quality
 by comparing conversations with and without memory capabilities.
 """
 
-import argparse
 import logging
-import os
-import sys
 import time
 
+import rich_click as click
+
+# Import the compatibility wrapper
 from memoryweave_llm_wrapper import MemoryWeaveLLM
 from rich import print
 from rich.console import Console
-from rich.table import Table
 from rich.logging import RichHandler
-
-# Add the parent directory to the path so we can import the module
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from rich.table import Table
 
 # Default model to use
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
@@ -26,9 +23,7 @@ DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 # Create a rich console for pretty output
 console = Console()
 FORMAT = "%(message)s"
-logging.basicConfig(
-    level="NOTSET", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
-)
+logging.basicConfig(level="NOTSET", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()])
 logger = logging.getLogger(__name__)
 
 
@@ -110,13 +105,15 @@ def run_simulation(model_name: str, with_memory: bool = True):
     # Initialize the LLM system
     llm = MemoryWeaveLLM(model_name=model_name)
 
+    # Pre-seed with personal information
+    if with_memory:
+        llm.add_memory("My name is James and I live in Boston.")
+        llm.add_memory("I have a dog named Max who is very playful.")
+        llm.add_memory("I love pizza with mushrooms, it's my favorite food.")
+        llm.add_memory("On weekends, I enjoy hiking in the nearby mountains.")
+
     # Track query response times
     query_times = []
-
-    # [REMOVED PRE-SEEDING BLOCK HERE]
-    # ───────────────────────────────────────────────
-    # Previously: Adding personal info and preferences
-    # ───────────────────────────────────────────────
 
     # Simulation 1: Basic conversation without memory references
     print("\n=== Conversation 1: Small Talk ===")
@@ -143,46 +140,6 @@ def run_simulation(model_name: str, with_memory: bool = True):
             if with_memory
             else llm.chat_without_memory(
                 "I'm doing well. What can you help me with?", max_new_tokens=100
-            )
-        )
-        elapsed = time.time() - start_time
-        query_times.append(elapsed)
-        print(f"Assistant ({elapsed:.2f}s): {response}\n")
-    except Exception as e:
-        print(f"Error: {e}")
-        return llm.get_conversation_history() if with_memory else [], {"error": str(e)}
-
-    # Simulation 2: Personal preference being stored
-    print("\n=== Conversation 2: Sharing Preferences ===")
-    print("User: I really like pizza with mushrooms. It's my favorite food.")
-    start_time = time.time()
-    try:
-        response = (
-            llm.chat(
-                "I really like pizza with mushrooms. It's my favorite food.", max_new_tokens=100
-            )
-            if with_memory
-            else llm.chat_without_memory(
-                "I really like pizza with mushrooms. It's my favorite food.", max_new_tokens=100
-            )
-        )
-        elapsed = time.time() - start_time
-        query_times.append(elapsed)
-        print(f"Assistant ({elapsed:.2f}s): {response}\n")
-    except Exception as e:
-        print(f"Error: {e}")
-        return llm.get_conversation_history() if with_memory else [], {"error": str(e)}
-
-    print("User: I also enjoy hiking on the weekends when the weather is nice.")
-    start_time = time.time()
-    try:
-        response = (
-            llm.chat(
-                "I also enjoy hiking on the weekends when the weather is nice.", max_new_tokens=100
-            )
-            if with_memory
-            else llm.chat_without_memory(
-                "I also enjoy hiking on the weekends when the weather is nice.", max_new_tokens=100
             )
         )
         elapsed = time.time() - start_time
@@ -376,75 +333,36 @@ def display_metrics(with_memory_metrics, no_memory_metrics):
         console.print("\n[green]✓ Memory processing did not increase response time[/green]")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Run a simulated conversation with MemoryWeave")
-    parser.add_argument(
-        "--model",
-        type=str,
-        default=DEFAULT_MODEL,
-        help=f"Hugging Face model name (default: {DEFAULT_MODEL})",
-    )
-    parser.add_argument(
-        "--no-memory", action="store_true", help="Disable MemoryWeave features for comparison"
-    )
-    parser.add_argument(
-        "--compare",
-        action="store_true",
-        help="Run two simulations with and without memory for comparison",
-    )
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-
-    args = parser.parse_args()
-
+@click.command(short_help="Run a simulated conversation with MemoryWeave")
+@click.option(
+    "--model",
+    type=str,
+    default=DEFAULT_MODEL,
+    help=f"Hugging Face model name (default: {DEFAULT_MODEL})",
+)
+@click.option("--no-memory", is_flag=True, help="Disable MemoryWeave features for comparison")
+@click.option(
+    "--compare",
+    is_flag=True,
+    help="Run two simulations with and without memory for comparison",
+)
+@click.option("--debug", is_flag=True, help="Enable debug logging")
+def main(model, no_memory, compare, debug):
     # Set up debug logging if requested
-    if args.debug:
-        import logging
-
-        logging.basicConfig(
-            level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        # Enable specific library logging
-        logging.getLogger("memoryweave").setLevel(logging.DEBUG)
+    if debug:
+        logging.getLogger().setLevel(logging.DEBUG)
         console.print("[yellow]Debug logging enabled[/yellow]")
 
-        # Log memory retrieval content
-        def debug_memory_hook(fn):
-            def wrapper(*args, **kwargs):
-                console.print("[cyan]DEBUG: Memory retrieval requested[/cyan]")
-                results = fn(*args, **kwargs)
-                console.print(f"[cyan]DEBUG: Retrieved {len(results)} memories[/cyan]")
-                for i, mem in enumerate(results):
-                    if isinstance(mem, dict):
-                        content = mem.get("content", "No content")
-                        mem_type = mem.get("metadata", {}).get("type", "unknown")
-                        score = mem.get("relevance_score", 0)
-                        console.print(
-                            f"[cyan]DEBUG: Memory {i + 1}: {mem_type} - {score:.3f} - {content}[/cyan]"
-                        )
-                return results
-
-            return wrapper
-
-        # Try to patch the retriever with our debug hook
-        try:
-            from memoryweave_llm_wrapper import MemoryWeaveLLM
-
-            original_retrieve = MemoryWeaveLLM.chat
-            MemoryWeaveLLM.chat = debug_memory_hook(original_retrieve)
-            console.print("[green]DEBUG: Successfully patched memory retrieval for logging[/green]")
-        except Exception as e:
-            console.print(f"[red]DEBUG: Failed to patch memory retrieval: {e}[/red]")
-
-    if args.compare:
+    if compare:
         console.print("\n" + "=" * 80)
         console.print("[bold green]RUNNING SIMULATION WITH MEMORY ENABLED[/bold green]")
         console.print("=" * 80)
-        with_memory_history, with_memory_metrics = run_simulation(args.model, with_memory=True)
+        _with_memory_history, with_memory_metrics = run_simulation(model, with_memory=True)
 
         console.print("\n" + "=" * 80)
         console.print("[bold yellow]RUNNING SIMULATION WITH MEMORY DISABLED[/bold yellow]")
         console.print("=" * 80)
-        no_memory_history, no_memory_metrics = run_simulation(args.model, with_memory=False)
+        _no_memory_history, no_memory_metrics = run_simulation(model, with_memory=False)
 
         # Compare results with detailed metrics
         console.print("\n" + "=" * 80)
@@ -453,116 +371,16 @@ def main():
 
         display_metrics(with_memory_metrics, no_memory_metrics)
 
-        # Analyze per-question performance
-        console.print("\n[bold]Per-Question Analysis:[/bold]")
-        expected_recalls = {
-            "Where do I live?": ["Boston"],
-            "What's my pet's name?": ["dog", "Max"],
-            "What food do I like?": ["pizza", "mushrooms"],
-            "What activities do I enjoy?": ["hiking", "weekends"],
-            "Tell me about myself and what I enjoy.": [
-                "James",
-                "Boston",
-                "dog",
-                "Max",
-                "pizza",
-                "hiking",
-            ],
-        }
-
-        for question, expected in expected_recalls.items():
-            console.print(f"\n[bold]Question:[/bold] {question}")
-            console.print(f"[bold]Expected information:[/bold] {', '.join(expected)}")
-
-            # Find responses in histories
-            with_memory_response = ""
-            without_memory_response = ""
-
-            # Process with_memory_history
-            for i in range(0, len(with_memory_history), 2):
-                if (
-                    i + 1 < len(with_memory_history)
-                    and with_memory_history[i]["content"] == question
-                ):
-                    with_memory_response = with_memory_history[i + 1]["content"]
-                    break
-
-            console.print(f"[bold green]With memory:[/bold green] {with_memory_response}")
-            if not with_memory_response:
-                console.print("[yellow]  No response found in history[/yellow]")
-
-            # Check which expected items were found
-            if with_memory_response:
-                found_items = [
-                    item for item in expected if item.lower() in with_memory_response.lower()
-                ]
-                if found_items:
-                    console.print(f"[green]  Found: {', '.join(found_items)}[/green]")
-                missing_items = [
-                    item for item in expected if item.lower() not in with_memory_response.lower()
-                ]
-                if missing_items:
-                    console.print(f"[yellow]  Missing: {', '.join(missing_items)}[/yellow]")
-
     else:
-        history, metrics = run_simulation(args.model, with_memory=not args.no_memory)
+        _history, metrics = run_simulation(model, with_memory=not no_memory)
 
         # Display metrics for single run
         console.print("\n" + "=" * 80)
         console.print("[bold cyan]SIMULATION RESULTS[/bold cyan]")
         console.print("=" * 80)
 
-        memory_status = "enabled" if not args.no_memory else "disabled"
+        memory_status = "enabled" if not no_memory else "disabled"
         console.print(f"MemoryWeave was [bold]{memory_status}[/bold] for this simulation.")
-
-        # Print the memory store content after simulation
-        if not args.no_memory:
-            try:
-                memory_count = 0
-                memory_types = {}
-
-                # Try to peek into llm's memory store if possible
-                import inspect
-
-                frame = inspect.currentframe()
-                if "llm" in frame.f_locals:
-                    llm = frame.f_locals["llm"]
-                    if hasattr(llm, "memory_manager") and hasattr(
-                        llm.memory_manager, "memory_store"
-                    ):
-                        memory_store = llm.memory_manager.memory_store
-                        if hasattr(memory_store, "memories"):
-                            memories = memory_store.memories
-                            memory_count = len(memories)
-
-                            console.print("\n[bold]DEBUG: Memory Store Contents[/bold]")
-                            console.print(f"Total memories stored: {memory_count}")
-
-                            # Count by type
-                            for mem_id, mem in memories.items():
-                                if hasattr(mem, "metadata") and "type" in mem.metadata:
-                                    mem_type = mem.metadata["type"]
-                                    memory_types[mem_type] = memory_types.get(mem_type, 0) + 1
-
-                                # Print first 10 memories
-                                if len(memory_types) < 10:
-                                    try:
-                                        content = (
-                                            mem.content if hasattr(mem, "content") else "No content"
-                                        )
-                                        metadata = mem.metadata if hasattr(mem, "metadata") else {}
-                                        console.print(
-                                            f"  Memory {mem_id}: {metadata.get('type', 'unknown')} - {content[:50]}..."
-                                        )
-                                    except:
-                                        pass
-
-                            # Print memory type counts
-                            console.print("\nMemory types:")
-                            for mem_type, count in memory_types.items():
-                                console.print(f"  {mem_type}: {count}")
-            except Exception as e:
-                console.print(f"[red]Error accessing memory store: {e}[/red]")
 
         # Display metrics
         recall_score = metrics.get("recall", {}).get("score", 0)
