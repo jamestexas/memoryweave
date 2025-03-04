@@ -137,6 +137,44 @@ class Retriever:
         self.memory_manager.register_component(
             "hybrid_bm25_vector_retrieval", hybrid_bm25_vector_retrieval
         )
+        
+        # Import and register Contextual Fabric Strategy
+        from memoryweave.components.retrieval_strategies import ContextualFabricStrategy
+        from memoryweave.components.activation import ActivationManager
+        from memoryweave.components.associative_linking import AssociativeMemoryLinker
+        from memoryweave.components.temporal_context import TemporalContextBuilder
+        
+        # Create required components for the contextual fabric strategy
+        activation_manager = ActivationManager()
+        associative_linker = AssociativeMemoryLinker()
+        temporal_context = TemporalContextBuilder()
+        
+        # Register the helper components
+        self.memory_manager.register_component("activation_manager", activation_manager)
+        self.memory_manager.register_component("associative_linker", associative_linker)
+        self.memory_manager.register_component("temporal_context", temporal_context)
+        
+        # Create and initialize the contextual fabric strategy
+        contextual_fabric = ContextualFabricStrategy(
+            memory_store=self.memory,
+            associative_linker=associative_linker,
+            temporal_context=temporal_context,
+            activation_manager=activation_manager
+        )
+        
+        # Initialize with default configuration
+        contextual_fabric.initialize({
+            "confidence_threshold": self.minimum_relevance,
+            "similarity_weight": 0.5,
+            "associative_weight": 0.3,
+            "temporal_weight": 0.1,
+            "activation_weight": 0.1,
+            "activation_boost_factor": 1.5,
+            "memory_store": self.memory
+        })
+        
+        # Register the strategy
+        self.memory_manager.register_component("contextual_fabric_strategy", contextual_fabric)
 
         # Create and initialize post-processors
         keyword_processor = KeywordBoostProcessor()
@@ -498,6 +536,8 @@ class Retriever:
                         component_name = "two_stage_retrieval"
                     elif strategy == "bm25_hybrid" or strategy == "hybrid_bm25":
                         component_name = "hybrid_bm25_vector_retrieval"
+                    elif strategy == "contextual_fabric":
+                        component_name = "contextual_fabric_strategy"
                     else:  # Default to hybrid
                         component_name = "hybrid_retrieval"
 
