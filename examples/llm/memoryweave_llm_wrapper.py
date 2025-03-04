@@ -59,12 +59,17 @@ class MemoryWeaveLLM:
         # Setup MemoryWeave
         self.memory_manager = MemoryManager()
         self.retriever = Retriever(memory=self.memory_manager, embedding_model=self.embedding_model)
-
-        # Configure the retriever for balanced performance
-        self.retriever.configure_query_type_adaptation(enable=True)
-        self.retriever.configure_semantic_coherence(enable=True)
-        self.retriever.configure_two_stage_retrieval(enable=True)
+        
+        # First initialize components
         self.retriever.initialize_components()
+        
+        # Then configure all features AFTER initialization
+        self.retriever._configure_all_features(enable=True)
+        
+        # Individual feature configuration can be uncommented if needed
+        # self.retriever.configure_query_type_adaptation(enable=True)
+        # self.retriever.configure_semantic_coherence(enable=True)
+        # self.retriever.configure_two_stage_retrieval(enable=True)
 
         # Track conversation for context
         self.conversation_history = []
@@ -81,13 +86,24 @@ class MemoryWeaveLLM:
             The assistant's response
         """
         # 1. Retrieve relevant memories
-        relevant_memories = self.retriever.retrieve(user_message, top_k=5)
+
+        # Use the TwoStageRetrievalStrategy for better results
+        relevant_memories = self.retriever.retrieve(
+            user_message,
+            top_k=10,  # Retrieve more memories to improve recall
+            strategy="two_stage",  # Use the two-stage retrieval strategy
+            conversation_history=self.conversation_history,
+        )
+        print(f"DEBUG: Retrieved {len(relevant_memories)} memories")
 
         # 2. Format memories for the prompt in a more structured way
         memory_text = ""
         facts_about_user = []
         preferences = []
 
+        # Sort memories by relevance score to prioritize the most relevant ones
+        relevant_memories.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+        
         # Categorize and extract structured information from memories
         for memory in relevant_memories:
             if not memory or not isinstance(memory, dict):
@@ -95,7 +111,12 @@ class MemoryWeaveLLM:
 
             memory_type = memory.get("metadata", {}).get("type", "")
             content = memory.get("content", "")
-
+            score = memory.get("relevance_score", 0)
+            
+            # Skip lower quality memories (only use if score is reasonable)
+            if score < 0.1:  # Skip very low relevance memories
+                continue
+                
             # Skip conversation memories to reduce noise
             if memory_type in ["user_message", "assistant_message"]:
                 continue
@@ -106,9 +127,13 @@ class MemoryWeaveLLM:
                 or memory_type == "location"
                 or memory_type == "pet_name"
             ):
-                facts_about_user.append(content)
+                # Avoid duplicates
+                if content not in facts_about_user:
+                    facts_about_user.append(content)
             elif memory_type == "preference":
-                preferences.append(content)
+                # Avoid duplicates
+                if content not in preferences:
+                    preferences.append(content)
 
         # Format user information in a clean, structured way
         if facts_about_user or preferences:
@@ -140,6 +165,7 @@ class MemoryWeaveLLM:
 
         if memory_text:
             system_prompt += f"\n\n{memory_text}"
+            system_prompt += "\nIMPORTANT: When asked specifically about the user (their name, location, preferences, pets, etc.), ALWAYS use the information above to answer. Never say you don't know when this information is provided."
 
         # Format history for the model
         history_text = ""
@@ -185,9 +211,18 @@ class MemoryWeaveLLM:
 
     def _store_interaction(self, user_message: str, assistant_message: str):
         """Store the conversation turn in MemoryWeave."""
+        # Store the user's message with proper analysis for better retrieval later
+        
+        # First, try to extract personal information from user messages
+        # Simple pattern matching for common personal information patterns
+        import re
+        
+        # Patterns for common personal info - could be expanded with more robust NLP
+        location_pattern = r"(?:I live|I'm from|my home|my city|my location|I reside) (?:is |in )?([\w\s,]+)"
+        pet_pattern = r"(?:my pet|my dog|my cat|my animal)(?:'s| is)? (?:called |named )?([\w\s]+)"
+        preference_pattern = r"(?:I (?:like|love|enjoy|prefer)|my favorite) ([\w\s,]+)"
+        
         # Store the user's message
-        # TODO: This could be enhanced with a more sophisticated extraction mechanism
-
         user_embedding = self.embedding_model.encode(user_message)
         self.memory_manager.memory_store.add(
             user_embedding,
@@ -196,8 +231,62 @@ class MemoryWeaveLLM:
                 "type": "user_message",
                 "timestamp": time.time(),
                 "conversation_id": id(self.conversation_history),
+                "importance": 0.7,  # Higher importance for user messages
             },
         )
+        
+        # Extract potential personal information from the message
+        # Location detection
+        location_match = re.search(location_pattern, user_message, re.IGNORECASE)
+        if location_match:
+            location = location_match.group(1).strip()
+            location_text = f"User lives in {location}."
+            location_embedding = self.embedding_model.encode(location_text)
+            self.memory_manager.memory_store.add(
+                location_embedding,
+                location_text,
+                {
+                    "type": "personal_info",
+                    "subtype": "location",
+                    "timestamp": time.time(),
+                    "importance": 0.9,  # Personal info is very important
+                },
+            )
+            print(f"DEBUG: Extracted location: {location}")
+            
+        # Pet detection
+        pet_match = re.search(pet_pattern, user_message, re.IGNORECASE)
+        if pet_match:
+            pet_name = pet_match.group(1).strip()
+            pet_text = f"User has a pet named {pet_name}."
+            pet_embedding = self.embedding_model.encode(pet_text)
+            self.memory_manager.memory_store.add(
+                pet_embedding,
+                pet_text,
+                {
+                    "type": "pet_name",
+                    "timestamp": time.time(),
+                    "importance": 0.8,
+                },
+            )
+            print(f"DEBUG: Extracted pet name: {pet_name}")
+            
+        # Preference detection
+        preference_match = re.search(preference_pattern, user_message, re.IGNORECASE)
+        if preference_match:
+            preference = preference_match.group(1).strip()
+            preference_text = f"User preference: {preference}"
+            preference_embedding = self.embedding_model.encode(preference_text)
+            self.memory_manager.memory_store.add(
+                preference_embedding,
+                preference_text,
+                {
+                    "type": "preference",
+                    "timestamp": time.time(),
+                    "importance": 0.75,
+                },
+            )
+            print(f"DEBUG: Extracted preference: {preference}")
 
         # Store the assistant's response
         assistant_embedding = self.embedding_model.encode(assistant_message)
@@ -208,6 +297,7 @@ class MemoryWeaveLLM:
                 "type": "assistant_message",
                 "timestamp": time.time(),
                 "conversation_id": id(self.conversation_history),
+                "importance": 0.5,  # Lower importance than user messages
             },
         )
 
@@ -218,13 +308,16 @@ class MemoryWeaveLLM:
     ):
         """Add a memory directly to the memory store."""
         if metadata is None:
-            metadata = dict(tyoe="fact", importance=0.7)
+            metadata = dict(type="fact", importance=0.7)
 
         # Get embedding for the text
         embedding = self.embedding_model.encode(text)
 
         # Use the memory_store.add method from MemoryStore
-        self.memory_manager.memory_store.add(embedding, text, metadata)
+        memory_id = self.memory_manager.memory_store.add(embedding, text, metadata)
+        print(f"DEBUG: Added memory with ID {memory_id}: {text}")
+
+        return memory_id
 
     def get_conversation_history(self):
         """Get the current conversation history."""
