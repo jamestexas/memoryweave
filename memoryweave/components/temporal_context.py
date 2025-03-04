@@ -7,6 +7,7 @@ and temporal-aware retrieval. It helps the system understand and leverage time-b
 relationships between memories.
 """
 
+import logging
 import re
 import time
 from collections import defaultdict
@@ -14,11 +15,115 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import numpy as np
+from rich.logging import RichHandler
 from scipy.cluster.hierarchy import fcluster, linkage
 
 from memoryweave.components.base import Component, MemoryComponent
 from memoryweave.components.component_names import ComponentName
 from memoryweave.interfaces.memory import IMemoryStore, MemoryID
+
+logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[RichHandler(markup=True)])
+logger = logging.getLogger(__name__)
+
+# Assuming you have these defined elsewhere:
+DATE_KEYWORDS = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+]
+
+TIME_KEYWORDS = [
+    "morning",
+    "noon",
+    "afternoon",
+    "evening",
+    "night",
+    "midnight",
+    "today",
+    "yesterday",
+    "tomorrow",
+    "tonight",
+    "now",
+    "recent",
+    "before",
+    "after",
+    "last",
+    "next",
+    "previous",
+    "earlier",
+    "later",
+    "week",
+    "month",
+    "year",
+    "decade",
+    "century",
+    "ago",
+]
+
+RELATIVE_TIME_KEYWORDS = [
+    "days",
+    "weeks",
+    "months",
+    "years",
+    "hours",
+    "minutes",
+    "seconds",
+    "day",
+    "week",
+    "month",
+    "year",
+    "hour",
+    "minute",
+    "second",
+]
+
+# Date patterns (example)
+DATE_PATTERNS = [
+    # Create a pattern for date keywords followed by a number
+    re.compile(
+        r"\b(?:{})\s+\d{{1,2}}\b".format("|".join(map(re.escape, DATE_KEYWORDS))),
+        re.IGNORECASE,
+    ),
+    re.compile(r"\d{1,2}/\d{1,2}/\d{4}", re.IGNORECASE),
+    re.compile(r"\d{1,2}-\d{1,2}-\d{4}", re.IGNORECASE),
+    # Add more date patterns here
+]
+
+# Time patterns
+TIME_PATTERNS = [
+    re.compile(r"\b\d{1,2}:\d{2}\s?(am|pm)?\b", re.IGNORECASE),
+    re.compile(r"\b\d{1,2}\s?(am|pm)\b", re.IGNORECASE),
+    # Add more time patterns here
+]
+
+# Relative time patterns
+RELATIVE_TIME_PATTERNS = [
+    re.compile(
+        r"\b(?:{})\s+ago\b".format("|".join(map(re.escape, RELATIVE_TIME_KEYWORDS))),
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:{})\s+(?:from|since)\s+now\b".format(
+            "|".join(map(re.escape, RELATIVE_TIME_KEYWORDS))
+        ),
+        re.IGNORECASE,
+    ),
+]
+
+# Month Day Pattern
+MONTH_DAY_PATTERN = re.compile(
+    r"\b(?:{})\s+(\d{{1,2}})\b".format("|".join(map(re.escape, DATE_KEYWORDS))),
+    re.IGNORECASE,
+)
 
 
 class TemporalDecayComponent(MemoryComponent):
@@ -163,7 +268,6 @@ class TemporalDecayComponent(MemoryComponent):
         self.last_decay_time = current_time
 
 
-
 class TemporalContextBuilder(Component):
     """
     Component that extracts and integrates temporal information into memory contexts.
@@ -236,15 +340,16 @@ class TemporalContextBuilder(Component):
             dictionary of extracted temporal information
         """
         # Initialize result
-        result = {
-            "has_temporal_reference": False,
-            "time_type": None,
-            "relative_time": None,
-            "absolute_time": None,
-            "time_expressions": [],
-            "time_keywords": [],
-            "debug_info": {},
-        }
+        result = dict(
+            has_temporal_reference=False,
+            time_type=None,
+            relative_time=None,
+            absolute_time=None,
+            time_expressions=[],
+            time_keywords=[],
+            debug_info={},
+        )
+        logger.debug(f"extract_time_references output for query '{query}': {result}")
 
         # No query, no temporal references
         if not query:
@@ -253,81 +358,18 @@ class TemporalContextBuilder(Component):
         # Convert to lowercase for keyword matching
         query_lower = query.lower()
 
-        # Check for explicit time expressions
-        # Absolute time patterns (including simple month + day format used in benchmark)
-        date_patterns = [
-            r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b",
-            r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b",
-            r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b",
-            r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?\b",
-            r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
-            r"\b\d{4}-\d{1,2}-\d{1,2}\b",
-        ]
-
-        time_patterns = [r"\b\d{1,2}:\d{2}\s*(?:am|pm)?\b", r"\b\d{1,2}\s*(?:am|pm)\b"]
-
-        # Relative time patterns
-        relative_time_patterns = [
-            r"\b(yesterday|today|tomorrow)\b",
-            r"\blast\s+(week|month|year|weekend|night|evening|morning)\b",
-            r"\bnext\s+(week|month|year|weekend|day)\b",
-            r"\b(a|one|two|three|four|five|six|seven)\s+(day|week|month|year)s?\s+ago\b",
-            r"\bin\s+(a|one|two|three|four|five|six|seven)\s+(day|week|month|year)s?\b",
-            r"\b\d+\s+(day|week|month|year)s?\s+ago\b",
-            r"\bin\s+\d+\s+(day|week|month|year)s?\b",
-        ]
-
-        # Time keywords
-        time_keywords = [
-            "recent",
-            "recently",
-            "latest",
-            "newest",
-            "earlier",
-            "earlier",
-            "before",
-            "after",
-            "during",
-            "previous",
-            "past",
-            "last week",
-            "last month",
-            "this week",
-            "this year",
-            "right now",
-            "current",
-            "previously",
-            "formerly",
-            "when",
-            "old",
-            "new",
-            "ancient",
-            "modern",
-            "morning",
-            "afternoon",
-            "evening",
-            "night",
-        ]
-
         # Check for date patterns
-        for pattern in date_patterns:
-            matches = re.findall(pattern, query, re.IGNORECASE)
+        for pattern in DATE_PATTERNS:
+            matches = pattern.findall(query)
             if matches:
                 result["has_temporal_reference"] = True
                 result["time_type"] = "absolute"
 
-                # Convert matches to strings if they're tuples (capturing groups)
                 string_matches = [m if isinstance(m, str) else " ".join(m) for m in matches]
                 result["time_expressions"].extend(string_matches)
 
-                # Parse absolute date from month + day format
                 for match in string_matches:
-                    # Try to parse "Month DD" format
-                    month_day_match = re.search(
-                        r"(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})",
-                        match,
-                        re.IGNORECASE,
-                    )
+                    month_day_match = MONTH_DAY_PATTERN.search(match)
                     if month_day_match:
                         month_name, day = month_day_match.groups()
                         month_map = {
@@ -346,35 +388,29 @@ class TemporalContextBuilder(Component):
                         }
                         month_num = month_map.get(month_name.lower())
                         if month_num:
-                            # Use current year for "Month DD" format
                             current_year = datetime.now().year
                             try:
-                                # Create datetime object
                                 date_obj = datetime(current_year, month_num, int(day))
-                                # Convert to timestamp
                                 result["absolute_time"] = date_obj.timestamp()
-                                # Also set relative_time to support both retrieval approaches
                                 result["relative_time"] = date_obj.timestamp()
-                                # Store the exact query format for direct episode matching
                                 result["month_day_str"] = f"{month_name.lower()} {day}"
                                 result["debug_info"]["parsed_date"] = date_obj.isoformat()
                                 result["debug_info"]["month_day_str"] = result["month_day_str"]
                                 break
                             except ValueError:
-                                # Invalid date (like April 31)
                                 pass
 
         # Check for time patterns
-        for pattern in time_patterns:
-            matches = re.findall(pattern, query, re.IGNORECASE)
+        for pattern in TIME_PATTERNS:
+            matches = pattern.findall(query)
             if matches:
                 result["has_temporal_reference"] = True
                 result["time_type"] = "absolute"
                 result["time_expressions"].extend(matches)
 
         # Check for relative time patterns
-        for pattern in relative_time_patterns:
-            matches = re.findall(pattern, query, re.IGNORECASE)
+        for pattern in RELATIVE_TIME_PATTERNS:
+            matches = pattern.findall(query)
             if matches:
                 result["has_temporal_reference"] = True
                 result["time_type"] = "relative"
@@ -382,7 +418,6 @@ class TemporalContextBuilder(Component):
                     m if isinstance(m, str) else " ".join(m) for m in matches
                 ])
 
-                # Attempt to parse relative time
                 for match in result["time_expressions"]:
                     parsed_time = self._parse_relative_time(match)
                     if parsed_time:
@@ -394,12 +429,23 @@ class TemporalContextBuilder(Component):
 
         # Check for time keywords
         found_keywords = []
-        for keyword in time_keywords:
+        for keyword in TIME_KEYWORDS:
             if keyword in query_lower:
                 found_keywords.append(keyword)
                 result["has_temporal_reference"] = True
 
         result["time_keywords"] = found_keywords
+
+        # Fallback: if a temporal keyword was found but no relative_time was parsed, default to the start of today.  # noqa: W505
+        if (
+            result["has_temporal_reference"]
+            and result["relative_time"] is None
+            and result["time_keywords"]
+        ):
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+            result["time_type"] = "relative"
+            result["relative_time"] = today
+            result["debug_info"]["default_relative_time"] = "start of today"
 
         return result
 
@@ -413,7 +459,6 @@ class TemporalContextBuilder(Component):
         Returns:
             Timestamp for the expression, or None if parsing fails
         """
-        now = time.time()
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
         # Handle common expressions
@@ -560,7 +605,7 @@ class TemporalContextBuilder(Component):
             Z = linkage(timestamps_array, method="single")
 
             # Form flat clusters with distance threshold based on temporal window
-            # Use absolute time difference instead of scaled value to better match query time references
+            # Use absolute time difference instead of scaled value to better match query time references  # noqa: W505
             # Convert to seconds for consistent units
             threshold = self.temporal_window  # Time window in seconds (e.g., 3600 for 1 hour)
             clusters = fcluster(Z, threshold, criterion="distance")
@@ -1043,4 +1088,3 @@ class TemporalContextBuilder(Component):
         except KeyError:
             # If memory_id not found, just ignore
             pass
-

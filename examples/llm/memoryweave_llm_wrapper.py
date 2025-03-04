@@ -37,6 +37,41 @@ _LLM: AutoModelForCausalLM | None = None
 _DEVICE: str | None = None
 
 
+def _get_device(device: str | None = None) -> str:
+    """Choose a device for running the model."""
+    if torch.mps.is_available():
+        return "mps"
+    elif torch.cuda.is_available():
+        return "cuda"
+    else:
+        return "cpu"
+
+
+def get_tokenizer(model_name: str = DEFAULT_MODEL, **kwargs) -> AutoTokenizer:
+    """Singleton to load a tokenizer."""
+    global _TOKENIZER
+    if _TOKENIZER is None:
+        _TOKENIZER = AutoTokenizer.from_pretrained(model_name, **kwargs)
+    return _TOKENIZER
+
+
+def get_llm(model_name: str = DEFAULT_MODEL, device: str = "mps", **kwargs) -> AutoModelForCausalLM:
+    """Singleton to load a Hugging Face causal LM."""
+    global _LLM, _DEVICE
+    if _LLM is None:
+        _DEVICE = _get_device(device)
+        torch_dtype = torch.float16 if _DEVICE == "cuda" else torch.float32
+
+        print(f"Loading LLM: {model_name}")
+        _LLM = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch_dtype,
+            device_map=_DEVICE,
+            **kwargs,
+        )
+    return _LLM
+
+
 class MemoryStoreAdapter:
     """
     Adapter class to make MemoryStore compatible with ContextualFabricStrategy.
@@ -177,41 +212,6 @@ class MemoryStoreAdapter:
         return results
 
 
-def _get_device(device: str | None = None) -> str:
-    """Choose a device for running the model."""
-    if torch.mps.is_available():
-        return "mps"
-    elif torch.cuda.is_available():
-        return "cuda"
-    else:
-        return "cpu"
-
-
-def get_tokenizer(model_name: str = DEFAULT_MODEL, **kwargs) -> AutoTokenizer:
-    """Singleton to load a tokenizer."""
-    global _TOKENIZER
-    if _TOKENIZER is None:
-        _TOKENIZER = AutoTokenizer.from_pretrained(model_name, **kwargs)
-    return _TOKENIZER
-
-
-def get_llm(model_name: str = DEFAULT_MODEL, device: str = "mps", **kwargs) -> AutoModelForCausalLM:
-    """Singleton to load a Hugging Face causal LM."""
-    global _LLM, _DEVICE
-    if _LLM is None:
-        _DEVICE = _get_device(device)
-        torch_dtype = torch.float16 if _DEVICE == "cuda" else torch.float32
-
-        print(f"Loading LLM: {model_name}")
-        _LLM = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch_dtype,
-            device_map=_DEVICE,
-            **kwargs,
-        )
-    return _LLM
-
-
 class MemoryWeaveLLM:
     """
     A simplified wrapper for using MemoryWeave with local Hugging Face models,
@@ -252,9 +252,9 @@ class MemoryWeaveLLM:
         )
         self.strategy.initialize({
             "confidence_threshold": 0.1,
-            "similarity_weight": 0.5,
+            "similarity_weight": 0.4,  # Reduced from 0.5
             "associative_weight": 0.3,
-            "temporal_weight": 0.1,
+            "temporal_weight": 0.2,  # Increased from 0.1
             "activation_weight": 0.1,
             "max_associative_hops": 2,
             "debug": True,
@@ -520,6 +520,10 @@ class MemoryWeaveLLM:
                 top_p=0.9,
             )
 
-        full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        full_response = self.tokenizer.decode(
+            outputs[0],
+            skip_special_tokens=True,
+            show_progress_bar=False,
+        )
         assistant_response = full_response[len(prompt) :].strip()
         return assistant_response
