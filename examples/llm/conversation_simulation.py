@@ -6,6 +6,7 @@ by comparing conversations with and without memory capabilities.
 """
 
 import argparse
+import logging
 import os
 import sys
 import time
@@ -14,6 +15,7 @@ from memoryweave_llm_wrapper import MemoryWeaveLLM
 from rich import print
 from rich.console import Console
 from rich.table import Table
+from rich.logging import RichHandler
 
 # Add the parent directory to the path so we can import the module
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -23,7 +25,11 @@ DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 
 # Create a rich console for pretty output
 console = Console()
-
+FORMAT = "%(message)s"
+logging.basicConfig(
+    level="NOTSET", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
+)
+logger = logging.getLogger(__name__)
 
 def evaluate_memory_recall(history, expected_recalls):
     """

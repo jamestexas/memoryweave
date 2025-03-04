@@ -6,6 +6,8 @@ from memoryweave.components.pipeline_config import PipelineConfig
 from memoryweave.interfaces.memory import Memory
 from memoryweave.storage.memory_store import MemoryStore
 
+import logging
+logger = logging.getLogger(__name__)
 
 class MemoryManager:
     """
@@ -109,16 +111,25 @@ class MemoryManager:
         if "results" in context:
             pipeline_context["results"] = context["results"]
 
-        for step in self.pipeline:
+        for i, step in enumerate(self.pipeline):
             component = step["component"]
+            logger.debug(
+                f"[MemoryManager.execute_pipeline] BEFORE step {i} ({component.__class__.__name__}): "
+                f"pipeline_context={pipeline_context}"
+            )
 
             # Process the query with the component
             # Note: We no longer reinitialize the component on each query
             # This allows components to maintain state between queries
             step_result = component.process_query(query, pipeline_context)
-
+            logger.debug(
+                f"[MemoryManager.execute_pipeline] AFTER step {i} ({component.__class__.__name__}): "
+                f"step_result={step_result}"
+            )
             # Update the pipeline context with the component's results
             if step_result:
                 pipeline_context.update(step_result)
-
+            logger.debug(
+                f"[MemoryManager.execute_pipeline] pipeline_context is now: {pipeline_context}"
+            )
         return pipeline_context

@@ -49,6 +49,15 @@ class QueryTypeAdapter(RetrievalComponent):
         Returns:
             Updated context with adapted parameters
         """
+        import logging
+        import traceback
+
+        logger = logging.getLogger(__name__)
+
+        logger.debug(
+            f"[QueryTypeAdapter.process_query] Called on adapter id={id(self)} with query='{query[:50]}...'"
+        )
+        logger.debug("Call stack:\n" + "".join(traceback.format_stack(limit=5)))
 
         # Check if query type adaptation is explicitly enabled in context
         enable_query_type_adaptation = context.get("enable_query_type_adaptation", False)
@@ -63,15 +72,15 @@ class QueryTypeAdapter(RetrievalComponent):
 
         # Log context for debugging
         logger.debug(
-            f"QueryTypeAdapter: Context: enable_query_type_adaptation={enable_query_type_adaptation}, config_name={config_name}"
+            f"[QueryTypeAdapter.process_query] enable_query_type_adaptation={enable_query_type_adaptation}, "
+            f"config_name={config_name}, self.adaptation_strength={self.adaptation_strength}"
         )
 
-        # Skip processing if query type adaptation is not enabled for this configuration
+        # If adaptation is disabled, return default params
         if not enable_query_type_adaptation:
             logger.debug(
-                f"QueryTypeAdapter: Skipping - query type adaptation not enabled for config {config_name}"
+                f"[QueryTypeAdapter.process_query] Skipping - query type adaptation not enabled for config '{config_name}'"
             )
-            # Return default params instead of empty dict to ensure consistent behavior
             default_params = {
                 "adapted_retrieval_params": {
                     "confidence_threshold": self.default_confidence_threshold,
@@ -82,37 +91,34 @@ class QueryTypeAdapter(RetrievalComponent):
                     "adapted_by_query_type": False,
                 }
             }
-            logger.debug(f"QueryTypeAdapter: Returning default params: {default_params}")
+            logger.debug(
+                f"[QueryTypeAdapter.process_query] Returning default params: {default_params}"
+            )
             return default_params
 
-        # Log initial state
-        logger.info(
-            f"QueryTypeAdapter.process_query: adaptation_strength={self.adaptation_strength} for config {config_name}"
-        )
-
-        # Don't process if adaptation strength is zero
+        # If adaptation_strength=0, also skip
         if self.adaptation_strength <= 0:
             logger.warning(
-                f"QueryTypeAdapter: adaptation_strength={self.adaptation_strength}, adaptation disabled"
+                f"[QueryTypeAdapter.process_query] adaptation_strength={self.adaptation_strength}, so adaptation disabled"
             )
             return {}
 
-        # Get query type information
+        # Attempt to get a primary_query_type
         primary_type = context.get("primary_query_type")
         if not primary_type:
             logger.warning(
-                "QueryTypeAdapter: No primary_query_type in context, skipping adaptation"
+                "[QueryTypeAdapter.process_query] No primary_query_type in context, skipping adaptation"
             )
             return {}
 
-        # Get parameter recommendations if available
+        # Check for param recommendations
         param_recommendations = context.get("retrieval_param_recommendations", {})
 
         logger.info(
-            f"QueryTypeAdapter.process_query: primary_type={primary_type}, existing recommendations={param_recommendations}"
+            f"[QueryTypeAdapter.process_query] primary_type={primary_type}, existing recommendations={param_recommendations}"
         )
 
-        # Base parameters to adapt
+        # Base parameters
         adapted_params = {
             "confidence_threshold": self.default_confidence_threshold,
             "adaptive_k_factor": self.default_adaptive_k_factor,
@@ -122,34 +128,30 @@ class QueryTypeAdapter(RetrievalComponent):
             "expand_keywords": False,
         }
 
-        logger.info(f"QueryTypeAdapter.process_query: Base adapted_params={adapted_params}")
+        logger.info(f"[QueryTypeAdapter.process_query] Base adapted_params={adapted_params}")
 
-        # Use recommendations if available and enabled
+        # If we have param recommendations, we can merge them
         if self.use_recommendations and param_recommendations:
-            # Interpolate between default and recommended parameters based on adaptation strength
             for key, recommended_value in param_recommendations.items():
                 if key in adapted_params:
                     current_value = adapted_params[key]
-                    # For numerical values, linearly interpolate
                     if isinstance(recommended_value, (int, float)) and isinstance(
                         current_value, (int, float)
                     ):
+                        # linear interpolation
                         adapted_params[key] = current_value + self.adaptation_strength * (
                             recommended_value - current_value
                         )
-                    # For booleans or other types, use recommended value if adaptation strength > 0.5
                     else:
                         if self.adaptation_strength > 0.5:
                             adapted_params[key] = recommended_value
         else:
-            # Manually adapt based on query type if no recommendations
+            # Or do your manual adaptation
             self._manually_adapt_params(adapted_params, primary_type)
 
-        # Store the adapted parameters for use by retrieval strategies
-        logger.info(f"QueryTypeAdapter.process_query: Final adapted_params={adapted_params}")
-
-        # Add a flag to indicate that parameters were adapted by this component
+        # Mark that we adapted
         adapted_params["adapted_by_query_type"] = True
+        logger.info(f"[QueryTypeAdapter.process_query] Final adapted_params={adapted_params}")
 
         return {"adapted_retrieval_params": adapted_params}
 
