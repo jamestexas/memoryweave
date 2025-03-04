@@ -6,7 +6,7 @@ improving recall in retrieval by including variants, synonyms, and
 related terms.
 """
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 from memoryweave.components.base import Component
 
@@ -126,7 +126,7 @@ class KeywordExpander(Component):
             "few": ["some", "couple", "handful"],
         }
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
         self.enable_expansion = config.get("enable_expansion", True)
         self.max_expansions_per_keyword = config.get("max_expansions_per_keyword", 5)
@@ -136,7 +136,7 @@ class KeywordExpander(Component):
         if custom_synonyms:
             self.synonyms.update(custom_synonyms)
 
-    def process(self, data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """
         Process data by expanding keywords.
 
@@ -168,7 +168,7 @@ class KeywordExpander(Component):
 
         return data
 
-    def process_query(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """
         Process a query by expanding keywords found in the context.
 
@@ -200,7 +200,7 @@ class KeywordExpander(Component):
 
         return context
 
-    def expand_keywords(self, keywords: Set[str]) -> Set[str]:
+    def expand_keywords(self, keywords: set[str]) -> set[str]:
         """
         Expand a set of keywords using various expansion techniques.
 
@@ -242,7 +242,7 @@ class KeywordExpander(Component):
             word: The word to get forms for
 
         Returns:
-            Tuple of (singular_form, plural_form), either may be None
+            tuple of (singular_form, plural_form), either may be None
         """
         # Check irregular forms first
         if word in self.irregular_plurals:
@@ -260,3 +260,38 @@ class KeywordExpander(Component):
             # Likely singular, add 's' for plural
             plural = word + "s"
             return word, plural
+
+    def expand(self, query_obj: dict[str, Any]) -> dict[str, Any]:
+        """
+        Expand keywords in a query to improve retrieval.
+
+        Args:
+            query_obj: Query object with keywords to expand
+
+        Returns:
+            Updated query object with expanded keywords
+        """
+        # Get original keywords
+        original_keywords = query_obj.get("extracted_keywords", [])
+
+        if not original_keywords or not self.enable_expansion:
+            return query_obj  # No keywords to expand or expansion disabled
+
+        # Create a copy of the query object to avoid modifying the original
+        expanded_obj = dict(query_obj)
+
+        # Convert to set for expansion
+        keyword_set = set(original_keywords)
+
+        # Use the existing expand_keywords method
+        expanded_set = self.expand_keywords(keyword_set)
+
+        # Convert back to list, ensuring unique values
+        expanded_keywords = list(
+            dict.fromkeys(expanded_set)
+        )  # Preserves order while removing dupes
+
+        # Update the query object with expanded keywords
+        expanded_obj["extracted_keywords"] = expanded_keywords
+
+        return expanded_obj

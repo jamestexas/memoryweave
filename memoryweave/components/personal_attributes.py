@@ -18,8 +18,12 @@ class PersonalAttributeManager(RetrievalComponent):
             "relationships": {},
         }
 
-    def initialize(self, config: dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""
+        # Ensure config is a dict
+        if config is None:
+            config = {}
+
         if "initial_attributes" in config:
             self._update_attributes(config["initial_attributes"])
 
@@ -220,3 +224,95 @@ class PersonalAttributeManager(RetrievalComponent):
                 relevant_attributes["trait_hobbies"] = hobbies
 
         return relevant_attributes
+
+    def extract_attributes(self, text: str) -> dict[str, Any]:
+        """
+        Extract personal attributes from text using a general approach.
+
+        Args:
+            text: Text to extract attributes from
+
+        Returns:
+            Dictionary of extracted attributes
+        """
+        attributes = {}
+
+        # Convert to lowercase for easier matching
+        text_lower = text.lower()
+
+        # Simple keyword-based extraction for common attributes
+        # This is a basic approach that looks for key phrases and extracts the following words
+
+        # Name
+        if "my name is " in text_lower or "i am " in text_lower or "i'm " in text_lower:
+            # Find potential name indicators
+            name_indicators = ["my name is ", "i am ", "i'm "]
+            for indicator in name_indicators:
+                if indicator in text_lower:
+                    # Get the position after the indicator
+                    start_pos = text_lower.find(indicator) + len(indicator)
+                    # Extract text until punctuation or end
+                    end_markers = [",", ".", "!", "?", "\n"]
+                    end_pos = len(text)
+                    for marker in end_markers:
+                        marker_pos = text[start_pos:].find(marker)
+                        if marker_pos != -1:
+                            marker_pos += start_pos
+                            if marker_pos < end_pos:
+                                end_pos = marker_pos
+
+                    # Extract the name and clean it up
+                    name = text[start_pos:end_pos].strip()
+                    if name and len(name.split()) <= 3:  # Limit to at most 3 words
+                        attributes["name"] = name
+                        break
+
+        # Location
+        location_indicators = ["i live in ", "i'm from ", "i am from ", "i reside in "]
+        for indicator in location_indicators:
+            if indicator in text_lower:
+                start_pos = text_lower.find(indicator) + len(indicator)
+                # Extract until punctuation
+                end_markers = [",", ".", "!", "?", "\n"]
+                end_pos = len(text)
+                for marker in end_markers:
+                    marker_pos = text[start_pos:].find(marker)
+                    if marker_pos != -1:
+                        marker_pos += start_pos
+                        if marker_pos < end_pos:
+                            end_pos = marker_pos
+
+                location = text[start_pos:end_pos].strip()
+                if location:
+                    attributes["location"] = location
+                    break
+
+        # Occupation
+        occupation_indicators = [
+            "i work as ",
+            "i'm a ",
+            "i am a ",
+            "my job is ",
+            "my profession is ",
+        ]
+        for indicator in occupation_indicators:
+            if indicator in text_lower:
+                start_pos = text_lower.find(indicator) + len(indicator)
+                # Extract until punctuation
+                end_markers = [",", ".", "!", "?", "\n"]
+                end_pos = len(text)
+                for marker in end_markers:
+                    marker_pos = text[start_pos:].find(marker)
+                    if marker_pos != -1:
+                        marker_pos += start_pos
+                        if marker_pos < end_pos:
+                            end_pos = marker_pos
+
+                occupation = text[start_pos:end_pos].strip()
+                if occupation:
+                    attributes["occupation"] = occupation
+                    break
+
+        # Additional attributes can be added using similar pattern
+
+        return attributes

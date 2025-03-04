@@ -132,27 +132,34 @@ class MemoryWeaveAPI:
         self.category_manager = None
         if enable_category_management:
             self.category_manager = CategoryManager()
+            # Get the actual embedding dimension from the model
+            embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
             self.category_manager.initialize(
-                config=dict(vigilance=0.85),
+                config=dict(
+                    vigilance_threshold=0.85,
+                    embedding_dim=embedding_dim,  # Use actual dimension from embedding model
+                ),
             )
-
         self.personal_attribute_manager = None
         if enable_personal_attributes:
             self.personal_attribute_manager = PersonalAttributeManager()  # noqa: F821
-            self.personal_attribute_manager.initialize({})
+            self.personal_attribute_manager.initialize()
 
         self.semantic_coherence_processor = None
         if enable_semantic_coherence:
             self.semantic_coherence_processor = SemanticCoherenceProcessor()
+            self.semantic_coherence_processor.initialize()
 
         self.dynamic_threshold_adjuster = None
         if enable_dynamic_thresholds:
             self.dynamic_threshold_adjuster = DynamicThresholdAdjuster()
-            self.dynamic_threshold_adjuster.initialize({
-                "min_threshold": 0.1,
-                "max_threshold": 0.8,
-                "learning_rate": 0.05,
-            })
+            self.dynamic_threshold_adjuster.initialize(
+                config=dict(
+                    min_threshold=0.1,
+                    max_threshold=0.8,
+                    learning_rate=0.05,
+                ),
+            )
 
         # Retrieval strategy
         self.strategy = ContextualFabricStrategy(

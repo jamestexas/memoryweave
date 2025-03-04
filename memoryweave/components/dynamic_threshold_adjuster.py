@@ -6,12 +6,13 @@ A PostProcessor that dynamically adjusts confidence thresholds based on
 query characteristics and retrieval metrics to optimize memory retrieval performance.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from pydantic import BaseModel, Field
 
 from memoryweave.components.base import PostProcessor
+from memoryweave.interfaces.retrieval import QueryType
 
 
 class DynamicThresholdConfig(BaseModel):
@@ -50,6 +51,13 @@ class DynamicThresholdAdjuster(PostProcessor):
 
     # Declare the expected configuration model
     config_model = DynamicThresholdConfig
+
+    def __init__(self) -> None:
+        self.min_threshold = 0.1
+        self.max_threshold = 0.8
+        self.learning_rate = 0.05
+        self.query_thresholds = {}  # Maps query types to optimal thresholds
+        self.query_stats = {}  # Maps query types to retrieval stats
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the dynamic threshold adjuster using the given config."""
@@ -153,7 +161,7 @@ class DynamicThresholdAdjuster(PostProcessor):
 
         return results
 
-    def _analyze_score_distribution(self, scores: List[float]) -> Dict[str, float]:
+    def _analyze_score_distribution(self, scores: list[float]) -> dict[str, float]:
         """Analyze the distribution of relevance scores."""
         if not scores:
             return {"variance": 0.0, "skew": 0.0, "gap_ratio": 0.0, "top_score": 0.0}
@@ -194,7 +202,7 @@ class DynamicThresholdAdjuster(PostProcessor):
             "top_score": float(top_score),
         }
 
-    def _update_thresholds(self, context: Dict[str, Any]) -> None:
+    def _update_thresholds(self, context: dict[str, Any]) -> None:
         """Update thresholds based on recent metrics and context."""
         if len(self.recent_metrics) < 2:
             return
@@ -271,9 +279,9 @@ class DynamicThresholdAdjuster(PostProcessor):
             type_metrics = [m for m in self.recent_metrics if m.get("query_type") == query_type]
             if type_metrics:
                 type_avg_count = np.mean([m["result_count"] for m in type_metrics])
-                type_avg_score = np.mean(
-                    [m["avg_score"] for m in type_metrics if m["avg_score"] > 0]
-                )
+                type_avg_score = np.mean([
+                    m["avg_score"] for m in type_metrics if m["avg_score"] > 0
+                ])
 
                 # Calculate appropriate threshold for this query type
                 if type_avg_count < self.target_result_count * 0.7:
@@ -296,8 +304,8 @@ class DynamicThresholdAdjuster(PostProcessor):
             self.performance_metrics["threshold_history"].pop(0)
 
     def _ensure_minimum_results(
-        self, results: List[Dict[str, Any]], query: str, context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Ensure at least min_result_count results are returned."""
         # If we already have enough results, return as is
         if len(results) >= self.min_result_count:
@@ -310,60 +318,123 @@ class DynamicThresholdAdjuster(PostProcessor):
             keywords_str = ", ".join(keywords) if keywords else query
 
             for i in range(missing_count):
-                results.append(
-                    {
-                        "memory_id": -1,  # Use negative ID to indicate synthetic result
-                        "relevance_score": 0.1,
-                        "content": f"Limited information available about: {keywords_str}",
-                        "type": "synthetic",
-                        "synthetic_reason": "minimum_result_guarantee",
-                    }
-                )
+                results.append({
+                    "memory_id": -1,  # Use negative ID to indicate synthetic result
+                    "relevance_score": 0.1,
+                    "content": f"Limited information available about: {keywords_str}",
+                    "type": "synthetic",
+                    "synthetic_reason": "minimum_result_guarantee",
+                })
         else:
             # If no results at all, create a more specific "no information" entry
-            results.append(
-                {
-                    "memory_id": -1,
-                    "relevance_score": 0.1,
-                    "content": f"No information found about: {query}",
-                    "type": "synthetic",
-                    "synthetic_reason": "no_results",
-                }
-            )
+            results.append({
+                "memory_id": -1,
+                "relevance_score": 0.1,
+                "content": f"No information found about: {query}",
+                "type": "synthetic",
+                "synthetic_reason": "no_results",
+            })
 
             # Add additional context to help with follow-up queries
-            results.append(
-                {
-                    "memory_id": -2,
-                    "relevance_score": 0.1,
-                    "content": "You may want to provide more specific details or try a different phrasing.",
-                    "type": "synthetic",
-                    "synthetic_reason": "suggestion",
-                }
-            )
+            results.append({
+                "memory_id": -2,
+                "relevance_score": 0.1,
+                "content": "You may want to provide more specific details or try a different phrasing.",
+                "type": "synthetic",
+                "synthetic_reason": "suggestion",
+            })
 
             # If query analysis is available, add some additional context
             query_type = context.get("primary_query_type", "")
             if query_type:
                 if query_type == "personal":
-                    results.append(
-                        {
-                            "memory_id": -3,
-                            "relevance_score": 0.1,
-                            "content": "I don't have personal information about that yet.",
-                            "type": "synthetic",
-                            "synthetic_reason": "query_type_response",
-                        }
-                    )
+                    results.append({
+                        "memory_id": -3,
+                        "relevance_score": 0.1,
+                        "content": "I don't have personal information about that yet.",
+                        "type": "synthetic",
+                        "synthetic_reason": "query_type_response",
+                    })
                 elif query_type == "factual":
-                    results.append(
-                        {
-                            "memory_id": -3,
-                            "relevance_score": 0.1,
-                            "content": "I don't have factual information about that in my memory.",
-                            "type": "synthetic",
-                            "synthetic_reason": "query_type_response",
-                        }
-                    )
+                    results.append({
+                        "memory_id": -3,
+                        "relevance_score": 0.1,
+                        "content": "I don't have factual information about that in my memory.",
+                        "type": "synthetic",
+                        "synthetic_reason": "query_type_response",
+                    })
 
         return results
+
+    def get_adjusted_threshold(self, query_type, base_threshold: float = 0.1) -> float:
+        """
+        Get an adjusted confidence threshold based on query type and historical performance.
+
+        Args:
+            query_type: Type of the query (e.g., factual, personal)
+            base_threshold: Base threshold to adjust from
+
+        Returns:
+            Adjusted confidence threshold
+        """
+        # Use query-specific threshold if available
+        if hasattr(self, "query_thresholds") and query_type in self.query_thresholds:
+            return self.query_thresholds[query_type]
+
+        # If we don't have a specific threshold for this query type yet,
+        # use a sensible default based on query type
+        if query_type == QueryType.FACTUAL:
+            # Higher threshold for factual queries - we want precision
+            return min(base_threshold * 1.2, self.max_threshold)
+        elif query_type == QueryType.PERSONAL:
+            # Lower threshold for personal queries - we want recall
+            return max(base_threshold * 0.8, self.min_threshold)
+        elif query_type == QueryType.TEMPORAL:
+            # Medium threshold for temporal queries
+            return base_threshold
+
+        # For unknown query types, use the base threshold
+        return base_threshold
+
+    def update_threshold(self, query_type, result_count: int, had_good_results: bool) -> None:
+        """
+        Update threshold based on retrieval results.
+
+        Args:
+            query_type: Type of the query
+            result_count: Number of results retrieved
+            had_good_results: Whether the results were satisfactory
+        """
+        # Initialize stats for this query type if not already present
+        if query_type not in self.query_stats:
+            self.query_stats[query_type] = {
+                "count": 0,
+                "good_results": 0,
+                "total_results": 0,
+            }
+
+        # Update stats
+        self.query_stats[query_type]["count"] += 1
+        self.query_stats[query_type]["good_results"] += 1 if had_good_results else 0
+        self.query_stats[query_type]["total_results"] += result_count
+
+        # Get current threshold or use default
+        current_threshold = self.query_thresholds.get(query_type, 0.1)
+
+        # Adjust threshold based on results
+        if had_good_results and result_count > 0:
+            if result_count > 10:
+                # Too many results, increase threshold
+                new_threshold = current_threshold + self.learning_rate
+            else:
+                # Good number of results, small adjustment
+                new_threshold = current_threshold + (self.learning_rate * 0.1)
+        else:
+            # Poor results, decrease threshold
+            new_threshold = current_threshold - self.learning_rate
+
+        # Ensure threshold is within bounds
+        new_threshold = max(min(new_threshold, self.max_threshold), self.min_threshold)
+
+        # Update threshold
+        self.query_thresholds[query_type] = new_threshold

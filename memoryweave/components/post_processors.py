@@ -1,7 +1,13 @@
 # memoryweave/components/post_processors.py
-from typing import Any, Dict, List
+import logging
+from typing import Any
+
+from rich.logging import RichHandler
 
 from memoryweave.components.base import PostProcessor
+
+logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()])
+logger = logging.getLogger(__name__)
 
 
 class KeywordBoostProcessor(PostProcessor):
@@ -50,8 +56,12 @@ class SemanticCoherenceProcessor(PostProcessor):
     ensuring that the set of retrieved memories forms a semantically coherent whole.
     """
 
-    def initialize(self, config: dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""
+        # Ensure config is a dictionary even if None is passed
+        if config is None:
+            config = {}
+
         self.coherence_threshold = config.get("coherence_threshold", 0.2)
         self.enable_query_type_filtering = config.get("enable_query_type_filtering", True)
         self.enable_pairwise_coherence = config.get("enable_pairwise_coherence", True)
@@ -72,7 +82,10 @@ class SemanticCoherenceProcessor(PostProcessor):
         }
 
     def process_results(
-        self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
+        self,
+        results: list[dict[str, Any]],
+        query: str,
+        context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Process retrieved results checking semantic coherence.
@@ -92,18 +105,18 @@ class SemanticCoherenceProcessor(PostProcessor):
         Returns:
             Updated list of results with adjusted relevance scores
         """
-        import logging
+        # Ensure we can do processing regardless of value here
+        if context is None:
+            context = {}
 
-        logger = logging.getLogger(__name__)
-
-        # Check if our functionality is explicitly enabled in the context
-        enable_semantic_coherence = context.get("enable_semantic_coherence", False)
+        # Default to enabled if the processor was initialized
+        enable_semantic_coherence = context.get("enable_semantic_coherence", True)
         config_name = context.get("config_name", "unknown")
 
-        # Skip processing if semantic coherence is not enabled
-        if not enable_semantic_coherence:
+        # Skip processing if semantic coherence is explicitly disabled
+        if enable_semantic_coherence is False:  # Only skip if explicitly set to False
             logger.info(
-                f"SemanticCoherenceProcessor: Skipping - semantic coherence not enabled for config {config_name}"
+                f"SemanticCoherenceProcessor: Skipping - semantic coherence disabled for config {config_name}"
             )
 
             # For benchmark differentiation, make a small copy change to mark results but don't
@@ -114,22 +127,7 @@ class SemanticCoherenceProcessor(PostProcessor):
 
             return processed_results
 
-        # For evaluation purposes, verify that this processor was called during the correct configuration
-        config_name_to_check = config_name or "unknown"
-        if (
-            "With-Semantic-Coherence" in config_name_to_check
-            or "Full-Advanced" in config_name_to_check
-            or "Precision-Focused" in config_name_to_check
-            or "Recall-Focused" in config_name_to_check
-        ):
-            logger.info(
-                f"SemanticCoherenceProcessor: Confirmed enabled for {config_name_to_check} configuration"
-            )
-        else:
-            logger.warning(
-                f"SemanticCoherenceProcessor: Unexpected activation for {config_name_to_check} configuration"
-            )
-
+        # Log that we're processing results
         logger.info(
             f"SemanticCoherenceProcessor: Processing {len(results)} results for config {config_name}"
         )
@@ -503,8 +501,10 @@ class AdaptiveKProcessor(PostProcessor):
     Adjusts the number of results based on query characteristics.
     """
 
-    def initialize(self, config: dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""
+        if config is None:
+            config = {}
         self.adaptive_k_factor = config.get("adaptive_k_factor", 0.3)
 
     def process_results(
@@ -545,8 +545,11 @@ class MinimumResultGuaranteeProcessor(PostProcessor):
     doesn't return enough results, ensuring that queries always receive a response.
     """
 
-    def initialize(self, config: dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""
+        if config is None:
+            config = {}
+
         self.min_results = config.get("min_results", 1)
         self.fallback_threshold_factor = config.get("fallback_threshold_factor", 0.5)
         self.min_fallback_threshold = config.get("min_fallback_threshold", 0.05)
@@ -617,14 +620,19 @@ class PersonalAttributeProcessor(PostProcessor):
     attribute memory entries for direct attribute questions.
     """
 
-    def initialize(self, config: dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""
+        if config is None:
+            config = {}
         self.attribute_boost_factor = config.get("attribute_boost_factor", 0.6)
         self.add_direct_responses = config.get("add_direct_responses", True)
         self.min_relevance_threshold = config.get("min_relevance_threshold", 0.3)
 
     def process_results(
-        self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
+        self,
+        results: list[dict[str, Any]],
+        query: str,
+        context: dict[str, Any],
     ) -> list[dict[str, Any]]:
         """Process retrieved results by incorporating personal attributes."""
         # Check if personal attributes are available in context
@@ -718,7 +726,9 @@ class PersonalAttributeProcessor(PostProcessor):
         return enhanced_results
 
     def _create_attribute_memory(
-        self, query: str, relevant_attributes: dict[str, Any]
+        self,
+        query: str,
+        relevant_attributes: dict[str, Any],
     ) -> dict[str, Any]:
         """Create a synthetic memory entry from personal attributes relevant to the query."""
         if not relevant_attributes:

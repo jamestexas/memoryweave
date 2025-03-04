@@ -164,3 +164,37 @@ class CategoryManager(Component):
         if not self.core_manager:
             return 0
         return self.core_manager.consolidate_categories_manually(threshold)
+
+    def add_to_category(self, memory_id: str, embedding: np.ndarray) -> int:
+        """
+        Add a memory to a category based on its embedding.
+
+        Args:
+            memory_id: ID of the memory to add (as string)
+            embedding: The memory embedding to categorize
+
+        Returns:
+            Index of the assigned category
+        """
+        if not self.core_manager:
+            # Initialize with the correct embedding dimension from the provided embedding
+            self.embedding_dim = embedding.shape[0]
+            self.initialize({"embedding_dim": self.embedding_dim})
+
+        # First assign to a category
+        category_idx = self.core_manager.assign_to_category(embedding)
+
+        # Convert string ID to integer for core manager
+        # We'll use a hash of the string to get a reasonably unique integer
+        # This is better than just using the string length or similar
+        memory_idx = hash(memory_id) % (2**31 - 1)  # Keep within positive int range
+
+        # Then add the mapping
+        self.core_manager.add_memory_category_mapping(memory_idx, category_idx)
+
+        # Store the mapping between string ID and integer ID if needed later
+        if not hasattr(self, "_string_to_int_map"):
+            self._string_to_int_map = {}
+        self._string_to_int_map[memory_id] = memory_idx
+
+        return category_idx

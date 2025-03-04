@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from memoryweave.components.base import RetrievalComponent
+from memoryweave.interfaces.retrieval import QueryType
 
 logger = logging.getLogger(__name__)
 
@@ -216,3 +217,43 @@ class QueryTypeAdapter(RetrievalComponent):
             if k in orig_params and params[k] != orig_params[k]
         }
         logger.info(f"QueryTypeAdapter._manually_adapt_params: Changes for {query_type}: {changes}")
+
+    def adapt_parameters(self, query_obj: dict[str, Any]) -> dict[str, Any]:
+        """
+        Adapt retrieval parameters based on query characteristics.
+
+        Args:
+            query_obj: Query object with type, keywords, etc.
+
+        Returns:
+            Dictionary of adapted parameters
+        """
+        query_type = query_obj.get("query_type")
+
+        # Default parameters
+        params = {
+            "confidence_threshold": 0.1,
+            "max_results": 10,
+            "use_keyword_boost": True,
+        }
+
+        # Adapt based on query type
+        if query_type == QueryType.FACTUAL:
+            params["confidence_threshold"] = 0.15  # Higher precision
+            params["max_results"] = 5  # Fewer, more focused results
+        elif query_type == QueryType.PERSONAL:
+            params["confidence_threshold"] = 0.05  # Higher recall
+            params["max_results"] = 10  # More results to ensure personal info is found
+        elif query_type == QueryType.TEMPORAL:
+            params["confidence_threshold"] = 0.1  # Balanced
+            params["max_results"] = 7  # Medium number of results
+
+        # Adapt based on keyword presence
+        keywords = query_obj.get("extracted_keywords", [])
+        if keywords:
+            params["use_keyword_boost"] = True
+            # Adjust threshold based on keyword count
+            if len(keywords) > 3:
+                params["confidence_threshold"] *= 0.9  # Lower threshold with more keywords
+
+        return params

@@ -10,7 +10,7 @@ retrieval that goes beyond pure similarity matching.
 import heapq
 import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import numpy as np
 
@@ -50,13 +50,13 @@ class AssociativeMemoryLinker(MemoryComponent):
         self.component_id = ComponentName.ASSOCIATIVE_MEMORY_LINKER
 
         # Store links as adjacency list: {memory_id: [(linked_id, strength), ...]}
-        self.associative_links: Dict[MemoryID, List[Tuple[MemoryID, float]]] = defaultdict(list)
+        self.associative_links: dict[MemoryID, list[tuple[MemoryID, float]]] = defaultdict(list)
 
         # Track last full rebuild
         self.last_rebuild_time = 0
         self.memories_since_rebuild = 0
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
 
@@ -82,7 +82,7 @@ class AssociativeMemoryLinker(MemoryComponent):
         if self.memory_store is not None:
             self._rebuild_all_links()
 
-    def process(self, data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """
         Process memory data to establish associative links.
 
@@ -127,7 +127,7 @@ class AssociativeMemoryLinker(MemoryComponent):
         return result
 
     def _establish_links_for_memory(
-        self, memory_id: MemoryID, memory_data: Dict[str, Any], context: Dict[str, Any]
+        self, memory_id: MemoryID, memory_data: dict[str, Any], context: dict[str, Any]
     ) -> None:
         """
         Establish associative links for a single memory.
@@ -304,7 +304,7 @@ class AssociativeMemoryLinker(MemoryComponent):
 
         return float(dot_product / (norm1 * norm2))
 
-    def get_associative_links(self, memory_id: MemoryID) -> List[Tuple[MemoryID, float]]:
+    def get_associative_links(self, memory_id: MemoryID) -> list[tuple[MemoryID, float]]:
         """
         Get associative links for a memory.
 
@@ -312,13 +312,13 @@ class AssociativeMemoryLinker(MemoryComponent):
             memory_id: ID of the memory to get links for
 
         Returns:
-            List of (memory_id, strength) tuples for linked memories
+            list of (memory_id, strength) tuples for linked memories
         """
         return self.associative_links.get(memory_id, [])
 
     def traverse_associative_network(
         self, start_id: MemoryID, max_hops: int = 2, min_strength: float = 0.3
-    ) -> Dict[MemoryID, float]:
+    ) -> dict[MemoryID, float]:
         """
         Traverse the associative network from a starting memory.
 
@@ -328,10 +328,10 @@ class AssociativeMemoryLinker(MemoryComponent):
             min_strength: Minimum link strength to follow
 
         Returns:
-            Dictionary mapping memory IDs to activation levels
+            dictionary mapping memory IDs to activation levels
         """
         # Initialize results with starting node
-        results: Dict[MemoryID, float] = {start_id: 1.0}
+        results: dict[MemoryID, float] = {start_id: 1.0}
 
         # Use a queue to track nodes to visit
         # Format: (memory_id, current_hop, current_strength)
@@ -373,7 +373,7 @@ class AssociativeMemoryLinker(MemoryComponent):
 
     def find_path_between_memories(
         self, source_id: MemoryID, target_id: MemoryID, max_hops: int = 3
-    ) -> List[Tuple[MemoryID, float]]:
+    ) -> list[tuple[MemoryID, float]]:
         """
         Find a path between two memories in the associative network.
 
@@ -383,7 +383,7 @@ class AssociativeMemoryLinker(MemoryComponent):
             max_hops: Maximum number of hops to search
 
         Returns:
-            List of (memory_id, strength) tuples representing the path,
+            list of (memory_id, strength) tuples representing the path,
             or empty list if no path found
         """
         # Use A* search to find the path
@@ -430,6 +430,72 @@ class AssociativeMemoryLinker(MemoryComponent):
         # No path found
         return []
 
+    def create_associative_link(
+        self,
+        source_id: str,
+        target_id: str,
+        strength: float = 0.5,
+    ) -> None:
+        """
+        Create an associative link between two memories.
+
+        Args:
+            source_id: Source memory ID
+            target_id: Target memory ID
+            strength: Link strength (0-1)
+        """
+        # Convert to appropriate storage format
+        if not isinstance(source_id, str):
+            source_id = str(source_id)
+        if not isinstance(target_id, str):
+            target_id = str(target_id)
+
+        # Create links in both directions with appropriate strengths
+        source_links = self.associative_links.get(source_id, [])
+        target_links = self.associative_links.get(target_id, [])
+
+        # Update or add source → target link
+        source_target_exists = False
+        for i, (existing_id, existing_strength) in enumerate(source_links):
+            if existing_id == target_id:
+                # Update existing link with higher strength
+                source_links[i] = (target_id, max(existing_strength, strength))
+                source_target_exists = True
+                break
+
+        if not source_target_exists:
+            source_links.append((target_id, strength))
+
+        # Update or add target → source link (with reduced strength)
+        target_source_exists = False
+        reduced_strength = max(0.1, strength * 0.8)  # Slightly weaker in reverse
+
+        for i, (existing_id, existing_strength) in enumerate(target_links):
+            if existing_id == source_id:
+                # Update existing link with higher strength
+                target_links[i] = (source_id, max(existing_strength, reduced_strength))
+                target_source_exists = True
+                break
+
+        if not target_source_exists:
+            target_links.append((source_id, reduced_strength))
+
+        # Store updated links
+        self.associative_links[source_id] = source_links
+        self.associative_links[target_id] = target_links
+
+        # Ensure we don't exceed max links per memory
+        if hasattr(self, "max_links_per_memory") and self.max_links_per_memory > 0:
+            if len(source_links) > self.max_links_per_memory:
+                # Sort by strength and keep only the strongest links
+                source_links.sort(key=lambda x: x[1], reverse=True)
+                self.associative_links[source_id] = source_links[: self.max_links_per_memory]
+
+            if len(target_links) > self.max_links_per_memory:
+                # Sort by strength and keep only the strongest links
+                target_links.sort(key=lambda x: x[1], reverse=True)
+                self.associative_links[target_id] = target_links[: self.max_links_per_memory]
+
 
 class AssociativeNetworkVisualizer(Component):
     """
@@ -449,7 +515,7 @@ class AssociativeNetworkVisualizer(Component):
         self.linker = linker
         self.component_id = "associative_network_visualizer"
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
 
@@ -459,7 +525,7 @@ class AssociativeNetworkVisualizer(Component):
         if "linker" in config:
             self.linker = config["linker"]
 
-    def generate_network_data(self, max_nodes: int = 100) -> Dict[str, Any]:
+    def generate_network_data(self, max_nodes: int = 100) -> dict[str, Any]:
         """
         Generate data for network visualization.
 
@@ -467,7 +533,7 @@ class AssociativeNetworkVisualizer(Component):
             max_nodes: Maximum number of nodes to include
 
         Returns:
-            Dictionary with nodes and links data
+            dictionary with nodes and links data
         """
         if self.linker is None:
             return {"nodes": [], "links": []}
@@ -507,7 +573,7 @@ class AssociativeNetworkVisualizer(Component):
 
     def visualize_activation_spread(
         self, start_id: MemoryID, max_hops: int = 2, min_strength: float = 0.3
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Visualize activation spreading from a starting memory.
 
@@ -517,7 +583,7 @@ class AssociativeNetworkVisualizer(Component):
             min_strength: Minimum link strength
 
         Returns:
-            Dictionary with visualization data
+            dictionary with visualization data
         """
         if self.linker is None:
             return {"nodes": [], "links": [], "activations": {}}
