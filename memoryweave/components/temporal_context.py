@@ -436,16 +436,25 @@ class TemporalContextBuilder(Component):
 
         result["time_keywords"] = found_keywords
 
-        # Fallback: if a temporal keyword was found but no relative_time was parsed, default to the start of today.  # noqa: W505
-        if (
-            result["has_temporal_reference"]
-            and result["relative_time"] is None
-            and result["time_keywords"]
-        ):
-            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+        result["time_keywords"] = found_keywords
+
+        # Fallback: if a temporal keyword was found but no relative_time was parsed, default to a sensible value.
+        if result["time_keywords"] and result["relative_time"] is None:
+            # For ambiguous terms, adjust default based on keyword content.
+            # If the keyword contains "last week" or "a while ago", default to 7 days ago.
+            if any(kw in result["time_keywords"] for kw in ["last week", "a while ago"]):
+                default_time = time.time() - 604800  # 7 days ago
+                default_label = "7 days ago"
+            else:
+                # Otherwise, default to the start of today.
+                default_time = (
+                    datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+                )
+                default_label = "start of today"
+            result["has_temporal_reference"] = True
             result["time_type"] = "relative"
-            result["relative_time"] = today
-            result["debug_info"]["default_relative_time"] = "start of today"
+            result["relative_time"] = default_time
+            result["debug_info"]["default_relative_time"] = default_label
 
         return result
 
