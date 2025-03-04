@@ -270,13 +270,13 @@ class MemoryWeaveLLM:
         """
         Process a user message through MemoryWeave and the LLM.
         This version explicitly updates activation/temporal info AND calls
-        the temporal_context apply_temporal_context method to handle queries
-        about "yesterday", "last month", etc.
+        temporal_context.apply_temporal_context(...) to handle queries
+        referencing times like "yesterday" or "last week."
         """
 
         now = time.time()
 
-        # 1) Build query embedding
+        # 1) Build the query embedding
         try:
             query_embedding = self.embedding_model.encode(user_message, show_progress_bar=False)
         except Exception as encode_err:
@@ -284,7 +284,7 @@ class MemoryWeaveLLM:
             traceback.print_exc()
             return "Sorry, an error occurred while processing your request."
 
-        # 2) Retrieve memories (the normal ContextualFabric retrieve)
+        # 2) Retrieve memories via ContextualFabricStrategy
         self.memory_store_adapter.invalidate_cache()
         try:
             print("DEBUG: Calling strategy.retrieve")
@@ -302,7 +302,7 @@ class MemoryWeaveLLM:
             traceback.print_exc()
             relevant_memories = []
 
-        # If retrieval fails or is empty, optionally do fallback
+        # Fallback if retrieval is empty
         if not relevant_memories:
             try:
                 fallback_results = self.memory_store_adapter.search_by_vector(
@@ -322,28 +322,23 @@ class MemoryWeaveLLM:
                 traceback.print_exc()
                 relevant_memories = []
 
-        # 3) Immediately update activation & timestamps
-        #    so the system knows these memories were just used
+        # 3) Immediately update activation & last_accessed for each retrieved memory
         for mem_dict in relevant_memories:
             mem_id = mem_dict.get("memory_id")
             if mem_id is not None:
-                # Increase activation by 0.2 (arbitrary) and update temporal usage
+                # Increase activation by 0.2
                 self.activation_manager.activate_memory(mem_id, 0.2, spread=True)
+                # Mark it as "last accessed" now
                 self.temporal_context.update_timestamp(mem_id, now)
 
-        # 4) Build a minimal dictionary for each result that temporal_context.apply_temporal_context needs:
-        #    e.g., "created_at" so the recency logic can apply
-        #    Because your code likely puts the creation time in metadata, let's extract it
-        #    Also note that the query itself might say "yesterday" or "last week"
+        # 4) Build minimal dictionaries for apply_temporal_context, so it can do recency or date-based boosts
         base_context = {"current_time": now}
         memory_dicts_for_temporal = []
         for r in relevant_memories:
             mem_id = r.get("memory_id")
-            # We'll store the final "relevance_score" from the strategy retrieval
-            # so that the temporal logic can adjust it
             base_score = r.get("relevance_score", 0.5)
 
-            # Attempt to find created_at in r["metadata"]
+            # If "created_at" is stored in metadata, retrieve it:
             created_at = 0.0
             meta = r.get("metadata", {})
             if isinstance(meta, dict) and "created_at" in meta:
@@ -355,47 +350,54 @@ class MemoryWeaveLLM:
                 "relevance_score": base_score,
             })
 
-        # 5) Actually call temporal_context, so queries like "What happened yesterday?" get handled
+        # 5) Call apply_temporal_context(...) with the user query
         memory_dicts_for_temporal = self.temporal_context.apply_temporal_context(
             query=user_message, results=memory_dicts_for_temporal, context=base_context
         )
 
-        # Sort them again by the updated "relevance_score"
+        # Sort by updated "relevance_score"
         memory_dicts_for_temporal.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
 
-        # 6) Next, convert them to the final "cleaned_results" you add to your prompt
+        # 6) Convert them back to "cleaned_results" for the prompt
         cleaned_results = []
         for md in memory_dicts_for_temporal:
-            mem_id = md["memory_id"]
-            if mem_id is not None:
-                memory_obj = self.memory_store.get(mem_id)
-                content = (
-                    str(memory_obj.content)
-                    if memory_obj and hasattr(memory_obj, "content")
-                    else str(memory_obj)
-                )
-                final_score = md.get("relevance_score", 0.5)
-                cleaned_results.append({
-                    "content": content,
-                    "metadata": memory_obj.metadata if memory_obj else {},
-                    "relevance_score": final_score,
-                })
-            else:
-                # If fallback memory had no real ID, just pass it along
-                # Or skip it if you prefer
-                final_score = md.get("relevance_score", 0.5)
-                fallback_content = r.get("content", "")
-                fallback_meta = r.get("metadata", {})
-                cleaned_results.append({
-                    "content": fallback_content,
-                    "metadata": fallback_meta,
-                    "relevance_score": final_score,
-                })
+            mem_id = md.get("memory_id")
+            if mem_id is None:
+                continue
+
+            if isinstance(mem_id, int):
+                try:
+                    memory_obj = self.memory_store.get(str(mem_id))
+                    if memory_obj:
+                        cleaned_results.append({
+                            "content": str(memory_obj.content),
+                            "metadata": memory_obj.metadata,
+                            "relevance_score": md.get("relevance_score", 0.5),
+                        })
+                    else:
+                        logger.info(f"No real ID found for index {mem_id}, skipping")
+
+                except KeyError:
+                    logger.info(f"No real ID found for index {mem_id}, skipping")
+
+            else:  # It's presumably the real ID
+                try:
+                    memory_obj = self.memory_store.get(mem_id)
+                    if memory_obj:
+                        cleaned_results.append({
+                            "content": str(memory_obj.content),
+                            "metadata": memory_obj.metadata,
+                            "relevance_score": md.get("relevance_score", 0.5),
+                        })
+                    else:
+                        logger.info(f"No memory with ID {mem_id}, skipping")
+                except KeyError:
+                    logger.info(f"No memory with ID {mem_id}, skipping")
 
         relevant_memories = cleaned_results
         print(f"DEBUG: After temporal context, we have {len(relevant_memories)} memories")
 
-        # 7) Construct your system prompt
+        # 7) Construct the system prompt
         system_prompt = (
             "You are a helpful assistant. Use the entire conversation context for your answer.\n"
             "Do not disclaim that you have a memory system. If asked about user info, see if it "
@@ -403,10 +405,10 @@ class MemoryWeaveLLM:
             "lack that info.\n"
         )
 
-        # Sort by descending relevance again
+        # Sort again by final relevance
         relevant_memories.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
 
-        # Include top 3 in prompt
+        # Include top 3 in the prompt
         top_memories = relevant_memories[:3]
         memory_text = ""
         if top_memories:
@@ -431,7 +433,7 @@ class MemoryWeaveLLM:
         else:
             prompt = f"{final_system_prompt}\nUser: {user_message}\nAssistant:"
 
-        # 9) Generate the final response from local LLM
+        # 9) Generate the final LLM response
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
         with torch.no_grad():
             outputs = self.model.generate(
@@ -445,10 +447,9 @@ class MemoryWeaveLLM:
         full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         assistant_reply = full_response[len(prompt) :].strip()
 
-        # 10) Store conversation in memory
+        # 10) Store conversation
         self.conversation_history.append({"role": "user", "content": user_message})
         self.conversation_history.append({"role": "assistant", "content": assistant_reply})
-
         self._store_interaction(user_message, assistant_reply)
 
         return assistant_reply
