@@ -1,3 +1,61 @@
+"""
+MemoryWeaveAPI: A unified interface for managing and retrieving memories with advanced contextual understanding.
+
+This module provides the MemoryWeaveAPI class, which integrates a large language model (LLM),
+embedding models, and various memory management components to create a sophisticated memory system.
+
+Key Features:
+- Memory Storage and Retrieval: Stores and retrieves memories using embeddings and contextual strategies.
+- Contextual Understanding: Leverages query analysis, keyword expansion, and temporal context to enhance retrieval.
+- Dynamic Threshold Adjustment: Adapts retrieval thresholds based on query type and performance.
+- Category Management: Organizes memories into categories for efficient retrieval.
+- Personal Attribute Extraction: Extracts and stores personal attributes from user interactions.
+- Associative Linking: Creates links between related memories for associative retrieval.
+- Semantic Coherence: Ensures retrieved memories are semantically relevant to the query.
+- Conversation History: Maintains a history of interactions for contextual responses.
+- Memory Consolidation: Periodically consolidates memories to optimize performance.
+
+Components:
+- MemoryStore: Stores and retrieves memories as embeddings and text.
+- MemoryStoreAdapter: Adapts the MemoryStore for use with retrieval strategies.
+- AssociativeMemoryLinker: Creates and manages associative links between memories.
+- TemporalContextBuilder: Builds temporal context for time-sensitive queries.
+- ActivationManager: Manages memory activation levels.
+- SimpleQueryAnalyzer: Analyzes user queries to determine type and extract keywords.
+- QueryTypeAdapter: Adapts retrieval parameters based on query type.
+- KeywordExpander: Expands keywords to improve retrieval.
+- CategoryManager: Manages memory categories.
+- PersonalAttributeManager: Extracts and manages personal attributes.
+- SemanticCoherenceProcessor: Ensures semantic coherence in retrieved memories.
+- DynamicThresholdAdjuster: Dynamically adjusts retrieval thresholds.
+- ContextualFabricStrategy: A retrieval strategy that combines various contextual factors.
+
+Usage:
+    Create an instance of MemoryWeaveAPI, add memories, and use the chat method to interact.
+
+Example:
+    ```python
+    from memoryweave.api import MemoryWeaveAPI
+
+    api = MemoryWeaveAPI()
+    api.add_memory("The capital of France is Paris.")
+    response = api.chat("What is the capital of France?")
+    print(response)
+    ```
+
+Dependencies:
+    - torch
+    - transformers
+    - typing
+    - logging
+    - time
+    - memoryweave.api.memory_store
+    - memoryweave.components.*
+    - memoryweave.interfaces.retrieval
+    - memoryweave.query.analyzer
+    - memoryweave.storage.memory_store
+"""  # noqa: W291, W505
+
 import logging
 import time
 from typing import Any
