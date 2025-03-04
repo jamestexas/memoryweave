@@ -11,7 +11,7 @@ import re
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Optional
 
 import numpy as np
 from scipy.cluster.hierarchy import fcluster, linkage
@@ -51,12 +51,12 @@ class TemporalContextBuilder(Component):
         self.component_id = ComponentName.TEMPORAL_CONTEXT_BUILDER
 
         # Episodic clusters: {episode_id: {memory_ids, start_time, end_time, center_time}}
-        self.episodes: Dict[str, Dict[str, Any]] = {}
-        self.memory_to_episode: Dict[MemoryID, str] = {}
+        self.episodes: dict[str, dict[str, Any]] = {}
+        self.memory_to_episode: dict[MemoryID, str] = {}
         self.last_cluster_time = 0
         self.temporal_patterns = defaultdict(list)  # Track temporal patterns
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
 
@@ -74,7 +74,7 @@ class TemporalContextBuilder(Component):
         self.recency_window = config.get("recency_window", 86400)
         self.max_temporal_clusters = config.get("max_temporal_clusters", 100)
 
-        # Set memory store if provided
+        # set memory store if provided
         if "memory_store" in config:
             self.memory_store = config["memory_store"]
 
@@ -82,7 +82,7 @@ class TemporalContextBuilder(Component):
         if self.memory_store is not None:
             self._build_episodes()
 
-    def extract_time_references(self, query: str) -> Dict[str, Any]:
+    def extract_time_references(self, query: str) -> dict[str, Any]:
         """
         Extract time references from a query.
 
@@ -90,7 +90,7 @@ class TemporalContextBuilder(Component):
             query: The query string
 
         Returns:
-            Dictionary of extracted temporal information
+            dictionary of extracted temporal information
         """
         # Initialize result
         result = {
@@ -235,9 +235,9 @@ class TemporalContextBuilder(Component):
             if matches:
                 result["has_temporal_reference"] = True
                 result["time_type"] = "relative"
-                result["time_expressions"].extend(
-                    [m if isinstance(m, str) else " ".join(m) for m in matches]
-                )
+                result["time_expressions"].extend([
+                    m if isinstance(m, str) else " ".join(m) for m in matches
+                ])
 
                 # Attempt to parse relative time
                 for match in result["time_expressions"]:
@@ -502,8 +502,8 @@ class TemporalContextBuilder(Component):
         self.last_cluster_time = time.time()
 
     def apply_temporal_context(
-        self, query: str, results: List[Dict[str, Any]], context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, query: str, results: list[dict[str, Any]], context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """
         Apply temporal context to retrieval results.
 
@@ -541,8 +541,8 @@ class TemporalContextBuilder(Component):
             return self._apply_temporal_keyword_boost(results, time_info, context)
 
     def _apply_recency_boost(
-        self, results: List[Dict[str, Any]], context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, results: list[dict[str, Any]], context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """
         Apply recency boost to results.
 
@@ -593,8 +593,8 @@ class TemporalContextBuilder(Component):
         return boosted_results
 
     def _score_by_temporal_relevance(
-        self, results: List[Dict[str, Any]], target_time: float, context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, results: list[dict[str, Any]], target_time: float, context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """
         Score results by temporal relevance to a target time.
 
@@ -609,7 +609,7 @@ class TemporalContextBuilder(Component):
         if not results:
             return results
 
-        # Set temporal scaling factor (how quickly relevance falls off with time difference)
+        # set temporal scaling factor (how quickly relevance falls off with time difference)
         # Use a more flexible temporal scale to allow for episodic memory matches
         # Default is 1-day but use query-specific scale when available
         query = context.get("query", "")
@@ -730,8 +730,8 @@ class TemporalContextBuilder(Component):
         return scored_results
 
     def _apply_temporal_keyword_boost(
-        self, results: List[Dict[str, Any]], time_info: Dict[str, Any], context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, results: list[dict[str, Any]], time_info: dict[str, Any], context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """
         Apply boost for temporal keywords.
 
@@ -812,7 +812,7 @@ class TemporalContextBuilder(Component):
         """
         return self.memory_to_episode.get(memory_id)
 
-    def get_memories_in_episode(self, episode_id: str) -> Set[MemoryID]:
+    def get_memories_in_episode(self, episode_id: str) -> set[MemoryID]:
         """
         Get all memories in an episode.
 
@@ -820,7 +820,7 @@ class TemporalContextBuilder(Component):
             episode_id: The episode ID to check
 
         Returns:
-            Set of memory IDs in the episode
+            set of memory IDs in the episode
         """
         if episode_id in self.episodes:
             return set(self.episodes[episode_id]["memory_ids"])
@@ -828,7 +828,7 @@ class TemporalContextBuilder(Component):
 
     def get_temporally_related_memories(
         self, memory_id: MemoryID, time_window: Optional[float] = None
-    ) -> List[Tuple[MemoryID, float]]:
+    ) -> list[tuple[MemoryID, float]]:
         """
         Get memories that are temporally related to a given memory.
 
@@ -837,7 +837,7 @@ class TemporalContextBuilder(Component):
             time_window: Custom time window (default: use instance temporal_window)
 
         Returns:
-            List of (memory_id, temporal_proximity) tuples
+            list of (memory_id, temporal_proximity) tuples
         """
         if self.memory_store is None:
             return []
@@ -901,7 +901,7 @@ class TemporalDecayComponent(MemoryComponent):
         self.component_id = ComponentName.MEMORY_DECAY
         self.last_decay_time = time.time()
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
 
@@ -917,7 +917,7 @@ class TemporalDecayComponent(MemoryComponent):
         self.activation_boost_on_access = config.get("activation_boost_on_access", 0.5)
         self.minimum_activation = config.get("minimum_activation", 0.1)
 
-    def process(self, data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """
         Process memory data to apply temporal decay.
 

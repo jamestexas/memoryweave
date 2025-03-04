@@ -8,7 +8,7 @@ to provide more relevant and contextually-aware memory retrieval.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -71,7 +71,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         self.debug = False
         self.logger = logging.getLogger(__name__)
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the strategy with configuration.
 
@@ -116,8 +116,8 @@ class ContextualFabricStrategy(RetrievalStrategy):
         self,
         query_embedding: np.ndarray,
         top_k: int,
-        context: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        context: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """
         Retrieve memories using the contextual fabric strategy.
 
@@ -127,7 +127,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
             context: Context containing query, memory, etc.
 
         Returns:
-            List of retrieved memory dicts with relevance scores
+            list of retrieved memory dicts with relevance scores
         """
         # Get memory store from context or instance
         memory_store = context.get("memory_store", self.memory_store)
@@ -287,7 +287,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         use_progressive_filtering: bool = False,
         use_batched_computation: bool = False,
         batch_size: int = 200,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Retrieve memories by direct similarity.
 
@@ -300,7 +300,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
             batch_size: Size of batches for computation
 
         Returns:
-            List of retrieved memory dicts with similarity scores
+            list of retrieved memory dicts with similarity scores
         """
         if memory_store is None or not hasattr(memory_store, "memory_embeddings"):
             return []
@@ -365,14 +365,12 @@ class ContextualFabricStrategy(RetrievalStrategy):
             # Z-score > -1.0 means "not unusually dissimilar"
             if normalized_score > -1.0 or raw_similarity > 0.5:
                 # Add to results
-                results.append(
-                    {
-                        "memory_id": int(idx),
-                        "similarity_score": raw_similarity,
-                        "normalized_score": normalized_score,
-                        **memory_store.memory_metadata[idx],
-                    }
-                )
+                results.append({
+                    "memory_id": int(idx),
+                    "similarity_score": raw_similarity,
+                    "normalized_score": normalized_score,
+                    **memory_store.memory_metadata[idx],
+                })
 
         return results
 
@@ -384,7 +382,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         use_progressive_filtering: bool,
         use_batched_computation: bool,
         batch_size: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Optimized similarity retrieval for large memory stores.
 
@@ -401,7 +399,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
             batch_size: Size of batches for computation
 
         Returns:
-            List of retrieved memory dicts with similarity scores
+            list of retrieved memory dicts with similarity scores
         """
         memory_embeddings = memory_store.memory_embeddings
         memory_size = len(memory_embeddings)
@@ -497,25 +495,23 @@ class ContextualFabricStrategy(RetrievalStrategy):
             # Apply filtering threshold
             if normalized_score > -1.0 or raw_similarity > 0.5:
                 # Add to results
-                results.append(
-                    {
-                        "memory_id": int(idx),
-                        "similarity_score": raw_similarity,
-                        "normalized_score": normalized_score,
-                        **memory_store.memory_metadata[idx],
-                    }
-                )
+                results.append({
+                    "memory_id": int(idx),
+                    "similarity_score": raw_similarity,
+                    "normalized_score": normalized_score,
+                    **memory_store.memory_metadata[idx],
+                })
 
         return results
 
     def _combine_results(
         self,
-        similarity_results: List[Dict[str, Any]],
-        associative_results: Dict[MemoryID, float],
-        temporal_results: Dict[MemoryID, float],
-        activation_results: Dict[MemoryID, float],
+        similarity_results: list[dict[str, Any]],
+        associative_results: dict[MemoryID, float],
+        temporal_results: dict[MemoryID, float],
+        activation_results: dict[MemoryID, float],
         memory_store: Optional[IMemoryStore],
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Combine results from different sources.
 
