@@ -19,6 +19,34 @@ from memoryweave.interfaces.retrieval import (
 class TwoStageRetrievalStrategy(IRetrievalStrategy):
     """Two-stage retrieval strategy with initial broad search and refinement."""
 
+    def __init__(
+        self,
+        memory_store: IMemoryStore,
+        vector_store: IVectorStore,
+        first_stage_strategy: Optional[IRetrievalStrategy] = None,
+        second_stage_strategy: Optional[IRetrievalStrategy] = None,
+    ):
+        """Initialize the two-stage retrieval strategy.
+
+        Args:
+            memory_store: Memory store to retrieve memory content
+            vector_store: Vector store for similarity search
+            first_stage_strategy: Strategy for initial broad search
+            second_stage_strategy: Strategy for refinement
+        """
+        self._memory_store = memory_store
+        self._vector_store = vector_store
+        self._first_stage_strategy = first_stage_strategy
+        self._second_stage_strategy = second_stage_strategy
+        self._default_params = {
+            "first_stage_threshold": 0.5,
+            "second_stage_threshold": 0.7,
+            "first_stage_max": 30,
+            "final_max_results": 10,
+            "keyword_boost": 0.2,
+        }
+        self.component_id = "two_stage_retrieval_strategy"
+
     def process(self, input_data: Any) -> Any:
         """Process the input data as a pipeline stage.
 
@@ -52,34 +80,6 @@ class TwoStageRetrievalStrategy(IRetrievalStrategy):
 
         # Pass through for unsupported input types
         return input_data
-
-    def __init__(
-        self,
-        memory_store: IMemoryStore,
-        vector_store: IVectorStore,
-        first_stage_strategy: Optional[IRetrievalStrategy] = None,
-        second_stage_strategy: Optional[IRetrievalStrategy] = None,
-    ):
-        """Initialize the two-stage retrieval strategy.
-
-        Args:
-            memory_store: Memory store to retrieve memory content
-            vector_store: Vector store for similarity search
-            first_stage_strategy: Strategy for initial broad search
-            second_stage_strategy: Strategy for refinement
-        """
-        self._memory_store = memory_store
-        self._vector_store = vector_store
-        self._first_stage_strategy = first_stage_strategy
-        self._second_stage_strategy = second_stage_strategy
-        self._default_params = {
-            "first_stage_threshold": 0.5,
-            "second_stage_threshold": 0.7,
-            "first_stage_max": 30,
-            "final_max_results": 10,
-            "keyword_boost": 0.2,
-        }
-        self.component_id = "two_stage_retrieval_strategy"
 
     def get_id(self) -> str:
         """Get the unique identifier for this component."""

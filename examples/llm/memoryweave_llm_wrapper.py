@@ -5,16 +5,185 @@ This module provides a simple wrapper to use MemoryWeave with locally running Hu
 """
 
 import time
+import traceback
 from typing import Any
 
+import numpy as np
 import torch
-from memoryweave.components import Retriever
-from memoryweave.components.memory_manager import MemoryManager
-from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from memoryweave.components.retriever import _get_embedder
 
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+_TOKENIZER: AutoTokenizer | None = None
+_LLM: AutoModelForCausalLM | None = None
+_DEVICE: str | None = None
+
+from memoryweave.components.retrieval_strategies.contextual_fabric_strategy import ContextualFabricStrategy
+from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.components.associative_linking import AssociativeMemoryLinker
+from memoryweave.components.temporal_context import TemporalContextBuilder
+from memoryweave.components.activation import ActivationManager
+
+# Import the adapter we created
+# from memory_store_adapter import MemoryStoreAdapter
+
+# Define the MemoryStoreAdapter class inline if you can't import it
+class MemoryStoreAdapter:
+    """
+    Adapter class to make MemoryStore compatible with ContextualFabricStrategy.
+    """
+    
+    def __init__(self, memory_store):
+        """Initialize the adapter with a MemoryStore instance."""
+        self.memory_store = memory_store
+        # Cache for embeddings matrix and metadata
+        self._embeddings_matrix = None
+        self._metadata_dict = None
+        self._ids_list = None
+    
+    @property
+    def memory_embeddings(self):
+        """
+        Property that returns all embeddings as a numpy matrix.
+        """
+        if self._embeddings_matrix is None:
+            self._build_cache()
+        return self._embeddings_matrix
+    
+    @property
+    def memory_metadata(self):
+        """
+        Property that returns all metadata as a list.
+        """
+        if self._metadata_dict is None:
+            self._build_cache()
+        return self._metadata_dict
+    
+    def _build_cache(self):
+        """Build cache of embeddings and metadata for efficient access."""
+        # Get all memories
+        memories = self.memory_store.get_all()
+        
+        # If there are no memories, set empty values
+        if not memories:
+            self._embeddings_matrix = np.zeros((0, 384))  # Empty array with embedding dimension
+            self._metadata_dict = []
+            self._ids_list = []
+            return
+        
+        # Extract embeddings into a matrix
+        embeddings = [memory.embedding for memory in memories]
+        self._embeddings_matrix = np.stack(embeddings) if embeddings else np.array([])
+        
+        # Build metadata list in the same order
+        self._metadata_dict = [memory.metadata for memory in memories]
+        
+        # Store IDs in the same order
+        self._ids_list = [memory.id for memory in memories]
+    
+    def invalidate_cache(self):
+        """Invalidate the cache when memories change."""
+        self._embeddings_matrix = None
+        self._metadata_dict = None
+        self._ids_list = None
+    
+    def get(self, memory_id):
+        """Get a memory by ID, same as the original memory store."""
+        return self.memory_store.get(memory_id)
+    
+    def add(self, embedding, content, metadata=None):
+        """Add a memory, same as the original memory store."""
+        memory_id = self.memory_store.add(embedding, content, metadata)
+        # Invalidate cache after adding
+        self.invalidate_cache()
+        return memory_id
+    
+    def get_all(self):
+        """Get all memories, same as the original memory store."""
+        return self.memory_store.get_all()
+    
+    def search_by_vector(self, query_vector, limit=10):
+        """
+        Search memories by vector similarity.
+        """
+        # Make sure cache is built
+        if self._embeddings_matrix is None or len(self._embeddings_matrix) == 0:
+            self._build_cache()
+            # If still empty, return empty list
+            if len(self._embeddings_matrix) == 0:
+                return []
+        
+        # Calculate similarities
+        similarities = np.dot(self._embeddings_matrix, query_vector)
+        
+        # Get indices of top results
+        top_indices = np.argsort(-similarities)[:limit]
+        
+        # Create result objects
+        results = []
+        for idx in top_indices:
+            memory_id = self._ids_list[idx]
+            try:
+                memory = self.memory_store.get(memory_id)
+                # Add similarity score to result
+                memory_dict = {
+                    "id": memory.id,
+                    "content": memory.content["text"] if isinstance(memory.content, dict) and "text" in memory.content else str(memory.content),
+                    "metadata": memory.metadata,
+                    "score": float(similarities[idx])
+                }
+                results.append(memory_dict)
+            except Exception as e:
+                print(f"Error retrieving memory {memory_id}: {e}")
+        
+        return results
+
+
+def get_tokenizer(
+    model_name: str = DEFAULT_MODEL,
+    **kwargs,
+) -> AutoTokenizer:
+    """Gets the tokenizer as a singleton."""
+    global _TOKENIZER
+    if _TOKENIZER is None:
+        _TOKENIZER = AutoTokenizer.from_pretrained(model_name, **kwargs)
+    return _TOKENIZER
+
+
+def get_llm(
+    model_name: str = DEFAULT_MODEL,
+    device: str = "mps",
+    **kwargs,
+) -> AutoModelForCausalLM:
+    """Gets the LLM model as a singleton."""
+    global _LLM
+    if _LLM is None:
+        if _DEVICE is None:
+            _get_device(device=device)
+        torch_dtype = torch.float16 if _DEVICE == "cuda" else torch.float32
+
+        print(f"Loading LLM: {model_name}")
+        _LLM = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch_dtype,
+            device_map=device,
+            **kwargs,
+        )
+    return _LLM
+
+
+def _get_device(device: str | None = _DEVICE) -> str:
+    """Gets the device to use for the model."""
+    device: str
+    if torch.mps.is_available():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+    return device
 
 
 class MemoryWeaveLLM:
@@ -25,6 +194,7 @@ class MemoryWeaveLLM:
         model_name: str = DEFAULT_MODEL,
         embedding_model_name: str = DEFAULT_EMBEDDING_MODEL,
         device: str = "mps",
+        **model_kwargs,
     ):
         """
         Initialize the MemoryWeaveLLM wrapper.
@@ -34,51 +204,55 @@ class MemoryWeaveLLM:
             embedding_model_name: Name of the sentence transformer model for embeddings
             device: Device to run the model on ("cpu", "cuda", "auto")
         """
-        # Set device
-        if device == "auto":
-            self.device = "cuda" if torch.cuda.is_available() else "mps"
-        else:
-            self.device = device
-
-        print(f"Using device: {self.device}")
-
-        # Initialize LLM
-        print(f"Loading LLM: {model_name}")
+        # 1) Determine device
+        self.device = _get_device(device=device)
+        self.tokenizer = get_tokenizer(model_name)
+        self.model = get_llm(model_name, device=self.device, **model_kwargs)
+        # 2) Load or reuse the LLM + tokenizer singletons
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-            device_map=self.device,
-        )
 
-        # Initialize embedding model
+        # 3) Load the embedding model
         print(f"Loading embedding model: {embedding_model_name}")
-        self.embedding_model = SentenceTransformer(embedding_model_name, device=self.device)
+        self.embedding_model = _get_embedder(
+            model_name=embedding_model_name,
+            device=self.device,
+        )
 
         # Setup MemoryWeave
-        self.memory_manager = MemoryManager()
-        self.retriever = Retriever(memory=self.memory_manager, embedding_model=self.embedding_model)
+        # 4) Initialize the memory store
+        self.memory_store = MemoryStore()
+        
+        # Create adapter for compatibility with ContextualFabricStrategy
+        self.memory_store_adapter = MemoryStoreAdapter(self.memory_store)
 
-        # First initialize components
-        self.retriever.initialize_components()
+        # Initialize required components for the contextual fabric strategy
+        self.associative_linker = AssociativeMemoryLinker(self.memory_store)
+        self.temporal_context = TemporalContextBuilder(self.memory_store)
+        self.activation_manager = ActivationManager(self.memory_store, self.associative_linker)
 
-        # Then explicitly configure each feature for better control
-        self.retriever.configure_query_type_adaptation(enable=True, adaptation_strength=1.0)
-        self.retriever.configure_semantic_coherence(enable=True)
-        self.retriever.configure_two_stage_retrieval(
-            enable=True, first_stage_k=30, first_stage_threshold_factor=0.5
+        # Initialize the contextual fabric strategy with the adapter
+        self.strategy = ContextualFabricStrategy(
+            memory_store=self.memory_store_adapter,  # Use the adapter here
+            associative_linker=self.associative_linker,
+            temporal_context=self.temporal_context,
+            activation_manager=self.activation_manager
         )
-        self.retriever.enable_dynamic_threshold_adjustment(enable=True, window_size=3)
 
-        # Set the default retrieval strategy to TwoStage
-        self.retriever.retrieval_strategy = self.retriever.memory_manager.components.get(
-            "two_stage_retrieval"
-        )
+        # Configure the strategy with weights for different aspects
+        self.strategy.initialize({
+            "confidence_threshold": 0.1,
+            "similarity_weight": 0.5,
+            "associative_weight": 0.3,
+            "temporal_weight": 0.1,
+            "activation_weight": 0.1,
+            "max_associative_hops": 2,
+            "debug": True  # Enable debug logging
+        })
 
-        # Force rebuild the pipeline to ensure all settings take effect
-        self.retriever._build_default_pipeline()
-
-        # Track conversation for context
+        # For backwards compatibility, keep memory_manager reference
+        self.memory_manager = self.memory_store
+        
+        # 7) Keep local conversation state
         self.conversation_history = []
 
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
@@ -92,26 +266,75 @@ class MemoryWeaveLLM:
         Returns:
             The assistant's response
         """
-        # 1. Retrieve relevant memories
-
-        # Use the ContextualFabricStrategy for advanced memory retrieval
+        # 1. Retrieve relevant memories using the ContextualFabricStrategy
         try:
-            relevant_memories = self.retriever.retrieve(
-                user_message,
+            # Create embedding for the query
+            query_embedding = self.embedding_model.encode(user_message, show_progress_bar=False)
+            
+            # Refresh the adapter's cache to ensure it has the latest data
+            self.memory_store_adapter.invalidate_cache()
+            
+            # Use the retrieve method instead of process_query
+            # Make sure we're passing the right parameters
+            print("DEBUG: Calling strategy.retrieve")
+            relevant_memories = self.strategy.retrieve(
+                query_embedding=query_embedding,
                 top_k=10,  # Retrieve more memories to improve recall
-                strategy="contextual_fabric",  # Use the contextual fabric strategy
-                conversation_history=self.conversation_history,
+                context={
+                    "query": user_message,
+                    "current_time": time.time(),
+                    "memory_store": self.memory_store_adapter
+                }
             )
+            
+            # Convert strategy results to the format expected by the rest of the code
+            formatted_memories = []
+            for result in relevant_memories:
+                try:
+                    # Extract content and metadata
+                    memory_id = result.get("memory_id")
+                    if memory_id is not None:
+                        # Get the full memory from the store
+                        memory = self.memory_store.get(memory_id)
+                        # Format it for the rest of the code
+                        formatted_memory = {
+                            "content": memory.content["text"] if isinstance(memory.content, dict) and "text" in memory.content else str(memory.content),
+                            "metadata": memory.metadata,
+                            "relevance_score": result.get("relevance_score", 0.5)
+                        }
+                        formatted_memories.append(formatted_memory)
+                except Exception as memory_err:
+                    print(f"Error retrieving memory {memory_id}: {memory_err}")
+            
+            relevant_memories = formatted_memories
+            print(f"DEBUG: Retrieved {len(relevant_memories)} memories")
+            
         except Exception as e:
             print(f"Error using contextual_fabric strategy: {e}")
-            # Fall back to two_stage if contextual_fabric fails
-            relevant_memories = self.retriever.retrieve(
-                user_message,
-                top_k=10,
-                strategy="two_stage",  # Fallback to two-stage retrieval strategy
-                conversation_history=self.conversation_history,
-            )
-        print(f"DEBUG: Retrieved {len(relevant_memories)} memories")
+            traceback.print_exc()
+            # Fall back to simpler retrieval if needed
+            relevant_memories = []
+            
+            # Try a direct memory search as fallback
+            try:
+                # Create embedding for the query
+                query_embedding = self.embedding_model.encode(user_message, show_progress_bar=False)
+                # Direct vector search using the adapter
+                simple_results = self.memory_store_adapter.search_by_vector(query_embedding, limit=10)
+                
+                # Format results for consistency
+                for item in simple_results:
+                    memory = {
+                        "content": item["content"] if "content" in item else str(item),
+                        "metadata": item["metadata"] if "metadata" in item else {},
+                        "relevance_score": item["score"] if "score" in item else 0.5
+                    }
+                    relevant_memories.append(memory)
+                
+                print(f"DEBUG: Retrieved {len(relevant_memories)} memories using fallback")
+            except Exception as fallback_error:
+                print(f"Even fallback retrieval failed: {fallback_error}")
+                traceback.print_exc()
 
         # 2. Format memories for the prompt in a more structured way
         memory_text = ""
@@ -156,25 +379,26 @@ class MemoryWeaveLLM:
         if facts_about_user or preferences:
             memory_text = "USER INFORMATION:\n"
 
-            for fact in facts_about_user:
-                # Clean up fact text if it starts with "User..."
-                if fact.startswith("User "):
-                    parts = fact.split(": ", 1)
-                    if len(parts) > 1:
-                        fact = parts[1]
-                memory_text += f"- {fact}\n"
+        for fact in facts_about_user:
+            # Clean up fact text if it starts with "User..."
+            if fact.startswith("User "):
+                parts = fact.split(": ", 1)
+                if len(parts) > 1:
+                    fact = parts[1]
+            memory_text += f"- {fact}\n"
 
-            if preferences:
-                if facts_about_user:  # Add a separator if we had facts
-                    memory_text += "\n"
-                memory_text += "USER PREFERENCES:\n"
-                for pref in preferences:
-                    # Clean up preference text
-                    if pref.startswith("User preference:"):
-                        pref = pref.replace("User preference:", "").strip()
-                    memory_text += f"- {pref}\n"
+        if preferences:
+            if facts_about_user:  # Add a separator if we had facts
+                memory_text += "\n"
+            memory_text += "USER PREFERENCES:\n"
+            for pref in preferences:
+                # Clean up preference text
+                if pref.startswith("User preference:"):
+                    pref = pref.replace("User preference:", "").strip()
+                memory_text += f"- {pref}\n"
 
-            # Add stronger instruction to use this information
+        # Add stronger instruction to use this information
+        if memory_text:
             memory_text += "\nIMPORTANT: Use ALL of this information to personalize your responses. Don't explicitly state you're using stored information, but DON'T claim you don't know this information. Incorporate it naturally in your answers.\n\n"
 
         # 3. Prepare prompt with conversation history and memories
@@ -212,7 +436,7 @@ class MemoryWeaveLLM:
 
         # Decode the generated text, skipping the input prompt
         full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        assistant_message = full_response[len(prompt) :]
+        assistant_message = full_response[len(prompt):]
 
         # Clean up the response to only include the assistant's part
         assistant_message = assistant_message.strip()
@@ -242,8 +466,8 @@ class MemoryWeaveLLM:
         preference_pattern = r"(?:I (?:like|love|enjoy|prefer)|my favorite) ([\w\s,]+)"
 
         # Store the user's message
-        user_embedding = self.embedding_model.encode(user_message)
-        self.memory_manager.memory_store.add(
+        user_embedding = self.embedding_model.encode(user_message, show_progress_bar=False)
+        self.memory_store.add(
             user_embedding,
             user_message,
             {
@@ -253,6 +477,9 @@ class MemoryWeaveLLM:
                 "importance": 0.7,  # Higher importance for user messages
             },
         )
+        
+        # Invalidate the adapter's cache
+        self.memory_store_adapter.invalidate_cache()
 
         # Extract potential personal information from the message
         # Location detection
@@ -261,7 +488,7 @@ class MemoryWeaveLLM:
             location = location_match.group(1).strip()
             location_text = f"User lives in {location}."
             location_embedding = self.embedding_model.encode(location_text)
-            self.memory_manager.memory_store.add(
+            self.memory_store.add(
                 location_embedding,
                 location_text,
                 {
@@ -272,6 +499,7 @@ class MemoryWeaveLLM:
                 },
             )
             print(f"DEBUG: Extracted location: {location}")
+            self.memory_store_adapter.invalidate_cache()
 
         # Pet detection
         pet_match = re.search(pet_pattern, user_message, re.IGNORECASE)
@@ -279,7 +507,7 @@ class MemoryWeaveLLM:
             pet_name = pet_match.group(1).strip()
             pet_text = f"User has a pet named {pet_name}."
             pet_embedding = self.embedding_model.encode(pet_text)
-            self.memory_manager.memory_store.add(
+            self.memory_store.add(
                 pet_embedding,
                 pet_text,
                 {
@@ -289,6 +517,7 @@ class MemoryWeaveLLM:
                 },
             )
             print(f"DEBUG: Extracted pet name: {pet_name}")
+            self.memory_store_adapter.invalidate_cache()
 
         # Preference detection
         preference_match = re.search(preference_pattern, user_message, re.IGNORECASE)
@@ -296,7 +525,7 @@ class MemoryWeaveLLM:
             preference = preference_match.group(1).strip()
             preference_text = f"User preference: {preference}"
             preference_embedding = self.embedding_model.encode(preference_text)
-            self.memory_manager.memory_store.add(
+            self.memory_store.add(
                 preference_embedding,
                 preference_text,
                 {
@@ -306,10 +535,11 @@ class MemoryWeaveLLM:
                 },
             )
             print(f"DEBUG: Extracted preference: {preference}")
+            self.memory_store_adapter.invalidate_cache()
 
         # Store the assistant's response
         assistant_embedding = self.embedding_model.encode(assistant_message)
-        self.memory_manager.memory_store.add(
+        self.memory_store.add(
             assistant_embedding,
             assistant_message,
             {
@@ -319,6 +549,7 @@ class MemoryWeaveLLM:
                 "importance": 0.5,  # Lower importance than user messages
             },
         )
+        self.memory_store_adapter.invalidate_cache()
 
     def add_memory(
         self,
@@ -332,8 +563,11 @@ class MemoryWeaveLLM:
         # Get embedding for the text
         embedding = self.embedding_model.encode(text)
 
-        # Use the memory_store.add method from MemoryStore
-        memory_id = self.memory_manager.memory_store.add(embedding, text, metadata)
+        # Use the memory_store.add method
+        memory_id = self.memory_store.add(embedding, text, metadata)
+        # Invalidate the adapter's cache
+        self.memory_store_adapter.invalidate_cache()
+        
         print(f"DEBUG: Added memory with ID {memory_id}: {text}")
 
         return memory_id
@@ -371,7 +605,7 @@ class MemoryWeaveLLM:
 
         # Decode the generated text, skipping the input prompt
         full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        assistant_message = full_response[len(prompt) :]
+        assistant_message = full_response[len(prompt):]
 
         # Clean up the response
         assistant_message = assistant_message.strip()
