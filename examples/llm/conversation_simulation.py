@@ -31,6 +31,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def evaluate_memory_recall(history, expected_recalls):
     """
     Evaluate how well the memory system recalled expected information.
@@ -112,29 +113,10 @@ def run_simulation(model_name: str, with_memory: bool = True):
     # Track query response times
     query_times = []
 
-    # Add some pre-existing memories if memory is enabled
-    if with_memory:
-        # Add personal information with proper typing for better retrieval
-        llm.add_memory(
-            text="User lives in Boston.",
-            metadata={"type": "personal_info", "subtype": "location", "importance": 0.9},
-        )
-
-        llm.add_memory(
-            text="User has a dog named Max.",
-            metadata={"type": "pet_name", "importance": 0.85},
-        )
-        
-        # Add preferences with proper typing
-        llm.add_memory(
-            text="User preference: pizza with mushrooms",
-            metadata={"type": "preference", "subtype": "food", "importance": 0.8},
-        )
-        
-        llm.add_memory(
-            text="User preference: hiking on weekends",
-            metadata={"type": "preference", "subtype": "activity", "importance": 0.8},
-        )
+    # [REMOVED PRE-SEEDING BLOCK HERE]
+    # ───────────────────────────────────────────────
+    # Previously: Adding personal info and preferences
+    # ───────────────────────────────────────────────
 
     # Simulation 1: Basic conversation without memory references
     print("\n=== Conversation 1: Small Talk ===")
@@ -505,12 +487,11 @@ def main():
                     with_memory_response = with_memory_history[i + 1]["content"]
                     break
 
-            # Since no_memory_history might not be in the same format, let's just say it's not available
             console.print(f"[bold green]With memory:[/bold green] {with_memory_response}")
             if not with_memory_response:
                 console.print("[yellow]  No response found in history[/yellow]")
 
-            # Check if expected info is in the response
+            # Check which expected items were found
             if with_memory_response:
                 found_items = [
                     item for item in expected if item.lower() in with_memory_response.lower()
@@ -522,6 +503,7 @@ def main():
                 ]
                 if missing_items:
                     console.print(f"[yellow]  Missing: {', '.join(missing_items)}[/yellow]")
+
     else:
         history, metrics = run_simulation(args.model, with_memory=not args.no_memory)
 
@@ -540,7 +522,6 @@ def main():
                 memory_types = {}
 
                 # Try to peek into llm's memory store if possible
-                # This isn't ideal but helps with debugging
                 import inspect
 
                 frame = inspect.currentframe()
