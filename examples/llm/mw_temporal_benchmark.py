@@ -77,6 +77,46 @@ def configure_time_periods():
     return time_periods
 
 
+def add_benchmark_facts(mw, time_periods, scenarios):
+    """Add facts to MemoryWeave for benchmarking with appropriate temporal context."""
+    console.print(
+        "Starting Benchmark: Adding Facts",
+        style="bold cyan",
+        new_line_start=True,
+    )
+    fact_metadata = []
+
+    for i, (fact_template, _) in enumerate(TEST_SCENARIOS[:scenarios]):
+        temporal_ref = secrets.choice(TEMPORAL_REFERENCES)
+        timestamp = time_periods[temporal_ref]
+
+        # Simple conversion for display
+        if timestamp == time_periods["yesterday"]:
+            when_str = "yesterday"
+        elif timestamp == time_periods["last week"]:
+            when_str = "7 days ago"
+        elif timestamp == time_periods["earlier today"]:
+            when_str = "earlier today"
+        elif timestamp == time_periods["this morning"]:
+            when_str = "this morning"
+        else:
+            when_str = "recently"
+
+        fact = fact_template.format(when=when_str)
+        console.print(f"\n[bold]Adding fact {i + 1}:[/bold] {fact}")
+        console.print(f"Associated time: {format_timestamp(timestamp)}", style="dim")
+        mw.add_memory(fact, {"type": "user_fact", "created_at": timestamp, "importance": 0.8})
+        fact_metadata.append((fact, temporal_ref))
+
+        # Add a distractor
+        distractor = "I'm thinking about buying a new laptop."
+        mw.add_memory(
+            distractor, {"type": "user_message", "created_at": time.time(), "importance": 0.4}
+        )
+
+    return fact_metadata
+
+
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))
 @click.option("--model", default=DEFAULT_MODEL, help=f"Model name (default: {DEFAULT_MODEL})")
 @click.option("--scenarios", type=int, default=4, help="Number of scenarios to test (default: 4)")
@@ -95,47 +135,19 @@ def main(model, scenarios, logfile, debug):
     # Get time periods from the configuration function
     time_periods = configure_time_periods()
 
-    console.print("\n[bold cyan]Starting Benchmark: Adding Facts[/bold cyan]")
-    fact_metadata = []
-    console.print("\n[bold cyan]Starting Benchmark: Adding Facts[/bold cyan]")
-    fact_metadata = []
-    for i, (fact_template, _) in enumerate(TEST_SCENARIOS[:scenarios]):
-        temporal_ref = secrets.choice(TEMPORAL_REFERENCES)
-        timestamp = time_periods[temporal_ref]
-        # Simple conversion for display
-        if timestamp == time_periods["yesterday"]:
-            when_str = "yesterday"
-        elif timestamp == last_week:
-            when_str = "7 days ago"
-        elif timestamp == earlier_today:
-            when_str = "earlier today"
-        elif timestamp == this_morning:
-            when_str = "this morning"
-        else:
-            when_str = "recently"
-
-        fact = fact_template.format(when=when_str)
-        console.print(f"\n[bold]Adding fact {i + 1}:[/bold] {fact}")
-        console.print(f"[dim]Associated time: {format_timestamp(timestamp)}[/dim]")
-        mw.add_memory(fact, {"type": "user_fact", "created_at": timestamp, "importance": 0.8})
-        fact_metadata.append((fact, temporal_ref))
-
-        # Add a distractor
-        distractor = "I'm thinking about buying a new laptop."
-        mw.add_memory(
-            distractor, {"type": "user_message", "created_at": time.time(), "importance": 0.4}
-        )
+    # Add facts for benchmarking
+    fact_metadata = add_benchmark_facts(mw, time_periods, scenarios)
 
     console.rule("[bold green]Running Queries[/bold green]")
 
     # For aggregate metrics
-    agg_breakdowns = {
-        "similarity": [],
-        "associative": [],
-        "temporal": [],
-        "activation": [],
-        "total": [],
-    }
+    agg_breakdowns = dict(
+        similarity=[],
+        associative=[],
+        temporal=[],
+        activation=[],
+        total=[],
+    )
 
     # Run queries and print per-query breakdown tables
     for i, (_fact, temporal_ref) in enumerate(fact_metadata):
