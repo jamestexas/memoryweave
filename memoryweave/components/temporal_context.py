@@ -21,6 +21,149 @@ from memoryweave.components.component_names import ComponentName
 from memoryweave.interfaces.memory import IMemoryStore, MemoryID
 
 
+class TemporalDecayComponent(MemoryComponent):
+    """
+    Component that applies temporal decay to memory activations.
+
+    This component simulates the natural decay of memory activation over time,
+    making older memories less accessible unless they are frequently accessed
+    or have strong connections.
+    """
+
+    def __init__(self):
+        """Initialize the temporal decay component."""
+        self.short_term_half_life = 3600  # 1 hour
+        self.long_term_half_life = 2592000  # 30 days
+        self.activation_boost_on_access = 0.5
+        self.minimum_activation = 0.1
+        self.component_id = ComponentName.MEMORY_DECAY
+        self.last_decay_time = time.time()
+
+    def initialize(self, config: dict[str, Any]) -> None:
+        """
+        Initialize the component with configuration.
+
+        Args:
+            config: Configuration dictionary with parameters:
+                - short_term_half_life: Half-life for short-term decay (default: 3600s)
+                - long_term_half_life: Half-life for long-term decay (default: 2592000s)
+                - activation_boost_on_access: Activation increase when accessed (default: 0.5)
+                - minimum_activation: Minimum activation level (default: 0.1)
+        """
+        self.short_term_half_life = config.get("short_term_half_life", 3600)
+        self.long_term_half_life = config.get("long_term_half_life", 2592000)
+        self.activation_boost_on_access = config.get("activation_boost_on_access", 0.5)
+        self.minimum_activation = config.get("minimum_activation", 0.1)
+
+    def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+        """
+        Process memory data to apply temporal decay.
+
+        Args:
+            data: Memory data to process
+            context: Context information
+
+        Returns:
+            Updated memory data with decayed activation
+        """
+        # Create a deep copy of the data to avoid modifying the original
+        result = dict(data)
+
+        # Get current time
+        current_time = context.get("current_time", time.time())
+
+        # Get memory access time
+        last_accessed = data.get("last_accessed", current_time)
+        created_at = data.get("created_at", current_time)
+
+        # Get current activation level
+        activation = data.get("activation", 1.0)
+
+        # Apply decay based on time since last access
+        time_since_access = current_time - last_accessed
+        time_since_creation = current_time - created_at
+
+        # Calculate decay factor
+        # Use short-term decay for recently created memories,
+        # and long-term decay for older memories
+        if time_since_creation < 7 * 86400:  # Less than 7 days old
+            half_life = self.short_term_half_life
+        else:
+            half_life = self.long_term_half_life
+
+        # Apply exponential decay
+        decay_factor = 0.5 ** (time_since_access / half_life)
+
+        # Apply decay to activation
+        decayed_activation = max(self.minimum_activation, activation * decay_factor)
+
+        # Check if memory is being accessed now
+        is_accessed = context.get("is_accessed", False)
+
+        # If accessed, boost activation
+        if is_accessed:
+            boosted_activation = min(1.0, decayed_activation + self.activation_boost_on_access)
+            result["activation"] = boosted_activation
+            result["last_accessed"] = current_time
+        else:
+            result["activation"] = decayed_activation
+
+        # Add decay information
+        result["decay_info"] = {
+            "time_since_access": time_since_access,
+            "decay_factor": decay_factor,
+            "half_life": half_life,
+        }
+
+        return result
+
+    def apply_decay_to_store(self, memory_store: IMemoryStore, current_time: float) -> None:
+        """
+        Apply decay to all memories in a store.
+
+        Args:
+            memory_store: The memory store to update
+            current_time: Current timestamp for decay calculation
+        """
+        # Skip if no significant time has passed since last decay
+        if current_time - self.last_decay_time < self.short_term_half_life / 10:
+            return
+
+        # Get all memories
+        all_memories = memory_store.get_all()
+
+        for memory in all_memories:
+            # Get current activation
+            activation = memory.metadata.get("activation", 1.0)
+
+            # Get access and creation times
+            last_accessed = memory.metadata.get(
+                "last_accessed", memory.metadata.get("created_at", current_time)
+            )
+            created_at = memory.metadata.get("created_at", current_time)
+
+            # Apply decay
+            time_since_access = current_time - last_accessed
+            time_since_creation = current_time - created_at
+
+            # Use appropriate half-life
+            if time_since_creation < 7 * 86400:  # Less than 7 days old
+                half_life = self.short_term_half_life
+            else:
+                half_life = self.long_term_half_life
+
+            # Apply exponential decay
+            decay_factor = 0.5 ** (time_since_access / half_life)
+            decayed_activation = max(self.minimum_activation, activation * decay_factor)
+
+            # Update activation in store
+            memory_store.update_metadata(memory.id, {"activation": decayed_activation})
+
+        # Update last decay time
+        self.last_decay_time = current_time
+
+
+
 class TemporalContextBuilder(Component):
     """
     Component that extracts and integrates temporal information into memory contexts.
@@ -882,144 +1025,22 @@ class TemporalContextBuilder(Component):
 
         return related_memories
 
-
-class TemporalDecayComponent(MemoryComponent):
-    """
-    Component that applies temporal decay to memory activations.
-
-    This component simulates the natural decay of memory activation over time,
-    making older memories less accessible unless they are frequently accessed
-    or have strong connections.
-    """
-
-    def __init__(self):
-        """Initialize the temporal decay component."""
-        self.short_term_half_life = 3600  # 1 hour
-        self.long_term_half_life = 2592000  # 30 days
-        self.activation_boost_on_access = 0.5
-        self.minimum_activation = 0.1
-        self.component_id = ComponentName.MEMORY_DECAY
-        self.last_decay_time = time.time()
-
-    def initialize(self, config: dict[str, Any]) -> None:
+    def update_timestamp(self, memory_id: MemoryID, last_access_time: float) -> None:
         """
-        Initialize the component with configuration.
+        Record that `memory_id` was just accessed at `last_access_time`.
+        This stores the usage time in memory.metadata["last_accessed"].
 
         Args:
-            config: Configuration dictionary with parameters:
-                - short_term_half_life: Half-life for short-term decay (default: 3600s)
-                - long_term_half_life: Half-life for long-term decay (default: 2592000s)
-                - activation_boost_on_access: Activation increase when accessed (default: 0.5)
-                - minimum_activation: Minimum activation level (default: 0.1)
+            memory_id: The ID of the memory
+            last_access_time: The timestamp when it was accessed
         """
-        self.short_term_half_life = config.get("short_term_half_life", 3600)
-        self.long_term_half_life = config.get("long_term_half_life", 2592000)
-        self.activation_boost_on_access = config.get("activation_boost_on_access", 0.5)
-        self.minimum_activation = config.get("minimum_activation", 0.1)
-
-    def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-        """
-        Process memory data to apply temporal decay.
-
-        Args:
-            data: Memory data to process
-            context: Context information
-
-        Returns:
-            Updated memory data with decayed activation
-        """
-        # Create a deep copy of the data to avoid modifying the original
-        result = dict(data)
-
-        # Get current time
-        current_time = context.get("current_time", time.time())
-
-        # Get memory access time
-        last_accessed = data.get("last_accessed", current_time)
-        created_at = data.get("created_at", current_time)
-
-        # Get current activation level
-        activation = data.get("activation", 1.0)
-
-        # Apply decay based on time since last access
-        time_since_access = current_time - last_accessed
-        time_since_creation = current_time - created_at
-
-        # Calculate decay factor
-        # Use short-term decay for recently created memories,
-        # and long-term decay for older memories
-        if time_since_creation < 7 * 86400:  # Less than 7 days old
-            half_life = self.short_term_half_life
-        else:
-            half_life = self.long_term_half_life
-
-        # Apply exponential decay
-        decay_factor = 0.5 ** (time_since_access / half_life)
-
-        # Apply decay to activation
-        decayed_activation = max(self.minimum_activation, activation * decay_factor)
-
-        # Check if memory is being accessed now
-        is_accessed = context.get("is_accessed", False)
-
-        # If accessed, boost activation
-        if is_accessed:
-            boosted_activation = min(1.0, decayed_activation + self.activation_boost_on_access)
-            result["activation"] = boosted_activation
-            result["last_accessed"] = current_time
-        else:
-            result["activation"] = decayed_activation
-
-        # Add decay information
-        result["decay_info"] = {
-            "time_since_access": time_since_access,
-            "decay_factor": decay_factor,
-            "half_life": half_life,
-        }
-
-        return result
-
-    def apply_decay_to_store(self, memory_store: IMemoryStore, current_time: float) -> None:
-        """
-        Apply decay to all memories in a store.
-
-        Args:
-            memory_store: The memory store to update
-            current_time: Current timestamp for decay calculation
-        """
-        # Skip if no significant time has passed since last decay
-        if current_time - self.last_decay_time < self.short_term_half_life / 10:
+        if not self.memory_store:
             return
+        try:
+            memory = self.memory_store.get(memory_id)
+            if memory is not None:
+                memory.metadata["last_accessed"] = last_access_time
+        except KeyError:
+            # If memory_id not found, just ignore
+            pass
 
-        # Get all memories
-        all_memories = memory_store.get_all()
-
-        for memory in all_memories:
-            # Get current activation
-            activation = memory.metadata.get("activation", 1.0)
-
-            # Get access and creation times
-            last_accessed = memory.metadata.get(
-                "last_accessed", memory.metadata.get("created_at", current_time)
-            )
-            created_at = memory.metadata.get("created_at", current_time)
-
-            # Apply decay
-            time_since_access = current_time - last_accessed
-            time_since_creation = current_time - created_at
-
-            # Use appropriate half-life
-            if time_since_creation < 7 * 86400:  # Less than 7 days old
-                half_life = self.short_term_half_life
-            else:
-                half_life = self.long_term_half_life
-
-            # Apply exponential decay
-            decay_factor = 0.5 ** (time_since_access / half_life)
-            decayed_activation = max(self.minimum_activation, activation * decay_factor)
-
-            # Update activation in store
-            memory_store.update_metadata(memory.id, {"activation": decayed_activation})
-
-        # Update last decay time
-        self.last_decay_time = current_time
