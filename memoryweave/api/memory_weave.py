@@ -138,7 +138,7 @@ class MemoryWeaveAPI:
 
         self.personal_attribute_manager = None
         if enable_personal_attributes:
-            self.personal_attribute_manager = PersonalAttributeManager(self.memory_store)  # noqa: F821
+            self.personal_attribute_manager = PersonalAttributeManager()  # noqa: F821
             self.personal_attribute_manager.initialize({})
 
         self.semantic_coherence_processor = None
