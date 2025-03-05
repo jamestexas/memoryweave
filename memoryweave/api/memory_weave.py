@@ -20,7 +20,11 @@ from memoryweave.components.retrieval_strategies.contextual_fabric_strategy impo
 )
 from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.factory.memory_factory import MemoryStoreConfig, VectorSearchConfig
+from memoryweave.factory.memory_factory import (
+    MemoryStoreConfig,
+    VectorSearchConfig,
+    create_memory_store_and_adapter,
+)
 from memoryweave.interfaces.retrieval import QueryType
 from memoryweave.query.analyzer import SimpleQueryAnalyzer
 from memoryweave.storage.refactored.memory_store import get_device
@@ -83,20 +87,23 @@ class MemoryWeaveAPI:
         self.embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
         embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
 
-        # Configure and create memory store and adapter using factory pattern
-        from memoryweave.factory.memory_factory import create_memory_store_and_adapter
+        # Check if memory components are provided by subclass
+        if hasattr(self, "_memory_store_override") and hasattr(self, "_memory_adapter_override"):
+            self.memory_store = self._memory_store_override
+            self.memory_adapter = self._memory_adapter_override
+        else:
+            # Configure and create memory store and adapter using factory pattern
+            store_config = MemoryStoreConfig(
+                type="standard",  # Use standard store for base API
+                vector_search=VectorSearchConfig(
+                    type="numpy",  # Default to numpy for simplicity
+                    dimension=embedding_dim,
+                ),
+            )
 
-        store_config = MemoryStoreConfig(
-            type="standard",  # Use standard store for base API
-            vector_search=VectorSearchConfig(
-                type="numpy",  # Default to numpy for simplicity
-                dimension=embedding_dim,
-            ),
-        )
-
-        # Create adapter (which includes the store)
-        self.memory_adapter = create_memory_store_and_adapter(store_config)
-        self.memory_store = self.memory_adapter.memory_store
+            # Create adapter (which includes the store)
+            self.memory_adapter = create_memory_store_and_adapter(store_config)
+            self.memory_store = self.memory_adapter.memory_store
 
         # For backward compatibility
         self.memory_store_adapter = self.memory_adapter
@@ -112,10 +119,21 @@ class MemoryWeaveAPI:
 
         # Initialize query components
         self.query_analyzer = SimpleQueryAnalyzer()
+        self.query_analyzer.initialize(
+            config=dict(
+                min_keyword_length=3,
+                max_keywords=10,
+            ),
+        )
         self.query_analyzer.initialize({"min_keyword_length": 3, "max_keywords": 10})
 
         self.query_adapter = QueryTypeAdapter()
-        self.query_adapter.initialize({"apply_keyword_boost": True, "scale_params_by_length": True})
+        self.query_adapter.initialize(
+            config=dict(
+                apply_keyword_boost=True,
+                scale_params_by_length=True,
+            ),
+        )
 
         # Initialize optional components
         self.category_manager = None
@@ -238,15 +256,11 @@ class MemoryWeaveAPI:
 
         # Step 1: Query analysis
         query_info = self._analyze_query(user_message)
-        _query_obj: dict[str, Any]
-        adapted_params: dict[str, Any]
-        expanded_keywords: list[str]
-
         _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
 
         # Step 2: Compute query embedding
-
-        if (query_embedding := self._compute_embedding(user_message)) is None:
+        query_embedding = self._compute_embedding(user_message)
+        if query_embedding is None:
             return "Sorry, an error occurred while processing your request."
 
         # Step 3: Retrieve memories
@@ -292,7 +306,7 @@ class MemoryWeaveAPI:
 
         # Step 1: Query analysis
         query_info = self._analyze_query(user_message)
-        query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
+        _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
 
         # Step 2: Compute query embedding
         query_embedding = self._compute_embedding(user_message)
@@ -458,15 +472,16 @@ class MemoryWeaveAPI:
         """Store conversation messages as memories."""
         try:
             # Create embeddings
-            _user_emb = self.embedding_model.encode(
+            user_emb = self.embedding_model.encode(
                 user_message, show_progress_bar=self.show_progress_bar
             )
-            _assistant_emb = self.embedding_model.encode(
+            assistant_emb = self.embedding_model.encode(
                 assistant_reply, show_progress_bar=self.show_progress_bar
             )
 
             # Store user message
-            user_mem_id = self.add_memory(
+            user_mem_id = self.memory_adapter.add(
+                user_emb,
                 user_message,
                 {
                     "type": "user_message",
@@ -477,7 +492,8 @@ class MemoryWeaveAPI:
             )
 
             # Store assistant message
-            assistant_mem_id = self.add_memory(
+            assistant_mem_id = self.memory_adapter.add(
+                assistant_emb,
                 assistant_reply,
                 {
                     "type": "assistant_message",
@@ -512,7 +528,7 @@ class MemoryWeaveAPI:
     def _consolidate_memories(self):
         """Consolidate memories to stay within capacity limits."""
         # Skip if no consolidation needed
-        if len(self.memory_store.get_all()) <= self.max_memories:
+        if len(self.memory_adapter.get_all()) <= self.max_memories:
             self.memories_since_consolidation = 0
             logger.debug("Memory consolidation skipped: no consolidation needed.")
             return 0
@@ -532,7 +548,7 @@ class MemoryWeaveAPI:
 
         # Consolidate memory store
         removed_ids = self.memory_store.consolidate(self.max_memories)
-        self.memory_store_adapter.invalidate_cache()
+        self.memory_adapter.invalidate_cache()
 
         # Reset counter
         self.memories_since_consolidation = 0
@@ -557,7 +573,7 @@ class MemoryWeaveAPI:
         logger.info(f"Clearing memories. Keeping personal attributes: {keep_personal_attributes}")
         if keep_personal_attributes:
             # Get all memories
-            memories = self.memory_store.get_all()
+            memories = self.memory_adapter.get_all()
 
             # Keep personal attribute memories
             kept_ids = []
@@ -573,14 +589,13 @@ class MemoryWeaveAPI:
             count_kept = len(kept_ids)
 
             # Clear all memories
-            self.memory_store.clear()
-            self.memory_store_adapter.invalidate_cache()
+            self.memory_adapter.clear()
 
             # Re-add the kept memories
             for memory_id in kept_ids:
                 try:
                     memory = self.memory_store.get(memory_id)
-                    self.memory_store.add(memory.embedding, memory.content, memory.metadata)
+                    self.memory_adapter.add(memory.embedding, memory.content, memory.metadata)
                 except KeyError:
                     pass
 
@@ -591,11 +606,10 @@ class MemoryWeaveAPI:
             return removed_count
         else:
             # Count memories before clearing
-            count_before = len(self.memory_store.get_all())
+            count_before = len(self.memory_adapter.get_all())
 
             # Clear all memories
-            self.memory_store.clear()
-            self.memory_store_adapter.invalidate_cache()
+            self.memory_adapter.clear()
 
             logger.info(f"Removed {count_before} memories.")
             return count_before
@@ -619,7 +633,7 @@ class MemoryWeaveAPI:
         results = []
 
         # Get all memories
-        memories = self.memory_store.get_all()
+        memories = self.memory_adapter.get_all()
 
         # Filter memories containing the keyword
         for memory in memories:
@@ -663,7 +677,7 @@ class MemoryWeaveAPI:
         logger.debug(f"Finding similar memories for memory ID: {memory_id}")
         try:
             # Get the memory
-            memory = self.memory_store.get(memory_id)
+            memory = self.memory_adapter.get(memory_id)
 
             # Use its embedding to find similar memories
             query_embedding = memory.embedding
@@ -702,7 +716,7 @@ class MemoryWeaveAPI:
         logger.info(f"Updating memory ID: {memory_id}")
         try:
             # Get the existing memory
-            memory = self.memory_store.get(memory_id)
+            memory = self.memory_adapter.get(memory_id)
 
             # If new text is provided, update content and embedding
             if new_text is not None:
@@ -719,35 +733,26 @@ class MemoryWeaveAPI:
                     new_content = new_text
 
                 # Remove the old memory
-                self.memory_store.remove(memory_id)
-                self.memory_store_adapter.invalidate_cache()
+                self.memory_adapter.remove(memory_id)
 
                 # Create updated metadata
                 updated_metadata = memory.metadata.copy() if memory.metadata else {}
                 if new_metadata:
                     updated_metadata.update(new_metadata)
 
-                # Add as a new memory with the original ID if possible
-                try:
-                    # Try to use the same ID
-                    self.memory_store.add_with_id(
-                        memory_id, new_embedding, new_content, updated_metadata
-                    )
-                except AttributeError:
-                    # If add_with_id is not supported, just add as a new memory
-                    return self.memory_store.add(new_embedding, new_content, updated_metadata)
+                # Add as a new memory
+                new_id = self.memory_adapter.add(new_embedding, new_content, updated_metadata)
 
                 # Update category if enabled
                 if self.category_manager:
-                    self.category_manager.add_to_category(memory_id, new_embedding)
+                    self.category_manager.add_to_category(new_id, new_embedding)
 
-                logger.info(f"Memory ID: {memory_id} updated with new text.")
+                logger.info(f"Memory ID: {memory_id} updated with new ID: {new_id}")
                 return True
 
             # If only updating metadata
             elif new_metadata is not None:
-                self.memory_store.update_metadata(memory_id, new_metadata)
-                self.memory_store_adapter.invalidate_cache()
+                self.memory_adapter.update_metadata(memory_id, new_metadata)
                 logger.info(f"Memory ID: {memory_id} metadata updated.")
                 return True
 
