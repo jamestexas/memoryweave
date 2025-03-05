@@ -56,10 +56,13 @@ Dependencies:
     - memoryweave.storage.memory_store
 """  # noqa: W291, W505
 
+import asyncio
 import logging
 import time
+from collections.abc import AsyncGenerator
 from typing import Any
 
+import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -722,36 +725,98 @@ class MemoryWeaveAPI:
         """Return stored conversation history."""
         return self.conversation_history
 
-    def retrieve(self, query: str, **kwargs) -> list[dict[str, Any]]:
+    def retrieve(
+        self,
+        query: str,
+        query_embedding: np.ndarray | None = None,
+        top_k: int = 10,
+        confidence_threshold: float | None = None,
+        weights: dict[str, float] | None = None,
+        use_progressive_filtering: bool = False,
+        use_batched_computation: bool = False,
+        context: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> list[dict[str, Any]]:
         """
-        Retrieve memories using the contextual fabric strategy.
+        Retrieve memories using the contextual fabric strategy with fine-grained control.
 
         Args:
             query: The query string
+            query_embedding: Precomputed query embedding (optional)
+            top_k: Maximum number of results to return
+            confidence_threshold: Minimum confidence for results
+            weights: Custom weights for different factors
+                    (similarity, associative, temporal, activation)
+            use_progressive_filtering: Whether to use progressive filtering (large stores)
+            use_batched_computation: Whether to use batched computation (large stores)
+            context: Additional context information
             **kwargs: Additional parameters for retrieval
 
         Returns:
-            list of retrieved memories with metadata and scores
+            List of retrieved memory items with relevance scores and metadata
         """
-        # Create embedding
-        query_embedding = self.embedding_model.encode(
-            query, show_progress_bar=self.show_progress_bar
-        )
+        # Create embedding if not provided
+        if query_embedding is None:
+            query_embedding = self.embedding_model.encode(
+                query, show_progress_bar=self.show_progress_bar
+            )
 
-        # Set up retrieval context
-        context = {
+        # Prepare retrieval context
+        retrieval_context = {
             "query": query,
             "current_time": time.time(),
             "memory_store": self.memory_store_adapter,
         }
 
-        # Add any additional context parameters
-        context.update(kwargs)
+        # Add custom weights if provided
+        if weights:
+            retrieval_context["adapted_retrieval_params"] = weights
 
-        # Retrieve memories
-        return self.strategy.retrieve(
-            query_embedding=query_embedding, top_k=kwargs.get("top_k", 10), context=context
+        # Add confidence threshold if provided
+        if confidence_threshold is not None:
+            if "adapted_retrieval_params" not in retrieval_context:
+                retrieval_context["adapted_retrieval_params"] = {}
+            retrieval_context["adapted_retrieval_params"]["confidence_threshold"] = (
+                confidence_threshold
+            )
+
+        # Add progressive filtering flags if specified
+        if use_progressive_filtering:
+            if "adapted_retrieval_params" not in retrieval_context:
+                retrieval_context["adapted_retrieval_params"] = {}
+            retrieval_context["adapted_retrieval_params"]["use_progressive_filtering"] = True
+
+        if use_batched_computation:
+            if "adapted_retrieval_params" not in retrieval_context:
+                retrieval_context["adapted_retrieval_params"] = {}
+            retrieval_context["adapted_retrieval_params"]["use_batched_computation"] = True
+
+        # Add any additional context
+        if context:
+            retrieval_context.update(context)
+
+        # Add any additional kwargs
+        for key, value in kwargs.items():
+            retrieval_context[key] = value
+
+        # Retrieve memories using the strategy
+        memories = self.strategy.retrieve(
+            query_embedding=query_embedding, top_k=top_k, context=retrieval_context
         )
+
+        # Ensure consistent activation updates
+        for memory in memories:
+            memory_id = memory.get("memory_id")
+            if memory_id is not None and self.activation_manager:
+                # Activate memory based on relevance
+                activation_boost = min(memory.get("relevance_score", 0.1) * 0.5, 0.3)
+                self.activation_manager.activate_memory(memory_id, activation_boost, spread=True)
+
+                # Update last accessed timestamp
+                if self.temporal_context:
+                    self.temporal_context.update_timestamp(memory_id, time.time())
+
+        return memories
 
     def search_by_keyword(self, keyword: str, limit: int = 10) -> list[dict[str, Any]]:
         """
@@ -1077,3 +1142,159 @@ class MemoryWeaveAPI:
         assistant_response = full_response[len(prompt) :].strip()
         logger.debug("Response generated without memory context.")
         return assistant_response
+
+    async def chat_stream(
+        self,
+        user_message: str,
+        max_new_tokens: int = 512,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Process a user message and generate a streaming response.
+
+        Args:
+            user_message: The user's message
+            max_new_tokens: Maximum tokens to generate
+
+        Returns:
+            AsyncGenerator yielding response tokens
+        """
+        start_time = time.time()
+
+        # 1. Query analysis (reuse from chat method)
+        _query_obj, adapted_params, expanded_keywords, query_type, entities = self._analyze_query(
+            user_message
+        )
+
+        # 2. Compute query embedding
+        query_embedding = self._compute_embedding(user_message)
+        if query_embedding is None:
+            yield "Sorry, an error occurred while processing your request."
+            return
+
+        # 3. Adjust threshold
+        self._adjust_confidence_threshold(query_type, adapted_params)
+
+        # 4. Retrieve memories
+        now = time.time()
+        relevant_memories = self._retrieve_memories(
+            query_embedding,
+            user_message,
+            query_type,
+            expanded_keywords,
+            entities,
+            now,
+            adapted_params,
+        )
+
+        # 5. Update memory activations and apply coherence
+        self._update_memory_activation(relevant_memories, now)
+        relevant_memories = self._apply_semantic_coherence(relevant_memories, query_embedding)
+
+        # 6. Apply temporal context and clean results
+        cleaned_results = self._apply_temporal_context_and_clean(
+            user_message, relevant_memories, now
+        )
+
+        # 7. Extract personal attributes
+        self._extract_personal_attributes(user_message, now)
+
+        # 8. Construct prompt
+        prompt = self._construct_prompt(cleaned_results, query_type, user_message)
+
+        # 9. Stream generation
+        async for token in self._stream_generate_response(prompt, max_new_tokens):
+            yield token
+
+        # 10. Store interaction and update history
+        full_response = "".join([
+            token
+            async for token in self._stream_generate_response(prompt, max_new_tokens, stream=False)
+        ])
+        self._store_interaction(user_message, full_response, now)
+        self._update_conversation_history(user_message, full_response)
+        self._update_retrieval_stats(start_time, len(cleaned_results))
+        self._update_dynamic_threshold(query_type, len(cleaned_results))
+
+    async def _stream_generate_response(
+        self,
+        prompt: str,
+        max_new_tokens: int,
+        stream: bool = True,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Stream tokens from the model.
+
+        Args:
+            prompt: The input prompt
+            max_new_tokens: Maximum new tokens to generate
+            stream: Whether to stream tokens or return the full response
+
+        Returns:
+            AsyncGenerator yielding tokens or the full response
+        """
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+
+        # Check if HuggingFace Transformer supports streaming
+        if hasattr(self.model.generate, "streamer") and stream:
+            # Use HF TextStreamer if available
+            from transformers import TextStreamer
+
+            streamer = TextStreamer(self.tokenizer)
+            generation_kwargs = {
+                "input_ids": inputs.input_ids,
+                "attention_mask": inputs.attention_mask,
+                "max_new_tokens": max_new_tokens,
+                "temperature": 0.7,
+                "do_sample": True,
+                "top_p": 0.9,
+                "streamer": streamer,
+            }
+
+            # This is a workaround to capture tokens from the streamer
+            token_queue = asyncio.Queue()
+
+            async def _stream_tokens():
+                current_token = ""
+                try:
+                    async for token in streamer:
+                        await token_queue.put(token)
+                    await token_queue.put(None)  # Signal end of generation
+                except Exception as e:
+                    logger.error(f"Error in token streaming: {e}")
+                    await token_queue.put(None)
+
+            # Start streaming task
+            asyncio.create_task(_stream_tokens())
+
+            # Start generation
+            self.model.generate(**generation_kwargs)
+
+            # Yield tokens as they become available
+            while True:
+                token = await token_queue.get()
+                if token is None:
+                    break
+                yield token
+        else:
+            # Fallback for models without streaming support
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    temperature=0.7,
+                    do_sample=True,
+                    top_p=0.9,
+                )
+
+            # Get full response
+            full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            assistant_reply = full_response[len(prompt) :].strip()
+
+            if stream:
+                # Simulate streaming by yielding character by character
+                for char in assistant_reply:
+                    yield char
+                    await asyncio.sleep(0.005)  # Simulate typing speed
+            else:
+                # Return the full response if not streaming
+                yield assistant_reply
