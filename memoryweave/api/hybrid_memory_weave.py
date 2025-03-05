@@ -12,11 +12,12 @@ from typing import Any
 
 import numpy as np
 
-from memoryweave.api.llm_provider import LLMProvider
-from memoryweave.api.memory_weave import MemoryWeaveAPI
+from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
+from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
 from memoryweave.components.retrieval_strategies.hybrid_fabric_strategy import HybridFabricStrategy
+from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.text_chunker import TextChunker
-from memoryweave.storage.refactored.hybrid_store import HybridMemoryAdapter, HybridMemoryStore
+from memoryweave.storage.refactored.memory_store import get_device
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +35,8 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
     def __init__(
         self,
-        model_name: str = "unsloth/Llama-3.2-3B-Instruct",
-        embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        model_name: str = DEFAULT_MODEL,
+        embedding_model_name: str = DEFAULT_EMBEDDING_MODEL,
         device: str = "auto",
         max_memories: int = 1000,
         enable_category_management: bool = True,
@@ -48,23 +49,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         llm_provider: LLMProvider | None = None,
         **model_kwargs,
     ):
-        """
-        Initialize the HybridMemoryWeaveAPI.
-
-        Args:
-            model_name: Name of the language model to use
-            embedding_model_name: Name of the embedding model to use
-            device: Device to use for computation
-            max_memories: Maximum number of memories to store
-            enable_category_management: Whether to enable category management
-            enable_personal_attributes: Whether to enable personal attribute extraction
-            enable_semantic_coherence: Whether to enable semantic coherence checking
-            enable_dynamic_thresholds: Whether to enable dynamic threshold adjustment
-            consolidation_interval: Interval for memory consolidation
-            show_progress_bar: Whether to show progress bars for embedding generation
-            debug: Whether to enable debug logging
-            **model_kwargs: Additional arguments for the language model
-        """
+        """Initialize the HybridMemoryWeaveAPI."""
         # Initialize chunking components first
         self.text_chunker = TextChunker()
         self.text_chunker.initialize({
@@ -75,20 +60,46 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             "respect_sentences": True,
         })
 
-        # Initialize hybrid memory store
-        self.hybrid_memory_store = HybridMemoryStore()
-        self.hybrid_memory_adapter = HybridMemoryAdapter(self.hybrid_memory_store)
+        # Initialize embedding model to get dimension
+        self.device = get_device(device)
+        embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
+        embedding_dim = embedding_model.get_sentence_embedding_dimension()
 
-        # Set thresholds for adaptive chunking
-        self.adaptive_chunk_threshold = 800  # Character count that triggers chunking
-        self.max_chunks_per_memory = 3  # Maximum number of chunks per memory
-        self.importance_threshold = 0.6  # Threshold for keeping chunks
-        self.enable_auto_chunking = True  # Whether to automatically chunk large texts
+        # Configure and create memory store and adapter using factory pattern
+        from memoryweave.factory.memory_factory import (
+            MemoryStoreConfig,
+            VectorSearchConfig,
+            create_memory_store_and_adapter,
+        )
 
-        # Override default memory store to use hybrid version
+        store_config = MemoryStoreConfig(
+            type="hybrid",
+            vector_search=VectorSearchConfig(
+                type="numpy",
+                dimension=embedding_dim,
+            ),
+            chunk_size=300,
+            chunk_overlap=30,
+            min_chunk_size=50,
+            adaptive_threshold=800,
+            max_chunks_per_memory=3,
+            importance_threshold=0.6,
+        )
+
+        # Create adapter (which includes the store)
+        hybrid_adapter = create_memory_store_and_adapter(store_config)
+
+        # Store for direct access
+        self.hybrid_memory_store = hybrid_adapter.memory_store
+        self.hybrid_memory_adapter = hybrid_adapter
+
+        # Create LLM provider
+        self.llm_provider = llm_provider or LLMProvider(model_name, self.device, **model_kwargs)
+
+        # Override for parent's constructor
         self._memory_store_override = self.hybrid_memory_store
         self._memory_adapter_override = self.hybrid_memory_adapter
-        self.llm_provider = llm_provider
+
         # Call parent constructor with overrides
         super().__init__(
             model_name=model_name,
@@ -106,8 +117,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             **model_kwargs,
         )
 
-        # Replace strategy with hybrid version after parent initialization
-        self._setup_hybrid_strategy()
+        # Set hybrid-specific parameters
+        self.adaptive_chunk_threshold = 800  # Character count that triggers chunking
+        self.max_chunks_per_memory = 3  # Maximum number of chunks per memory
+        self.importance_threshold = 0.6  # Threshold for keeping chunks
+        self.enable_auto_chunking = True  # Whether to automatically chunk large texts
 
         # Track which memories are chunked
         self.chunked_memory_ids = set()

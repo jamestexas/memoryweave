@@ -20,10 +20,10 @@ from memoryweave.components.retrieval_strategies.contextual_fabric_strategy impo
 )
 from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.temporal_context import TemporalContextBuilder
+from memoryweave.factory.memory_factory import MemoryStoreConfig, VectorSearchConfig
 from memoryweave.interfaces.retrieval import QueryType
 from memoryweave.query.analyzer import SimpleQueryAnalyzer
-from memoryweave.storage.refactored import MemoryAdapter, StandardMemoryStore
-from memoryweave.storage.refactored.memory_store import MemoryStoreAdapter, get_device
+from memoryweave.storage.refactored.memory_store import get_device
 
 logging.basicConfig(
     level=logging.INFO,
@@ -81,14 +81,25 @@ class MemoryWeaveAPI:
         # Initialize embedding model
         logger.info(f"Loading embedding model: {embedding_model_name}")
         self.embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
+        embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
 
-        # Initialize memory components
-        self.memory_store = StandardMemoryStore()
-        self.memory_adapter = MemoryAdapter(self.memory_store)
+        # Configure and create memory store and adapter using factory pattern
+        from memoryweave.factory.memory_factory import create_memory_store_and_adapter
 
-        # For backward compatibility - both properties point to the same adapter
+        store_config = MemoryStoreConfig(
+            type="standard",  # Use standard store for base API
+            vector_search=VectorSearchConfig(
+                type="numpy",  # Default to numpy for simplicity
+                dimension=embedding_dim,
+            ),
+        )
+
+        # Create adapter (which includes the store)
+        self.memory_adapter = create_memory_store_and_adapter(store_config)
+        self.memory_store = self.memory_adapter.memory_store
+
+        # For backward compatibility
         self.memory_store_adapter = self.memory_adapter
-        self.memory_store_adapter = MemoryStoreAdapter(self.memory_store)
 
         # Initialize associative linker
         self.associative_linker = AssociativeMemoryLinker(self.memory_store)
@@ -110,7 +121,6 @@ class MemoryWeaveAPI:
         self.category_manager = None
         if enable_category_management:
             self.category_manager = CategoryManager()
-            embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
             self.category_manager.initialize(
                 config=dict(
                     vigilance_threshold=0.85,
@@ -172,8 +182,17 @@ class MemoryWeaveAPI:
         }
 
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
+        """Store a memory with consistent handling of metadata."""
+        logger.debug(f"Adding memory: {text}")
+
         # Create embedding
         embedding = self.embedding_model.encode(text, show_progress_bar=self.show_progress_bar)
+
+        # Add default metadata if not provided
+        if metadata is None:
+            metadata = {"type": "manual", "created_at": time.time(), "importance": 0.6}
+        elif "created_at" not in metadata:
+            metadata["created_at"] = time.time()
 
         # Add to memory store through the adapter
         mem_id = self.memory_adapter.add(embedding, text, metadata)
@@ -189,6 +208,7 @@ class MemoryWeaveAPI:
         if self.memories_since_consolidation >= self.consolidation_interval:
             self._consolidate_memories()
 
+        logger.debug(f"Added memory {mem_id}: {text}")
         return mem_id
 
     def add_memories(

@@ -12,13 +12,14 @@ from typing import Any
 
 import numpy as np
 
-from memoryweave.api.llm_provider import LLMProvider
-from memoryweave.api.memory_weave import MemoryWeaveAPI
+from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
+from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
 from memoryweave.components.retrieval_strategies.chunked_fabric_strategy import (
     ChunkedFabricStrategy,
 )
+from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.text_chunker import TextChunker
-from memoryweave.storage.refactored.chunked_store import ChunkedMemoryAdapter, ChunkedMemoryStore
+from memoryweave.storage.refactored.memory_store import get_device
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,8 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
 
     def __init__(
         self,
-        model_name: str = "unsloth/Llama-3.2-3B-Instruct",
-        embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        model_name: str = DEFAULT_MODEL,
+        embedding_model_name: str = DEFAULT_EMBEDDING_MODEL,
         device: str = "auto",
         max_memories: int = 1000,
         enable_category_management: bool = True,
@@ -50,23 +51,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         llm_provider: LLMProvider | None = None,
         **model_kwargs,
     ):
-        """
-        Initialize the ChunkedMemoryWeaveAPI.
-
-        Args:
-            model_name: Name of the language model to use
-            embedding_model_name: Name of the embedding model to use
-            device: Device to use for computation
-            max_memories: Maximum number of memories to store
-            enable_category_management: Whether to enable category management
-            enable_personal_attributes: Whether to enable personal attribute extraction
-            enable_semantic_coherence: Whether to enable semantic coherence checking
-            enable_dynamic_thresholds: Whether to enable dynamic threshold adjustment
-            consolidation_interval: Interval for memory consolidation
-            show_progress_bar: Whether to show progress bars for embedding generation
-            debug: Whether to enable debug logging
-            **model_kwargs: Additional arguments for the language model
-        """
+        """Initialize the ChunkedMemoryWeaveAPI."""
         # Initialize chunking components first
         self.text_chunker = TextChunker()
         self.text_chunker.initialize({
@@ -76,12 +61,41 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             "respect_paragraphs": True,
             "respect_sentences": True,
         })
-        self.llm_provider = llm_provider
-        # Replace standard memory store with chunked version
-        self.chunked_memory_store = ChunkedMemoryStore()
-        self.chunked_memory_adapter = ChunkedMemoryAdapter(self.chunked_memory_store)
 
-        # Override default memory store to use chunked version
+        # Initialize embedding model to get dimension
+        self.device = get_device(device)
+        embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
+        embedding_dim = embedding_model.get_sentence_embedding_dimension()
+
+        # Configure and create memory store and adapter using factory pattern
+        from memoryweave.factory.memory_factory import (
+            MemoryStoreConfig,
+            VectorSearchConfig,
+            create_memory_store_and_adapter,
+        )
+
+        store_config = MemoryStoreConfig(
+            type="chunked",
+            vector_search=VectorSearchConfig(
+                type="numpy",
+                dimension=embedding_dim,
+            ),
+            chunk_size=200,
+            chunk_overlap=50,
+            min_chunk_size=30,
+        )
+
+        # Create adapter (which includes the store)
+        chunked_adapter = create_memory_store_and_adapter(store_config)
+
+        # Store for direct access
+        self.chunked_memory_store = chunked_adapter.memory_store
+        self.chunked_memory_adapter = chunked_adapter
+
+        # Create LLM provider
+        self.llm_provider = llm_provider or LLMProvider(model_name, self.device, **model_kwargs)
+
+        # Override for parent's constructor
         self._memory_store_override = self.chunked_memory_store
         self._memory_adapter_override = self.chunked_memory_adapter
 
@@ -102,10 +116,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             **model_kwargs,
         )
 
-        # Replace strategy with chunked version after parent initialization
-        self._setup_chunked_strategy()
-
-        # Chunking configuration
+        # Set chunking specific parameters
         self.auto_chunk_threshold = 500  # Character count that triggers automatic chunking
         self.enable_auto_chunking = True  # Whether to automatically chunk large texts
         self.max_chunk_count = 10  # Maximum number of chunks per memory
