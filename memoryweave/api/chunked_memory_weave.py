@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 
+from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.memory_weave import MemoryWeaveAPI
 from memoryweave.components.retrieval_strategies.chunked_fabric_strategy import (
     ChunkedFabricStrategy,
@@ -46,6 +47,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         consolidation_interval: int = 100,
         show_progress_bar: bool = False,
         debug: bool = False,
+        llm_provider: LLMProvider | None = None,
         **model_kwargs,
     ):
         """
@@ -74,7 +76,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             "respect_paragraphs": True,
             "respect_sentences": True,
         })
-
+        self.llm_provider = llm_provider
         # Replace standard memory store with chunked version
         self.chunked_memory_store = ChunkedMemoryStore()
         self.chunked_memory_adapter = ChunkedMemoryAdapter(self.chunked_memory_store)
@@ -96,6 +98,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             consolidation_interval=consolidation_interval,
             show_progress_bar=show_progress_bar,
             debug=debug,
+            llm_provider=self.llm_provider,
             **model_kwargs,
         )
 
@@ -176,7 +179,12 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
 
             # Add to memory store
             mem_id = self.chunked_memory_store.add(embedding, text, metadata)
+
+            # Critical fix: Invalidate BOTH adapters
             self.chunked_memory_adapter.invalidate_cache()
+            # Also invalidate the standard adapter if we have access to it
+            if hasattr(self, "memory_store_adapter"):
+                self.memory_store_adapter.invalidate_cache()
 
             # Add to category if enabled
             if self.category_manager:
@@ -205,7 +213,11 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
 
         # Add to chunked memory store
         mem_id = self.chunked_memory_store.add_chunked(chunks, embeddings, text, metadata)
+
+        # Critical fix: Invalidate BOTH adapters
         self.chunked_memory_adapter.invalidate_cache()
+        if hasattr(self, "memory_store_adapter"):
+            self.memory_store_adapter.invalidate_cache()
 
         # Track as chunked memory
         self.chunked_memory_ids.add(mem_id)

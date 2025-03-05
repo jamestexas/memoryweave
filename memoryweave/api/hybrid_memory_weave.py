@@ -8,10 +8,11 @@ retrieval quality.
 
 import logging
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 
+from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.memory_weave import MemoryWeaveAPI
 from memoryweave.components.retrieval_strategies.hybrid_fabric_strategy import HybridFabricStrategy
 from memoryweave.components.text_chunker import TextChunker
@@ -44,6 +45,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         consolidation_interval: int = 100,
         show_progress_bar: bool = False,
         debug: bool = False,
+        llm_provider: LLMProvider | None = None,
         **model_kwargs,
     ):
         """
@@ -86,7 +88,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # Override default memory store to use hybrid version
         self._memory_store_override = self.hybrid_memory_store
         self._memory_adapter_override = self.hybrid_memory_adapter
-
+        self.llm_provider = llm_provider
         # Call parent constructor with overrides
         super().__init__(
             model_name=model_name,
@@ -100,6 +102,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             consolidation_interval=consolidation_interval,
             show_progress_bar=show_progress_bar,
             debug=debug,
+            llm_provider=self.llm_provider,
             **model_kwargs,
         )
 
@@ -141,7 +144,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         if hasattr(self, "retrieval_orchestrator"):
             self.retrieval_orchestrator.strategy = self.strategy
 
-    def add_memory(self, text: str, metadata: Dict[str, Any] = None) -> str:
+    def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """
         Store a memory with adaptive chunking for efficient memory usage.
 
@@ -173,7 +176,12 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
             # Add to memory store
             mem_id = self.hybrid_memory_store.add(embedding, text, metadata)
+            
+            # Critical fix: Invalidate BOTH adapters to ensure consistency
             self.hybrid_memory_adapter.invalidate_cache()
+            # Also invalidate the standard adapter if we have access to it
+            if hasattr(self, "memory_store_adapter"):
+                self.memory_store_adapter.invalidate_cache()
 
             # Add to category if enabled
             if self.category_manager:
@@ -195,7 +203,10 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # If there are no important chunks, just use the full embedding
         if not selected_chunks:
             mem_id = self.hybrid_memory_store.add(full_embedding, text, metadata)
+            # Critical fix: Invalidate BOTH adapters
             self.hybrid_memory_adapter.invalidate_cache()
+            if hasattr(self, "memory_store_adapter"):
+                self.memory_store_adapter.invalidate_cache()
             return mem_id
 
         # 4. Add to hybrid memory store
@@ -206,7 +217,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             original_content=text,
             metadata=metadata,
         )
+        
+        # Critical fix: Invalidate BOTH adapters
         self.hybrid_memory_adapter.invalidate_cache()
+        if hasattr(self, "memory_store_adapter"):
+            self.memory_store_adapter.invalidate_cache()
 
         # Track as chunked memory
         self.chunked_memory_ids.add(mem_id)
@@ -226,8 +241,8 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         return mem_id
 
     def _select_important_chunks(
-        self, chunks: List[Dict[str, Any]], full_embedding: np.ndarray
-    ) -> Tuple[List[Dict[str, Any]], List[np.ndarray]]:
+        self, chunks: list[dict[str, Any]], full_embedding: np.ndarray
+    ) -> tuple[list[dict[str, Any]], list[np.ndarray]]:
         """
         Select the most important chunks to embed and store.
 
@@ -235,11 +250,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         keeping only the most valuable chunks to reduce memory usage.
 
         Args:
-            chunks: List of chunk dictionaries
+            chunks: list of chunk dictionaries
             full_embedding: Embedding of the full text
 
         Returns:
-            Tuple of (selected_chunks, chunk_embeddings)
+            tuple of (selected_chunks, chunk_embeddings)
         """
         if not chunks:
             return [], []
@@ -297,13 +312,13 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         return chunks, chunk_embeddings
 
     def add_conversation_memory(
-        self, turns: List[Dict[str, str]], metadata: Dict[str, Any] = None
+        self, turns: list[dict[str, str]], metadata: dict[str, Any] = None
     ) -> str:
         """
         Add a conversation memory with efficient chunking.
 
         Args:
-            turns: List of conversation turns with "role" and "content" keys
+            turns: list of conversation turns with "role" and "content" keys
             metadata: Optional metadata for the memory
 
         Returns:
@@ -403,8 +418,8 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         return mem_id
 
     def _adaptive_conversation_chunking(
-        self, turns: List[Dict[str, str]], metadata: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, turns: list[dict[str, str]], metadata: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """
         Adaptively chunk a conversation to preserve important context.
 
@@ -412,11 +427,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         while staying within memory limits.
 
         Args:
-            turns: List of conversation turns
+            turns: list of conversation turns
             metadata: Memory metadata
 
         Returns:
-            List of chunk dictionaries
+            list of chunk dictionaries
         """
         # If there are too many turns, we need to group them
         max_chunks = self.max_chunks_per_memory
@@ -559,12 +574,12 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             # Re-initialize strategy
             self.strategy.initialize(current_params)
 
-    def get_chunking_statistics(self) -> Dict[str, Any]:
+    def get_chunking_statistics(self) -> dict[str, Any]:
         """
         Get statistics about memory usage and chunking.
 
         Returns:
-            Dictionary with chunking statistics
+            dictionary with chunking statistics
         """
         try:
             stats = {

@@ -56,6 +56,7 @@ class MemoryWeaveAPI:
         consolidation_interval: int = 100,
         show_progress_bar: bool = False,
         debug: bool = False,
+        llm_provider: LLMProvider | None = None,
         **model_kwargs,
     ):
         """Initialize MemoryWeave with an LLM, embeddings, and memory components."""
@@ -69,7 +70,7 @@ class MemoryWeaveAPI:
             logger.setLevel(logging.DEBUG)
 
         # Initialize LLM provider
-        self.llm_provider = LLMProvider(model_name, self.device, **model_kwargs)
+        self.llm_provider = llm_provider or LLMProvider(model_name, self.device, **model_kwargs)
 
         # Initialize streaming handler
         self.streaming_handler = StreamingHandler(self.llm_provider)

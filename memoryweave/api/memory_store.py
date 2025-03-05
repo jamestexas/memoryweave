@@ -60,19 +60,35 @@ def get_llm(model_name: str = DEFAULT_MODEL, device: str = "mps", **kwargs) -> A
     return _LLM
 
 
-def get_device(device: str | None = None) -> str:
-    """Choose a device for running the model."""
-    if torch.mps.is_available():
-        return "mps"
-    elif torch.cuda.is_available():
-        return "cuda"
-    else:
-        return "cpu"
+# Add to memory_store.py
+class UnifiedMemoryAdapter:
+    """Base interface for all memory adapters"""
+
+    def invalidate_cache(self):
+        """Clear any cached data"""
+        pass
+
+    def get_memory_embeddings(self):
+        """Get all memory embeddings as a matrix"""
+        pass
+
+    def search_by_vector(self, query_vector, limit=10, threshold=None):
+        """Search memories by vector similarity"""
+        pass
+
+    # Add specialized methods
+    def search_chunks(self, query_vector, limit=10, threshold=None):
+        """Search for matching chunks (for chunked memories)"""
+        return []
+
+    def search_hybrid(self, query_vector, limit=10, threshold=None, keywords=None):
+        """Search using hybrid approach (for hybrid memories)"""
+        return []
 
 
 class MemoryStoreAdapter:
     """
-    Adapter class to make MemoryStore compatible with ContextualFabricStrategy.
+    Adapter class to make MemoryStore compatible with retrieval strategies.
     This helps the strategy do similarity computations and retrieve embeddings.
     """
 
@@ -220,3 +236,26 @@ class MemoryStoreAdapter:
                 logger.error(f"Error retrieving memory {memory_id}: {e}")
 
         return results
+
+    # Add these methods to support the specialized memory types
+    def search_chunks(
+        self, query_vector: np.ndarray, limit: int = 10, threshold: float | None = None
+    ) -> list[dict]:
+        """
+        Default implementation for chunk search - will be overridden by specialized adapters.
+        """
+        # Default implementation just returns []
+        return []
+
+    def search_hybrid(
+        self,
+        query_vector: np.ndarray,
+        limit: int = 10,
+        threshold: float | None = None,
+        keywords: list[str] | None = None,
+    ) -> list[dict]:
+        """
+        Default implementation for hybrid search - will be overridden by specialized adapters.
+        """
+        # Default implementation just calls search_by_vector
+        return self.search_by_vector(query_vector, limit, threshold)
