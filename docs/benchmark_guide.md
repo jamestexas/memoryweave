@@ -25,9 +25,9 @@ uv run python run_benchmark.py --config configs/contextual_fabric_benchmark.yaml
 MemoryWeave includes several benchmarking tools:
 
 1. **Contextual Fabric Benchmark**: Compares contextual fabric against hybrid BM25+vector retrieval
-2. **Memory Retrieval Benchmark**: Evaluates different retrieval configurations
-3. **Baseline Comparison**: Compares against industry standard BM25 and vector search
-4. **Synthetic Benchmark**: Tests performance on generated datasets with controlled properties
+1. **Memory Retrieval Benchmark**: Evaluates different retrieval configurations
+1. **Baseline Comparison**: Compares against industry standard BM25 and vector search
+1. **Synthetic Benchmark**: Tests performance on generated datasets with controlled properties
 
 ## Running the Contextual Fabric Benchmark
 
@@ -50,25 +50,28 @@ To run the contextual fabric benchmark with all memory sizes (20, 100, and 500) 
 ```
 
 This script will:
+
 1. Run benchmarks with 20, 100, and 500 memories
-2. Save results to `benchmark_results/contextual_fabric_*.json`
-3. Generate visualizations in `evaluation_charts/contextual_fabric_*/`
+1. Save results to `benchmark_results/contextual_fabric_*.json`
+1. Generate visualizations in `evaluation_charts/contextual_fabric_*/`
 
 ### Understanding the Results
 
 The contextual fabric benchmark evaluates several retrieval capabilities:
 
 1. **Conversation Context**: Can the system use conversation history to improve retrieval?
-2. **Temporal Context**: Can the system find memories based on temporal references?
-3. **Associative Links**: Can the system find related memories through associative links?
-4. **Activation Patterns**: Does the system boost recently used or important memories?
-5. **Episodic Memory**: Can the system retrieve memories from the same episode?
+1. **Temporal Context**: Can the system find memories based on temporal references?
+1. **Associative Links**: Can the system find related memories through associative links?
+1. **Activation Patterns**: Does the system boost recently used or important memories?
+1. **Episodic Memory**: Can the system retrieve memories from the same episode?
 
 For each test case, the benchmark compares:
+
 - **Contextual Fabric Strategy**: Our advanced approach using the contextual fabric architecture
 - **Hybrid BM25+Vector Strategy**: A baseline representing current industry-standard approaches
 
 The main metrics reported are:
+
 - **Precision**: Percentage of retrieved results that are relevant
 - **Recall**: Percentage of relevant results that were retrieved
 - **F1 Score**: Harmonic mean of precision and recall
@@ -201,26 +204,15 @@ from memoryweave.components.dynamic_context_adapter import DynamicContextAdapter
 
 # Create and configure the adapter
 dynamic_adapter = DynamicContextAdapter()
-dynamic_adapter.initialize({
-    "adaptation_strength": 1.0,
-    "enable_memory_size_adaptation": True
-})
+dynamic_adapter.initialize({"adaptation_strength": 1.0, "enable_memory_size_adaptation": True})
 
 # In your benchmark loop, add this step before retrieval:
 adaptation_context = dynamic_adapter.process_query(
-    query, 
-    {
-        "memory_store": memory_store,
-        "primary_query_type": query_type
-    }
+    query, {"memory_store": memory_store, "primary_query_type": query_type}
 )
 
 # Then use the adapted parameters in retrieval
-retrieval_context = {
-    "query": query,
-    "query_embedding": query_embedding,
-    **adaptation_context
-}
+retrieval_context = {"query": query, "query_embedding": query_embedding, **adaptation_context}
 results = retrieval_strategy.retrieve(query_embedding, top_k=5, context=retrieval_context)
 ```
 
@@ -229,6 +221,7 @@ results = retrieval_strategy.retrieve(query_embedding, top_k=5, context=retrieva
 ### BM25 Warnings
 
 When running benchmarks with synthetic data, you may see warnings like:
+
 ```
 WARNING:root:BM25 retrieval failed: minimal could not be calculated, returning default
 ```
@@ -240,11 +233,13 @@ These are expected with synthetic test data and don't indicate a problem. The hy
 Benchmarks with large memory sizes (500+) may require significant memory. If you encounter memory issues:
 
 1. Reduce the number of memories:
+
 ```bash
 uv run python run_benchmark.py --config configs/contextual_fabric_benchmark.yaml --memories 200
 ```
 
 2. Run with a smaller embedding dimension (if configurable in your benchmark):
+
 ```yaml
 # In your config file
 embedding_dim: 128  # Reduced from default 384

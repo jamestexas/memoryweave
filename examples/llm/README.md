@@ -58,9 +58,9 @@ This will run the simulation twice - once with memory features enabled and once 
 When evaluating the effectiveness of MemoryWeave, look for:
 
 1. **Memory Recall** - Does the assistant correctly remember personal details and preferences?
-2. **Conversation Coherence** - Does the conversation flow naturally, with appropriate references to past information?
-3. **Response Quality** - Are responses more personalized and relevant with memory enabled?
-4. **Retrieval Accuracy** - Are the right memories being selected for each query?
+1. **Conversation Coherence** - Does the conversation flow naturally, with appropriate references to past information?
+1. **Response Quality** - Are responses more personalized and relevant with memory enabled?
+1. **Retrieval Accuracy** - Are the right memories being selected for each query?
 
 ## Example Conversation
 
@@ -96,26 +96,29 @@ Assistant (1.22s): Based on what you've shared previously, your dog's name is Ma
 The MemoryWeaveLLM class in `memoryweave_llm_wrapper.py` interacts with the memory store as follows:
 
 1. Adding memories:
+
    ```python
    # Create an embedding for the text
    embedding = embedding_model.encode(text)
-   
+
    # Add the memory to the store with optional metadata
    memory_manager.memory_store.add(embedding, text, metadata)
    ```
 
-2. Retrieving memories:
+1. Retrieving memories:
+
    ```python
    # Retrieve relevant memories for a query
    relevant_memories = retriever.retrieve(query, top_k=3)
    ```
 
-3. Storing conversation interactions:
+1. Storing conversation interactions:
+
    ```python
    # Store a user message
    user_embedding = embedding_model.encode(user_message)
    memory_manager.memory_store.add(user_embedding, user_message, metadata)
-   
+
    # Store the assistant's response
    assistant_embedding = embedding_model.encode(assistant_message)
    memory_manager.memory_store.add(assistant_embedding, assistant_message, metadata)

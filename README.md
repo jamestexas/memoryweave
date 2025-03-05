@@ -5,6 +5,7 @@ MemoryWeave is an experimental approach to memory management for language models
 > **Note:** This project has undergone a major architectural refactoring to a component-based design. See the [Migration Guide](docs/MIGRATION_GUIDE.md) for details on transitioning from the legacy architecture.
 
 ## Table of Contents
+
 - [Key Concepts](#key-concepts)
 - [Architecture](#architecture)
 - [Installation](#installation)
@@ -15,6 +16,7 @@ MemoryWeave is an experimental approach to memory management for language models
 - [Contributing](#contributing)
 
 ## Key Concepts
+
 <a id="key-concepts"></a>
 
 MemoryWeave implements several biologically-inspired memory management principles:
@@ -31,15 +33,17 @@ MemoryWeave implements several biologically-inspired memory management principle
 Traditional LLM memory systems often rely on vector databases with discrete entries, losing much of the rich contextual information that helps humans navigate memories effectively. MemoryWeave attempts to address this by:
 
 1. **Contextual Encoding**: Memories include surrounding context and metadata
-2. **Activation Dynamics**: Recently or frequently accessed memories have higher activation levels
-3. **Temporal Organization**: Memories maintain their relationship to other events in time
-4. **Associative Retrieval**: Memories can be retrieved through multiple pathways beyond simple similarity
-5. **Dynamic Categorization**: Memories self-organize into categories using ART-inspired clustering
+1. **Activation Dynamics**: Recently or frequently accessed memories have higher activation levels
+1. **Temporal Organization**: Memories maintain their relationship to other events in time
+1. **Associative Retrieval**: Memories can be retrieved through multiple pathways beyond simple similarity
+1. **Dynamic Categorization**: Memories self-organize into categories using ART-inspired clustering
 
 This allows for more nuanced and effective memory retrieval during conversations, especially over long contexts or multiple sessions.
+
 </details>
 
 ## Architecture
+
 <a id="architecture"></a>
 
 MemoryWeave uses a component-based architecture with several modular pieces that can be configured for different use cases:
@@ -47,28 +51,33 @@ MemoryWeave uses a component-based architecture with several modular pieces that
 ### Core Components
 
 1. **Memory Management**
+
    - `MemoryManager`: Coordinates memory operations and component interactions
    - `MemoryStore`: Stores embeddings, content, and metadata
    - `VectorStore`: Handles vector similarity search and indexing
    - `ActivationManager`: Manages memory activation levels
 
-2. **Retrieval Strategies**
+1. **Retrieval Strategies**
+
    - `SimilarityRetrievalStrategy`: Pure vector similarity-based retrieval
    - `TemporalRetrievalStrategy`: Time and recency-based retrieval
    - `HybridRetrievalStrategy`: Combines similarity and temporal retrieval
    - `TwoStageRetrievalStrategy`: Advanced multi-stage retrieval process
-   
-3. **Query Processing**
+
+1. **Query Processing**
+
    - `QueryAnalyzer`: Analyzes and classifies query types
    - `QueryAdapter`: Adapts retrieval parameters based on query
    - `PersonalAttributeManager`: Extracts and manages personal attributes
 
-4. **Post-Processing**
+1. **Post-Processing**
+
    - `SemanticCoherenceProcessor`: Ensures retrieved memories are coherent
    - `KeywordBoostProcessor`: Enhances keyword-relevant memories
    - `AdaptiveKProcessor`: Dynamically adjusts number of results
 
-5. **Pipeline System**
+1. **Pipeline System**
+
    - `PipelineBuilder`: Constructs configurable processing pipelines
    - `ComponentRegistry`: Manages component registration and access
 
@@ -157,6 +166,7 @@ flowchart TD
     class Storage,QueryProcessing,RetrievalStrategies,PostProcessing secondary
     class User,Results external
 ```
+
 </details>
 
 <details>
@@ -227,9 +237,11 @@ flowchart TD
     class UpdateCategory,CreateCategory,CategoryMatch,MemoryRetrieval,Ranking,MergeCategories secondary
     class Vigilance,Consolidation decision
 ```
+
 </details>
 
 ## Installation
+
 <a id="installation"></a>
 
 MemoryWeave is available as a Python package:
@@ -257,6 +269,7 @@ uv pip install -g dev
 ```
 
 ## Quick Start
+
 <a id="quick-start"></a>
 
 Here's a simple example of using MemoryWeave with the new component architecture:
@@ -284,7 +297,7 @@ retriever.initialize_components()
 texts = [
     "My favorite color is blue.",
     "I visited Paris last summer.",
-    "Python is a programming language created by Guido van Rossum."
+    "Python is a programming language created by Guido van Rossum.",
 ]
 
 for text in texts:
@@ -303,6 +316,7 @@ for result in results:
 See the [examples](examples/) directory for more detailed examples and the [Migration Guide](docs/MIGRATION_GUIDE.md) for transitioning from the legacy architecture.
 
 ## Benchmarks
+
 <a id="benchmarks"></a>
 
 MemoryWeave includes comprehensive benchmarking tools to evaluate and compare different retrieval approaches, with special focus on the contextual fabric architecture.
@@ -320,6 +334,7 @@ uv run python -m benchmarks.contextual_fabric_benchmark --memories 100
 ```
 
 This benchmark tests how well the contextual fabric architecture handles:
+
 - Conversation context understanding
 - Temporal reference resolution
 - Associative memory linking
@@ -356,6 +371,7 @@ Current benchmark results show significant improvements when using the contextua
 For detailed information on running and interpreting benchmarks, see the [Benchmark Guide](docs/benchmark_guide.md).
 
 ## Current Limitations
+
 <a id="current-limitations"></a>
 
 While MemoryWeave has undergone significant architectural improvements, there are still some limitations:
@@ -368,6 +384,7 @@ While MemoryWeave has undergone significant architectural improvements, there ar
 - Hybrid retrieval still needs tuning to combine BM25 and vector advantages
 
 ## Roadmap
+
 <a id="roadmap"></a>
 
 See the [ROADMAP.md](ROADMAP.md) file for detailed information on planned developments. Current priorities include:
@@ -383,21 +400,23 @@ See the [ROADMAP.md](ROADMAP.md) file for detailed information on planned develo
 Check the [feature matrix](docs/feature_matrix.md) for the current implementation status of various features.
 
 ## Contributing
+
 <a id="contributing"></a>
 
 Contributions are welcome! Please check our [documentation](docs/) first to understand the project's architecture and current state.
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Create your feature branch (`git checkout -b feature/amazing-feature`)
+1. Commit your changes (`git commit -m 'Add some amazing feature'`)
+1. Push to the branch (`git push origin feature/amazing-feature`)
+1. Open a Pull Request
 
 ### Developed with AI Assistance
 
 This project is developed with assistance from AI tools, particularly Claude, to accelerate development, improve code quality, and automate testing. We believe in transparency about AI usage in our development process while maintaining high standards for all contributions.
 
 ## Development
+
 <a id="development"></a>
 
 This project uses `uv` for package management:

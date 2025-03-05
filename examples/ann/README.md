@@ -14,7 +14,7 @@ The ANN implementation uses FAISS (Facebook AI Similarity Search) to provide fas
 ## Files
 
 1. **ann_performance_example.py**: Compares different vector store implementations across various memory store sizes
-2. **ann_vector_store_test.py**: Tests the performance of retrieving memories with and without ANN optimization
+1. **ann_vector_store_test.py**: Tests the performance of retrieving memories with and without ANN optimization
 
 ## Features
 
@@ -49,11 +49,13 @@ memory = ContextualMemory(
 from memoryweave.factory.memory import MemoryFactory
 
 # Create an ANN vector store with automatic configuration
-ann_vector_store = MemoryFactory.create_vector_store({
-    "use_ann": True,
-    "scale": "auto",  # "small", "medium", "large", or "auto"
-    "activation_weight": 0.2,
-})
+ann_vector_store = MemoryFactory.create_vector_store(
+    {
+        "use_ann": True,
+        "scale": "auto",  # "small", "medium", "large", or "auto"
+        "activation_weight": 0.2,
+    }
+)
 ```
 
 ### Running the examples
@@ -83,14 +85,14 @@ Running the benchmark scripts will generate visualizations showing the performan
 The key components of the ANN implementation are:
 
 1. **ANNVectorStore**: Base ANN implementation using FAISS
-2. **ANNActivationVectorStore**: Enhances ANN with activation-based boosting
-3. **Memory Retriever Integration**: Direct integration with the core memory retriever
-4. **Factory Methods**: Automatic configuration based on memory store size
+1. **ANNActivationVectorStore**: Enhances ANN with activation-based boosting
+1. **Memory Retriever Integration**: Direct integration with the core memory retriever
+1. **Factory Methods**: Automatic configuration based on memory store size
 
 ## Limitations
 
 - Requires the FAISS library to be installed (`faiss-cpu` or `faiss-gpu`)
-- Small memory stores (<100 memories) may not see significant benefits
+- Small memory stores (\<100 memories) may not see significant benefits
 - Very high dimensional vectors (>10,000) may require additional tuning
 
 ## Future Improvements
@@ -98,6 +100,6 @@ The key components of the ANN implementation are:
 Planned enhancements include:
 
 1. Specialized index structures for different query types
-2. GPU acceleration for very large memory stores
-3. Hierarchical clustering for better organization
-4. More advanced progressive filtering strategies
+1. GPU acceleration for very large memory stores
+1. Hierarchical clustering for better organization
+1. More advanced progressive filtering strategies

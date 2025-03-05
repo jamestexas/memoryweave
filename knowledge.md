@@ -18,6 +18,7 @@
 The project now uses a pure NLP-based approach for extracting personal attributes and identifying query types. This is implemented in `memoryweave/utils/nlp_extraction.py`.
 
 Key features:
+
 - Uses spaCy for advanced NLP capabilities
 - Extracts personal attributes, preferences, relationships, and traits
 - Identifies query types (factual, personal, opinion, instruction)
@@ -27,6 +28,7 @@ Key features:
 ### spaCy Integration
 
 The NLP extraction system requires spaCy and uses several advanced features:
+
 - Rule-based matchers for pattern recognition
 - Dependency parsing for relationship extraction
 - Named Entity Recognition (NER) for identifying people, locations, etc.
@@ -36,6 +38,7 @@ The NLP extraction system requires spaCy and uses several advanced features:
 ## Testing Approach
 
 The NLP extraction capabilities are tested in `test_nlp_extraction.py`, which evaluates:
+
 - Personal attribute extraction from various text samples
 - Query type identification
 - Performance with spaCy
@@ -51,6 +54,7 @@ The NLP extraction capabilities are tested in `test_nlp_extraction.py`, which ev
 The project is following a phased development approach:
 
 ### 1. Diagnostic Analysis Phase
+
 - Identify core issues with memory retrieval (high recall but poor precision)
 - Analyze performance differences between personal vs. factual queries
 - Conduct targeted analysis tests with separate test sets
@@ -58,31 +62,37 @@ The project is following a phased development approach:
 - Examine similarity distributions and threshold optimization
 
 ### 2. Retrieval Strategy Overhaul
+
 - Implement query type detection and specialized retrieval pipelines
 - Enhance base similarity computation with hybrid approaches
 - Apply advanced semantic matching for factual queries
 
 ### 3. Memory Organization Enhancement
+
 - Refine category formation algorithms
 - Implement memory metadata enrichment
 - Apply hierarchical memory organization
 
 ### 4. Confidence and Relevance Calculation Improvements
+
 - Develop calibrated confidence scoring
 - Implement relevance diversity optimization
 - Apply adaptive result count based on query type
 
 ### 5. Integration and Context Management
+
 - Enhance context window management
 - Develop entity and reference tracking
 - Apply temporal coherence enhancement
 
 ### 6. Evaluation and Optimization Framework
+
 - Create comprehensive evaluation suite
 - Build parameter optimization system
 - Establish continuous improvement pipeline
 
 ### 7. Integration with LLM Frameworks
+
 - Enhance prompt construction
 - Implement bidirectional memory-LLM communication
 - Develop framework-specific optimizations
@@ -96,29 +106,32 @@ We are currently focused on the Diagnostic Analysis Phase to identify and addres
 This project uses `uv` for Python environment and package management. Always use `uv` commands instead of direct `python` commands:
 
 1. **Running Python scripts or commands**:
+
    ```bash
    uv run python script.py
    # or for one-off commands
    uv run python -c "import sys; print(sys.version)"
    ```
 
-2. **Setting up a development environment**:
+1. **Setting up a development environment**:
+
    ```bash
    # Create a virtual environment
    uv venv
-   
+
    # Install the project in development mode
    uv pip install -e .
-   
+
    # Activate the environment if needed for direct Python access
    source .venv/bin/activate && python your_command_here
    ```
 
-3. **Adding dependencies**:
+1. **Adding dependencies**:
+
    ```bash
    # Add a new dependency
    uv add package_name
-   
+
    # Add a development dependency
    uv add --dev package_name
    ```

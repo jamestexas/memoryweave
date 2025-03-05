@@ -79,7 +79,7 @@ results = retriever.retrieve(
     top_k=5,
     strategy="contextual_fabric",  # Use the advanced contextual fabric strategy
     minimum_relevance=0.3,
-    conversation_history=conversation_history  # Provide conversation context
+    conversation_history=conversation_history,  # Provide conversation context
 )
 ```
 
@@ -88,27 +88,17 @@ For more advanced usage, you can configure the pipeline directly:
 ```python
 # Configure two-stage retrieval
 retriever.configure_two_stage_retrieval(
-    enable=True,
-    first_stage_k=20,
-    first_stage_threshold_factor=0.7
+    enable=True, first_stage_k=20, first_stage_threshold_factor=0.7
 )
 
 # Configure query type adaptation
-retriever.configure_query_type_adaptation(
-    enable=True,
-    adaptation_strength=0.8
-)
+retriever.configure_query_type_adaptation(enable=True, adaptation_strength=0.8)
 
 # Configure semantic coherence
-retriever.configure_semantic_coherence(
-    enable=True
-)
+retriever.configure_semantic_coherence(enable=True)
 
 # Enable dynamic threshold adjustment
-retriever.enable_dynamic_threshold_adjustment(
-    enable=True,
-    window_size=5
-)
+retriever.enable_dynamic_threshold_adjustment(enable=True, window_size=5)
 ```
 
 ## Creating Custom Components
@@ -118,11 +108,12 @@ To create a custom component, inherit from the appropriate base class and implem
 ```python
 from memoryweave.components.base import PostProcessor
 
+
 class CustomPostProcessor(PostProcessor):
     def initialize(self, config: dict[str, Any]) -> None:
         # Initialize with configuration
         self.custom_param = config.get("custom_param", 0.5)
-        
+
     def process_results(
         self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
     ) -> list[dict[str, Any]]:
@@ -149,16 +140,8 @@ Pipelines are configured as a list of steps, each with a component name and conf
 
 ```python
 pipeline_config = [
-    {
-        "component": "query_analyzer",
-        "config": {}
-    },
-    {
-        "component": "query_adapter",
-        "config": {
-            "adaptation_strength": 0.8
-        }
-    },
+    {"component": "query_analyzer", "config": {}},
+    {"component": "query_adapter", "config": {"adaptation_strength": 0.8}},
     {
         "component": "contextual_fabric_strategy",
         "config": {
@@ -166,15 +149,10 @@ pipeline_config = [
             "associative_weight": 0.3,
             "temporal_weight": 0.1,
             "activation_weight": 0.1,
-            "confidence_threshold": 0.3
-        }
+            "confidence_threshold": 0.3,
+        },
     },
-    {
-        "component": "semantic_coherence",
-        "config": {
-            "coherence_threshold": 0.2
-        }
-    }
+    {"component": "semantic_coherence", "config": {"coherence_threshold": 0.2}},
 ]
 
 memory_manager.build_pipeline(pipeline_config)
@@ -187,9 +165,9 @@ memory_manager.build_pipeline(pipeline_config)
 The contextual fabric strategy is inspired by human memory retrieval and combines multiple sources of information:
 
 1. **Direct Similarity**: Vector similarity between query and memories
-2. **Associative Links**: Traversal of associative connections between memories
-3. **Temporal Context**: Time-based relevance of memories
-4. **Activation Patterns**: Recency and frequency of memory access
+1. **Associative Links**: Traversal of associative connections between memories
+1. **Temporal Context**: Time-based relevance of memories
+1. **Activation Patterns**: Recency and frequency of memory access
 
 This strategy provides more human-like retrieval that considers not just direct matches but also related concepts and contextual factors.
 
@@ -198,9 +176,9 @@ This strategy provides more human-like retrieval that considers not just direct 
 The system implements Adaptive Resonance Theory (ART) inspired clustering to organize memories into categories:
 
 1. **Dynamic Categories**: Creates and updates categories based on similarity
-2. **Vigilance Parameter**: Controls the specificity of categories
-3. **Prototype Learning**: Updates category prototypes as new memories are added
-4. **Category Consolidation**: Merges similar categories to maintain organization
+1. **Vigilance Parameter**: Controls the specificity of categories
+1. **Prototype Learning**: Updates category prototypes as new memories are added
+1. **Category Consolidation**: Merges similar categories to maintain organization
 
 This allows for efficient retrieval by category and improves the organization of the memory store.
 
@@ -209,7 +187,7 @@ This allows for efficient retrieval by category and improves the organization of
 The two-stage retrieval process improves recall while maintaining precision:
 
 1. **First Stage**: Retrieve a larger set of candidate memories using a lower confidence threshold
-2. **Second Stage**: Re-rank and filter candidates using post-processors
+1. **Second Stage**: Re-rank and filter candidates using post-processors
 
 ### Query Type Adaptation
 
@@ -232,7 +210,7 @@ The system can automatically adjust confidence thresholds based on retrieval per
 For large memory stores, the system can use progressive filtering to improve performance:
 
 1. **First Pass**: Quick approximation to find candidate memories
-2. **Second Pass**: Detailed computation only on the candidates
+1. **Second Pass**: Detailed computation only on the candidates
 
 ### Batched Computation
 
@@ -250,10 +228,7 @@ retriever = Retriever(memory=memory, embedding_model=embedding_model)
 
 # Retrieve memories
 results = retriever.retrieve(
-    query="What is my favorite color?",
-    top_k=5,
-    strategy="hybrid",
-    minimum_relevance=0.3
+    query="What is my favorite color?", top_k=5, strategy="hybrid", minimum_relevance=0.3
 )
 ```
 
@@ -262,16 +237,11 @@ For more advanced usage, you can configure the pipeline directly:
 ```python
 # Configure two-stage retrieval
 retriever.configure_two_stage_retrieval(
-    enable=True,
-    first_stage_k=20,
-    first_stage_threshold_factor=0.7
+    enable=True, first_stage_k=20, first_stage_threshold_factor=0.7
 )
 
 # Configure query type adaptation
-retriever.configure_query_type_adaptation(
-    enable=True,
-    adaptation_strength=0.8
-)
+retriever.configure_query_type_adaptation(enable=True, adaptation_strength=0.8)
 ```
 
 ## Creating Custom Components
@@ -281,11 +251,12 @@ To create a custom component, inherit from the appropriate base class and implem
 ```python
 from memoryweave.components.base import PostProcessor
 
+
 class CustomPostProcessor(PostProcessor):
     def initialize(self, config: dict[str, Any]) -> None:
         # Initialize with configuration
         self.custom_param = config.get("custom_param", 0.5)
-        
+
     def process_results(
         self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
     ) -> list[dict[str, Any]]:
@@ -312,30 +283,13 @@ Pipelines are configured as a list of steps, each with a component name and conf
 
 ```python
 pipeline_config = [
-    {
-        "component": "query_analyzer",
-        "config": {}
-    },
-    {
-        "component": "query_adapter",
-        "config": {
-            "adaptation_strength": 0.8
-        }
-    },
+    {"component": "query_analyzer", "config": {}},
+    {"component": "query_adapter", "config": {"adaptation_strength": 0.8}},
     {
         "component": "hybrid_retrieval",
-        "config": {
-            "relevance_weight": 0.7,
-            "recency_weight": 0.3,
-            "confidence_threshold": 0.3
-        }
+        "config": {"relevance_weight": 0.7, "recency_weight": 0.3, "confidence_threshold": 0.3},
     },
-    {
-        "component": "custom_processor",
-        "config": {
-            "custom_param": 0.6
-        }
-    }
+    {"component": "custom_processor", "config": {"custom_param": 0.6}},
 ]
 
 memory_manager.build_pipeline(pipeline_config)
@@ -348,7 +302,7 @@ memory_manager.build_pipeline(pipeline_config)
 The two-stage retrieval process improves recall while maintaining precision:
 
 1. **First Stage**: Retrieve a larger set of candidate memories using a lower confidence threshold
-2. **Second Stage**: Re-rank and filter candidates using post-processors
+1. **Second Stage**: Re-rank and filter candidates using post-processors
 
 ### Query Type Adaptation
 

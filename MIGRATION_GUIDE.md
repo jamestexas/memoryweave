@@ -32,8 +32,8 @@ The MemoryWeave system has been refactored to use a modular, component-based arc
 There are three migration paths available depending on your needs:
 
 1. **Adapter-based migration**: Continue using the old interface with new components underneath
-2. **Gradual component migration**: Selectively migrate components over time
-3. **Full migration**: Fully adopt the new component architecture
+1. **Gradual component migration**: Selectively migrate components over time
+1. **Full migration**: Fully adopt the new component architecture
 
 ## Option 1: Adapter-Based Migration
 
@@ -63,7 +63,7 @@ memory_store = MemoryFactory.create_memory_store()
 vector_store = MemoryFactory.create_vector_store()
 activation_manager = MemoryFactory.create_activation_manager()
 retrieval_strategy = RetrievalFactory.create_retrieval_strategy(
-    'hybrid', memory_store, vector_store, activation_manager
+    "hybrid", memory_store, vector_store, activation_manager
 )
 
 # Create pipeline
@@ -72,9 +72,7 @@ pipeline_manager.register_component(memory_store)
 pipeline_manager.register_component(vector_store)
 pipeline_manager.register_component(activation_manager)
 pipeline_manager.register_component(retrieval_strategy)
-pipeline = pipeline_manager.create_pipeline(
-    "retrieval_pipeline", [retrieval_strategy.get_id()]
-)
+pipeline = pipeline_manager.create_pipeline("retrieval_pipeline", [retrieval_strategy.get_id()])
 
 # Create adapter that provides the legacy interface
 adapter = PipelineToLegacyAdapter(pipeline)
@@ -93,11 +91,11 @@ memory.add_memory(embedding, text, metadata)
 results = memory.retrieve_memories(query_embedding, top_k=5)
 
 # With this:
-memory_store = MemoryFactory.create_memory_store({'max_memories': 1000})
+memory_store = MemoryFactory.create_memory_store({"max_memories": 1000})
 vector_store = MemoryFactory.create_vector_store()
 activation_manager = MemoryFactory.create_activation_manager()
 retrieval_strategy = RetrievalFactory.create_retrieval_strategy(
-    'hybrid', memory_store, vector_store, activation_manager
+    "hybrid", memory_store, vector_store, activation_manager
 )
 
 pipeline_manager = PipelineFactory.create_pipeline_manager()
@@ -105,9 +103,7 @@ pipeline_manager.register_component(memory_store)
 pipeline_manager.register_component(vector_store)
 pipeline_manager.register_component(activation_manager)
 pipeline_manager.register_component(retrieval_strategy)
-pipeline = pipeline_manager.create_pipeline(
-    "retrieval_pipeline", [retrieval_strategy.get_id()]
-)
+pipeline = pipeline_manager.create_pipeline("retrieval_pipeline", [retrieval_strategy.get_id()])
 
 adapter = PipelineToLegacyAdapter(pipeline)
 adapter.add_memory(embedding, text, metadata)
@@ -144,17 +140,20 @@ from memoryweave.factory.retrieval import RetrievalFactory
 query_analyzer = RetrievalFactory.create_query_analyzer()
 query_adapter = RetrievalFactory.create_query_adapter()
 
+
 # Use new query components with legacy retriever
 def process_query(query_text, query_embedding):
     query_type = query_analyzer.analyze(query_text)
-    parameters = query_adapter.adapt_parameters({
-        'text': query_text,
-        'embedding': query_embedding,
-        'query_type': query_type,
-        'extracted_keywords': query_analyzer.extract_keywords(query_text),
-        'extracted_entities': query_analyzer.extract_entities(query_text)
-    })
-    
+    parameters = query_adapter.adapt_parameters(
+        {
+            "text": query_text,
+            "embedding": query_embedding,
+            "query_type": query_type,
+            "extracted_keywords": query_analyzer.extract_keywords(query_text),
+            "extracted_entities": query_analyzer.extract_entities(query_text),
+        }
+    )
+
     # Use legacy retriever with new parameters
     return retriever_adapter.retrieve(query_embedding, parameters)
 ```
@@ -169,10 +168,10 @@ vector_adapter = LegacyVectorStoreAdapter(legacy_memory, memory_adapter)
 
 # Create new retrieval strategy that uses legacy memory
 new_strategy = RetrievalFactory.create_retrieval_strategy(
-    'two_stage', 
-    memory_adapter,  # Use legacy memory via adapter 
+    "two_stage",
+    memory_adapter,  # Use legacy memory via adapter
     vector_adapter,  # Use legacy vector store via adapter
-    None  # No activation manager
+    None,  # No activation manager
 )
 
 # Create a pipeline with the new strategy
@@ -180,9 +179,7 @@ pipeline_manager = PipelineFactory.create_pipeline_manager()
 pipeline_manager.register_component(memory_adapter)
 pipeline_manager.register_component(vector_adapter)
 pipeline_manager.register_component(new_strategy)
-pipeline = pipeline_manager.create_pipeline(
-    "mixed_pipeline", [new_strategy.get_id()]
-)
+pipeline = pipeline_manager.create_pipeline("mixed_pipeline", [new_strategy.get_id()])
 
 # Use the pipeline
 query = Query(
@@ -190,7 +187,7 @@ query = Query(
     embedding=query_embedding,
     query_type=QueryType.PERSONAL,
     extracted_keywords=["favorite", "color"],
-    extracted_entities=[]
+    extracted_entities=[],
 )
 results = pipeline.execute(query)
 ```
@@ -216,16 +213,10 @@ from memoryweave.components.memory_manager import MemoryManager
 
 ```python
 # Legacy code
-memory = ContextualMemory(
-    embedding_dim=768,
-    max_memories=1000
-)
+memory = ContextualMemory(embedding_dim=768, max_memories=1000)
 
 # New code
-memory_manager = MemoryManager(
-    embedding_dim=768,
-    max_capacity=1000
-)
+memory_manager = MemoryManager(embedding_dim=768, max_capacity=1000)
 ```
 
 3. **Replace Retriever Creation**
@@ -236,14 +227,11 @@ retriever = ContextualRetriever(
     memory=memory,
     embedding_model=embedding_model,
     confidence_threshold=0.7,
-    semantic_coherence_check=True
+    semantic_coherence_check=True,
 )
 
 # New code
-retriever = Retriever(
-    memory=memory_manager,
-    embedding_model=embedding_model
-)
+retriever = Retriever(memory=memory_manager, embedding_model=embedding_model)
 retriever.minimum_relevance = 0.7
 retriever.configure_semantic_coherence(enable=True)
 retriever.initialize_components()
@@ -253,16 +241,10 @@ retriever.initialize_components()
 
 ```python
 # Legacy code
-memories = retriever.retrieve_for_context(
-    query, 
-    top_k=5
-)
+memories = retriever.retrieve_for_context(query, top_k=5)
 
 # New code
-memories = retriever.retrieve(
-    query, 
-    top_k=5
-)
+memories = retriever.retrieve(query, top_k=5)
 ```
 
 ### Advanced Configuration
@@ -272,22 +254,14 @@ The new architecture provides more fine-grained control over retrieval behavior:
 ```python
 # Configure two-stage retrieval
 retriever.configure_two_stage_retrieval(
-    enable=True,
-    first_stage_k=20,
-    first_stage_threshold_factor=0.7
+    enable=True, first_stage_k=20, first_stage_threshold_factor=0.7
 )
 
 # Configure query adaptation
-retriever.configure_query_type_adaptation(
-    enable=True,
-    adaptation_strength=1.0
-)
+retriever.configure_query_type_adaptation(enable=True, adaptation_strength=1.0)
 
 # Configure dynamic thresholds
-retriever.enable_dynamic_threshold_adjustment(
-    enable=True,
-    window_size=5
-)
+retriever.enable_dynamic_threshold_adjustment(enable=True, window_size=5)
 ```
 
 ### Full Implementation Example
@@ -299,22 +273,22 @@ from memoryweave.factory.retrieval import RetrievalFactory
 from memoryweave.factory.pipeline import PipelineFactory
 
 # Create memory components
-memory_store = MemoryFactory.create_memory_store({'max_memories': 1000})
+memory_store = MemoryFactory.create_memory_store({"max_memories": 1000})
 vector_store = MemoryFactory.create_vector_store()
-activation_manager = MemoryFactory.create_activation_manager({'use_temporal_decay': True})
+activation_manager = MemoryFactory.create_activation_manager({"use_temporal_decay": True})
 
 # Create different retrieval strategies
 similarity_strategy = RetrievalFactory.create_retrieval_strategy(
-    'similarity', memory_store, vector_store
+    "similarity", memory_store, vector_store
 )
 temporal_strategy = RetrievalFactory.create_retrieval_strategy(
-    'temporal', memory_store, None, activation_manager
+    "temporal", memory_store, None, activation_manager
 )
 hybrid_strategy = RetrievalFactory.create_retrieval_strategy(
-    'hybrid', memory_store, vector_store, activation_manager
+    "hybrid", memory_store, vector_store, activation_manager
 )
 two_stage_strategy = RetrievalFactory.create_retrieval_strategy(
-    'two_stage', memory_store, vector_store, activation_manager
+    "two_stage", memory_store, vector_store, activation_manager
 )
 
 # Create query processors
@@ -335,39 +309,39 @@ pipeline_manager.register_component(query_adapter)
 
 # Create pipelines for different query types
 factual_pipeline = pipeline_manager.create_pipeline(
-    "factual_pipeline", 
-    [query_analyzer.get_id(), query_adapter.get_id(), similarity_strategy.get_id()]
+    "factual_pipeline",
+    [query_analyzer.get_id(), query_adapter.get_id(), similarity_strategy.get_id()],
 )
 
 personal_pipeline = pipeline_manager.create_pipeline(
-    "personal_pipeline", 
-    [query_analyzer.get_id(), query_adapter.get_id(), hybrid_strategy.get_id()]
+    "personal_pipeline", [query_analyzer.get_id(), query_adapter.get_id(), hybrid_strategy.get_id()]
 )
 
 temporal_pipeline = pipeline_manager.create_pipeline(
-    "temporal_pipeline", 
-    [query_analyzer.get_id(), query_adapter.get_id(), temporal_strategy.get_id()]
+    "temporal_pipeline",
+    [query_analyzer.get_id(), query_adapter.get_id(), temporal_strategy.get_id()],
 )
 
 complex_pipeline = pipeline_manager.create_pipeline(
-    "complex_pipeline", 
-    [query_analyzer.get_id(), query_adapter.get_id(), two_stage_strategy.get_id()]
+    "complex_pipeline",
+    [query_analyzer.get_id(), query_adapter.get_id(), two_stage_strategy.get_id()],
 )
+
 
 # Use the appropriate pipeline based on query type
 def process_query(query_text, query_embedding):
     # Analyze query type
     query_type = query_analyzer.analyze(query_text)
-    
+
     # Create query object
     query = Query(
         text=query_text,
         embedding=query_embedding,
         query_type=query_type,
         extracted_keywords=query_analyzer.extract_keywords(query_text),
-        extracted_entities=query_analyzer.extract_entities(query_text)
+        extracted_entities=query_analyzer.extract_entities(query_text),
     )
-    
+
     # Select pipeline based on query type
     if query_type == QueryType.FACTUAL:
         return factual_pipeline.execute(query)
@@ -399,23 +373,23 @@ pipeline = migrator.create_migration_pipeline(components)
 # Validate that the migration was successful
 test_queries = [...]  # List of test queries
 validation_results = migrator.validate_migration(
-    legacy_memory.memory_retriever, 
-    pipeline,
-    test_queries
+    legacy_memory.memory_retriever, pipeline, test_queries
 )
 
-print(f"Migration success rate: {validation_results['success_count']/validation_results['total_queries']:.2f}")
+print(
+    f"Migration success rate: {validation_results['success_count'] / validation_results['total_queries']:.2f}"
+)
 ```
 
 ## Common Issues and Solutions
 
 1. **Different Result Ordering**: The new architecture may return results in a slightly different order due to the more sophisticated ranking algorithms. This is generally an improvement but may require adjustments to downstream processing.
 
-2. **Configuration Differences**: The new architecture requires explicit initialization after configuration changes. Always call `retriever.initialize_components()` after configuring.
+1. **Configuration Differences**: The new architecture requires explicit initialization after configuration changes. Always call `retriever.initialize_components()` after configuring.
 
-3. **Return Format**: The new architecture uses a consistent return format for all retrieval strategies. Check the documentation for the exact structure.
+1. **Return Format**: The new architecture uses a consistent return format for all retrieval strategies. Check the documentation for the exact structure.
 
-4. **Advanced Features**: Some advanced features (memory decay, ART clustering integration) may require additional configuration in the new architecture.
+1. **Advanced Features**: Some advanced features (memory decay, ART clustering integration) may require additional configuration in the new architecture.
 
 ## Frequently Asked Questions
 

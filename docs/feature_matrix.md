@@ -3,6 +3,7 @@
 This document tracks the implementation status of features from the original `ContextualRetriever` in the new component-based architecture.
 
 ## Status Legend
+
 - ✅ Complete - Feature fully implemented in component architecture
 - 🟡 Partial - Feature partially implemented
 - ❌ Not Started - Feature not yet implemented
@@ -62,16 +63,16 @@ This document tracks the implementation status of features from the original `Co
 ## Next Steps
 
 1. ✅ Implement two-stage retrieval in the component architecture
-2. ✅ Enhance query type adaptation to drive retrieval behavior
-3. ✅ Refactor to modular architecture as per architecture decision record
-4. ✅ Integrate with ART clustering from ContextualMemory
-5. ✅ Implement full keyword expansion
-6. ✅ Enhance personal attribute integration
-7. ✅ Implement memory decay
-8. ✅ Add query context building
-9. 🔄 Improve hybrid retrieval to combine BM25 and vector search advantages
-10. 🔄 Enhance vector retrieval precision while maintaining recall
-11. 🔄 Expand benchmark datasets for more diverse query types
+1. ✅ Enhance query type adaptation to drive retrieval behavior
+1. ✅ Refactor to modular architecture as per architecture decision record
+1. ✅ Integrate with ART clustering from ContextualMemory
+1. ✅ Implement full keyword expansion
+1. ✅ Enhance personal attribute integration
+1. ✅ Implement memory decay
+1. ✅ Add query context building
+1. 🔄 Improve hybrid retrieval to combine BM25 and vector search advantages
+1. 🔄 Enhance vector retrieval precision while maintaining recall
+1. 🔄 Expand benchmark datasets for more diverse query types
 
 ## Evaluation and Benchmarking
 

@@ -18,9 +18,10 @@ uv run python run_benchmark.py --config configs/baseline_comparison.yaml
 ```
 
 This will:
+
 1. Load the sample dataset with memories and queries
-2. Compare MemoryWeave against BM25 and vector search baselines
-3. Generate results in JSON, visualization, and HTML report formats
+1. Compare MemoryWeave against BM25 and vector search baselines
+1. Generate results in JSON, visualization, and HTML report formats
 
 ### Legacy Method (Deprecated)
 
@@ -137,6 +138,7 @@ uv run python examples/baseline_comparison_example.py
 ```
 
 This will generate:
+
 - `baseline_comparison_example.json` - Full comparison results
 - `baseline_comparison_chart.png` - Visualization of metrics
 - `baseline_comparison_report.html` - HTML report with interactive elements
@@ -168,16 +170,12 @@ memoryweave_retriever = get_your_retriever()
 
 # Define baseline configurations
 baseline_configs = [
-    BaselineConfig(
-        name="bm25",
-        retriever_class=BM25Retriever,
-        parameters={"b": 0.75, "k1": 1.2}
-    ),
+    BaselineConfig(name="bm25", retriever_class=BM25Retriever, parameters={"b": 0.75, "k1": 1.2}),
     BaselineConfig(
         name="vector_search",
         retriever_class=VectorBaselineRetriever,
-        parameters={"use_exact_search": True}
-    )
+        parameters={"use_exact_search": True},
+    ),
 ]
 
 # Create comparison framework
@@ -185,15 +183,12 @@ comparison = BaselineComparison(
     memory_manager=memory_manager,
     memoryweave_retriever=memoryweave_retriever,
     baseline_configs=baseline_configs,
-    metrics=["precision", "recall", "f1", "mrr"]
+    metrics=["precision", "recall", "f1", "mrr"],
 )
 
 # Run comparison with your data
 result = comparison.run_comparison(
-    queries=your_queries,
-    relevant_memory_ids=your_relevant_ids,
-    max_results=10,
-    threshold=0.0
+    queries=your_queries, relevant_memory_ids=your_relevant_ids, max_results=10, threshold=0.0
 )
 
 # Visualize and save results
