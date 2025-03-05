@@ -4,15 +4,12 @@ Example showing how to use the baseline comparison framework.
 """
 
 import json
-import os
-import sys
 from pathlib import Path
 
 import numpy as np
 
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.components.memory_manager import MemoryManager
-from memoryweave.components.retrieval_strategies import SimilarityRetrievalStrategy
 from memoryweave.evaluation.baseline_comparison import BaselineComparison, BaselineConfig
 from memoryweave.interfaces.retrieval import Query, QueryType
 from memoryweave.storage.memory_store import Memory, MemoryStore
@@ -72,7 +69,7 @@ def main():
     # Load the sample dataset
     dataset_path = Path(__file__).parent.parent / "sample_baseline_dataset.json"
 
-    with open(dataset_path, "r") as f:
+    with open(dataset_path) as f:
         data = json.load(f)
 
     # Create memory objects
@@ -239,7 +236,7 @@ def main():
 
     # Print MemoryWeave metrics
     mw_metrics = result.memoryweave_metrics["average"]
-    print(f"MemoryWeave (SimilarityRetriever):")
+    print("MemoryWeave (SimilarityRetriever):")
     print(f"  Precision: {mw_metrics.get('precision', 0):.4f}")
     print(f"  Recall: {mw_metrics.get('recall', 0):.4f}")
     print(f"  F1: {mw_metrics.get('f1', 0):.4f}")

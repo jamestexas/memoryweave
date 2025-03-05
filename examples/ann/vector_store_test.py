@@ -7,11 +7,12 @@ using the standard vector store vs. the ANN-based vector store.
 """
 
 import time
-import numpy as np
 from typing import List
 
-from memoryweave.core.contextual_memory import ContextualMemory
+import numpy as np
+
 from memoryweave.components.retriever import Retriever
+from memoryweave.core.contextual_memory import ContextualMemory
 
 
 # Use mock embedding model for testing
@@ -113,8 +114,8 @@ def test_retrieval_performance(memory_store_size: int):
         print("\nSkipping ANN testing for small memory size to avoid FAISS training errors.")
         print(f"\nPerformance Summary for {memory_store_size} memories:")
         print(f"Standard retrieval: {avg_standard_time:.6f}s")
-        print(f"ANN retrieval:      N/A")
-        print(f"Speedup:            N/A")
+        print("ANN retrieval:      N/A")
+        print("Speedup:            N/A")
         return
 
     # Test with ANN

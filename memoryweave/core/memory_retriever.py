@@ -7,7 +7,7 @@ This module is deprecated. Please use the component-based architecture instead:
 """
 
 import warnings
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Tuple
 
 import numpy as np
 

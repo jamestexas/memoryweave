@@ -6,19 +6,14 @@ and produces expected results with different configurations.
 """
 
 import pytest
-import numpy as np
 
-from memoryweave.components.retrieval_strategies import (
-    HybridRetrievalStrategy,
-    SimilarityRetrievalStrategy,
-    TwoStageRetrievalStrategy,
-)
+from memoryweave.components.retrieval_strategies import TwoStageRetrievalStrategy
 from tests.utils.test_fixtures import (
     PredictableTestEmbeddings,
-    create_test_memory,
-    create_retrieval_components,
-    verify_retrieval_results,
     assert_specific_difference,
+    create_retrieval_components,
+    create_test_memory,
+    verify_retrieval_results,
 )
 
 

@@ -2,12 +2,13 @@
 Tests for the SimilarityRetrievalStrategy.
 """
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
 
-from memoryweave.retrieval.similarity import SimilarityRetrievalStrategy
 from memoryweave.interfaces.memory import IMemoryStore, IVectorStore
+from memoryweave.retrieval.similarity import SimilarityRetrievalStrategy
 
 
 class TestSimilarityRetrievalStrategy:

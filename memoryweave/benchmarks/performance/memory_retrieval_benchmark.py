@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List
 
 import numpy as np
+
 from memoryweave.benchmarks.base import Benchmark, BenchmarkConfig, BenchmarkResult
 from memoryweave.benchmarks.utils.visualization import create_bar_chart, create_radar_chart
 from memoryweave.components.retriever import Retriever

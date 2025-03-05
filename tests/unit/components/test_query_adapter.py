@@ -8,7 +8,7 @@ This module tests the QueryTypeAdapter component to ensure:
 """
 
 import pytest
-import numpy as np
+
 from memoryweave.components.query_adapter import QueryTypeAdapter
 
 

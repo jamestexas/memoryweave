@@ -29,11 +29,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import rich_click as click
-from memoryweave.api.chunked_memory_weave import ChunkedMemoryWeaveAPI
-from memoryweave.api.hybrid_memory_weave import HybridMemoryWeaveAPI
-from memoryweave.api.llm_provider import LLMProvider
-from memoryweave.api.memory_weave import MemoryWeaveAPI
-from memoryweave.components.retriever import _get_embedder
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -41,6 +36,12 @@ from rich.table import Table
 
 # Import sentence-transformers once at the beginning
 from sentence_transformers import util
+
+from memoryweave.api.chunked_memory_weave import ChunkedMemoryWeaveAPI
+from memoryweave.api.hybrid_memory_weave import HybridMemoryWeaveAPI
+from memoryweave.api.llm_provider import LLMProvider
+from memoryweave.api.memory_weave import MemoryWeaveAPI
+from memoryweave.components.retriever import _get_embedder
 
 # Configure logging
 console = Console(highlight=True)

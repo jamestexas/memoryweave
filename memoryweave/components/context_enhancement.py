@@ -7,7 +7,7 @@ to improve retrieval relevance and capture relationships between memories.
 """
 
 import time
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List
 
 import numpy as np
 

@@ -2,12 +2,13 @@
 Tests for baseline retrieval implementations.
 """
 
-import pytest
-import numpy as np
-from typing import List
 import uuid
+from typing import List
 
-from memoryweave.baselines import BaselineRetriever, BM25Retriever, VectorBaselineRetriever
+import numpy as np
+import pytest
+
+from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.interfaces.retrieval import Query, QueryType
 from memoryweave.storage.memory_store import Memory
 

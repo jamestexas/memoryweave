@@ -3,6 +3,7 @@ Tests for the QueryAnalyzer component.
 """
 
 import pytest
+
 from memoryweave.interfaces.retrieval import QueryType
 from memoryweave.query.analyzer import SimpleQueryAnalyzer
 

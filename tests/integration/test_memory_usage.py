@@ -1,14 +1,13 @@
-import pytest
-import time
-import os
-import json
 import gc
-import psutil
-import sys
+import json
+import os
+import time
 from pathlib import Path
 
+import psutil
+import pytest
+
 from memoryweave.evaluation.synthetic.benchmark import run_benchmark_with_config
-from memoryweave.components import factory
 
 
 @pytest.mark.integration

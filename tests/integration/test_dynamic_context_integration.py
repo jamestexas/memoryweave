@@ -5,19 +5,20 @@ Tests the DynamicContextAdapter in integration with other components,
 particularly the ContextualFabricStrategy.
 """
 
-import pytest
-import numpy as np
-from typing import List, Dict, Any
+from typing import List
 
+import numpy as np
+import pytest
+
+from memoryweave.components.activation import ActivationManager
+from memoryweave.components.associative_linking import AssociativeMemoryLinker
 from memoryweave.components.dynamic_context_adapter import DynamicContextAdapter
 from memoryweave.components.query_analysis import QueryAnalyzer
 from memoryweave.components.retrieval_strategies.contextual_fabric_strategy import (
     ContextualFabricStrategy,
 )
-from memoryweave.storage.memory_store import MemoryStore
-from memoryweave.components.activation import ActivationManager
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.components.associative_linking import AssociativeMemoryLinker
+from memoryweave.storage.memory_store import MemoryStore
 
 
 class TestDynamicContextIntegration:

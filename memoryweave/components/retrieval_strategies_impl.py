@@ -1,5 +1,5 @@
 # memoryweave/components/retrieval_strategies.py
-from typing import Any, List, Optional
+from typing import Any, List
 
 import numpy as np
 
@@ -7,7 +7,6 @@ from memoryweave.components.base import RetrievalStrategy
 
 # Import here to avoid circular imports
 from memoryweave.core import ContextualMemory
-from memoryweave.core.category_manager import CategoryManager
 
 
 class SimilarityRetrievalStrategy(RetrievalStrategy):

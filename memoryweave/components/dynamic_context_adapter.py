@@ -8,13 +8,12 @@ signals without requiring explicit human feedback.
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
+
 import numpy as np
-from collections import defaultdict
 
 from memoryweave.components.base import Component
 from memoryweave.components.component_names import ComponentName
-from memoryweave.interfaces.memory import IMemoryStore
 
 
 class DynamicContextAdapter(Component):

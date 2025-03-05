@@ -11,13 +11,12 @@ from memoryweave.evaluation.synthetic.generators import (
     SyntheticMemoryGenerator,
     SyntheticQueryGenerator,
 )
-
 from memoryweave.evaluation.synthetic.semantic_generator import (
-    SemanticDataGenerator,
-    generate_semantic_dataset,
     MemoryRelationship,
     MemorySeries,
+    SemanticDataGenerator,
     SemanticMemory,
+    generate_semantic_dataset,
 )
 
 __all__ = [

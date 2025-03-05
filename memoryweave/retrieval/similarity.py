@@ -5,6 +5,7 @@ vector similarity between query and memory embeddings.
 """
 
 from typing import Any, Dict, List, Optional
+
 import numpy as np
 
 from memoryweave.interfaces.memory import EmbeddingVector, IMemoryStore, IVectorStore

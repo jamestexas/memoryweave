@@ -6,7 +6,7 @@ gradually reducing the activation levels of memories that haven't
 been recently accessed.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import numpy as np
 

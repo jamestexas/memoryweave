@@ -1,0 +1,277 @@
+{
+  "runs": [
+    {
+      "config_name": "Performance-Test-Basic",
+      "execution_times": [
+        0.20323491096496582,
+        0.09729909896850586,
+        0.16010808944702148
+      ],
+      "avg_time": 0.1535473664601644,
+      "min_time": 0.09729909896850586,
+      "max_time": 0.20323491096496582,
+      "std_dev": 0.053271769075374564,
+      "timestamp": 1740935374.6061969
+    },
+    {
+      "config_name": "Performance-Test-Basic",
+      "execution_times": [
+        0.20154190063476562,
+        0.09821510314941406,
+        0.16152620315551758
+      ],
+      "avg_time": 0.15376106897989908,
+      "min_time": 0.09821510314941406,
+      "max_time": 0.20154190063476562,
+      "std_dev": 0.05209922985245302,
+      "timestamp": 1740935429.4473238
+    },
+    {
+      "config_name": "Performance-Test-Basic",
+      "execution_times": [
+        0.20712971687316895,
+        0.09599995613098145,
+        0.15998101234436035
+      ],
+      "avg_time": 0.15437022844950357,
+      "min_time": 0.09599995613098145,
+      "max_time": 0.20712971687316895,
+      "std_dev": 0.05577693611691169,
+      "timestamp": 1740937085.293447
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.21113300323486328
+      ],
+      "avg_time": 0.21113300323486328,
+      "min_time": 0.21113300323486328,
+      "max_time": 0.21113300323486328,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_weather": 0.0002918243408203125,
+        "query_cat": 0.0009448528289794922,
+        "query_travel": 0.00025200843811035156,
+        "query_color": 0.0002727508544921875,
+        "query_food": 0.0002522468566894531
+      },
+      "timestamp": 1740939036.432769
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.2062239646911621
+      ],
+      "avg_time": 0.2062239646911621,
+      "min_time": 0.2062239646911621,
+      "max_time": 0.2062239646911621,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_travel": 0.0002601146697998047,
+        "query_cat": 0.0008985996246337891,
+        "query_food": 0.0002560615539550781,
+        "query_weather": 0.00029397010803222656,
+        "query_color": 0.00026798248291015625
+      },
+      "timestamp": 1740939064.7864802
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.20470476150512695
+      ],
+      "avg_time": 0.20470476150512695,
+      "min_time": 0.20470476150512695,
+      "max_time": 0.20470476150512695,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_food": 0.00025200843811035156,
+        "query_weather": 0.0002989768981933594,
+        "query_cat": 0.0009000301361083984,
+        "query_travel": 0.0002551078796386719,
+        "query_color": 0.00026702880859375
+      },
+      "timestamp": 1740939091.2450938
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.1976480484008789
+      ],
+      "avg_time": 0.1976480484008789,
+      "min_time": 0.1976480484008789,
+      "max_time": 0.1976480484008789,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_weather": 0.0003147125244140625,
+        "query_food": 0.00024509429931640625,
+        "query_travel": 0.0002548694610595703,
+        "query_color": 0.0002720355987548828,
+        "query_cat": 0.0009799003601074219
+      },
+      "timestamp": 1740939115.561161
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.20232510566711426
+      ],
+      "avg_time": 0.20232510566711426,
+      "min_time": 0.20232510566711426,
+      "max_time": 0.20232510566711426,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_cat": 0.0010020732879638672,
+        "query_color": 0.00027489662170410156,
+        "query_weather": 0.0003018379211425781,
+        "query_food": 0.0002589225769042969,
+        "query_travel": 0.00026106834411621094
+      },
+      "timestamp": 1740939151.1899362
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.19913697242736816
+      ],
+      "avg_time": 0.19913697242736816,
+      "min_time": 0.19913697242736816,
+      "max_time": 0.19913697242736816,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_cat": 0.0006749629974365234,
+        "query_color": 0.0003027915954589844,
+        "query_travel": 0.0002808570861816406,
+        "query_weather": 0.0003070831298828125,
+        "query_food": 0.000270843505859375
+      },
+      "timestamp": 1740939161.374442
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.20396184921264648
+      ],
+      "avg_time": 0.20396184921264648,
+      "min_time": 0.20396184921264648,
+      "max_time": 0.20396184921264648,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_travel": 0.0002498626708984375,
+        "query_color": 0.00026416778564453125,
+        "query_food": 0.00025391578674316406,
+        "query_cat": 0.0006415843963623047,
+        "query_weather": 0.0002739429473876953
+      },
+      "timestamp": 1740940197.162107
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.19438695907592773
+      ],
+      "avg_time": 0.19438695907592773,
+      "min_time": 0.19438695907592773,
+      "max_time": 0.19438695907592773,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_travel": 0.00024771690368652344,
+        "query_cat": 0.0006020069122314453,
+        "query_color": 0.000270843505859375,
+        "query_food": 0.00024080276489257812,
+        "query_weather": 0.0002739429473876953
+      },
+      "timestamp": 1740940227.57174
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.18908214569091797
+      ],
+      "avg_time": 0.18908214569091797,
+      "min_time": 0.18908214569091797,
+      "max_time": 0.18908214569091797,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_food": 0.00030303001403808594,
+        "query_weather": 0.0003459453582763672,
+        "query_cat": 0.0009133815765380859,
+        "query_travel": 0.00030112266540527344,
+        "query_color": 0.0003170967102050781
+      },
+      "timestamp": 1740940424.7669299
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.22697114944458008
+      ],
+      "avg_time": 0.22697114944458008,
+      "min_time": 0.22697114944458008,
+      "max_time": 0.22697114944458008,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_weather": 0.00032901763916015625,
+        "query_color": 0.00039505958557128906,
+        "query_food": 0.0004279613494873047,
+        "query_travel": 0.0003209114074707031,
+        "query_cat": 0.001007080078125
+      },
+      "timestamp": 1740941055.882486
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.19306397438049316
+      ],
+      "avg_time": 0.19306397438049316,
+      "min_time": 0.19306397438049316,
+      "max_time": 0.19306397438049316,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_travel": 0.00025177001953125,
+        "query_color": 0.00026297569274902344,
+        "query_weather": 0.0002789497375488281,
+        "query_food": 0.00036215782165527344,
+        "query_cat": 0.0006330013275146484
+      },
+      "timestamp": 1740941088.048726
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.25573301315307617
+      ],
+      "avg_time": 0.25573301315307617,
+      "min_time": 0.25573301315307617,
+      "max_time": 0.25573301315307617,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_cat": 0.0002989768981933594,
+        "query_weather": 0.00022602081298828125,
+        "query_color": 0.00020885467529296875,
+        "query_travel": 0.000202178955078125,
+        "query_food": 0.0002040863037109375
+      },
+      "timestamp": 1740962949.6839209
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.21135401725769043
+      ],
+      "avg_time": 0.21135401725769043,
+      "min_time": 0.21135401725769043,
+      "max_time": 0.21135401725769043,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_travel": 0.0011489391326904297,
+        "query_cat": 0.0014767646789550781,
+        "query_weather": 0.0011758804321289062,
+        "query_food": 0.0012388229370117188,
+        "query_color": 0.001154184341430664
+      },
+      "timestamp": 1741138736.522978
+    }
+  ]
+}

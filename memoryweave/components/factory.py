@@ -77,13 +77,13 @@ def create_memory_system(config: Dict[str, Any] = None) -> Dict[str, Any]:
 
     # Register components for testing pipelines
     try:
-        from memoryweave.components.query_analysis import QueryAnalyzer
-        from memoryweave.components.query_adapter import QueryAdapter
         from memoryweave.components.post_processors import (
-            KeywordBoostProcessor,
             AdaptiveKProcessor,
+            KeywordBoostProcessor,
             SemanticCoherenceProcessor,
         )
+        from memoryweave.components.query_adapter import QueryAdapter
+        from memoryweave.components.query_analysis import QueryAnalyzer
 
         # Create and register components needed for pipeline tests
         query_analyzer = QueryAnalyzer()

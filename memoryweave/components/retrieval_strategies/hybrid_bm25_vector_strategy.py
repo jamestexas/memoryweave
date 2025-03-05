@@ -491,7 +491,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             )
             if len(bm25_scores) > 0:
                 logger.debug(
-                    f"Score distributions - "
+                    "Score distributions - "
                     + f"BM25: min={bm25_scores.min():.4f}, max={bm25_scores.max():.4f}, mean={bm25_scores.mean():.4f} | "
                     + f"Vector: min={vector_scores.min():.4f}, max={vector_scores.max():.4f}, mean={vector_scores.mean():.4f}"
                 )

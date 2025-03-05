@@ -1,12 +1,11 @@
 # memoryweave/components/memory_manager.py
+import logging
 from typing import Any, Optional
 
 from memoryweave.components.base import Component
 from memoryweave.components.pipeline_config import PipelineConfig
 from memoryweave.interfaces.memory import Memory
 from memoryweave.storage.memory_store import MemoryStore
-
-import logging
 
 logger = logging.getLogger(__name__)
 

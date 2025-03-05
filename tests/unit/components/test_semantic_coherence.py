@@ -8,8 +8,9 @@ This module tests the SemanticCoherenceProcessor component to ensure:
 4. Different configurations use different coherence parameters
 """
 
-import pytest
 import numpy as np
+import pytest
+
 from memoryweave.components.post_processors import SemanticCoherenceProcessor
 
 

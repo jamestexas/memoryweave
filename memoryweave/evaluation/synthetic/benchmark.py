@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
 
 from memoryweave.components.retriever import Retriever
 from memoryweave.core.contextual_memory import ContextualMemory

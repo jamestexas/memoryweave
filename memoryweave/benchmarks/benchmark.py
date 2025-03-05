@@ -25,13 +25,14 @@ import yaml
 # Import benchmark implementations
 from contextual_fabric_benchmark import ContextualFabricBenchmark
 from memory_retrieval_benchmark import BenchmarkConfig as MRBConfig, MemoryRetrievalBenchmark
-from memoryweave.evaluation.baseline_comparison import BaselineComparison
-from memoryweave.evaluation.synthetic.benchmark import SyntheticBenchmark
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 from rich_click import RichCommand, RichGroup
+
+from memoryweave.evaluation.baseline_comparison import BaselineComparison
+from memoryweave.evaluation.synthetic.benchmark import SyntheticBenchmark
 
 # set up rich logging
 logging.basicConfig(

@@ -8,9 +8,10 @@ This module tests the DynamicContextAdapter component to ensure:
 4. Adaptation strength properly controls parameter changes
 """
 
-import pytest
+from unittest.mock import MagicMock
+
 import numpy as np
-from unittest.mock import MagicMock, patch
+import pytest
 
 from memoryweave.components.dynamic_context_adapter import DynamicContextAdapter
 

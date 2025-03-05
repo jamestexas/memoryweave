@@ -118,7 +118,7 @@ class NLPExtractor:
             )
 
         # Pattern matching for relationships generally
-        elif not "wife" in text.lower():  # Skip if we already matched above
+        elif "wife" not in text.lower():  # Skip if we already matched above
             relationship_match = re.search(r"my (\w+) (?:is|was|has been) (\w+)", text.lower())
             if relationship_match:
                 relation = relationship_match.group(1)

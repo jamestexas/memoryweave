@@ -8,6 +8,7 @@ from typing import List
 
 import numpy as np
 import pytest
+
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.evaluation.baseline_comparison import (
     BaselineComparison,

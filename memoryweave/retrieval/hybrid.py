@@ -5,6 +5,7 @@ multiple approaches such as similarity and temporal factors.
 """
 
 from typing import Any, Dict, List, Optional
+
 import numpy as np
 
 from memoryweave.interfaces.memory import (

@@ -7,7 +7,6 @@ import pytest
 
 from memoryweave.components.category_manager import CategoryManager
 from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
-from tests.utils.test_fixtures import create_test_embedding
 
 
 class TestCategoryManager:

@@ -5,8 +5,8 @@ Integration tests for the MemoryWeave retriever.
 import unittest
 
 from memoryweave.core.refactored_retrieval import RefactoredRetriever
-# ContextualRetriever has been migrated to components architecture
 
+# ContextualRetriever has been migrated to components architecture
 from tests.utils.mock_models import MockEmbeddingModel, MockMemory
 
 

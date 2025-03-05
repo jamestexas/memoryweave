@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict
 
 import yaml
+
 from memoryweave.benchmarks.performance.memory_retrieval_benchmark import (
     MemoryRetrievalBenchmark,
     MemoryRetrievalConfig,

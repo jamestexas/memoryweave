@@ -5,16 +5,16 @@ and the new ANN-based vector store implementation for different memory store siz
 """
 
 import time
-import random
-import numpy as np
+from typing import Dict, List
+
 import matplotlib.pyplot as plt
-from typing import Dict, List, Tuple
+import numpy as np
 
 from memoryweave.storage.vector_store import (
-    SimpleVectorStore,
     ActivationVectorStore,
-    ANNVectorStore,
     ANNActivationVectorStore,
+    ANNVectorStore,
+    SimpleVectorStore,
     get_optimal_faiss_config,
 )
 

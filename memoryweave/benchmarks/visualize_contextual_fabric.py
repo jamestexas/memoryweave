@@ -9,7 +9,7 @@ retrieval strategy versus the contextual fabric strategy.
 import json
 import os
 import sys
-from typing import Dict, List
+from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,7 +28,7 @@ def load_results(results_file: str) -> Dict:
     Returns:
         Dictionary of results data
     """
-    with open(results_file, "r") as f:
+    with open(results_file) as f:
         return json.load(f)
 
 

@@ -6,11 +6,10 @@ scaling to large memory stores using approximate nearest neighbor search.
 """
 
 import time
-from typing import Dict, List, Optional, Tuple, Callable, Any, Union, Literal, Type
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
-import numpy as np
 import faiss
-from faiss.swigfaiss import IndexIDMap
+import numpy as np
 
 from memoryweave.interfaces.memory import EmbeddingVector, IVectorStore, MemoryID
 

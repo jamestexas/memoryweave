@@ -2,7 +2,7 @@
 Metrics for evaluating conversational coherence and memory effectiveness.
 """
 
-from typing import Any, List, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity

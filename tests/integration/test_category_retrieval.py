@@ -5,17 +5,8 @@ Integration tests for category-based retrieval in the pipeline.
 import numpy as np
 import pytest
 
-from memoryweave.components.adapters import CategoryAdapter
-from memoryweave.components.category_manager import CategoryManager
-from memoryweave.components.factory import create_memory_system, configure_memory_pipeline
-from memoryweave.components.retrieval_strategies import CategoryRetrievalStrategy
-from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
-from tests.utils.test_fixtures import (
-    PredictableTestEmbeddings,
-    create_test_embedding,
-    create_test_memory,
-    verify_retrieval_results,
-)
+from memoryweave.components.factory import create_memory_system
+from tests.utils.test_fixtures import create_test_embedding
 
 
 class TestCategoryRetrieval:
@@ -208,12 +199,12 @@ class TestCategoryRetrieval:
         # This test requires several components that may not be available
         # in all environments, so we'll skip it
         try:
-            from memoryweave.components.query_analysis import QueryAnalyzer
-            from memoryweave.components.query_adapter import QueryTypeAdapter
             from memoryweave.components.post_processors import (
                 KeywordBoostProcessor,
                 SemanticCoherenceProcessor,
             )
+            from memoryweave.components.query_adapter import QueryTypeAdapter
+            from memoryweave.components.query_analysis import QueryAnalyzer
         except ImportError:
             # Skip test if required dependencies are not available
             pytest.skip("Required components not available for this test")

@@ -5,12 +5,13 @@ These tests validate that the baseline comparison framework
 works correctly with real retrievers and memory managers.
 """
 
+import json
 import os
 import tempfile
-import json
+from typing import List
+
 import numpy as np
 import pytest
-from typing import List, Dict, Any
 
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.components.memory_manager import MemoryManager
@@ -188,7 +189,7 @@ def test_baseline_comparison_integration(memory_manager, test_queries, relevant_
         comparison.save_results(result, temp_path)
 
         # Verify file content
-        with open(temp_path, "r") as f:
+        with open(temp_path) as f:
             saved_data = json.load(f)
 
         assert "memoryweave_metrics" in saved_data

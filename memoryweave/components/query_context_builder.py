@@ -4,7 +4,7 @@ This module provides components for enriching query context with relevant inform
 to improve memory retrieval performance.
 """
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Optional
 
 import numpy as np
 

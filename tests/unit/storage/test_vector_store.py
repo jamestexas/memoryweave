@@ -5,7 +5,7 @@ Tests for the VectorStore components.
 import numpy as np
 import pytest
 
-from memoryweave.storage.vector_store import SimpleVectorStore, ActivationVectorStore
+from memoryweave.storage.vector_store import ActivationVectorStore, SimpleVectorStore
 
 
 class TestSimpleVectorStore:

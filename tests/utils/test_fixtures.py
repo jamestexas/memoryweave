@@ -4,16 +4,17 @@ This module provides fixtures for creating test data, verifying results,
 and setting up test environments in a consistent way.
 """
 
-import numpy as np
-from typing import Dict, List, Any, Tuple, Set, Optional, Union
 import hashlib
+from typing import Any, Dict, List, Tuple, Union
 
-from memoryweave.core.contextual_memory import ContextualMemory
+import numpy as np
+
 from memoryweave.components.retrieval_strategies import (
-    SimilarityRetrievalStrategy,
     HybridRetrievalStrategy,
+    SimilarityRetrievalStrategy,
     TwoStageRetrievalStrategy,
 )
+from memoryweave.core.contextual_memory import ContextualMemory
 
 
 class PredictableTestEmbeddings:

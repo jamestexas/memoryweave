@@ -19,11 +19,10 @@ from memoryweave.storage.category import CategoryManager
 from memoryweave.storage.memory_store import MemoryStore
 from memoryweave.storage.vector_store import (
     ActivationVectorStore,
-    SimpleVectorStore,
-    ANNVectorStore,
     ANNActivationVectorStore,
+    ANNVectorStore,
+    SimpleVectorStore,
     get_optimal_faiss_config,
-    VectorStoreScaleType,
 )
 
 
