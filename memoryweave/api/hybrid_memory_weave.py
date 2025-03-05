@@ -17,6 +17,11 @@ from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
 from memoryweave.components.retrieval_strategies.hybrid_fabric_strategy import HybridFabricStrategy
 from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.text_chunker import TextChunker
+from memoryweave.factory.memory_factory import (
+    MemoryStoreConfig,
+    VectorSearchConfig,
+    create_memory_store_and_adapter,
+)
 from memoryweave.storage.refactored.memory_store import get_device
 
 logger = logging.getLogger(__name__)
@@ -66,12 +71,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         embedding_dim = embedding_model.get_sentence_embedding_dimension()
 
         # Configure and create memory store and adapter using factory pattern
-        from memoryweave.factory.memory_factory import (
-            MemoryStoreConfig,
-            VectorSearchConfig,
-            create_memory_store_and_adapter,
-        )
-
         store_config = MemoryStoreConfig(
             type="hybrid",
             vector_search=VectorSearchConfig(
@@ -125,6 +124,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         # Track which memories are chunked
         self.chunked_memory_ids = set()
+
+        # Setup hybrid strategy
+        self._setup_hybrid_strategy()
 
     def _setup_hybrid_strategy(self):
         """Set up the hybrid fabric strategy to replace the standard strategy."""
@@ -189,13 +191,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             embedding = self.embedding_model.encode(text, show_progress_bar=self.show_progress_bar)
 
             # Add to memory store
-            mem_id = self.hybrid_memory_store.add(embedding, text, metadata)
-
-            # Critical fix: Invalidate BOTH adapters to ensure consistency
-            self.hybrid_memory_adapter.invalidate_cache()
-            # Also invalidate the standard adapter if we have access to it
-            if hasattr(self, "memory_store_adapter"):
-                self.memory_store_adapter.invalidate_cache()
+            mem_id = self.hybrid_memory_adapter.add(embedding, text, metadata)
 
             # Add to category if enabled
             if self.category_manager:
@@ -216,26 +212,17 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         # If there are no important chunks, just use the full embedding
         if not selected_chunks:
-            mem_id = self.hybrid_memory_store.add(full_embedding, text, metadata)
-            # Critical fix: Invalidate BOTH adapters
-            self.hybrid_memory_adapter.invalidate_cache()
-            if hasattr(self, "memory_store_adapter"):
-                self.memory_store_adapter.invalidate_cache()
+            mem_id = self.hybrid_memory_adapter.add(full_embedding, text, metadata)
             return mem_id
 
         # 4. Add to hybrid memory store
-        mem_id = self.hybrid_memory_store.add_hybrid(
+        mem_id = self.hybrid_memory_adapter.add_hybrid(
             full_embedding=full_embedding,
             chunks=selected_chunks,
             chunk_embeddings=chunk_embeddings,
             original_content=text,
             metadata=metadata,
         )
-
-        # Critical fix: Invalidate BOTH adapters
-        self.hybrid_memory_adapter.invalidate_cache()
-        if hasattr(self, "memory_store_adapter"):
-            self.memory_store_adapter.invalidate_cache()
 
         # Track as chunked memory
         self.chunked_memory_ids.add(mem_id)
@@ -399,7 +386,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 chunk_embeddings.append(embedding)
 
             # Add as hybrid memory
-            mem_id = self.hybrid_memory_store.add_hybrid(
+            mem_id = self.hybrid_memory_adapter.add_hybrid(
                 full_embedding=full_embedding,
                 chunks=chunks,
                 chunk_embeddings=chunk_embeddings,
@@ -411,10 +398,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             embedding = self.embedding_model.encode(
                 full_text, show_progress_bar=self.show_progress_bar
             )
-            mem_id = self.hybrid_memory_store.add(embedding, full_text, metadata)
-
-        # Update caches
-        self.hybrid_memory_adapter.invalidate_cache()
+            mem_id = self.hybrid_memory_adapter.add(embedding, full_text, metadata)
 
         # If it was chunked, track it
         if total_length > self.adaptive_chunk_threshold:
@@ -531,6 +515,169 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         return chunks
 
+    def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
+        """
+        Process user message and generate a response using hybrid memory retrieval.
+
+        This method leverages the hybrid approach for more efficient memory usage.
+
+        Args:
+            user_message: User's message
+            max_new_tokens: Maximum number of tokens to generate
+
+        Returns:
+            Assistant's response
+        """
+        start_time = time.time()
+
+        # Step 1: Query analysis
+        query_info = self._analyze_query(user_message)
+        _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
+
+        # Step 2: Compute query embedding
+        query_embedding = self._compute_embedding(user_message)
+        if query_embedding is None:
+            return "Sorry, an error occurred while processing your request."
+
+        # Step 3: Add keyword filtering if available
+        if hasattr(self, "query_analyzer") and self.query_analyzer:
+            keywords = self.query_analyzer.extract_keywords(user_message)
+            if keywords and len(keywords) > 0:
+                if adapted_params is None:
+                    adapted_params = {}
+                adapted_params["important_keywords"] = keywords
+
+        # Step 4: Retrieve memories
+        relevant_memories = self.retrieval_orchestrator.retrieve(
+            query_embedding=query_embedding,
+            query=user_message,
+            query_type=query_type,
+            expanded_keywords=expanded_keywords,
+            entities=entities,
+            adapted_params=adapted_params,
+            top_k=adapted_params.get("max_results", 10),
+        )
+
+        # Step 5: Extract personal attributes if enabled
+        self._extract_personal_attributes(user_message, time.time())
+
+        # Step 6: Construct prompt
+        prompt = self.prompt_builder.build_chat_prompt(
+            user_message=user_message,
+            memories=relevant_memories,
+            conversation_history=self.conversation_history,
+            query_type=query_type,
+        )
+        if self.debug:
+            print("===== Prompt Start =====")
+            print(prompt)
+            print("===== Prompt End =====")
+
+        # Step 7: Generate response
+        assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
+
+        # Step 8: Store interaction
+        self._store_hybrid_interaction(user_message, assistant_reply, time.time())
+
+        # Step 9: Update history and statistics
+        self._update_conversation_history(user_message, assistant_reply)
+        self._update_retrieval_stats(start_time, len(relevant_memories))
+
+        return assistant_reply
+
+    def _store_hybrid_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
+        """
+        Store conversation messages efficiently with hybrid approach.
+
+        Args:
+            user_message: User's message
+            assistant_reply: Assistant's reply
+            timestamp: Timestamp when the interaction occurred
+        """
+        try:
+            # Determine if each message warrants chunking
+            user_should_chunk = len(user_message) > self.adaptive_chunk_threshold
+            assistant_should_chunk = len(assistant_reply) > self.adaptive_chunk_threshold
+
+            # Store user message
+            user_metadata = {
+                "type": "user_message",
+                "created_at": timestamp,
+                "conversation_id": id(self.conversation_history),
+                "importance": 0.7,
+            }
+
+            if user_should_chunk:
+                # Create full embedding and selected chunks
+                user_embedding = self.embedding_model.encode(
+                    user_message, show_progress_bar=self.show_progress_bar
+                )
+                user_chunks = self.text_chunker.create_chunks(user_message, user_metadata)
+                selected_chunks, chunk_embeddings = self._select_important_chunks(
+                    user_chunks, user_embedding
+                )
+
+                # Add as hybrid memory
+                user_mem_id = self.hybrid_memory_adapter.add_hybrid(
+                    full_embedding=user_embedding,
+                    chunks=selected_chunks,
+                    chunk_embeddings=chunk_embeddings,
+                    original_content=user_message,
+                    metadata=user_metadata,
+                )
+                self.chunked_memory_ids.add(user_mem_id)
+            else:
+                # Add as regular memory
+                user_emb = self.embedding_model.encode(
+                    user_message, show_progress_bar=self.show_progress_bar
+                )
+                user_mem_id = self.hybrid_memory_adapter.add(user_emb, user_message, user_metadata)
+
+            # Store assistant message
+            assistant_metadata = {
+                "type": "assistant_message",
+                "created_at": timestamp,
+                "conversation_id": id(self.conversation_history),
+                "importance": 0.5,
+            }
+
+            if assistant_should_chunk:
+                # Create full embedding and selected chunks
+                assistant_embedding = self.embedding_model.encode(
+                    assistant_reply, show_progress_bar=self.show_progress_bar
+                )
+                assistant_chunks = self.text_chunker.create_chunks(
+                    assistant_reply, assistant_metadata
+                )
+                selected_chunks, chunk_embeddings = self._select_important_chunks(
+                    assistant_chunks, assistant_embedding
+                )
+
+                # Add as hybrid memory
+                assistant_mem_id = self.hybrid_memory_adapter.add_hybrid(
+                    full_embedding=assistant_embedding,
+                    chunks=selected_chunks,
+                    chunk_embeddings=chunk_embeddings,
+                    original_content=assistant_reply,
+                    metadata=assistant_metadata,
+                )
+                self.chunked_memory_ids.add(assistant_mem_id)
+            else:
+                # Add as regular memory
+                assistant_emb = self.embedding_model.encode(
+                    assistant_reply, show_progress_bar=self.show_progress_bar
+                )
+                assistant_mem_id = self.hybrid_memory_adapter.add(
+                    assistant_emb, assistant_reply, assistant_metadata
+                )
+
+            # Create associative link between messages
+            if self.associative_linker:
+                self.associative_linker.create_associative_link(user_mem_id, assistant_mem_id, 0.9)
+
+        except Exception as e:
+            logger.error(f"Error storing hybrid conversation in memory: {e}")
+
     def configure_chunking(self, **kwargs) -> None:
         """
         Configure chunking parameters.
@@ -597,19 +744,19 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         """
         try:
             stats = {
-                "total_memories": len(self.hybrid_memory_store.get_all()),
+                "total_memories": len(self.hybrid_memory_adapter.get_all()),
                 "chunked_memories": len(self.chunked_memory_ids),
-                "total_chunks": self.hybrid_memory_store.get_chunk_count(),
-                "avg_chunks_per_memory": self.hybrid_memory_store.get_average_chunks_per_memory(),
+                "total_chunks": self.hybrid_memory_adapter.get_chunk_count(),
+                "avg_chunks_per_memory": self.hybrid_memory_adapter.get_average_chunks_per_memory(),
                 "adaptive_chunk_threshold": self.adaptive_chunk_threshold,
                 "max_chunks_per_memory": self.max_chunks_per_memory,
                 "enable_auto_chunking": self.enable_auto_chunking,
                 "memory_usage": {
-                    "full_embeddings": len(self.hybrid_memory_store.get_all()),
-                    "chunk_embeddings": self.hybrid_memory_store.get_chunk_count(),
+                    "full_embeddings": len(self.hybrid_memory_adapter.get_all()),
+                    "chunk_embeddings": self.hybrid_memory_adapter.get_chunk_count(),
                     "total_embeddings": (
-                        len(self.hybrid_memory_store.get_all())
-                        + self.hybrid_memory_store.get_chunk_count()
+                        len(self.hybrid_memory_adapter.get_all())
+                        + self.hybrid_memory_adapter.get_chunk_count()
                     ),
                 },
             }
@@ -617,168 +764,3 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         except Exception as e:
             logger.error(f"Error getting chunking statistics: {e}")
             return {}
-
-    def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
-        """
-        Process user message and generate a response using hybrid memory retrieval.
-
-        This method leverages the hybrid approach for more efficient memory usage.
-
-        Args:
-            user_message: User's message
-            max_new_tokens: Maximum number of tokens to generate
-
-        Returns:
-            Assistant's response
-        """
-        start_time = time.time()
-
-        # Step 1: Query analysis
-        query_info = self._analyze_query(user_message)
-        _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
-
-        # Step 2: Compute query embedding
-        query_embedding = self._compute_embedding(user_message)
-        if query_embedding is None:
-            return "Sorry, an error occurred while processing your request."
-
-        # Step 3: Add keyword filtering if available
-        if hasattr(self, "query_analyzer") and self.query_analyzer:
-            keywords = self.query_analyzer.extract_keywords(user_message)
-            if keywords and len(keywords) > 0:
-                if adapted_params is None:
-                    adapted_params = {}
-                adapted_params["important_keywords"] = keywords
-
-        # Step 4: Retrieve memories
-        relevant_memories = self.retrieval_orchestrator.retrieve(
-            query_embedding=query_embedding,
-            query=user_message,
-            query_type=query_type,
-            expanded_keywords=expanded_keywords,
-            entities=entities,
-            adapted_params=adapted_params,
-            top_k=adapted_params.get("max_results", 10),
-        )
-
-        # Step 5: Extract personal attributes if enabled
-        self._extract_personal_attributes(user_message, time.time())
-
-        # Step 6: Construct prompt
-        prompt = self.prompt_builder.build_chat_prompt(
-            user_message=user_message,
-            memories=relevant_memories,
-            conversation_history=self.conversation_history,
-            query_type=query_type,
-        )
-        if self.debug:
-            print("===== Prompt Start =====")
-            print(prompt)
-            print("===== Prompt End =====")
-        # Step 7: Generate response
-        assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
-
-        # Step 8: Store interaction
-        self._store_hybrid_interaction(user_message, assistant_reply, time.time())
-
-        # Step 9: Update history and statistics
-        self._update_conversation_history(user_message, assistant_reply)
-        self._update_retrieval_stats(start_time, len(relevant_memories))
-
-        return assistant_reply
-
-    def _store_hybrid_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
-        """
-        Store conversation messages efficiently with hybrid approach.
-
-        Args:
-            user_message: User's message
-            assistant_reply: Assistant's reply
-            timestamp: Timestamp when the interaction occurred
-        """
-        try:
-            # Determine if each message warrants chunking
-            user_should_chunk = len(user_message) > self.adaptive_chunk_threshold
-            assistant_should_chunk = len(assistant_reply) > self.adaptive_chunk_threshold
-
-            # Store user message
-            user_metadata = {
-                "type": "user_message",
-                "created_at": timestamp,
-                "conversation_id": id(self.conversation_history),
-                "importance": 0.7,
-            }
-
-            if user_should_chunk:
-                # Create full embedding and selected chunks
-                user_embedding = self.embedding_model.encode(
-                    user_message, show_progress_bar=self.show_progress_bar
-                )
-                user_chunks = self.text_chunker.create_chunks(user_message, user_metadata)
-                selected_chunks, chunk_embeddings = self._select_important_chunks(
-                    user_chunks, user_embedding
-                )
-
-                # Add as hybrid memory
-                user_mem_id = self.hybrid_memory_store.add_hybrid(
-                    full_embedding=user_embedding,
-                    chunks=selected_chunks,
-                    chunk_embeddings=chunk_embeddings,
-                    original_content=user_message,
-                    metadata=user_metadata,
-                )
-                self.chunked_memory_ids.add(user_mem_id)
-            else:
-                # Add as regular memory
-                user_emb = self.embedding_model.encode(
-                    user_message, show_progress_bar=self.show_progress_bar
-                )
-                user_mem_id = self.hybrid_memory_store.add(user_emb, user_message, user_metadata)
-
-            # Store assistant message
-            assistant_metadata = {
-                "type": "assistant_message",
-                "created_at": timestamp,
-                "conversation_id": id(self.conversation_history),
-                "importance": 0.5,
-            }
-
-            if assistant_should_chunk:
-                # Create full embedding and selected chunks
-                assistant_embedding = self.embedding_model.encode(
-                    assistant_reply, show_progress_bar=self.show_progress_bar
-                )
-                assistant_chunks = self.text_chunker.create_chunks(
-                    assistant_reply, assistant_metadata
-                )
-                selected_chunks, chunk_embeddings = self._select_important_chunks(
-                    assistant_chunks, assistant_embedding
-                )
-
-                # Add as hybrid memory
-                assistant_mem_id = self.hybrid_memory_store.add_hybrid(
-                    full_embedding=assistant_embedding,
-                    chunks=selected_chunks,
-                    chunk_embeddings=chunk_embeddings,
-                    original_content=assistant_reply,
-                    metadata=assistant_metadata,
-                )
-                self.chunked_memory_ids.add(assistant_mem_id)
-            else:
-                # Add as regular memory
-                assistant_emb = self.embedding_model.encode(
-                    assistant_reply, show_progress_bar=self.show_progress_bar
-                )
-                assistant_mem_id = self.hybrid_memory_store.add(
-                    assistant_emb, assistant_reply, assistant_metadata
-                )
-
-            # Create associative link between messages
-            if self.associative_linker:
-                self.associative_linker.create_associative_link(user_mem_id, assistant_mem_id, 0.9)
-
-            # Invalidate cache
-            self.hybrid_memory_adapter.invalidate_cache()
-
-        except Exception as e:
-            logger.error(f"Error storing hybrid conversation in memory: {e}")

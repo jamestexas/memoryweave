@@ -19,6 +19,11 @@ from memoryweave.components.retrieval_strategies.chunked_fabric_strategy import 
 )
 from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.text_chunker import TextChunker
+from memoryweave.factory.memory_factory import (
+    MemoryStoreConfig,
+    VectorSearchConfig,
+    create_memory_store_and_adapter,
+)
 from memoryweave.storage.refactored.memory_store import get_device
 
 logger = logging.getLogger(__name__)
@@ -68,12 +73,6 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         embedding_dim = embedding_model.get_sentence_embedding_dimension()
 
         # Configure and create memory store and adapter using factory pattern
-        from memoryweave.factory.memory_factory import (
-            MemoryStoreConfig,
-            VectorSearchConfig,
-            create_memory_store_and_adapter,
-        )
-
         store_config = MemoryStoreConfig(
             type="chunked",
             vector_search=VectorSearchConfig(
@@ -123,6 +122,9 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
 
         # Track which memories are chunked
         self.chunked_memory_ids = set()
+
+        # Setup the chunked fabric strategy
+        self._setup_chunked_strategy()
 
     def _setup_chunked_strategy(self):
         """Set up the chunked fabric strategy to replace the standard strategy."""
@@ -189,13 +191,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             embedding = self.embedding_model.encode(text, show_progress_bar=self.show_progress_bar)
 
             # Add to memory store
-            mem_id = self.chunked_memory_store.add(embedding, text, metadata)
-
-            # Critical fix: Invalidate BOTH adapters
-            self.chunked_memory_adapter.invalidate_cache()
-            # Also invalidate the standard adapter if we have access to it
-            if hasattr(self, "memory_store_adapter"):
-                self.memory_store_adapter.invalidate_cache()
+            mem_id = self.chunked_memory_adapter.add(embedding, text, metadata)
 
             # Add to category if enabled
             if self.category_manager:
@@ -223,12 +219,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             embeddings.append(embedding)
 
         # Add to chunked memory store
-        mem_id = self.chunked_memory_store.add_chunked(chunks, embeddings, text, metadata)
-
-        # Critical fix: Invalidate BOTH adapters
-        self.chunked_memory_adapter.invalidate_cache()
-        if hasattr(self, "memory_store_adapter"):
-            self.memory_store_adapter.invalidate_cache()
+        mem_id = self.chunked_memory_adapter.add_chunked(chunks, embeddings, text, metadata)
 
         # Track as chunked memory
         self.chunked_memory_ids.add(mem_id)
@@ -296,8 +287,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             embeddings.append(embedding)
 
         # Add to chunked memory store
-        mem_id = self.chunked_memory_store.add_chunked(chunks, embeddings, full_text, metadata)
-        self.chunked_memory_adapter.invalidate_cache()
+        mem_id = self.chunked_memory_adapter.add_chunked(chunks, embeddings, full_text, metadata)
 
         # Track as chunked memory
         self.chunked_memory_ids.add(mem_id)
@@ -434,7 +424,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
                     user_embeddings.append(embedding)
 
                 # Add as chunked memory
-                user_mem_id = self.chunked_memory_store.add_chunked(
+                user_mem_id = self.chunked_memory_adapter.add_chunked(
                     user_chunks, user_embeddings, user_message, user_metadata
                 )
                 self.chunked_memory_ids.add(user_mem_id)
@@ -443,7 +433,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
                 user_emb = self.embedding_model.encode(
                     user_message, show_progress_bar=self.show_progress_bar
                 )
-                user_mem_id = self.chunked_memory_store.add(user_emb, user_message, user_metadata)
+                user_mem_id = self.chunked_memory_adapter.add(user_emb, user_message, user_metadata)
 
             # Assistant message handling
             assistant_metadata = {
@@ -469,7 +459,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
                     assistant_embeddings.append(embedding)
 
                 # Add as chunked memory
-                assistant_mem_id = self.chunked_memory_store.add_chunked(
+                assistant_mem_id = self.chunked_memory_adapter.add_chunked(
                     assistant_chunks, assistant_embeddings, assistant_reply, assistant_metadata
                 )
                 self.chunked_memory_ids.add(assistant_mem_id)
@@ -478,16 +468,13 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
                 assistant_emb = self.embedding_model.encode(
                     assistant_reply, show_progress_bar=self.show_progress_bar
                 )
-                assistant_mem_id = self.chunked_memory_store.add(
+                assistant_mem_id = self.chunked_memory_adapter.add(
                     assistant_emb, assistant_reply, assistant_metadata
                 )
 
             # Create associative link between messages
             if self.associative_linker:
                 self.associative_linker.create_associative_link(user_mem_id, assistant_mem_id, 0.9)
-
-            # Invalidate cache
-            self.chunked_memory_adapter.invalidate_cache()
 
         except Exception as e:
             logger.error(f"Error storing chunked conversation in memory: {e}")
@@ -503,7 +490,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             list of chunks with their text and metadata
         """
         try:
-            chunks = self.chunked_memory_store.get_chunks(memory_id)
+            chunks = self.chunked_memory_adapter.get_chunks(memory_id)
             result = []
 
             for chunk in chunks:
@@ -527,10 +514,10 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         """
         try:
             stats = {
-                "total_memories": len(self.chunked_memory_store.get_all()),
+                "total_memories": len(self.chunked_memory_adapter.get_all()),
                 "chunked_memories": len(self.chunked_memory_ids),
-                "total_chunks": self.chunked_memory_store.get_chunk_count(),
-                "avg_chunks_per_memory": self.chunked_memory_store.get_average_chunks_per_memory(),
+                "total_chunks": self.chunked_memory_adapter.get_chunk_count(),
+                "avg_chunks_per_memory": self.chunked_memory_adapter.get_average_chunks_per_memory(),
                 "auto_chunk_threshold": self.auto_chunk_threshold,
                 "enable_auto_chunking": self.enable_auto_chunking,
             }
