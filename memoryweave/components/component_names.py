@@ -31,3 +31,4 @@ class ComponentName(str, Enum):
     # Used for Text Chunking
     TEXT_CHUNKER = "text_chunker"
     CHUNKED_FABRIC_STRATEGY = "chunked_fabric_strategy"
+    HYBRID_FABRIC_STRAETGY = "hybrid_fabric_strategy"

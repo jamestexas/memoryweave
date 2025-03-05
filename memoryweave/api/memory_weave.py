@@ -256,7 +256,10 @@ class MemoryWeaveAPI:
             conversation_history=self.conversation_history,
             query_type=query_type,
         )
-
+        if self.debug:
+            print("===== Prompt Start =====")
+            print(prompt)
+            print("===== Prompt End =====")
         # Step 6: Generate response
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
 
@@ -441,10 +444,10 @@ class MemoryWeaveAPI:
         """Store conversation messages as memories."""
         try:
             # Create embeddings
-            user_emb = self.embedding_model.encode(
+            _user_emb = self.embedding_model.encode(
                 user_message, show_progress_bar=self.show_progress_bar
             )
-            assistant_emb = self.embedding_model.encode(
+            _assistant_emb = self.embedding_model.encode(
                 assistant_reply, show_progress_bar=self.show_progress_bar
             )
 

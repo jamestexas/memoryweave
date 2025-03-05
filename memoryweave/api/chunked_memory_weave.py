@@ -8,7 +8,7 @@ documents, or detailed memories.
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -144,7 +144,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         if hasattr(self, "retrieval_orchestrator"):
             self.retrieval_orchestrator.strategy = self.strategy
 
-    def add_memory(self, text: str, metadata: Dict[str, Any] = None) -> str:
+    def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """
         Store a memory with chunking for large texts.
 
@@ -227,13 +227,13 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         return mem_id
 
     def add_conversation_memory(
-        self, turns: List[Dict[str, str]], metadata: Dict[str, Any] = None
+        self, turns: list[dict[str, str]], metadata: dict[str, Any] = None
     ) -> str:
         """
         Add a conversation memory with specialized conversation chunking.
 
         Args:
-            turns: List of conversation turns with "role" and "content" keys
+            turns: list of conversation turns with "role" and "content" keys
             metadata: Optional metadata for the memory
 
         Returns:
@@ -359,7 +359,10 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             conversation_history=self.conversation_history,
             query_type=query_type,
         )
-
+        if self.debug:
+            print("===== Prompt Start =====")
+            print(prompt)
+            print("===== Prompt End =====")
         # Step 7: Generate response
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
 
@@ -466,7 +469,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         except Exception as e:
             logger.error(f"Error storing chunked conversation in memory: {e}")
 
-    def get_memory_chunks(self, memory_id: str) -> List[Dict[str, Any]]:
+    def get_memory_chunks(self, memory_id: str) -> list[dict[str, Any]]:
         """
         Get chunks for a specific memory.
 
@@ -474,7 +477,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             memory_id: ID of the memory
 
         Returns:
-            List of chunks with their text and metadata
+            list of chunks with their text and metadata
         """
         try:
             chunks = self.chunked_memory_store.get_chunks(memory_id)
@@ -492,12 +495,12 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             logger.error(f"Error getting memory chunks: {e}")
             return []
 
-    def get_chunking_statistics(self) -> Dict[str, Any]:
+    def get_chunking_statistics(self) -> dict[str, Any]:
         """
         Get statistics about chunking.
 
         Returns:
-            Dictionary with chunking statistics
+            dictionary with chunking statistics
         """
         try:
             stats = {

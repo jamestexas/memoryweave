@@ -185,8 +185,12 @@ class MemoryStoreAdapter:
         """Forward to the underlying memory store."""
         return self.memory_store.get_all()
 
-    def search_by_vector(self, query_vector: np.ndarray, limit: int = 10) -> list[dict]:
-        """Simple direct vector similarity search, returning top results."""
+    def search_by_vector(
+        self, query_vector: np.ndarray, limit: int = 10, threshold: float | None = None
+    ) -> list[dict]:
+        """
+        Vector similarity search with optional threshold filtering.
+        """
         if self._embeddings_matrix is None or len(self._embeddings_matrix) == 0:
             self._build_cache()
             if len(self._embeddings_matrix) == 0:
@@ -198,13 +202,19 @@ class MemoryStoreAdapter:
         results = []
         for idx in top_indices:
             memory_id = self._ids_list[idx]
+            similarity_score = float(similarities[idx])
+
+            # Apply threshold if provided
+            if threshold is not None and similarity_score < threshold:
+                continue  # Skip results below the threshold
+
             try:
                 memory = self.memory_store.get(memory_id)
                 results.append({
                     "id": memory.id,
                     "content": str(memory.content),
                     "metadata": memory.metadata,
-                    "score": float(similarities[idx]),
+                    "score": similarity_score,
                 })
             except Exception as e:
                 logger.error(f"Error retrieving memory {memory_id}: {e}")
