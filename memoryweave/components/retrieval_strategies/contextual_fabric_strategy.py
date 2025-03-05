@@ -20,6 +20,7 @@ from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.component_names import ComponentName
 from memoryweave.components.temporal_context import TemporalContextBuilder
 from memoryweave.interfaces.memory import IMemoryStore, MemoryID
+from memoryweave.storage.memory_store import MemoryStore
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -124,6 +125,129 @@ class ContextualFabricStrategy(RetrievalStrategy):
         if "activation_manager" in config:
             self.activation_manager = config["activation_manager"]
 
+    def _retrieve_temporal_results(
+        self,
+        query: str,
+        context: dict[str, Any],
+        memory_store: MemoryStore | None = None,
+    ) -> dict:
+        """
+        Retrieve temporal matching results based on query time references.
+
+        Args:
+            query: The query string.
+            context: Context containing current time.
+            memory_store: The memory store to retrieve all memories.
+
+        Returns:
+            Dictionary of temporal results keyed by memory id with relevance scores.
+        """
+        temporal_results = {}
+        if self.temporal_context is None or not memory_store:
+            return temporal_results
+
+        # Extract time info from query.
+        time_info = self.temporal_context.extract_time_references(query)
+        if self.debug:
+            self.logger.debug(f"Found temporal reference: {time_info}")
+
+        # Helper function to extract a memory's creation time.
+        def get_creation_time(memory: Any) -> float:
+            creation_time = memory.metadata.get("created_at", 0)
+            if creation_time <= 0:
+                alt_time = memory.metadata.get("timestamp", 0)
+                if alt_time > 0:
+                    creation_time = alt_time
+            return creation_time
+
+        all_memories = memory_store.get_all()
+        current_time = context.get("current_time", time.time())
+
+        target_time = time_info.get("relative_time")
+        temporal_type = time_info.get("temporal_type", time_info.get("time_type"))
+
+        # Branch 1: Use a Gaussian relevance based on a specific target time.
+        if target_time is not None:
+            for memory in all_memories:
+                creation_time = get_creation_time(memory)
+                if creation_time > 0:
+                    time_diff = abs(target_time - creation_time)
+                    temporal_scale = 86400  # 1 day in seconds
+                    relevance = np.exp(-(time_diff**2) / (2 * temporal_scale**2))
+                    if relevance > 0.2:
+                        temporal_results[memory.id] = relevance
+                        if self.debug:
+                            self.logger.debug(
+                                f"Temporal match for memory {memory.id} with score {relevance:.3f}"
+                            )
+
+        # Branch 2: Use a temporal type (e.g. "morning", "today", "yesterday", etc.).
+        elif temporal_type:
+            lower_type = temporal_type.lower()
+            for memory in all_memories:
+                creation_time = get_creation_time(memory)
+                if creation_time > 0:
+                    time_diff = current_time - creation_time
+                    if (
+                        lower_type in ["morning", "this morning", "earlier today"]
+                        and time_diff < 12 * 3600
+                    ):
+                        temporal_results[memory.id] = 0.9
+                        if self.debug:
+                            self.logger.debug(f"Morning match for memory {memory.id}")
+                    elif lower_type in ["today", "this day"] and time_diff < 24 * 3600:
+                        temporal_results[memory.id] = 0.8
+                        if self.debug:
+                            self.logger.debug(f"Today match for memory {memory.id}")
+                    elif lower_type == "yesterday" and 24 * 3600 < time_diff < 48 * 3600:
+                        temporal_results[memory.id] = 0.8
+                        if self.debug:
+                            self.logger.debug(f"Yesterday match for memory {memory.id}")
+                    elif (
+                        lower_type in ["recent", "just now", "a moment ago"]
+                        and time_diff < 3 * 3600
+                    ):
+                        temporal_results[memory.id] = 0.9
+                        if self.debug:
+                            self.logger.debug(f"Recent match for memory {memory.id}")
+                    elif (
+                        lower_type in ["last week", "a week ago"]
+                        and 24 * 3600 < time_diff < 7 * 24 * 3600
+                    ):
+                        temporal_results[memory.id] = 0.7
+                        if self.debug:
+                            self.logger.debug(f"Last week match for memory {memory.id}")
+                    elif "ago" in lower_type and time_diff < 7 * 24 * 3600:
+                        recency_score = 1.0 - (time_diff / (7 * 24 * 3600))
+                        temporal_results[memory.id] = max(0.4, recency_score)
+                        if self.debug:
+                            self.logger.debug(
+                                f"Generic ago match for memory {memory.id} with score {recency_score:.3f}"
+                            )
+
+        # Branch 3: Use time keywords (if present in the extracted time info).
+        elif "time_keywords" in time_info and time_info["time_keywords"]:
+            time_keywords = time_info["time_keywords"]
+            for memory in all_memories:
+                creation_time = get_creation_time(memory)
+                if creation_time > 0:
+                    time_diff = current_time - creation_time
+                    if "yesterday" in time_keywords and 24 * 3600 < time_diff < 48 * 3600:
+                        temporal_results[memory.id] = 0.7
+                    elif "today" in time_keywords and time_diff < 24 * 3600:
+                        temporal_results[memory.id] = 0.8
+                    elif "week" in time_keywords and time_diff < 7 * 24 * 3600:
+                        temporal_results[memory.id] = 0.6
+                    elif any(kw in time_keywords for kw in ["before", "earlier", "ago"]):
+                        recency_score = 1.0 - min(1.0, time_diff / (30 * 24 * 3600))
+                        temporal_results[memory.id] = max(0.3, recency_score)
+                    if memory.id in temporal_results and self.debug:
+                        self.logger.debug(
+                            f"Keyword match for memory {memory.id} with score {temporal_results[memory.id]:.3f}"
+                        )
+
+        return temporal_results
+
     def retrieve(
         self,
         query_embedding: np.ndarray,
@@ -134,12 +258,12 @@ class ContextualFabricStrategy(RetrievalStrategy):
         Retrieve memories using the contextual fabric strategy.
 
         Args:
-            query_embedding: Query embedding for similarity matching
-            top_k: Number of results to return
+            query_embedding: Query embedding for similarity matching.
+            top_k: Number of results to return.
             context: Context containing query, memory, etc.
 
         Returns:
-            list of retrieved memory dicts with relevance scores
+            List of retrieved memory dicts with relevance scores.
         """
         # Get memory store from context or instance
         memory_store = context.get("memory_store", self.memory_store)
@@ -153,18 +277,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         # Apply parameter adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
         confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
-
-        # Apply additional parameter adaptations if provided
-        if "similarity_weight" in adapted_params:
-            self.similarity_weight = adapted_params["similarity_weight"]
-        if "associative_weight" in adapted_params:
-            self.associative_weight = adapted_params["associative_weight"]
-        if "temporal_weight" in adapted_params:
-            self.temporal_weight = adapted_params["temporal_weight"]
-        if "activation_weight" in adapted_params:
-            self.activation_weight = adapted_params["activation_weight"]
-        if "max_associative_hops" in adapted_params:
-            self.max_associative_hops = adapted_params["max_associative_hops"]
+        self._apply_adapted_params(adapted_params)
 
         # Progressive filtering options
         use_progressive_filtering = adapted_params.get("use_progressive_filtering", False)
@@ -189,173 +302,14 @@ class ContextualFabricStrategy(RetrievalStrategy):
         )
 
         # Step 2: Get associative matches (if linker available)
-        associative_results = {}
-        if self.associative_linker is not None:
-            # Get top similarity matches as starting points
-            top_similarity_ids = [
-                r["memory_id"] for r in similarity_results[: min(5, len(similarity_results))]
-            ]
-
-            # Traverse associative network from each starting point
-            for memory_id in top_similarity_ids:
-                activations = self.associative_linker.traverse_associative_network(
-                    start_id=memory_id, max_hops=self.max_associative_hops, min_strength=0.1
-                )
-
-                # Add to results (taking maximum activation if memory appears multiple times)
-                for assoc_id, strength in activations.items():
-                    if assoc_id in associative_results:
-                        associative_results[assoc_id] = max(associative_results[assoc_id], strength)
-                    else:
-                        associative_results[assoc_id] = strength
+        associative_results = self._retrieve_associative_results(similarity_results)
 
         # Step 3: Get temporal context (if available)
-        temporal_results = {}
-        if self.temporal_context is not None:
-            # Extract time references from query
-            time_info = self.temporal_context.extract_time_references(query)
-
-            if time_info["has_temporal_reference"]:
-                # Log that we found a temporal reference
-                if self.debug:
-                    self.logger.debug(f"Found temporal reference: {time_info}")
-
-                # Use the right key or fallback safely
-                target_time = time_info.get("relative_time")
-                temporal_type = time_info.get("temporal_type", time_info.get("time_type"))
-
-                # If we have a target time, use it for temporal matching
-                if target_time is not None:
-                    # Get all memories (inefficient but ensures we don't miss anything)
-                    if memory_store:
-                        all_memories = memory_store.get_all()
-
-                        for memory in all_memories:
-                            creation_time = memory.metadata.get("created_at", 0)
-
-                            # Also check for timestamp directly in metadata as backup
-                            if creation_time == 0 and memory.metadata.get("timestamp", 0) > 0:
-                                creation_time = memory.metadata.get("timestamp")
-
-                            if creation_time > 0:
-                                # Calculate temporal proximity
-                                time_diff = abs(target_time - creation_time)
-                                # Use a Gaussian decay function (1-day scale by default)
-                                temporal_scale = 86400  # 1 day in seconds
-                                temporal_relevance = np.exp(
-                                    -(time_diff**2) / (2 * temporal_scale**2)
-                                )
-
-                                if temporal_relevance > 0.2:  # Only keep reasonably close matches
-                                    temporal_results[memory.id] = temporal_relevance
-                                    if self.debug:
-                                        self.logger.debug(
-                                            f"Temporal match for memory {memory.id} with score {temporal_relevance:.3f}"
-                                        )
-
-                # If no target time but still has temporal reference, try matching by type
-                elif temporal_type and memory_store:
-                    # Handle cases where we know the type but not exact time
-                    current_time = context.get("current_time", time.time())
-                    all_memories = memory_store.get_all()
-
-                    for memory in all_memories:
-                        creation_time = memory.metadata.get("created_at", 0)
-                        if creation_time <= 0 and memory.metadata.get("timestamp", 0) > 0:
-                            creation_time = memory.metadata.get("timestamp")
-
-                        if creation_time > 0:
-                            time_diff = current_time - creation_time
-
-                            # Match based on temporal type
-                            if (
-                                temporal_type.lower()
-                                in ["morning", "this morning", "earlier today"]
-                                and time_diff < 12 * 3600
-                            ):
-                                temporal_results[memory.id] = (
-                                    0.9  # High relevance for today's morning
-                                )
-                                if self.debug:
-                                    self.logger.debug(f"Morning match for memory {memory.id}")
-                            elif (
-                                temporal_type.lower() in ["today", "this day"]
-                                and time_diff < 24 * 3600
-                            ):
-                                temporal_results[memory.id] = 0.8  # High relevance for today
-                                if self.debug:
-                                    self.logger.debug(f"Today match for memory {memory.id}")
-                            elif (
-                                temporal_type.lower() in ["yesterday"]
-                                and 24 * 3600 < time_diff < 48 * 3600
-                            ):
-                                temporal_results[memory.id] = 0.8  # High relevance for yesterday
-                                if self.debug:
-                                    self.logger.debug(f"Yesterday match for memory {memory.id}")
-                            elif (
-                                temporal_type.lower() in ["recent", "just now", "a moment ago"]
-                                and time_diff < 3 * 3600
-                            ):
-                                temporal_results[memory.id] = 0.9  # High relevance for recent
-                                if self.debug:
-                                    self.logger.debug(f"Recent match for memory {memory.id}")
-                            elif (
-                                temporal_type.lower() in ["last week", "a week ago"]
-                                and 24 * 3600 * 7 > time_diff > 24 * 3600
-                            ):
-                                temporal_results[memory.id] = 0.7  # Good relevance for last week
-                                if self.debug:
-                                    self.logger.debug(f"Last week match for memory {memory.id}")
-                            elif "ago" in temporal_type.lower() and time_diff < 7 * 24 * 3600:
-                                # Generic "ago" reference - apply a time-based score
-                                recency_score = 1.0 - (time_diff / (7 * 24 * 3600))
-                                temporal_results[memory.id] = max(0.4, recency_score)
-                                if self.debug:
-                                    self.logger.debug(
-                                        f"Generic ago match for memory {memory.id} with score {recency_score:.3f}"
-                                    )
-
-                # If we have time keywords but no structured time, try a simple keyword match
-                elif "time_keywords" in time_info and time_info["time_keywords"] and memory_store:
-                    time_keywords = time_info["time_keywords"]
-                    current_time = context.get("current_time", time.time())
-                    all_memories = memory_store.get_all()
-
-                    for memory in all_memories:
-                        creation_time = memory.metadata.get("created_at", 0)
-                        if creation_time <= 0 and memory.metadata.get("timestamp", 0) > 0:
-                            creation_time = memory.metadata.get("timestamp")
-
-                        if creation_time > 0:
-                            time_diff = current_time - creation_time
-
-                            # Simple keyword-based matching
-                            if "yesterday" in time_keywords and 24 * 3600 < time_diff < 48 * 3600:
-                                temporal_results[memory.id] = 0.7
-                            elif "today" in time_keywords and time_diff < 24 * 3600:
-                                temporal_results[memory.id] = 0.8
-                            elif "week" in time_keywords and time_diff < 7 * 24 * 3600:
-                                temporal_results[memory.id] = 0.6
-                            elif (
-                                "before" in time_keywords
-                                or "earlier" in time_keywords
-                                or "ago" in time_keywords
-                            ):
-                                # Any time in the past, score based on recency
-                                recency_score = 1.0 - min(
-                                    1.0, time_diff / (30 * 24 * 3600)
-                                )  # Scale up to a month
-                                temporal_results[memory.id] = max(0.3, recency_score)
-
-                            if memory.id in temporal_results and self.debug:
-                                self.logger.debug(
-                                    f"Keyword match for memory {memory.id} with score {temporal_results[memory.id]:.3f}"
-                                )
+        temporal_results = self._retrieve_temporal_results(query, context, memory_store)
 
         # Step 4: Get activation scores (if available)
         activation_results = {}
         if self.activation_manager is not None:
-            # Get all activated memories
             activations = self.activation_manager.get_activated_memories(threshold=0.1)
             activation_results = dict(activations)
 
@@ -372,13 +326,9 @@ class ContextualFabricStrategy(RetrievalStrategy):
         filtered_results = [
             r for r in combined_results if r["relevance_score"] >= confidence_threshold
         ]
-
-        # Apply minimum results guarantee
         if len(filtered_results) < self.min_results:
-            # Use top min_results from combined results
             filtered_results = combined_results[: self.min_results]
 
-        # Limit to top_k
         top_k = min(top_k, len(filtered_results))
         results = filtered_results[:top_k]
 
@@ -389,8 +339,6 @@ class ContextualFabricStrategy(RetrievalStrategy):
                 self.logger.debug(
                     f"ContextualFabricStrategy: Top 3 scores: {[r['relevance_score'] for r in results[:3]]}"
                 )
-
-                # Log contribution breakdown for top result
                 top = results[0]
                 self.logger.debug("Top result contributions:")
                 self.logger.debug(
@@ -408,6 +356,32 @@ class ContextualFabricStrategy(RetrievalStrategy):
                 self.logger.debug(f"- Total: {top['relevance_score']:.3f}")
 
         return results
+
+    def _retrieve_associative_results(self, similarity_results: list[dict[str, Any]]) -> dict:
+        """
+        Retrieve associative results based on top similarity matches.
+
+        Args:
+            similarity_results: List of similarity result dicts.
+
+        Returns:
+            Dictionary of associative results keyed by memory id.
+        """
+        associative_results = {}
+        if self.associative_linker is not None:
+            top_similarity_ids = [
+                r["memory_id"] for r in similarity_results[: min(5, len(similarity_results))]
+            ]
+            for memory_id in top_similarity_ids:
+                activations = self.associative_linker.traverse_associative_network(
+                    start_id=memory_id, max_hops=self.max_associative_hops, min_strength=0.1
+                )
+                for assoc_id, strength in activations.items():
+                    if assoc_id in associative_results:
+                        associative_results[assoc_id] = max(associative_results[assoc_id], strength)
+                    else:
+                        associative_results[assoc_id] = strength
+        return associative_results
 
     def _retrieve_by_similarity(
         self,
@@ -914,3 +888,16 @@ class ContextualFabricStrategy(RetrievalStrategy):
                 return diverse_results
 
         return combined_results
+
+    def _apply_adapted_params(self, adapted_params: dict[str, Any]) -> None:
+        """Apply retrieval parameter adaptations to instance attributes."""
+        if "similarity_weight" in adapted_params:
+            self.similarity_weight = adapted_params["similarity_weight"]
+        if "associative_weight" in adapted_params:
+            self.associative_weight = adapted_params["associative_weight"]
+        if "temporal_weight" in adapted_params:
+            self.temporal_weight = adapted_params["temporal_weight"]
+        if "activation_weight" in adapted_params:
+            self.activation_weight = adapted_params["activation_weight"]
+        if "max_associative_hops" in adapted_params:
+            self.max_associative_hops = adapted_params["max_associative_hops"]

@@ -147,7 +147,7 @@ class MemoryWeaveAPI:
         **model_kwargs,
     ):
         """Initialize MemoryWeave with an LLM, embeddings, and memory components."""
-        self.device = self._get_device(device)
+        self.device = _get_device(device)
         self.show_progress_bar = show_progress_bar
         self.debug = debug
         self.max_memories = max_memories
@@ -245,16 +245,6 @@ class MemoryWeaveAPI:
             "avg_results_count": 0,
         }
 
-    def _get_device(self, device: str) -> str:
-        """Determine the device for running the model."""
-        if device != "auto":
-            return device
-        if torch.cuda.is_available():
-            return "cuda"
-        if torch.mps.is_available():
-            return "mps"
-        return "cpu"
-
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """
         Store a memory in the system with optional metadata.
@@ -326,41 +316,90 @@ class MemoryWeaveAPI:
         return memory_ids
 
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
-        """
-        Process user input with advanced memory retrieval and generate a response.
+        """Process the user message and generate a response using various subsystems.
 
         Args:
-            user_message: The user's message
-            max_new_tokens: Maximum number of tokens to generate
+            user_message: The user's message.
+            max_new_tokens: Maximum tokens to generate for the response.
 
         Returns:
-            The assistant's response
+            The assistant's response as a string.
         """
-        # Record start time for performance tracking
         start_time = time.time()
         now = start_time
 
-        # ✅ Step 1: Analyze query
-        try:
-            # Determine query type
-            query_type = self.query_analyzer.analyze(user_message)
+        # Step 1: Query analysis
+        _query_obj, adapted_params, expanded_keywords, query_type, entities = self._analyze_query(
+            user_message
+        )
 
-            # Extract keywords and entities
+        # Step 2: Compute query embedding
+        query_embedding = self._compute_embedding(user_message)
+        if query_embedding is None:
+            return "Sorry, an error occurred while processing your request."
+
+        # Step 3: Adjust threshold if dynamic adjustment is enabled
+        self._adjust_confidence_threshold(query_type, adapted_params)
+
+        # Step 4: Retrieve memories
+        relevant_memories = self._retrieve_memories(
+            query_embedding,
+            user_message,
+            query_type,
+            expanded_keywords,
+            entities,
+            now,
+            adapted_params,
+        )
+
+        # Step 5: Update memory activations and apply semantic coherence
+        self._update_memory_activation(relevant_memories, now)
+        relevant_memories = self._apply_semantic_coherence(relevant_memories, query_embedding)
+
+        # Step 6: Apply temporal context and clean results
+        cleaned_results = self._apply_temporal_context_and_clean(
+            user_message, relevant_memories, now
+        )
+
+        # Step 7: Extract personal attributes if enabled
+        self._extract_personal_attributes(user_message, now)
+
+        # Step 8: Construct prompt with system instructions and conversation history
+        prompt = self._construct_prompt(cleaned_results, query_type, user_message)
+
+        # Step 9: Generate assistant response using LLM
+        assistant_reply = self._generate_response(prompt, max_new_tokens)
+
+        # Step 10: Store interaction and update history/statistics
+        self._store_interaction(user_message, assistant_reply, now)
+        self._update_conversation_history(user_message, assistant_reply)
+        self._update_retrieval_stats(start_time, len(cleaned_results))
+        self._update_dynamic_threshold(query_type, len(cleaned_results))
+
+        return assistant_reply
+
+    def _analyze_query(self, user_message: str) -> tuple:
+        """Analyze the user message and extract query details.
+
+        Returns:
+            A tuple containing:
+                - query_obj (dict)
+                - adapted_params (dict)
+                - expanded_keywords (list)
+                - query_type (QueryType)
+                - entities (list)
+        """
+        try:
+            query_type = self.query_analyzer.analyze(user_message)
             keywords = self.query_analyzer.extract_keywords(user_message)
             entities = self.query_analyzer.extract_entities(user_message)
-
-            # Create query object for adaptation
             query_obj = {
                 "text": user_message,
                 "query_type": query_type,
                 "extracted_keywords": keywords,
                 "extracted_entities": entities,
             }
-
-            # Adapt parameters based on query type
             adapted_params = self.query_adapter.adapt_parameters(query_obj)
-
-            # Expand keywords for better retrieval
             if self.keyword_expander:
                 expanded_obj = self.keyword_expander.expand(query_obj)
                 expanded_keywords = expanded_obj.get("extracted_keywords", keywords)
@@ -371,38 +410,54 @@ class MemoryWeaveAPI:
             logger.debug(f"Keywords: {keywords}")
             logger.debug(f"Expanded keywords: {expanded_keywords}")
             logger.debug(f"Entities: {entities}")
-
-        except Exception as analyze_err:
-            logger.error(f"Error during query analysis: {analyze_err}")
-            # Fall back to defaults
+        except Exception as e:
+            logger.error(f"Error during query analysis: {e}")
+            # Fallback defaults
             query_type = QueryType.UNKNOWN
             keywords = []
             entities = []
             expanded_keywords = []
             adapted_params = {"confidence_threshold": 0.1, "max_results": 10}
+            query_obj = {"text": user_message}
+        return query_obj, adapted_params, expanded_keywords, query_type, entities
 
-        # ✅ Step 2: Compute query embedding
+    def _compute_embedding(self, user_message: str) -> any:
+        """Compute and return the embedding for the user message."""
         try:
-            query_embedding = self.embedding_model.encode(
+            return self.embedding_model.encode(
                 user_message, show_progress_bar=self.show_progress_bar
             )
-        except Exception as encode_err:
-            logger.error(f"Error generating query embedding: {encode_err}")
+        except Exception as e:
+            logger.error(f"Error generating query embedding: {e}")
             import traceback
 
             traceback.print_exc()
-            return "Sorry, an error occurred while processing your request."
+            return None
 
-        # ✅ Step 3: Adjust confidence threshold if dynamic adjustment is enabled
+    def _adjust_confidence_threshold(self, query_type: any, adapted_params: dict) -> None:
+        """Dynamically adjust the confidence threshold if enabled."""
         if self.dynamic_threshold_adjuster:
-            # Use historical performance to adjust threshold
             adjusted_threshold = self.dynamic_threshold_adjuster.get_adjusted_threshold(
                 query_type, adapted_params.get("confidence_threshold", 0.1)
             )
             adapted_params["confidence_threshold"] = adjusted_threshold
             logger.debug(f"Adjusted confidence threshold: {adjusted_threshold}")
 
-        # ✅ Step 4: Retrieve relevant memories with comprehensive context
+    def _retrieve_memories(
+        self,
+        query_embedding: any,
+        user_message: str,
+        query_type: any,
+        expanded_keywords: list,
+        entities: list,
+        now: float,
+        adapted_params: dict,
+    ) -> list:
+        """Retrieve relevant memories using the primary strategy, with a fallback.
+
+        Returns:
+            A list of memory items.
+        """
         self.memory_store_adapter.invalidate_cache()
         try:
             logger.debug("Retrieving memories using strategy")
@@ -415,141 +470,128 @@ class MemoryWeaveAPI:
                 "memory_store": self.memory_store_adapter,
                 "adapted_retrieval_params": adapted_params,
             }
+            # If the strategy doesn't support adapted parameters, remove them from the context.
+            if not hasattr(self.strategy, "_apply_adapted_params"):
+                retrieval_context.pop("adapted_retrieval_params", None)
 
             relevant_memories = self.strategy.retrieve(
                 query_embedding=query_embedding,
                 top_k=adapted_params.get("max_results", 10),
                 context=retrieval_context,
             )
-        except Exception as main_err:
-            logger.error(f"Error using contextual_fabric strategy: {main_err}")
+        except Exception as e:
+            logger.error(f"Error using primary retrieval strategy: {e}")
             import traceback
 
             traceback.print_exc()
             relevant_memories = []
-
-        # Fallback if retrieval is empty
+        # Fallback retrieval if primary returned nothing
         if not relevant_memories:
             try:
                 logger.warning("Primary retrieval returned no results, using fallback")
                 fallback_results = self.memory_store_adapter.search_by_vector(
                     query_embedding, limit=10
                 )
-                relevant_memories = []
-                for item in fallback_results:
-                    relevant_memories.append({
-                        "memory_id": None,  # no real ID from fallback
+                relevant_memories = [
+                    {
+                        "memory_id": None,
                         "relevance_score": item.get("score", 0.5),
                         "content": item.get("content", ""),
                         "metadata": item.get("metadata", {}),
-                    })
+                    }
+                    for item in fallback_results
+                ]
                 logger.debug(f"Fallback retrieved {len(relevant_memories)} memories")
-            except Exception as fallback_err:
-                logger.error(f"Even fallback retrieval failed: {fallback_err}")
+            except Exception as e:
+                logger.error(f"Even fallback retrieval failed: {e}")
+                import traceback
+
                 traceback.print_exc()
                 relevant_memories = []
+        return relevant_memories
 
-        # ✅ Step 5: Update memory activations and apply semantic coherence
-        for mem_dict in relevant_memories:
+    def _update_memory_activation(self, memories: list, now: float) -> None:
+        """Update activation and timestamps for retrieved memories."""
+        for mem_dict in memories:
             mem_id = mem_dict.get("memory_id")
             if mem_id is not None:
-                # Increase activation and update timestamp
                 self.activation_manager.activate_memory(mem_id, 0.2, spread=True)
                 self.temporal_context.update_timestamp(mem_id, now)
 
-        # Apply semantic coherence check if enabled
-        if self.semantic_coherence_processor and len(relevant_memories) > 1:
+    def _apply_semantic_coherence(self, memories: list, query_embedding: any) -> list:
+        """Apply semantic coherence check to the memories if enabled."""
+        if self.semantic_coherence_processor and len(memories) > 1:
             try:
                 coherent_results = self.semantic_coherence_processor.process_results(
-                    relevant_memories, query_embedding
+                    memories, query_embedding
                 )
-                # Only replace if we got reasonable results back
                 if coherent_results:
-                    relevant_memories = coherent_results
-                    logger.debug(
-                        f"Applied semantic coherence, now have {len(relevant_memories)} results"
-                    )
-            except Exception as coherence_err:
-                logger.error(f"Error in semantic coherence processing: {coherence_err}")
+                    memories = coherent_results
+                    logger.debug(f"Applied semantic coherence, now have {len(memories)} results")
+            except Exception as e:
+                logger.error(f"Error in semantic coherence processing: {e}")
+        return memories
 
-        # ✅ Step 6: Apply temporal context to handle time-based queries
+    def _apply_temporal_context_and_clean(
+        self, user_message: str, memories: list, now: float
+    ) -> list:
+        """Apply temporal context and prepare cleaned memory results for prompt inclusion."""
         base_context = {"current_time": now}
-        memory_dicts_for_temporal = []
-
-        for r in relevant_memories:
-            mem_id = r.get("memory_id")
+        memory_dicts = []
+        for r in memories:
             base_score = r.get("relevance_score", 0.5)
-
-            # If "created_at" is stored in metadata, retrieve it
-            created_at = 0.0
             meta = r.get("metadata", {})
-            if isinstance(meta, dict) and "created_at" in meta:
-                created_at = meta["created_at"]
-
-            memory_dicts_for_temporal.append({
-                "memory_id": mem_id,
+            created_at = meta.get("created_at", 0.0) if isinstance(meta, dict) else 0.0
+            memory_dicts.append({
+                "memory_id": r.get("memory_id"),
                 "created_at": created_at,
                 "relevance_score": base_score,
+                "content": r.get("content", ""),
+                "metadata": meta,
             })
 
-        # Apply temporal context with the user query
-        memory_dicts_for_temporal = self.temporal_context.apply_temporal_context(
-            query=user_message, results=memory_dicts_for_temporal, context=base_context
+        memory_dicts = self.temporal_context.apply_temporal_context(
+            query=user_message, results=memory_dicts, context=base_context
         )
+        memory_dicts.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
 
-        # Sort by updated "relevance_score"
-        memory_dicts_for_temporal.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
-
-        # ✅ Step 7: Process memories for prompt inclusion
+        # Clean results: retrieve full content from memory store if possible
         cleaned_results = []
-        for md in memory_dicts_for_temporal:
+        for md in memory_dicts:
             mem_id = md.get("memory_id")
             if mem_id is None:
                 continue
-
             try:
-                # Get the actual memory object
                 memory_obj = None
-                if isinstance(mem_id, int):
-                    try:
-                        memory_obj = self.memory_store.get(str(mem_id))
-                    except KeyError:
-                        logger.debug(f"No memory found for index {mem_id}")
-                else:
-                    try:
-                        memory_obj = self.memory_store.get(mem_id)
-                    except KeyError:
-                        logger.debug(f"No memory found for ID {mem_id}")
-
+                try:
+                    memory_obj = self.memory_store.get(str(mem_id))
+                except KeyError:
+                    logger.debug(f"No memory found for ID {mem_id}")
                 if memory_obj:
-                    # Get content appropriately depending on type
-                    if isinstance(memory_obj.content, dict) and "text" in memory_obj.content:
-                        content_text = memory_obj.content["text"]
-                    else:
-                        content_text = str(memory_obj.content)
-
+                    content = (
+                        memory_obj.content.get("text")
+                        if isinstance(memory_obj.content, dict)
+                        else str(memory_obj.content)
+                    )
                     cleaned_results.append({
-                        "content": content_text,
+                        "content": content,
                         "metadata": memory_obj.metadata,
                         "relevance_score": md.get("relevance_score", 0.5),
                     })
-            except Exception as mem_err:
-                logger.error(f"Error retrieving memory {mem_id}: {mem_err}")
+            except Exception as e:
+                logger.error(f"Error retrieving memory {mem_id}: {e}")
+        logger.debug(f"After temporal context, have {len(cleaned_results)} memories")
+        return cleaned_results
 
-        # Update to use the processed results
-        relevant_memories = cleaned_results
-        logger.debug(f"After temporal context, have {len(relevant_memories)} memories")
-
-        # ✅ Step 8: Extract personal attributes if enabled
+    def _extract_personal_attributes(self, user_message: str, now: float) -> None:
+        """Extract personal attributes from the user message and store them as synthetic memories."""  # noqa: W505
         if self.personal_attribute_manager:
             try:
                 attributes = self.personal_attribute_manager.extract_attributes(user_message)
                 if attributes:
                     logger.debug(f"Extracted personal attributes: {attributes}")
-                    # Store each attribute as a synthetic memory
                     for attr_type, attr_value in attributes.items():
                         attr_text = f"The user's {attr_type} is {attr_value}."
-                        # Only add if it's substantial
                         if len(str(attr_value)) > 1:
                             self.add_memory(
                                 attr_text,
@@ -561,58 +603,45 @@ class MemoryWeaveAPI:
                                     "importance": 0.9,
                                 },
                             )
-            except Exception as attr_err:
-                logger.error(f"Error extracting personal attributes: {attr_err}")
+            except Exception as e:
+                logger.error(f"Error extracting personal attributes: {e}")
 
-        # ✅ Step 9: Construct system prompt with retrieved memories
+    def _construct_prompt(self, cleaned_memories: list, query_type: any, user_message: str) -> str:
+        """Construct the final prompt using system instructions, memory highlights, and conversation history."""  # noqa: W505
         system_prompt = (
             "You are a helpful assistant. Use the entire conversation context for your answer.\n"
-            "Do not disclaim that you have a memory system. If asked about user info, see if it "
-            "is in your retrieved content. If yes, incorporate it naturally. If not, just say you "
-            "lack that info.\n"
+            "Do not disclose that you have a memory system. If asked about user info, incorporate "
+            "it naturally if available.\n"
         )
-
-        # Sort again by final relevance
-        relevant_memories.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
-
-        # Include top memories in the prompt (more for complex queries)
+        # Choose number of top memories based on query type
         max_memories = 5 if query_type in [QueryType.PERSONAL, QueryType.TEMPORAL] else 3
-        top_memories = relevant_memories[:max_memories]
-        memory_text = ""
+        top_memories = sorted(
+            cleaned_memories, key=lambda x: x.get("relevance_score", 0), reverse=True
+        )[:max_memories]
 
+        memory_text = ""
         if top_memories:
             memory_text = "MEMORY HIGHLIGHTS:\n"
             for m in top_memories:
-                c = m["content"]
-                # Truncate long memories
-                if len(c) > 150:
-                    memory_text += f"- {c[:150]}...\n"
-                else:
-                    memory_text += f"- {c}\n"
+                content = m["content"]
+                memory_text += f"- {content[:150]}...\n" if len(content) > 150 else f"- {content}\n"
             memory_text += "\n"
 
         final_system_prompt = system_prompt + memory_text
-
-        # ✅ Step 10: Add recent conversation history
+        # Append conversation history
         history_text = ""
-        max_history_turns = 10  # Increase for temporal and personal queries
-
+        max_history_turns = 10
         recent_history = (
             self.conversation_history[-max_history_turns:] if self.conversation_history else []
         )
-
         for turn in recent_history:
-            if turn["role"] == "user":
-                history_text += f"User: {turn['content']}\n"
-            else:
-                history_text += f"Assistant: {turn['content']}\n"
+            role = "User" if turn["role"] == "user" else "Assistant"
+            history_text += f"{role}: {turn['content']}\n"
+        prompt = f"{final_system_prompt}\n{history_text}User: {user_message}\nAssistant:"
+        return prompt
 
-        if history_text:
-            prompt = f"{final_system_prompt}\n{history_text}User: {user_message}\nAssistant:"
-        else:
-            prompt = f"{final_system_prompt}\nUser: {user_message}\nAssistant:"
-
-        # ✅ Step 11: Generate response using LLM
+    def _generate_response(self, prompt: str, max_new_tokens: int) -> str:
+        """Generate a response from the model based on the provided prompt."""
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
         with torch.no_grad():
             outputs = self.model.generate(
@@ -622,21 +651,18 @@ class MemoryWeaveAPI:
                 do_sample=True,
                 top_p=0.9,
             )
-
         full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        assistant_reply = full_response[len(prompt) :].strip()
+        return full_response[len(prompt) :].strip()
 
-        # ✅ Step 12: Store the interaction in memory
+    def _store_interaction(self, user_message: str, assistant_reply: str, now: float) -> None:
+        """Store the user and assistant messages into the memory store."""
         try:
-            # Create embeddings for user and assistant messages
             user_emb = self.embedding_model.encode(
                 user_message, show_progress_bar=self.show_progress_bar
             )
             assistant_emb = self.embedding_model.encode(
                 assistant_reply, show_progress_bar=self.show_progress_bar
             )
-
-            # Add user message to memory store
             user_mem_id = self.memory_store.add(
                 user_emb,
                 user_message,
@@ -647,12 +673,8 @@ class MemoryWeaveAPI:
                     "importance": 0.7,
                 },
             )
-
-            # Add to category if enabled
             if self.category_manager:
                 self.category_manager.add_to_category(user_mem_id, user_emb)
-
-            # Add assistant message to memory store
             assistant_mem_id = self.memory_store.add(
                 assistant_emb,
                 assistant_reply,
@@ -663,53 +685,38 @@ class MemoryWeaveAPI:
                     "importance": 0.5,
                 },
             )
-
-            # Add to category if enabled
             if self.category_manager:
                 self.category_manager.add_to_category(assistant_mem_id, assistant_emb)
-
-            # Create associative link between the user message and response
             if self.associative_linker:
                 self.associative_linker.create_associative_link(user_mem_id, assistant_mem_id, 0.9)
-
             self.memory_store_adapter.invalidate_cache()
-
-            # Update memories since consolidation
             self.memories_since_consolidation += 2
-
-            # Check if consolidation is needed
             if self.memories_since_consolidation >= self.consolidation_interval:
                 self._consolidate_memories()
+        except Exception as e:
+            logger.error(f"Error storing conversation in memory: {e}")
 
-        except Exception as mem_err:
-            logger.error(f"Error storing conversation in memory: {mem_err}")
-
-        # ✅ Step 13: Update conversation history
+    def _update_conversation_history(self, user_message: str, assistant_reply: str) -> None:
+        """Append the latest user and assistant messages to the conversation history."""
         self.conversation_history.append({"role": "user", "content": user_message})
         self.conversation_history.append({"role": "assistant", "content": assistant_reply})
 
-        # ✅ Step 14: Update retrieval statistics
+    def _update_retrieval_stats(self, start_time: float, results_count: int) -> None:
+        """Update the statistics for retrieval performance."""
         query_time = time.time() - start_time
-        self.retrieval_stats["total_queries"] += 1
-        self.retrieval_stats["successful_retrievals"] += 1 if relevant_memories else 0
+        stats = self.retrieval_stats
+        stats["total_queries"] += 1
+        stats["successful_retrievals"] += 1 if results_count > 0 else 0
+        n = stats["total_queries"]
+        stats["avg_query_time"] = ((n - 1) * stats["avg_query_time"] + query_time) / n
+        stats["avg_results_count"] = ((n - 1) * stats["avg_results_count"] + results_count) / n
 
-        # Update moving averages
-        n = self.retrieval_stats["total_queries"]
-        self.retrieval_stats["avg_query_time"] = (
-            (n - 1) * self.retrieval_stats["avg_query_time"] + query_time
-        ) / n
-        self.retrieval_stats["avg_results_count"] = (
-            (n - 1) * self.retrieval_stats["avg_results_count"] + len(relevant_memories)
-        ) / n
-
-        # ✅ Step 15: Update dynamic threshold if enabled
+    def _update_dynamic_threshold(self, query_type: any, results_count: int) -> None:
+        """Provide feedback to update the dynamic confidence threshold if enabled."""
         if self.dynamic_threshold_adjuster:
-            # Provide feedback on retrieval quality to improve future thresholds
             self.dynamic_threshold_adjuster.update_threshold(
-                query_type, len(relevant_memories), had_good_results=len(relevant_memories) > 0
+                query_type, results_count, had_good_results=results_count > 0
             )
-
-        return assistant_reply
 
     def get_conversation_history(self) -> list[dict[str, str]]:
         """Return stored conversation history."""
@@ -757,6 +764,7 @@ class MemoryWeaveAPI:
         Returns:
             list of matching memories with scores
         """
+        logger.debug(f"Searching for memories with keyword: {keyword}")
         results = []
 
         # Get all memories
@@ -788,6 +796,7 @@ class MemoryWeaveAPI:
         # Sort by relevance score
         results.sort(key=lambda x: x["relevance_score"], reverse=True)
 
+        logger.debug(f"Found {len(results)} memories matching keyword: {keyword}")
         return results[:limit]
 
     def get_similar_memories(self, memory_id: str, limit: int = 5) -> list[dict[str, Any]]:
@@ -801,6 +810,7 @@ class MemoryWeaveAPI:
         Returns:
             list of similar memories with similarity scores
         """
+        logger.debug(f"Finding similar memories for memory ID: {memory_id}")
         try:
             # Get the memory
             memory = self.memory_store.get(memory_id)
@@ -816,7 +826,11 @@ class MemoryWeaveAPI:
             )
 
             # Filter out the original memory
-            return [m for m in similar_memories if m.get("memory_id") != memory_id]
+            filtered_memories = [m for m in similar_memories if m.get("memory_id") != memory_id]
+            logger.debug(
+                f"Found {len(filtered_memories)} similar memories for memory ID: {memory_id}"
+            )
+            return filtered_memories
 
         except KeyError:
             logger.warning(f"Memory with ID {memory_id} not found")
@@ -832,7 +846,9 @@ class MemoryWeaveAPI:
         Returns:
             dictionary mapping category IDs to lists of memory IDs
         """
+        logger.debug("Getting memory categories")
         if not self.category_manager:
+            logger.debug("Category management is disabled")
             return {}
 
         categories = {}
@@ -847,6 +863,7 @@ class MemoryWeaveAPI:
             except KeyError:
                 continue
 
+        logger.debug(f"Found {len(categories)} memory categories")
         return categories
 
     def clear_memories(self, keep_personal_attributes: bool = True) -> int:
@@ -859,6 +876,7 @@ class MemoryWeaveAPI:
         Returns:
             Number of memories removed
         """
+        logger.info(f"Clearing memories. Keeping personal attributes: {keep_personal_attributes}")
         if keep_personal_attributes:
             # Get all memories
             memories = self.memory_store.get_all()
@@ -888,7 +906,11 @@ class MemoryWeaveAPI:
                 except KeyError:
                     pass
 
-            return count_before - count_kept
+            removed_count = count_before - count_kept
+            logger.info(
+                f"Removed {removed_count} memories, kept {count_kept} personal attribute memories."
+            )
+            return removed_count
         else:
             # Count memories before clearing
             count_before = len(self.memory_store.get_all())
@@ -897,6 +919,7 @@ class MemoryWeaveAPI:
             self.memory_store.clear()
             self.memory_store_adapter.invalidate_cache()
 
+            logger.info(f"Removed {count_before} memories.")
             return count_before
 
     def get_retrieval_stats(self) -> dict[str, Any]:
@@ -906,7 +929,10 @@ class MemoryWeaveAPI:
         Returns:
             dictionary of retrieval statistics
         """
-        return self.retrieval_stats.copy()
+        logger.debug("Getting retrieval statistics")
+        stats = self.retrieval_stats.copy()
+        logger.debug(f"Retrieval statistics: {stats}")
+        return stats
 
     def update_memory(
         self, memory_id: str, new_text: str = None, new_metadata: dict = None
@@ -922,6 +948,7 @@ class MemoryWeaveAPI:
         Returns:
             True if update was successful, False otherwise
         """
+        logger.info(f"Updating memory ID: {memory_id}")
         try:
             # Get the existing memory
             memory = self.memory_store.get(memory_id)
@@ -963,14 +990,17 @@ class MemoryWeaveAPI:
                 if self.category_manager:
                     self.category_manager.add_to_category(memory_id, new_embedding)
 
+                logger.info(f"Memory ID: {memory_id} updated with new text.")
                 return True
 
             # If only updating metadata
             elif new_metadata is not None:
                 self.memory_store.update_metadata(memory_id, new_metadata)
                 self.memory_store_adapter.invalidate_cache()
+                logger.info(f"Memory ID: {memory_id} metadata updated.")
                 return True
 
+            logger.warning(f"No update performed for memory ID: {memory_id}")
             return False
 
         except KeyError:
@@ -990,6 +1020,7 @@ class MemoryWeaveAPI:
         # Skip if no consolidation needed
         if len(self.memory_store.get_all()) <= self.max_memories:
             self.memories_since_consolidation = 0
+            logger.debug("Memory consolidation skipped: no consolidation needed.")
             return 0
 
         logger.info(f"Consolidating memories to stay within limit of {self.max_memories}")
@@ -1012,6 +1043,7 @@ class MemoryWeaveAPI:
         # Reset counter
         self.memories_since_consolidation = 0
 
+        logger.info(f"Consolidated {len(removed_ids)} memories.")
         return len(removed_ids)
 
     def chat_without_memory(self, user_message: str, max_new_tokens: int = 512) -> str:
@@ -1025,6 +1057,7 @@ class MemoryWeaveAPI:
         Returns:
             The assistant's response without memory context
         """
+        logger.debug("Generating response without memory context.")
         prompt = f"You are a helpful assistant.\n\nUser: {user_message}\nAssistant:"
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
 
@@ -1042,4 +1075,5 @@ class MemoryWeaveAPI:
             skip_special_tokens=True,
         )
         assistant_response = full_response[len(prompt) :].strip()
+        logger.debug("Response generated without memory context.")
         return assistant_response
