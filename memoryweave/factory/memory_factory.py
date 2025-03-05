@@ -71,17 +71,21 @@ def create_memory_store_and_adapter(config: MemoryStoreConfig):
 
     # Add type-specific settings
     if config.vector_search.type == "faiss":
-        vector_search_kwargs.update({
-            "index_type": config.vector_search.faiss_index_type,
-            "metric": config.vector_search.faiss_metric,
-            "nprobe": config.vector_search.faiss_nprobe,
-        })
+        vector_search_kwargs.update(
+            {
+                "index_type": config.vector_search.faiss_index_type,
+                "metric": config.vector_search.faiss_metric,
+                "nprobe": config.vector_search.faiss_nprobe,
+            }
+        )
     elif config.vector_search.type == "hybrid_bm25":
-        vector_search_kwargs.update({
-            "k1": config.vector_search.bm25_k1,
-            "b": config.vector_search.bm25_b,
-            "weight": config.vector_search.bm25_weight,
-        })
+        vector_search_kwargs.update(
+            {
+                "k1": config.vector_search.bm25_k1,
+                "b": config.vector_search.bm25_b,
+                "weight": config.vector_search.bm25_weight,
+            }
+        )
 
     vector_search = create_vector_search_provider(
         config.vector_search.type,

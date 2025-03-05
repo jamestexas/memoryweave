@@ -4,7 +4,7 @@ This module defines the core interfaces for query processing,
 including protocols, data models, and base classes for query components.
 """
 
-from typing import Any, Dict, List, Protocol
+from typing import Any, Protocol
 
 from memoryweave.interfaces.retrieval import Query, QueryType, RetrievalParameters
 
@@ -16,15 +16,15 @@ class IQueryAnalyzer(Protocol):
         """Analyze a query to determine its type."""
         ...
 
-    def extract_keywords(self, query_text: str) -> List[str]:
+    def extract_keywords(self, query_text: str) -> list[str]:
         """Extract keywords from a query."""
         ...
 
-    def extract_entities(self, query_text: str) -> List[str]:
+    def extract_entities(self, query_text: str) -> list[str]:
         """Extract entities from a query."""
         ...
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the query analyzer."""
         ...
 
@@ -36,7 +36,7 @@ class IQueryAdapter(Protocol):
         """Adapt retrieval parameters based on query type."""
         ...
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the query adapter."""
         ...
 
@@ -48,6 +48,6 @@ class IQueryExpander(Protocol):
         """Expand a query with additional keywords or concepts."""
         ...
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the query expander."""
         ...

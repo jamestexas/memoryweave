@@ -4,7 +4,7 @@ This module provides implementations of retrieval strategies based on
 vector similarity between query and memory embeddings.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -77,7 +77,7 @@ class SimilarityRetrievalStrategy(IRetrievalStrategy):
 
     def retrieve(
         self, query_embedding: EmbeddingVector, parameters: Optional[RetrievalParameters] = None
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """Retrieve memories based on a query embedding."""
         # Merge parameters with defaults
         params = self._default_params.copy()
@@ -159,7 +159,7 @@ class SimilarityRetrievalStrategy(IRetrievalStrategy):
 
         return results
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the retrieval strategy."""
         if "similarity_threshold" in config:
             self._default_params["similarity_threshold"] = config["similarity_threshold"]

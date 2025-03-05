@@ -720,7 +720,7 @@ class TemporalContextBuilder(Component):
             return self._apply_recency_boost(results, context)
 
         # Get current time
-        current_time = context.get("current_time", time.time())
+        context.get("current_time", time.time())
 
         # If we have a specific time reference, use it
         target_time = None

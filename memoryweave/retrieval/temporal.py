@@ -5,7 +5,7 @@ temporal factors such as recency and frequency of access.
 """
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from memoryweave.interfaces.memory import EmbeddingVector, IActivationManager, IMemoryStore
 from memoryweave.interfaces.retrieval import (
@@ -84,7 +84,7 @@ class TemporalRetrievalStrategy(IRetrievalStrategy):
         self,
         query_embedding: Optional[EmbeddingVector] = None,
         parameters: Optional[RetrievalParameters] = None,
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """Retrieve memories based on temporal factors.
 
         Note:
@@ -136,7 +136,7 @@ class TemporalRetrievalStrategy(IRetrievalStrategy):
 
         return results
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the retrieval strategy."""
         if "max_results" in config:
             self._default_params["max_results"] = config["max_results"]

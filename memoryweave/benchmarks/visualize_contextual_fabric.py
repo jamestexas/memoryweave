@@ -9,7 +9,6 @@ retrieval strategy versus the contextual fabric strategy.
 import json
 import os
 import sys
-from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,13 +50,13 @@ def create_f1_comparison_chart(results: Dict, output_file: str = None) -> None:
         fabric_f1.append(test_case["metrics"]["fabric"]["f1"])
 
     # Set up plot
-    fig, ax = plt.figure(figsize=(12, 7)), plt.gca()
+    _fig, ax = plt.figure(figsize=(12, 7)), plt.gca()
 
     # Plot bars
     x = np.arange(len(test_cases))
     width = 0.35
 
-    baseline_bars = ax.bar(
+    ax.bar(
         x - width / 2,
         baseline_f1,
         width,
@@ -65,9 +64,7 @@ def create_f1_comparison_chart(results: Dict, output_file: str = None) -> None:
         color="#3498db",
         alpha=0.7,
     )
-    fabric_bars = ax.bar(
-        x + width / 2, fabric_f1, width, label="Contextual Fabric", color="#2ecc71", alpha=0.7
-    )
+    ax.bar(x + width / 2, fabric_f1, width, label="Contextual Fabric", color="#2ecc71", alpha=0.7)
 
     # Add labels and title
     ax.set_xlabel("Test Case")
@@ -119,7 +116,7 @@ def create_summary_chart(results: Dict, output_file: str = None) -> None:
     summary = results["summary"]
 
     # Set up plot
-    fig, ax = plt.figure(figsize=(10, 6)), plt.gca()
+    _fig, ax = plt.figure(figsize=(10, 6)), plt.gca()
 
     # Data for bars
     metrics = ["Average F1"]

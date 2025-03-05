@@ -27,7 +27,7 @@ import json
 import random
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 from tqdm import tqdm
@@ -42,7 +42,8 @@ from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy imp
     HybridBM25VectorStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.interfaces.memory import MemoryStore
+from memoryweave.storage.refactored.adapter import MemoryAdapter
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 
 
 class ContextualFabricBenchmark:
@@ -63,7 +64,7 @@ class ContextualFabricBenchmark:
         """
         self.embedding_dim = embedding_dim
         self.memory_store = StandardMemoryStore()
-memory_adapter = MemoryAdapter(memory_store)
+        self.memory_adapter = MemoryAdapter(self.memory_store)
 
         # Initialize components
         self.context_enhancer = ContextualEmbeddingEnhancer()
@@ -550,11 +551,11 @@ memory_adapter = MemoryAdapter(memory_store)
         name: str,
         query: str,
         topic: str,
-        expected_results: List[str],
-        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        expected_results: list[str],
+        conversation_history: Optional[list[dict[str, Any]]] = None,
         current_time: Optional[float] = None,
         description: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create a test case for evaluation.
 
@@ -580,7 +581,7 @@ memory_adapter = MemoryAdapter(memory_store)
             "description": description,
         }
 
-    def generate_test_cases(self) -> List[Dict[str, Any]]:
+    def generate_test_cases(self) -> list[dict[str, Any]]:
         """
         Generate test cases for the benchmark.
 
@@ -848,7 +849,7 @@ memory_adapter = MemoryAdapter(memory_store)
 
         return test_cases
 
-    def evaluate_test_case(self, test_case: Dict[str, Any]) -> Dict[str, Any]:
+    def evaluate_test_case(self, test_case: dict[str, Any]) -> dict[str, Any]:
         """
         Evaluate a test case with both baseline and contextual fabric strategies.
 
@@ -939,7 +940,7 @@ memory_adapter = MemoryAdapter(memory_store)
 
     def run_benchmark(
         self, num_memories: int = 100, output_file: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run the complete benchmark.
 

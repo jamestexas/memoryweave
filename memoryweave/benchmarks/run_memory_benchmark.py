@@ -14,7 +14,6 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Dict
 
 import yaml
 
@@ -120,7 +119,7 @@ def main():
 
     # Create and run benchmark
     benchmark = MemoryRetrievalBenchmark(benchmark_configs)
-    results = benchmark.run_all()
+    benchmark.run_all()
 
     # Save results
     output_file = args.output or config_data.get("output_file", "benchmark_results.json")

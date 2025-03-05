@@ -317,7 +317,7 @@ class DynamicThresholdAdjuster(PostProcessor):
             keywords = context.get("important_keywords", [])
             keywords_str = ", ".join(keywords) if keywords else query
 
-            for i in range(missing_count):
+            for _i in range(missing_count):
                 results.append(
                     {
                         "memory_id": -1,  # Use negative ID to indicate synthetic result

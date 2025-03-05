@@ -81,7 +81,7 @@ class TestCategoryRetrieval:
 
         memory = memory_system["memory"]
         manager = memory_system["manager"]
-        category_retrieval = memory_system["category_retrieval"]
+        memory_system["category_retrieval"]
 
         # Add required components for pipeline
         query_analyzer = QueryAnalyzer()
@@ -362,7 +362,7 @@ class TestCategoryRetrieval:
         # Now lower vigilance and force consolidation
         # This simulates what would happen after many memories are added and
         # consolidation is triggered automatically
-        num_categories = category_adapter.consolidate_categories(threshold=0.5)
+        category_adapter.consolidate_categories(threshold=0.5)
 
         # Get statistics after consolidation
         stats_after = category_adapter.get_category_statistics()

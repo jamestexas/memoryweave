@@ -110,7 +110,7 @@ class TestMemoryUsage:
         initial_memory = self.get_memory_usage()
 
         # Run benchmark with simple config
-        result = run_benchmark_with_config(
+        run_benchmark_with_config(
             dataset_path=small_dataset,
             config=simple_config,
             metrics=["precision", "recall"],
@@ -144,7 +144,7 @@ class TestMemoryUsage:
         initial_memory = self.get_memory_usage()
 
         # Run benchmark with complex config
-        result = run_benchmark_with_config(
+        run_benchmark_with_config(
             dataset_path=small_dataset,
             config=complex_config,
             metrics=["precision", "recall", "f1_score"],
@@ -180,7 +180,7 @@ class TestMemoryUsage:
         # Run benchmark multiple times
         memory_after_runs = []
         for i in range(3):  # Run 3 times
-            result = run_benchmark_with_config(
+            run_benchmark_with_config(
                 dataset_path=small_dataset,
                 config=simple_config,
                 metrics=["precision"],

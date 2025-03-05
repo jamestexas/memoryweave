@@ -2,7 +2,7 @@
 Memory adapter for integrating core memory with the components architecture.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from memoryweave.components.base import MemoryComponent
 from memoryweave.core.contextual_memory import ContextualMemory
@@ -26,13 +26,13 @@ class MemoryAdapter(MemoryComponent):
         """
         self.memory = memory or ContextualMemory(**memory_kwargs)
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the component with configuration."""
         # Apply any configuration updates
         # For now, we don't change any settings after initialization
         pass
 
-    def process(self, data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """
         Process memory data with context.
 

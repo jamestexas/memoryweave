@@ -4,7 +4,7 @@ This module provides validation functionality for MemoryWeave configurations,
 ensuring that configuration values meet the required constraints.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from memoryweave.config.options import ConfigOption, ConfigValueType, get_component_config
 
@@ -12,7 +12,7 @@ from memoryweave.config.options import ConfigOption, ConfigValueType, get_compon
 class ConfigValidationError(Exception):
     """Error raised when configuration validation fails."""
 
-    def __init__(self, errors: Dict[str, List[str]], component_type: Optional[str] = None):
+    def __init__(self, errors: dict[str, list[str]], component_type: Optional[str] = None):
         """Initialize the error.
 
         Args:
@@ -37,8 +37,8 @@ class ConfigValidationError(Exception):
 
 
 def validate_config(
-    config: Dict[str, Any], component_type: str
-) -> Tuple[bool, Dict[str, List[str]]]:
+    config: dict[str, Any], component_type: str
+) -> tuple[bool, dict[str, list[str]]]:
     """Validate a configuration against the component's configuration options.
 
     Args:
@@ -53,7 +53,7 @@ def validate_config(
     if not component_config:
         raise ValueError(f"Unknown component type: {component_type}")
 
-    errors: Dict[str, List[str]] = {}
+    errors: dict[str, list[str]] = {}
 
     # Check required options
     for option in component_config.options:
@@ -79,7 +79,7 @@ def validate_config(
     return len(errors) == 0, errors
 
 
-def validate_option(value: Any, option: ConfigOption) -> List[str]:
+def validate_option(value: Any, option: ConfigOption) -> list[str]:
     """Validate a single configuration option.
 
     Args:

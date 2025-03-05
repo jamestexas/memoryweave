@@ -1,5 +1,5 @@
 # memoryweave/components/retrieval_strategies.py
-from typing import Any, List
+from typing import Any
 
 import numpy as np
 
@@ -269,7 +269,7 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
                 )
 
         # Check if we're in evaluation mode
-        in_evaluation = context.get("in_evaluation", False)
+        context.get("in_evaluation", False)
 
         # Standard retrieval logic
         logger.info("TemporalRetrievalStrategy: Using temporal retrieval")
@@ -838,7 +838,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
 
     def retrieve(
         self, query_embedding: np.ndarray, top_k: int, context: dict[str, Any]
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Retrieve memories using category-based retrieval."""
         import logging
 

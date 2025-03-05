@@ -8,7 +8,7 @@ This script shows the benefits of chunking for memory representation and retriev
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 import rich_click as click
 from rich.console import Console
@@ -235,7 +235,7 @@ class ChunkingDemo:
 
         console.print(table)
 
-    def _display_chunks(self, chunks: List[Dict[str, Any]], title: str):
+    def _display_chunks(self, chunks: list[dict[str, Any]], title: str):
         """Display chunks in a formatted table."""
         if not chunks:
             console.print("[yellow]No chunks to display[/yellow]")
@@ -263,7 +263,7 @@ class ChunkingDemo:
 
         console.print(table)
 
-    def _display_retrieval_results(self, memories: List[Dict[str, Any]], query: str):
+    def _display_retrieval_results(self, memories: list[dict[str, Any]], query: str):
         """Display retrieval results from chunks."""
         table = Table(title=f"Top Retrieval Results for: {query[:40]}...")
         table.add_column("Rank", style="cyan", width=5)

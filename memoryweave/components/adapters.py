@@ -2,7 +2,7 @@
 Adapters for integrating core components with the pipeline architecture.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -40,14 +40,14 @@ class CoreRetrieverAdapter(RetrievalComponent):
         self.activation_boost = True
         self.use_categories = True
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the component with configuration."""
         self.confidence_threshold = config.get("confidence_threshold", self.confidence_threshold)
         self.default_top_k = config.get("top_k", self.default_top_k)
         self.use_categories = config.get("use_categories", self.use_categories)
         self.activation_boost = config.get("activation_boost", self.activation_boost)
 
-    def process_query(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """
         Process a query to retrieve relevant memories.
 
@@ -127,7 +127,7 @@ class CategoryAdapter(Component):
         elif not self.core_manager and self.component_manager:
             self.core_manager = self.component_manager.core_manager
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
 
@@ -177,7 +177,7 @@ class CategoryAdapter(Component):
         """
         return self.component_manager.get_category_for_memory(memory_idx)
 
-    def get_memories_for_category(self, category_idx: int) -> List[int]:
+    def get_memories_for_category(self, category_idx: int) -> list[int]:
         """
         Get all memory indices for a category.
 
@@ -222,7 +222,7 @@ class CategoryAdapter(Component):
         """
         return self.component_manager.consolidate_categories(threshold)
 
-    def get_category_statistics(self) -> Dict[str, Any]:
+    def get_category_statistics(self) -> dict[str, Any]:
         """
         Get statistics about the current categories.
 

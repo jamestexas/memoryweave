@@ -7,7 +7,7 @@ This module is deprecated. Please use the component-based architecture instead:
 """
 
 import warnings
-from typing import List, Literal
+from typing import Literal
 
 import numpy as np
 from scipy.cluster.hierarchy import fcluster, linkage
@@ -468,7 +468,7 @@ class CategoryManager:
 
         return int(self.memory_categories[memory_idx])
 
-    def get_memories_for_category(self, category_idx: int) -> List[int]:
+    def get_memories_for_category(self, category_idx: int) -> list[int]:
         """
         Get all memory indices for a category.
 

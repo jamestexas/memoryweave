@@ -4,7 +4,7 @@ This module provides components for enriching query context with relevant inform
 to improve memory retrieval performance.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -27,7 +27,7 @@ class QueryContextBuilder(Component):
         """Initialize the query context builder."""
         self.nlp_extractor = NLPExtractor()
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
         self.max_history_turns = config.get("max_history_turns", 3)
         self.max_history_tokens = config.get("max_history_tokens", 1000)
@@ -36,7 +36,7 @@ class QueryContextBuilder(Component):
         self.include_conversation_history = config.get("include_conversation_history", True)
         self.extract_implied_timeframe = config.get("extract_implied_timeframe", True)
 
-    def process_query(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """Process a query to build extended context."""
         # Start with existing context
         updated_context = context.copy()
@@ -69,7 +69,7 @@ class QueryContextBuilder(Component):
 
         return updated_context
 
-    def _extract_temporal_information(self, query: str) -> Dict[str, Any]:
+    def _extract_temporal_information(self, query: str) -> dict[str, Any]:
         """Extract temporal information from the query."""
         # Extract explicit time references
         time_references = self.nlp_extractor.extract_time_references(query)
@@ -86,7 +86,7 @@ class QueryContextBuilder(Component):
 
         return result
 
-    def _extract_implied_timeframe(self, query: str) -> Optional[Dict[str, Any]]:
+    def _extract_implied_timeframe(self, query: str) -> Optional[dict[str, Any]]:
         """Extract implied timeframe from query patterns."""
         query_lower = query.lower()
 
@@ -119,8 +119,8 @@ class QueryContextBuilder(Component):
         return None
 
     def _build_conversation_context(
-        self, query: str, context: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        self, query: str, context: dict[str, Any]
+    ) -> Optional[dict[str, Any]]:
         """Build context from conversation history if available."""
         # Check if conversation history is available
         conversation_history = context.get("conversation_history", [])
@@ -157,7 +157,7 @@ class QueryContextBuilder(Component):
 
         return conversation_context
 
-    def _enrich_embedding(self, query_embedding: np.ndarray, context: Dict[str, Any]) -> np.ndarray:
+    def _enrich_embedding(self, query_embedding: np.ndarray, context: dict[str, Any]) -> np.ndarray:
         """Enrich query embedding with contextual information."""
         # This is a simplified implementation. In a real system,
         # you would probably use a more sophisticated approach.

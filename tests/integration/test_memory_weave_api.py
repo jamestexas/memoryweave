@@ -79,7 +79,7 @@ class MemoryWeaveAPIIntegrationTest(unittest.TestCase):
         # Mock search_by_keyword
         def mock_search(keyword, **kwargs):
             results = []
-            for i, memory in enumerate(self.memories):
+            for _i, memory in enumerate(self.memories):
                 if keyword.lower() in memory["content"].lower():
                     results.append(
                         {
@@ -164,7 +164,7 @@ class MemoryWeaveAPIIntegrationTest(unittest.TestCase):
         self.assertEqual(len(self.memories), 9, "Expected 9 memories to be added during setup")
 
         # Add a new memory and verify
-        memory_id = self.api.add_memory("New test memory", {"type": "test"})
+        self.api.add_memory("New test memory", {"type": "test"})
         self.assertEqual(len(self.memories), 10, "Expected a new memory to be added")
         self.assertEqual(self.memories[9]["content"], "New test memory", "Memory content mismatch")
         self.assertEqual(self.memories[9]["metadata"]["type"], "test", "Memory metadata mismatch")

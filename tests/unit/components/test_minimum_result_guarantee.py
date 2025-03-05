@@ -115,7 +115,7 @@ class MinimumResultGuaranteeProcessorTest(unittest.TestCase):
         self.mock_memory.search_by_embedding = MagicMock(return_value=[])
 
         # Process results with very low confidence threshold
-        processed_results = self.processor.process_results(
+        self.processor.process_results(
             results,
             "test query",
             {"confidence_threshold": 0.01, "query_embedding": np.array([0.1, 0.2, 0.3])},

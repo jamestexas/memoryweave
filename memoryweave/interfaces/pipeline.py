@@ -5,7 +5,7 @@ including protocols, data models, and base classes for pipeline components.
 """
 
 from enum import Enum, auto
-from typing import Any, Dict, Generic, List, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Generic, Optional, Protocol, TypeVar, runtime_checkable
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -38,11 +38,11 @@ class IComponent(Protocol):
         """Get the type of this component."""
         ...
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the component with configuration."""
         ...
 
-    def get_dependencies(self) -> List[ComponentID]:
+    def get_dependencies(self) -> list[ComponentID]:
         """Get the IDs of components this component depends on."""
         ...
 
@@ -59,7 +59,7 @@ class IComponentRegistry(Protocol):
         """Get a component by ID."""
         ...
 
-    def get_components_by_type(self, component_type: ComponentType) -> List[IComponent]:
+    def get_components_by_type(self, component_type: ComponentType) -> list[IComponent]:
         """Get all components of a specific type."""
         ...
 
@@ -76,7 +76,7 @@ class IPipelineStage(Generic[T, U], Protocol):
         """Process the input data and return the output."""
         ...
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the pipeline stage."""
         ...
 
@@ -102,6 +102,6 @@ class IPipeline(Generic[T, U], Protocol):
         """Execute the pipeline on the input data."""
         ...
 
-    def get_stages(self) -> List[IPipelineStage]:
+    def get_stages(self) -> list[IPipelineStage]:
         """Get all stages in the pipeline."""
         ...

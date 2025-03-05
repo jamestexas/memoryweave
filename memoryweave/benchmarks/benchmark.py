@@ -21,18 +21,24 @@ from typing import Any
 
 import rich_click as click
 import yaml
-
-# Import benchmark implementations
-from contextual_fabric_benchmark import ContextualFabricBenchmark
-from memory_retrieval_benchmark import BenchmarkConfig as MRBConfig, MemoryRetrievalBenchmark
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 from rich_click import RichCommand, RichGroup
 
+from memoryweave.benchmarks import (
+    BenchmarkConfig as MRBConfig,
+    ContextualFabricBenchmark,
+    MemoryRetrievalBenchmark,
+)
+
+# Import benchmark implementations
+from memoryweave.components.retriever import _get_retriever
 from memoryweave.evaluation.baseline_comparison import BaselineComparison
 from memoryweave.evaluation.synthetic.benchmark import SyntheticBenchmark
+from memoryweave.storage.refactored.adapter import MemoryAdapter
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 
 # set up rich logging
 logging.basicConfig(
@@ -177,7 +183,7 @@ class UnifiedBenchmark:
             # Define output_file to be used for saving results and visualization
             output_file = self.config.output_file
 
-            from run_baseline_comparison import get_retriever, load_baseline_configs, load_dataset
+            from run_baseline_comparison import load_baseline_configs, load_dataset
 
             # Load dataset
             dataset = load_dataset(dataset_path)
@@ -192,16 +198,15 @@ class UnifiedBenchmark:
 
             # Initialize memory manager
             from memoryweave.components.memory_manager import MemoryManager
-            from memoryweave.interfaces.memory import MemoryStore
 
             memory_store = StandardMemoryStore()
-memory_adapter = MemoryAdapter(memory_store)
+            MemoryAdapter(memory_store)
             memory_store.add_multiple(dataset["memories"])
             memory_manager = MemoryManager(memory_store=memory_store)
 
             # Initialize retriever
             retriever_type = self.config.parameters.get("retriever", "similarity")
-            memoryweave_retriever = get_retriever(retriever_type, memory_manager=memory_manager)
+            memoryweave_retriever = _get_retriever(retriever_type, memory_manager=memory_manager)
             console.print(f"Using MemoryWeave retriever: [cyan]{retriever_type}[/cyan]")
 
             # Create comparison framework

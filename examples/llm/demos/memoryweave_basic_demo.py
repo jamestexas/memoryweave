@@ -52,7 +52,7 @@ def main(model, debug):
     ]
 
     for memory in memories:
-        memory_id = memory_api.add_memory(memory)
+        memory_api.add_memory(memory)
         print(f"[green]Added memory:[/green] {memory}")
 
     # Run a conversation to demonstrate memory retrieval

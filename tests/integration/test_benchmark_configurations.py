@@ -6,7 +6,6 @@ that different configurations lead to measurably different metrics.
 """
 
 from dataclasses import dataclass
-from typing import Set
 
 import numpy as np
 import pytest
@@ -24,7 +23,7 @@ class BenchmarkMetrics:
     recall: float
     f1_score: float
     retrieval_count: float
-    significant_features: Set[str]
+    significant_features: set[str]
 
     @property
     def summary(self) -> str:

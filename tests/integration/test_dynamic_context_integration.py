@@ -5,8 +5,6 @@ Tests the DynamicContextAdapter in integration with other components,
 particularly the ContextualFabricStrategy.
 """
 
-from typing import List
-
 import numpy as np
 import pytest
 
@@ -18,7 +16,8 @@ from memoryweave.components.retrieval_strategies.contextual_fabric_strategy impo
     ContextualFabricStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.interfaces.memory import MemoryStore
+from memoryweave.storage.refactored.adapter import MemoryAdapter
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 
 
 class TestDynamicContextIntegration:
@@ -28,7 +27,7 @@ class TestDynamicContextIntegration:
         """Set up test environment."""
         # Create components
         self.memory_store = StandardMemoryStore()
-memory_adapter = MemoryAdapter(memory_store)
+        self.memory_adapter = MemoryAdapter(self.memory_store)
         self.associative_linker = AssociativeMemoryLinker(self.memory_store)
         self.temporal_context = TemporalContextBuilder(self.memory_store)
         self.activation_manager = ActivationManager(
@@ -47,7 +46,10 @@ memory_adapter = MemoryAdapter(memory_store)
         # Initialize components
         self.query_analyzer.initialize({})
         self.dynamic_adapter.initialize(
-            {"adaptation_strength": 1.0, "enable_memory_size_adaptation": True}
+            {
+                "adaptation_strength": 1.0,
+                "enable_memory_size_adaptation": True,
+            }
         )
         self.retrieval_strategy.initialize(
             {
@@ -101,14 +103,14 @@ memory_adapter = MemoryAdapter(memory_store)
                 metadata=memory["metadata"],
             )
 
-    def _make_embedding(self, keywords: List[str]) -> np.ndarray:
+    def _make_embedding(self, keywords: list[str]) -> np.ndarray:
         """Create a simple test embedding from keywords."""
         # This is a very simple embedding for testing
         # Real embeddings would be created with a proper embedding model
         embedding = np.zeros(768)
 
         # Set specific dimensions based on keywords
-        for i, word in enumerate(keywords):
+        for _i, word in enumerate(keywords):
             # Use hash of word to deterministically set some dimensions
             word_hash = hash(word) % 768
             embedding[word_hash] = 1.0
@@ -175,7 +177,7 @@ memory_adapter = MemoryAdapter(memory_store)
         """Test adaptations for large memory stores."""
         # Create a larger memory store
         large_memory_store = StandardMemoryStore()
-memory_adapter = MemoryAdapter(memory_store)
+        MemoryAdapter(large_memory_store)
 
         # Add a large number of memories
         for i in range(100):
@@ -231,10 +233,7 @@ memory_adapter = MemoryAdapter(memory_store)
     def test_adaptation_affects_weights(self):
         """Test that adaptation actually changes weights in the strategy."""
         # Save original weights
-        original_similarity = self.retrieval_strategy.similarity_weight
-        original_associative = self.retrieval_strategy.associative_weight
         original_temporal = self.retrieval_strategy.temporal_weight
-        original_activation = self.retrieval_strategy.activation_weight
 
         # Process temporal query
         temporal_query = "What did I do yesterday?"

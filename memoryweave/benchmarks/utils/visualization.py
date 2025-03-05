@@ -82,7 +82,7 @@ def create_radar_chart(
     fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(polar=True))
 
     # Add each configuration as a polygon
-    for i, config_name in enumerate(config_names):
+    for _i, config_name in enumerate(config_names):
         values = [data[config_name].get(metric, 0) for metric in metrics]
         values += values[:1]  # Close the loop
 

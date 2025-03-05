@@ -2,18 +2,25 @@
 Factory functions for creating and configuring memory components.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from memoryweave.components.adapters import CategoryAdapter, CoreRetrieverAdapter
 from memoryweave.components.category_manager import CategoryManager
 from memoryweave.components.memory_adapter import MemoryAdapter
 from memoryweave.components.memory_manager import MemoryManager
+from memoryweave.components.post_processors import (
+    AdaptiveKProcessor,
+    KeywordBoostProcessor,
+    SemanticCoherenceProcessor,
+)
+from memoryweave.components.query_adapter import QueryAdapter
+from memoryweave.components.query_analysis import QueryAnalyzer
 from memoryweave.components.retrieval_strategies import CategoryRetrievalStrategy
 from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
 from memoryweave.core.contextual_memory import ContextualMemory
 
 
-def create_memory_system(config: Dict[str, Any] = None) -> Dict[str, Any]:
+def create_memory_system(config: dict[str, Any] = None) -> dict[str, Any]:
     """
     Create a complete memory system with all components.
 
@@ -75,46 +82,33 @@ def create_memory_system(config: Dict[str, Any] = None) -> Dict[str, Any]:
     manager.register_component("category_manager", category_adapter)
     manager.register_component("category_retrieval", category_retrieval)
 
-    # Register components for testing pipelines
-    try:
-        from memoryweave.components.post_processors import (
-            AdaptiveKProcessor,
-            KeywordBoostProcessor,
-            SemanticCoherenceProcessor,
-        )
-        from memoryweave.components.query_adapter import QueryAdapter
-        from memoryweave.components.query_analysis import QueryAnalyzer
+    # Create and register components needed for pipeline tests
+    query_analyzer = QueryAnalyzer()
+    query_adapter = QueryAdapter()
+    keyword_boost = KeywordBoostProcessor()
+    adaptive_k = AdaptiveKProcessor()
+    coherence = SemanticCoherenceProcessor()
 
-        # Create and register components needed for pipeline tests
-        query_analyzer = QueryAnalyzer()
-        query_adapter = QueryAdapter()
-        keyword_boost = KeywordBoostProcessor()
-        adaptive_k = AdaptiveKProcessor()
-        coherence = SemanticCoherenceProcessor()
-
-        # Register these components
-        manager.register_component("query_analyzer", query_analyzer)
-        manager.register_component("query_adapter", query_adapter)
-        manager.register_component("keyword_boost", keyword_boost)
-        manager.register_component("adaptive_k", adaptive_k)
-        manager.register_component("coherence", coherence)
-        manager.register_component(
-            "two_stage_retrieval", category_retrieval
-        )  # Use category retrieval as two-stage for tests
-    except ImportError:
-        # Some components might not be available in minimal test environments
-        pass
+    # Register these components
+    manager.register_component("query_analyzer", query_analyzer)
+    manager.register_component("query_adapter", query_adapter)
+    manager.register_component("keyword_boost", keyword_boost)
+    manager.register_component("adaptive_k", adaptive_k)
+    manager.register_component("coherence", coherence)
+    manager.register_component(
+        "two_stage_retrieval", category_retrieval
+    )  # Use category retrieval as two-stage for tests
 
     # Return all created objects
-    return {
-        "memory": memory,
-        "memory_adapter": memory_adapter,
-        "retriever_adapter": retriever_adapter,
-        "category_manager": category_manager,
-        "category_adapter": category_adapter,
-        "category_retrieval": category_retrieval,
-        "manager": manager,
-    }
+    return dict(
+        memory=memory,
+        memory_adapter=memory_adapter,
+        retriever_adapter=retriever_adapter,
+        category_manager=category_manager,
+        category_adapter=category_adapter,
+        category_retrieval=category_retrieval,
+        manager=manager,
+    )
 
 
 def configure_memory_pipeline(

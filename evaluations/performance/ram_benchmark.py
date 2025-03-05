@@ -1086,7 +1086,7 @@ class BenchmarkRunner:
                 # Use memory batching for efficiency
                 batch_size = 50
                 memory_count = len(memories)
-                batch_count = (memory_count + batch_size - 1) // batch_size
+                (memory_count + batch_size - 1) // batch_size
 
                 # Add memories in batches with progress tracking
                 with Progress(

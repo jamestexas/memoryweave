@@ -6,7 +6,7 @@ meaningful chunks to improve embedding quality and retrieval accuracy.
 """
 
 import re
-from typing import Any, Dict, List
+from typing import Any
 
 from memoryweave.components.base import Component
 from memoryweave.components.component_names import ComponentName
@@ -42,7 +42,7 @@ class TextChunker(Component):
 
         return ComponentType.PROCESSOR
 
-    def initialize(self, config: Dict[str, Any] = None) -> None:
+    def initialize(self, config: dict[str, Any] = None) -> None:
         """Initialize the chunker with the provided configuration."""
         if config is None:
             config = {}
@@ -54,7 +54,7 @@ class TextChunker(Component):
         self.respect_sentences = config.get("respect_sentences", self.respect_sentences)
         self.include_metadata = config.get("include_metadata", self.include_metadata)
 
-    def create_chunks(self, text: str, metadata: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    def create_chunks(self, text: str, metadata: dict[str, Any] = None) -> list[dict[str, Any]]:
         """
         Create chunks from the input text.
 
@@ -101,7 +101,7 @@ class TextChunker(Component):
 
         return result
 
-    def process_conversation(self, turns: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+    def process_conversation(self, turns: list[dict[str, str]]) -> list[dict[str, Any]]:
         """
         Process a conversation into appropriate chunks.
 
@@ -160,7 +160,7 @@ class TextChunker(Component):
 
         return chunks
 
-    def _chunk_by_paragraphs(self, text: str) -> List[str]:
+    def _chunk_by_paragraphs(self, text: str) -> list[str]:
         """
         Chunk text by paragraphs, respecting natural text boundaries.
 
@@ -212,7 +212,7 @@ class TextChunker(Component):
 
         return chunks
 
-    def _chunk_by_size(self, text: str) -> List[str]:
+    def _chunk_by_size(self, text: str) -> list[str]:
         """
         Chunk text by size, optionally respecting sentence boundaries.
         """
@@ -221,7 +221,7 @@ class TextChunker(Component):
         else:
             return self._split_text_by_size(text)
 
-    def _split_text_by_sentences(self, text: str) -> List[str]:
+    def _split_text_by_sentences(self, text: str) -> list[str]:
         """
         Split text into chunks while trying to keep sentences intact.
         """
@@ -265,13 +265,13 @@ class TextChunker(Component):
 
         return chunks
 
-    def _split_paragraph_by_sentences(self, paragraph: str) -> List[str]:
+    def _split_paragraph_by_sentences(self, paragraph: str) -> list[str]:
         """
         Split a large paragraph into chunks by sentences.
         """
         return self._split_text_by_sentences(paragraph)
 
-    def _split_text_by_size(self, text: str) -> List[str]:
+    def _split_text_by_size(self, text: str) -> list[str]:
         """
         Split text into chunks of approximately target_size characters.
         This method doesn't try to respect sentence boundaries.
@@ -300,7 +300,7 @@ class TextChunker(Component):
 
         return chunks
 
-    def _normalize_chunks(self, chunks: List[str]) -> List[str]:
+    def _normalize_chunks(self, chunks: list[str]) -> list[str]:
         """
         Ensure chunks meet minimum size requirements.
 

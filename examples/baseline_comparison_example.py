@@ -11,8 +11,10 @@ import numpy as np
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.evaluation.baseline_comparison import BaselineComparison, BaselineConfig
+from memoryweave.interfaces.memory import Memory
 from memoryweave.interfaces.retrieval import Query, QueryType
-from memoryweave.interfaces.memory import Memory, MemoryStore
+from memoryweave.storage.refactored.adapter import MemoryAdapter
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 
 
 class RetrievalStrategyAdapter:
@@ -104,7 +106,7 @@ def main():
 
     # Initialize memory manager
     memory_store = StandardMemoryStore()
-memory_adapter = MemoryAdapter(memory_store)
+    MemoryAdapter(memory_store)
     memory_store.add_multiple(memories)
     memory_manager = MemoryManager(memory_store=memory_store)
 

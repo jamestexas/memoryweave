@@ -6,7 +6,7 @@ including defaults, validation rules, and documentation.
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 
 class ConfigValueType(Enum):
@@ -32,9 +32,9 @@ class ConfigOption:
     required: bool = False
     min_value: Optional[Union[int, float]] = None
     max_value: Optional[Union[int, float]] = None
-    allowed_values: Optional[List[Any]] = None
+    allowed_values: Optional[list[Any]] = None
     enum_type: Optional[type] = None
-    nested_options: Optional[List["ConfigOption"]] = None
+    nested_options: Optional[list["ConfigOption"]] = None
 
 
 @dataclass
@@ -42,7 +42,7 @@ class ComponentConfig:
     """Configuration for a component."""
 
     component_type: str
-    options: List[ConfigOption]
+    options: list[ConfigOption]
     description: str = ""
 
 
@@ -470,7 +470,7 @@ def get_component_config(component_type: str) -> Optional[ComponentConfig]:
     return COMPONENT_CONFIGS.get(component_type)
 
 
-def get_default_config(component_type: str) -> Dict[str, Any]:
+def get_default_config(component_type: str) -> dict[str, Any]:
     """Get default configuration for a component type."""
     config = get_component_config(component_type)
     if not config:

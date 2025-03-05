@@ -23,6 +23,7 @@ import time
 import traceback
 from datetime import datetime
 from enum import Enum
+from importlib.util import find_spec
 from typing import Any
 
 import matplotlib
@@ -333,15 +334,13 @@ class UnifiedRetrievalBenchmark:
 
     def _get_memory_usage(self) -> float:
         """Get current process memory usage in MB"""
-        try:
-            import os
-
-            import psutil
-
-            process = psutil.Process(os.getpid())
-            return process.memory_info().rss / (1024 * 1024)
-        except ImportError:
+        if find_spec("psutil") is None:
             return 0.0
+
+        import psutil
+
+        process = psutil.Process(os.getpid())
+        return process.memory_info().rss / (1024 * 1024)
 
     def create_system(self, system_type: SystemType):
         """

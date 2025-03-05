@@ -1,7 +1,7 @@
 """Base interface for vector search providers."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import numpy as np
 
@@ -14,7 +14,7 @@ class IVectorSearchProvider(ABC):
     """
 
     @abstractmethod
-    def index(self, vectors: np.ndarray, ids: List[Any]) -> None:
+    def index(self, vectors: np.ndarray, ids: list[Any]) -> None:
         """
         Index vectors with associated IDs.
 
@@ -27,7 +27,7 @@ class IVectorSearchProvider(ABC):
     @abstractmethod
     def search(
         self, query_vector: np.ndarray, k: int, threshold: Optional[float] = None
-    ) -> List[Tuple[Any, float]]:
+    ) -> list[tuple[Any, float]]:
         """
         Search for similar vectors.
 
@@ -68,7 +68,7 @@ class IVectorSearchProvider(ABC):
         pass
 
     @abstractmethod
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get statistics about the index.
 

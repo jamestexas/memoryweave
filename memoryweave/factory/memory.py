@@ -4,7 +4,7 @@ This module provides factories for creating memory-related components,
 such as memory stores, vector stores, and activation managers.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from memoryweave.config.options import get_default_config
 from memoryweave.config.validation import ConfigValidationError, validate_config
@@ -13,10 +13,10 @@ from memoryweave.interfaces.memory import (
     ICategoryManager,
     IMemoryStore,
     IVectorStore,
+    MemoryStore,
 )
 from memoryweave.storage.activation import ActivationManager, TemporalActivationManager
 from memoryweave.storage.category import CategoryManager
-from memoryweave.interfaces.memory import MemoryStore
 from memoryweave.storage.vector_store import (
     ActivationVectorStore,
     ANNActivationVectorStore,
@@ -30,7 +30,7 @@ class MemoryFactory:
     """Factory for creating memory-related components."""
 
     @staticmethod
-    def create_memory_store(config: Optional[Dict[str, Any]] = None) -> IMemoryStore:
+    def create_memory_store(config: Optional[dict[str, Any]] = None) -> IMemoryStore:
         """Create a memory store component.
 
         Args:
@@ -59,7 +59,7 @@ class MemoryFactory:
         return MemoryStore()
 
     @staticmethod
-    def create_vector_store(config: Optional[Dict[str, Any]] = None) -> IVectorStore:
+    def create_vector_store(config: Optional[dict[str, Any]] = None) -> IVectorStore:
         """Create a vector store component.
 
         Args:
@@ -135,7 +135,7 @@ class MemoryFactory:
                 )
 
     @staticmethod
-    def create_activation_manager(config: Optional[Dict[str, Any]] = None) -> IActivationManager:
+    def create_activation_manager(config: Optional[dict[str, Any]] = None) -> IActivationManager:
         """Create an activation manager component.
 
         Args:
@@ -164,7 +164,7 @@ class MemoryFactory:
             )
 
     @staticmethod
-    def create_category_manager(config: Optional[Dict[str, Any]] = None) -> ICategoryManager:
+    def create_category_manager(config: Optional[dict[str, Any]] = None) -> ICategoryManager:
         """Create a category manager component.
 
         Args:

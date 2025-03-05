@@ -53,8 +53,10 @@ from memoryweave.evaluation.synthetic.benchmark import (
     BenchmarkConfig as SynBConfig,
     SyntheticBenchmark,
 )
+from memoryweave.interfaces.memory import Memory
 from memoryweave.interfaces.retrieval import Query, QueryType
-from memoryweave.interfaces.memory import Memory, MemoryStore
+from memoryweave.storage.refactored.adapter import MemoryAdapter
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 
 # set up rich logging
 logging.basicConfig(
@@ -370,7 +372,7 @@ class UnifiedBenchmark:
 
             # Initialize memory manager
             memory_store = StandardMemoryStore()
-memory_adapter = MemoryAdapter(memory_store)
+            MemoryAdapter(memory_store)
             memory_store.add_multiple(memories)
             memory_manager = MemoryManager(memory_store=memory_store)
 

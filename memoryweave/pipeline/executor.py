@@ -7,7 +7,7 @@ including handling execution context, error handling, and metrics.
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Callable, Generic, Optional, TypeVar
 
 from memoryweave.interfaces.pipeline import IPipeline
 
@@ -20,7 +20,7 @@ class ExecutionResult:
     result: Any
     error: Optional[Exception] = None
     execution_time: float = 0.0
-    metrics: Dict[str, Any] = None
+    metrics: dict[str, Any] = None
 
 
 T = TypeVar("T")
@@ -33,7 +33,7 @@ class PipelineExecutor(Generic[T, U]):
     def __init__(self):
         """Initialize the pipeline executor."""
         self._logger = logging.getLogger(__name__)
-        self._metrics_collectors: List[Callable[[IPipeline, T, U, float], Dict[str, Any]]] = []
+        self._metrics_collectors: list[Callable[[IPipeline, T, U, float], dict[str, Any]]] = []
 
     def execute(self, pipeline: IPipeline[T, U], input_data: T) -> ExecutionResult:
         """Execute a pipeline with error handling and metrics."""
@@ -71,14 +71,14 @@ class PipelineExecutor(Generic[T, U]):
             )
 
     def add_metrics_collector(
-        self, collector: Callable[[IPipeline, T, U, float], Dict[str, Any]]
+        self, collector: Callable[[IPipeline, T, U, float], dict[str, Any]]
     ) -> None:
         """Add a metrics collector function."""
         self._metrics_collectors.append(collector)
 
     def _collect_metrics(
         self, pipeline: IPipeline[T, U], input_data: T, result: U, execution_time: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Collect metrics from all registered collectors."""
         metrics = {"execution_time": execution_time, "pipeline_stages": len(pipeline.get_stages())}
 
@@ -95,7 +95,7 @@ class PipelineExecutor(Generic[T, U]):
 
 def basic_metrics_collector(
     pipeline: IPipeline, input_data: Any, result: Any, execution_time: float
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Basic metrics collector for pipeline execution."""
     metrics = {"execution_time_ms": execution_time * 1000}
 

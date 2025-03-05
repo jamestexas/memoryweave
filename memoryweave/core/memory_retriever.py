@@ -7,7 +7,8 @@ This module is deprecated. Please use the component-based architecture instead:
 """
 
 import warnings
-from typing import Any, Optional, Tuple
+from importlib.util import find_spec
+from typing import Any, Optional
 
 import numpy as np
 
@@ -18,11 +19,11 @@ warnings.warn(
     stacklevel=2,
 )
 
-try:
+if find_spec("faiss") is not None:
     import faiss
 
     FAISS_AVAILABLE = True
-except ImportError:
+else:
     FAISS_AVAILABLE = False
 
 
@@ -353,7 +354,7 @@ class MemoryRetriever:
 
     def _retrieve_with_ann(
         self, query_embedding: np.ndarray, top_k: int, confidence_threshold: float
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Retrieve memories using ANN search."""
         # Ensure valid parameters
         if not self.ann_initialized or self.ann_index is None:

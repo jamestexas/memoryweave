@@ -10,7 +10,7 @@ See MIGRATION_GUIDE.md for detailed migration instructions.
 """
 
 import warnings
-from typing import Any, Dict, List
+from typing import Any
 
 from memoryweave.components import Retriever
 from memoryweave.core.memory_retriever import MemoryRetriever
@@ -116,7 +116,7 @@ class RefactoredRetriever:
         conversation_history=None,
         top_k: int = 5,
         confidence_threshold: float = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Retrieve memories relevant to the query and conversation context.
 

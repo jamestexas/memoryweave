@@ -6,7 +6,7 @@ including data models, protocols, and base classes for memory components.
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Protocol, TypedDict, Union
+from typing import Any, Optional, Protocol, TypedDict, Union
 
 import numpy as np
 
@@ -19,7 +19,7 @@ class MemoryContent(TypedDict):
     """Content of a memory."""
 
     text: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 @dataclass
@@ -29,7 +29,7 @@ class Memory:
     id: MemoryID
     embedding: EmbeddingVector
     content: MemoryContent
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class MemoryType(Enum):
@@ -46,7 +46,7 @@ class IMemoryStore(Protocol):
     """Interface for memory storage component."""
 
     def add(
-        self, embedding: EmbeddingVector, content: str, metadata: Optional[Dict[str, Any]] = None
+        self, embedding: EmbeddingVector, content: str, metadata: Optional[dict[str, Any]] = None
     ) -> MemoryID:
         """Add a memory and return its ID."""
         ...
@@ -55,7 +55,7 @@ class IMemoryStore(Protocol):
         """Retrieve a memory by ID."""
         ...
 
-    def get_all(self) -> List[Memory]:
+    def get_all(self) -> list[Memory]:
         """Retrieve all memories."""
         ...
 
@@ -63,7 +63,7 @@ class IMemoryStore(Protocol):
         """Get all embeddings as a matrix."""
         ...
 
-    def get_ids(self) -> List[MemoryID]:
+    def get_ids(self) -> list[MemoryID]:
         """Get all memory IDs."""
         ...
 
@@ -71,7 +71,7 @@ class IMemoryStore(Protocol):
         """Update activation level of a memory."""
         ...
 
-    def update_metadata(self, memory_id: MemoryID, metadata: Dict[str, Any]) -> None:
+    def update_metadata(self, memory_id: MemoryID, metadata: dict[str, Any]) -> None:
         """Update metadata of a memory."""
         ...
 
@@ -83,7 +83,7 @@ class IMemoryStore(Protocol):
         """Clear all memories from the store."""
         ...
 
-    def consolidate(self, max_memories: int) -> List[MemoryID]:
+    def consolidate(self, max_memories: int) -> list[MemoryID]:
         """Consolidate memories to stay within capacity.
 
         Returns:
@@ -101,7 +101,7 @@ class IVectorStore(Protocol):
 
     def search(
         self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
-    ) -> List[tuple[MemoryID, float]]:
+    ) -> list[tuple[MemoryID, float]]:
         """Search for similar vectors.
 
         Args:
@@ -138,7 +138,7 @@ class IActivationManager(Protocol):
         """Apply decay to all memory activations."""
         ...
 
-    def get_most_active(self, k: int) -> List[tuple[MemoryID, float]]:
+    def get_most_active(self, k: int) -> list[tuple[MemoryID, float]]:
         """Get the k most active memories."""
         ...
 
@@ -154,7 +154,7 @@ class ICategoryManager(Protocol):
         """Get the category ID for a memory."""
         ...
 
-    def get_category_members(self, category_id: int) -> List[MemoryID]:
+    def get_category_members(self, category_id: int) -> list[MemoryID]:
         """Get all memories in a category."""
         ...
 
@@ -162,7 +162,7 @@ class ICategoryManager(Protocol):
         """Get the prototype vector for a category."""
         ...
 
-    def consolidate_categories(self, similarity_threshold: float) -> List[int]:
+    def consolidate_categories(self, similarity_threshold: float) -> list[int]:
         """Merge similar categories.
 
         Returns:
@@ -179,13 +179,13 @@ class IMemoryEncoder(Protocol):
         ...
 
     def encode_interaction(
-        self, query: str, response: str, metadata: Optional[Dict[str, Any]] = None
+        self, query: str, response: str, metadata: Optional[dict[str, Any]] = None
     ) -> EmbeddingVector:
         """Encode a query-response interaction into an embedding vector."""
         ...
 
     def encode_concept(
-        self, concept: str, definition: str, examples: Optional[List[str]] = None
+        self, concept: str, definition: str, examples: Optional[list[str]] = None
     ) -> EmbeddingVector:
         """Encode a concept into an embedding vector."""
         ...

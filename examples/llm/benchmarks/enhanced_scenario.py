@@ -107,7 +107,7 @@ def run_benchmark(model_name: str, with_memory: bool):
     logger.info(f"Shared user facts. (Took {elapsed:.2f}s)")
 
     # Test each scenario.
-    for fact, question, expected_substrs, scenario_type in TEST_SCENARIOS:
+    for _fact, question, expected_substrs, scenario_type in TEST_SCENARIOS:
         logger.info(f"[bold yellow]User:[/bold yellow] {question}", extra=dict(markup=True))
         start_time = time.time()
         if with_memory:

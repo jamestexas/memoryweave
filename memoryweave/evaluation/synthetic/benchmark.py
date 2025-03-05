@@ -15,7 +15,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -874,12 +874,12 @@ def main():
 
 def run_benchmark_with_config(
     dataset_path: Union[str, Path],
-    config: Dict[str, Any],
-    metrics: List[str] = None,
+    config: dict[str, Any],
+    metrics: list[str] = None,
     verbose: bool = True,
     max_queries: Optional[int] = None,
     track_query_performance: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run a benchmark with a single configuration.
 

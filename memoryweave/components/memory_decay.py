@@ -6,7 +6,7 @@ gradually reducing the activation levels of memories that haven't
 been recently accessed.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 
@@ -31,7 +31,7 @@ class MemoryDecayComponent(Component):
         self.art_clustering_enabled = False
         self.memory = None
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
         self.memory_decay_enabled = config.get("memory_decay_enabled", True)
         self.memory_decay_rate = config.get("memory_decay_rate", 0.99)
@@ -39,7 +39,7 @@ class MemoryDecayComponent(Component):
         self.art_clustering_enabled = config.get("art_clustering_enabled", False)
         self.memory = config.get("memory", None)
 
-    def process(self, data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """
         Process data by applying memory decay as needed.
 
@@ -67,7 +67,7 @@ class MemoryDecayComponent(Component):
 
         return data
 
-    def process_query(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """
         Process a query by applying memory decay and returning updated context.
 

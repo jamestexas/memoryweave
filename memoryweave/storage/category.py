@@ -4,8 +4,6 @@ This module provides implementations for memory categorization,
 using ART-inspired clustering to organize memories into categories.
 """
 
-from typing import Dict, List, Set
-
 import numpy as np
 
 from memoryweave.interfaces.memory import EmbeddingVector, ICategoryManager, MemoryID
@@ -22,9 +20,9 @@ class CategoryManager(ICategoryManager):
                 Higher values create more specific categories
         """
         self._vigilance = vigilance
-        self._categories: Dict[int, EmbeddingVector] = {}  # Category ID -> Prototype
-        self._members: Dict[int, Set[MemoryID]] = {}  # Category ID -> Members
-        self._memory_category: Dict[MemoryID, int] = {}  # Memory ID -> Category ID
+        self._categories: dict[int, EmbeddingVector] = {}  # Category ID -> Prototype
+        self._members: dict[int, set[MemoryID]] = {}  # Category ID -> Members
+        self._memory_category: dict[MemoryID, int] = {}  # Memory ID -> Category ID
         self._next_category_id = 0
 
     def add_to_category(self, memory_id: MemoryID, embedding: EmbeddingVector) -> int:
@@ -63,7 +61,7 @@ class CategoryManager(ICategoryManager):
 
         return self._memory_category[memory_id]
 
-    def get_category_members(self, category_id: int) -> List[MemoryID]:
+    def get_category_members(self, category_id: int) -> list[MemoryID]:
         """Get all memories in a category."""
         if category_id not in self._members:
             raise KeyError(f"Category with ID {category_id} not found")
@@ -77,7 +75,7 @@ class CategoryManager(ICategoryManager):
 
         return self._categories[category_id]
 
-    def consolidate_categories(self, similarity_threshold: float) -> List[int]:
+    def consolidate_categories(self, similarity_threshold: float) -> list[int]:
         """Merge similar categories."""
         if len(self._categories) <= 1:
             return []

@@ -19,8 +19,7 @@ from memoryweave.components.associative_linking import AssociativeMemoryLinker
 from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.component_names import ComponentName
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.interfaces.memory import IMemoryStore, MemoryID
-from memoryweave.interfaces.memory import MemoryStore
+from memoryweave.interfaces.memory import IMemoryStore, MemoryID, MemoryStore
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -272,7 +271,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         query = context.get("query", "")
 
         # Get current time from context or use current time
-        current_time = context.get("current_time", time.time())
+        context.get("current_time", time.time())
 
         # Apply parameter adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})

@@ -3,14 +3,14 @@ Vector search baseline retriever implementation.
 """
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
 from memoryweave.baselines.base import BaselineRetriever
-from memoryweave.interfaces.retrieval import Query
 from memoryweave.interfaces.memory import Memory
+from memoryweave.interfaces.retrieval import Query
 
 
 class VectorBaselineRetriever(BaselineRetriever):
@@ -30,7 +30,7 @@ class VectorBaselineRetriever(BaselineRetriever):
             use_exact_search: Whether to use exact search (True) or approximate (False)
         """
         self.use_exact_search = use_exact_search
-        self.memories: List[Memory] = []
+        self.memories: list[Memory] = []
         self.embeddings: Optional[np.ndarray] = None
         self.stats = {
             "index_size": 0,
@@ -39,7 +39,7 @@ class VectorBaselineRetriever(BaselineRetriever):
             "avg_query_time": 0,
         }
 
-    def index_memories(self, memories: List[Memory]) -> None:
+    def index_memories(self, memories: list[Memory]) -> None:
         """Index a list of memories for vector retrieval.
 
         Args:
@@ -71,7 +71,7 @@ class VectorBaselineRetriever(BaselineRetriever):
 
     def retrieve(
         self, query: Query, top_k: int = 10, threshold: float = 0.0, **kwargs
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Retrieve memories using vector similarity.
 
         Args:
@@ -138,7 +138,7 @@ class VectorBaselineRetriever(BaselineRetriever):
             },
         }
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get retrieval statistics for the vector baseline.
 
         Returns:

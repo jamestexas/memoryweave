@@ -7,8 +7,8 @@ This directory contains the storage components for MemoryWeave, responsible for 
 The storage system follows a layered architecture:
 
 1. **Base Stores** - Handle persistence and core operations
-2. **Adapters** - Provide efficient access patterns and ID resolution
-3. **Vector Search** - Specialized components for similarity search
+1. **Adapters** - Provide efficient access patterns and ID resolution
+1. **Vector Search** - Specialized components for similarity search
 
 ## Directories
 
@@ -62,12 +62,9 @@ from memoryweave.factory.memory_factory import MemoryStoreConfig, create_memory_
 # Configure memory store and adapter
 config = MemoryStoreConfig(
     type="hybrid",
-    vector_search=VectorSearchConfig(
-        type="faiss",
-        faiss_index_type="IVF100,Flat"
-    ),
+    vector_search=VectorSearchConfig(type="faiss", faiss_index_type="IVF100,Flat"),
     adaptive_threshold=800,
-    max_chunks_per_memory=3
+    max_chunks_per_memory=3,
 )
 
 # Create adapter with appropriate store

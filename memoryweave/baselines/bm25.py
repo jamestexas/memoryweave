@@ -5,7 +5,7 @@ BM25 baseline retriever implementation using Whoosh.
 import os
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 from whoosh.analysis import StandardAnalyzer
@@ -15,8 +15,8 @@ from whoosh.qparser import QueryParser
 from whoosh.scoring import BM25F
 
 from memoryweave.baselines.base import BaselineRetriever
-from memoryweave.interfaces.retrieval import Query
 from memoryweave.interfaces.memory import Memory
+from memoryweave.interfaces.retrieval import Query
 
 
 class BM25Retriever(BaselineRetriever):
@@ -55,14 +55,14 @@ class BM25Retriever(BaselineRetriever):
             self.index_dir = self.temp_dir.name
 
         self.index = create_in(self.index_dir, self.schema)
-        self.memory_lookup: Dict[str, Memory] = {}
+        self.memory_lookup: dict[str, Memory] = {}
         self.stats = {
             "index_size": 0,
             "query_times": [],
             "avg_query_time": 0,
         }
 
-    def index_memories(self, memories: List[Memory]) -> None:
+    def index_memories(self, memories: list[Memory]) -> None:
         """Index a list of memories using BM25.
 
         Args:
@@ -93,7 +93,7 @@ class BM25Retriever(BaselineRetriever):
 
     def retrieve(
         self, query: Query, top_k: int = 10, threshold: float = 0.0, **kwargs
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Retrieve memories using BM25.
 
         Args:
@@ -222,7 +222,7 @@ class BM25Retriever(BaselineRetriever):
                 "metadata": {"query_time": query_time, "bm25_params": {"b": self.b, "k1": self.k1}},
             }
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get retrieval statistics for BM25.
 
         Returns:

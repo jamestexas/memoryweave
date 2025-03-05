@@ -395,7 +395,7 @@ class OptimizedBenchmarkRunner:
                     # Add memories in batches with progress tracking
                     batch_size = 50
                     memory_count = len(memories)
-                    batch_count = (memory_count + batch_size - 1) // batch_size
+                    (memory_count + batch_size - 1) // batch_size
 
                     with Progress(
                         SpinnerColumn(),

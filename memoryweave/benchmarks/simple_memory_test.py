@@ -82,7 +82,7 @@ def test_basic_operations():
     # Verify removal
     try:
         adapter.get(memory_id)
-        assert False, "Memory still exists after removal"
+        raise AssertionError("Memory still exists after removal")
     except KeyError:
         logger.info("Memory removal verified")
 

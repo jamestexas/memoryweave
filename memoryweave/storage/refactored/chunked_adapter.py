@@ -1,7 +1,7 @@
 """Adapter for chunked memory stores."""
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -46,7 +46,7 @@ class ChunkedMemoryAdapter(MemoryAdapter):
         return self._chunk_embeddings_cache
 
     @property
-    def chunk_metadata(self) -> List[Dict[str, Any]]:
+    def chunk_metadata(self) -> list[dict[str, Any]]:
         """
         Get metadata for all chunks.
 
@@ -58,7 +58,7 @@ class ChunkedMemoryAdapter(MemoryAdapter):
         return self._chunk_metadata_cache
 
     @property
-    def chunk_ids(self) -> List[Tuple[MemoryID, int]]:
+    def chunk_ids(self) -> list[tuple[MemoryID, int]]:
         """
         Get all (memory_id, chunk_index) pairs.
 
@@ -129,7 +129,7 @@ class ChunkedMemoryAdapter(MemoryAdapter):
 
     def search_chunks(
         self, query_vector: np.ndarray, limit: int = 10, threshold: float | None = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Search for chunks similar to the query embedding.
 
@@ -146,10 +146,10 @@ class ChunkedMemoryAdapter(MemoryAdapter):
 
     def add_chunked(
         self,
-        chunks: List[Dict[str, Any]],
-        chunk_embeddings: List[EmbeddingVector],
+        chunks: list[dict[str, Any]],
+        chunk_embeddings: list[EmbeddingVector],
         original_content: str,
-        metadata: Dict[str, Any | None] = None,
+        metadata: dict[str, Any | None] = None,
     ) -> MemoryID:
         """
         Add a memory consisting of multiple chunks.
@@ -169,7 +169,7 @@ class ChunkedMemoryAdapter(MemoryAdapter):
         self.invalidate_cache()
         return memory_id
 
-    def get_chunks(self, memory_id: MemoryID) -> List[Any]:
+    def get_chunks(self, memory_id: MemoryID) -> list[Any]:
         """
         Get all chunks for a memory.
 

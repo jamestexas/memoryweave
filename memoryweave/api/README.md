@@ -31,10 +31,10 @@ response = api.chat("What did I tell you earlier?")
 The API layer:
 
 1. Uses refactored storage components under the hood
-2. Handles embedding generation
-3. Manages conversation history
-4. Orchestrates the retrieval process
-5. Formats prompts for the LLM
+1. Handles embedding generation
+1. Manages conversation history
+1. Orchestrates the retrieval process
+1. Formats prompts for the LLM
 
 ## Dependencies
 

@@ -95,7 +95,7 @@ def run_benchmark(model_name: str, with_memory: bool):
     logger.info(f"Shared user facts. (Took {elapsed:.2f}s)")
 
     # 3) Now we ask about each fact in turn
-    for fact, question, expected_substrs in USER_FACTS:
+    for _fact, question, expected_substrs in USER_FACTS:
         # Ask the question
         logger.info(f"[bold yellow]User:[/bold yellow] {question}", extra=dict(markup=True))
         start_time = time.time()

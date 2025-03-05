@@ -6,7 +6,7 @@ including query type classification and keyword extraction.
 
 import re
 from collections import Counter
-from typing import Any, Dict, List
+from typing import Any
 
 from memoryweave.interfaces.query import IQueryAnalyzer
 from memoryweave.interfaces.retrieval import QueryType
@@ -152,11 +152,11 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
 
         return ComponentType.QUERY_ANALYZER
 
-    def get_dependencies(self) -> List[str]:
+    def get_dependencies(self) -> list[str]:
         """Get the IDs of components this component depends on."""
         return []
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the component with configuration."""
         self.configure(config)
 
@@ -197,7 +197,7 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
             # Default to unknown if no matches
             return QueryType.UNKNOWN
 
-    def extract_keywords(self, query_text: str) -> List[str]:
+    def extract_keywords(self, query_text: str) -> list[str]:
         """Extract keywords from a query."""
         # Tokenize and clean the query
         words = re.findall(r"\b\w+\b", query_text.lower())
@@ -230,7 +230,7 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
 
         return final_keywords
 
-    def extract_entities(self, query_text: str) -> List[str]:
+    def extract_entities(self, query_text: str) -> list[str]:
         """Extract entities from a query.
 
         Note:
@@ -258,7 +258,7 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
 
         return unique_entities
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the query analyzer."""
         if "min_keyword_length" in config:
             self._config["min_keyword_length"] = config["min_keyword_length"]

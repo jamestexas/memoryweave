@@ -32,6 +32,14 @@ from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
+from memoryweave.components.retrieval_strategies import (
+    HybridRetrievalStrategy,
+    SimilarityRetrievalStrategy,
+    TwoStageRetrievalStrategy,
+)
+from memoryweave.components.retriever import Retriever
+from memoryweave.core.contextual_memory import ContextualMemory
+
 # set up rich logging
 logging.basicConfig(
     level=logging.INFO,
@@ -41,30 +49,14 @@ logging.basicConfig(
 logger = logging.getLogger("memoryweave")
 console = Console()
 
-# Attempt to import MemoryWeave components
-try:
-    from memoryweave.components.memory_manager import MemoryManager
-    from memoryweave.components.retrieval_strategies import (
-        HybridRetrievalStrategy,
-        SimilarityRetrievalStrategy,
-        TemporalRetrievalStrategy,
-        TwoStageRetrievalStrategy,
-    )
-    from memoryweave.components.retriever import Retriever
-    from memoryweave.core.contextual_memory import ContextualMemory
-except ImportError as e:
-    logger.error(f"[bold red]Error importing MemoryWeave components: {e}[/bold red]")
-    raise
 
 # Try to import sentence_transformers; use a mock if not available
-try:
-    import logging as python_logging
-
+if find_spec("sentence_transformers") is not None:
+    for logger_name in ["sentence_transformers", "transformers"]:
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
     from sentence_transformers import SentenceTransformer
 
     # Suppress sentence-transformers progress bars by setting higher log level
-    for logger_name in ["sentence_transformers", "transformers"]:
-        python_logging.getLogger(logger_name).setLevel(python_logging.ERROR)
 
     # Use a model with 384 dimensions to match the expected size
     embedding_model = SentenceTransformer("all-MiniLM-L6-v2", device="mps")
@@ -72,7 +64,7 @@ try:
 
     logger.info("[green]Using SentenceTransformer for embeddings (dim=%d)[/green]" % EMBEDDING_DIM)
     USE_REAL_EMBEDDINGS = True
-except ImportError:
+else:
     logger.warning("[yellow]SentenceTransformer not available, using mock embedding model[/yellow]")
     logger.warning(
         "[bold yellow]WARNING: Mock embeddings will not represent semantic similarity accurately[/bold yellow]"

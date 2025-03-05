@@ -7,7 +7,6 @@ using the standard vector store vs. the ANN-based vector store.
 """
 
 import time
-from typing import List
 
 import numpy as np
 
@@ -36,7 +35,7 @@ class MockEmbeddingModel:
         return embedding / np.linalg.norm(embedding)  # Normalize
 
 
-def generate_test_data(num_memories: int, embedding_model) -> List[tuple]:
+def generate_test_data(num_memories: int, embedding_model) -> list[tuple]:
     """Generate synthetic test memories."""
     print(f"Generating {num_memories} test memories...")
 
@@ -85,7 +84,7 @@ def test_retrieval_performance(memory_store_size: int):
         memory_standard.add_memory(embedding, text, {"index": i})
 
     # Test retrieval time
-    retriever_standard = Retriever(memory=memory_standard, embedding_model=embedding_model)
+    Retriever(memory=memory_standard, embedding_model=embedding_model)
     standard_times = []
 
     for i, query in enumerate(test_queries[:3]):  # Only use first 3 queries to avoid index errors
@@ -131,7 +130,7 @@ def test_retrieval_performance(memory_store_size: int):
         memory_ann.add_memory(embedding, text, {"index": i})
 
     # Test retrieval time
-    retriever_ann = Retriever(memory=memory_ann, embedding_model=embedding_model)
+    Retriever(memory=memory_ann, embedding_model=embedding_model)
     ann_times = []
 
     for i, query in enumerate(test_queries[:3]):  # Only use first 3 queries to avoid index errors

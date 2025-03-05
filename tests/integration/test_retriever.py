@@ -181,9 +181,7 @@ class RetrieverIntegrationTest(unittest.TestCase):
         first_query = "Tell me about Python"
         conversation_history = []
 
-        first_results = self.refactored_retriever.retrieve_for_context(
-            first_query, conversation_history
-        )
+        self.refactored_retriever.retrieve_for_context(first_query, conversation_history)
 
         # Create conversation history
         conversation_history = [

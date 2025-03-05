@@ -104,6 +104,6 @@ class StreamingHandler:
         response_text = full_text[len(prompt_text) :]
 
         # Simulate streaming by yielding chunks
-        for i, token in enumerate(response_text.split()):
+        for _i, token in enumerate(response_text.split()):
             yield token + " "
             await asyncio.sleep(0.01)  # Simulate typing delay

@@ -7,7 +7,7 @@ enabling more accurate retrieval from large text contexts.
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 from rich.logging import RichHandler
@@ -76,7 +76,7 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
         self.supports_chunks = False
         # Will be set in initialize()
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the strategy with configuration.
 
@@ -116,8 +116,8 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
         self,
         query_embedding: np.ndarray,
         top_k: int,
-        context: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        context: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """
         Retrieve memories using the chunked contextual fabric strategy.
 
@@ -145,7 +145,7 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
         query = context.get("query", "")
 
         # Get current time from context or use current time
-        current_time = context.get("current_time", time.time())
+        context.get("current_time", time.time())
 
         # Apply parameter adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
@@ -218,7 +218,7 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
         query_embedding: np.ndarray,
         max_results: int,
         memory_store,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Retrieve chunks by similarity to the query embedding.
 
@@ -285,8 +285,8 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
         return results
 
     def _aggregate_chunks_by_memory(
-        self, chunk_results: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, chunk_results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Group chunk results by memory ID and calculate memory-level scores.
 
@@ -380,8 +380,8 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
         return memory_results
 
     def _enhance_with_chunk_context(
-        self, memory_results: List[Dict[str, Any]], chunk_results: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, memory_results: list[dict[str, Any]], chunk_results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Enhance memory results with chunk context information.
 
@@ -443,7 +443,7 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
 
         return memory_results
 
-    def _are_chunks_sequential(self, chunk_indices: List[int]) -> bool:
+    def _are_chunks_sequential(self, chunk_indices: list[int]) -> bool:
         """
         Check if chunks are sequential.
 
@@ -466,7 +466,7 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
 
         return True
 
-    def _get_sequential_chunks(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _get_sequential_chunks(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Get the longest sequence of sequential chunks.
 

@@ -9,7 +9,7 @@ import json
 import statistics
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 import pytest
@@ -146,8 +146,8 @@ class TestBenchmarkPerformance:
         }
 
     def run_timed_benchmark(
-        self, dataset_path: str, config: Dict[str, Any], max_queries: int = 5, runs: int = 3
-    ) -> Dict[str, Any]:
+        self, dataset_path: str, config: dict[str, Any], max_queries: int = 5, runs: int = 3
+    ) -> dict[str, Any]:
         """
         Run a benchmark with timing measurements.
 
@@ -164,7 +164,7 @@ class TestBenchmarkPerformance:
         execution_times = []
         query_time_sets = []
 
-        for run in range(runs):
+        for _run in range(runs):
             # Configure run to track query times
             run_config = config.copy()
             run_config["track_query_performance"] = True
@@ -233,7 +233,7 @@ class TestBenchmarkPerformance:
         }
 
     def save_performance_data(
-        self, performance_data: Dict[str, Any], file_name: str = "benchmark_performance.json"
+        self, performance_data: dict[str, Any], file_name: str = "benchmark_performance.json"
     ):
         """Save performance data to a JSON file for future comparison."""
         # Create file path

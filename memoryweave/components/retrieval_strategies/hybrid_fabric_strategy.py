@@ -147,7 +147,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         query = context.get("query", "")
 
         # Get current time from context or use current time
-        current_time = context.get("current_time", time.time())
+        context.get("current_time", time.time())
 
         # Apply parameter adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})

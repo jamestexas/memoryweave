@@ -14,6 +14,7 @@ Usage:
   uv run python examples/llm/visualize_memory_fabric.py --help
 """
 
+import logging
 import os
 import random
 import time
@@ -26,16 +27,26 @@ import numpy as np
 import rich_click as click
 from matplotlib.figure import Figure
 from rich.console import Console
+from rich.logging import RichHandler
 
 # Import the MemoryWeave API
 from memoryweave.api import MemoryWeaveAPI
 
-try:
+logging.basicConfig(
+    level="INFO",
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(markup=True)],
+)
+logger = logging.getLogger("memoryweave")
+
+if findspec("matplotlib") is not None:
     import matplotlib
 
     matplotlib.use("TkAgg")  # Use TkAgg backend for interactive plotting
-except ImportError:
-    pass  # Fall back to default backend if TkAgg is not available
+else:
+    logger.warning("[bold yellow]Warning: matplotlib not found, plotting disabled[/bold yellow]")
+
 
 console = Console()
 
@@ -244,7 +255,7 @@ class MemoryFabricVisualizer:
                     self.graph.add_edge(memory_id, linked_id, weight=strength, type="associative")
 
         # Add temporal episode links (connect memories in the same episode)
-        for episode_id, memory_ids in self.temporal_episodes.items():
+        for _episode_id, memory_ids in self.temporal_episodes.items():
             for i in range(len(memory_ids)):
                 for j in range(i + 1, len(memory_ids)):
                     self.graph.add_edge(memory_ids[i], memory_ids[j], weight=0.3, type="temporal")

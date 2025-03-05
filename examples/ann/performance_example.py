@@ -5,7 +5,6 @@ and the new ANN-based vector store implementation for different memory store siz
 """
 
 import time
-from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,17 +18,17 @@ from memoryweave.storage.vector_store import (
 )
 
 
-def generate_random_vectors(count: int, dimension: int = 768) -> List[np.ndarray]:
+def generate_random_vectors(count: int, dimension: int = 768) -> list[np.ndarray]:
     """Generate random embedding vectors."""
     return [np.random.randn(dimension).astype(np.float32) for _ in range(count)]
 
 
 def benchmark_vector_stores(
-    memory_counts: List[int],
+    memory_counts: list[int],
     dimension: int = 768,
     num_queries: int = 10,
     k: int = 10,
-) -> Dict[str, Dict[str, List[float]]]:
+) -> dict[str, dict[str, list[float]]]:
     """Benchmark different vector store implementations across memory scales."""
     results = {
         "SimpleVectorStore": {"add_time": [], "search_time": [], "memory_size": []},
@@ -126,7 +125,7 @@ def benchmark_vector_stores(
     return results
 
 
-def measure_add_time(store, vectors: List[np.ndarray]) -> float:
+def measure_add_time(store, vectors: list[np.ndarray]) -> float:
     """Measure time to add vectors to store."""
     start_time = time.time()
     for i, vector in enumerate(vectors):
@@ -134,7 +133,7 @@ def measure_add_time(store, vectors: List[np.ndarray]) -> float:
     return time.time() - start_time
 
 
-def measure_search_time(store, query_vectors: List[np.ndarray], k: int) -> float:
+def measure_search_time(store, query_vectors: list[np.ndarray], k: int) -> float:
     """Measure time to search vectors in store."""
     search_times = []
     for query in query_vectors:
@@ -145,7 +144,7 @@ def measure_search_time(store, query_vectors: List[np.ndarray], k: int) -> float
 
 
 def plot_results(
-    results: Dict[str, Dict[str, List[float]]], output_path: str = "vector_store_benchmark.png"
+    results: dict[str, dict[str, list[float]]], output_path: str = "vector_store_benchmark.png"
 ):
     """Plot benchmark results."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))

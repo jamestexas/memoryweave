@@ -1,6 +1,7 @@
 """Vector search implementations for MemoryWeave."""
 
-from typing import Any, Dict, Optional
+from importlib.util import find_spec
+from typing import Any, Optional
 
 from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
@@ -24,14 +25,13 @@ def get_faiss_search():
     """Get the FAISS vector search implementation."""
     global _FAISS_SEARCH
     if _FAISS_SEARCH is None:
-        try:
-            from memoryweave.storage.vector_search.faiss_search import FaissVectorSearch
-
-            _FAISS_SEARCH = FaissVectorSearch
-        except ImportError:
+        if find_spec("faiss") is None:
             raise ImportError(
                 "FAISS is not installed. Install it with: pip install faiss-cpu or faiss-gpu"
             )
+        from memoryweave.storage.vector_search.faiss_search import FaissVectorSearch
+
+        _FAISS_SEARCH = FaissVectorSearch
     return _FAISS_SEARCH
 
 

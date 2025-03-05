@@ -3,18 +3,17 @@ Tests for baseline retrieval implementations.
 """
 
 import uuid
-from typing import List
 
 import numpy as np
 import pytest
 
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
-from memoryweave.interfaces.retrieval import Query, QueryType
 from memoryweave.interfaces.memory import Memory
+from memoryweave.interfaces.retrieval import Query, QueryType
 
 
 @pytest.fixture
-def sample_memories() -> List[Memory]:
+def sample_memories() -> list[Memory]:
     """Create a set of sample memories for testing."""
     memories = [
         Memory(

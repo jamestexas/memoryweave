@@ -1,24 +1,38 @@
 # File: memoryweave/benchmarks/performance/memory_retrieval_benchmark.py
 
 import gc
+import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from importlib.util import find_spec
+from typing import Any
 
 import numpy as np
+from rich.logging import RichHandler
 
 from memoryweave.benchmarks.base import Benchmark, BenchmarkConfig, BenchmarkResult
 from memoryweave.benchmarks.utils.visualization import create_bar_chart, create_radar_chart
 from memoryweave.components.retriever import Retriever
 from memoryweave.core.contextual_memory import ContextualMemory
 
-# Import embedding model (simplified for brevity)
-try:
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(markup=True)],
+)
+logger = logging.getLogger(__name__)
+
+
+if find_spec("sentence_transformers") is not None:
     from sentence_transformers import SentenceTransformer
 
     embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
     embedding_dim = embedding_model.get_sentence_embedding_dimension()
-except ImportError:
+else:
+    logger.warning(
+        "[bold red]Sentence Transformers library not found. Using mock embedding model.[/]"
+    )
     # Create mock embedding model
     embedding_dim = 384
 
@@ -60,7 +74,7 @@ class MemoryRetrievalConfig(BenchmarkConfig):
 class MemoryRetrievalBenchmark(Benchmark):
     """Benchmark for different memory retrieval configurations."""
 
-    def __init__(self, configs: List[MemoryRetrievalConfig]):
+    def __init__(self, configs: list[MemoryRetrievalConfig]):
         super().__init__(configs)
         self.test_data = None
 
@@ -70,7 +84,6 @@ class MemoryRetrievalBenchmark(Benchmark):
 
         # Enhanced synthetic data generation
         memory_texts = []
-        memory_types = ["personal", "factual", "opinion", "event"]
 
         # Generate more realistic test data with controlled properties
         # Personal facts with specific entities and attributes
@@ -203,7 +216,7 @@ class MemoryRetrievalBenchmark(Benchmark):
 
         return self.test_data
 
-    def setup(self, config: MemoryRetrievalConfig) -> Dict[str, Any]:
+    def setup(self, config: MemoryRetrievalConfig) -> dict[str, Any]:
         """Set up the benchmark environment for a specific configuration."""
         if not self.test_data:
             self.generate_test_data(
@@ -252,10 +265,10 @@ class MemoryRetrievalBenchmark(Benchmark):
         }
 
     def run_single_benchmark(
-        self, config: MemoryRetrievalConfig, setup_data: Dict[str, Any]
+        self, config: MemoryRetrievalConfig, setup_data: dict[str, Any]
     ) -> BenchmarkResult:
         """Run a single benchmark configuration."""
-        memory = setup_data["memory"]
+        setup_data["memory"]
         retriever = setup_data["retriever"]
 
         print(f"Running benchmark for: {config.name}")
@@ -339,7 +352,7 @@ class MemoryRetrievalBenchmark(Benchmark):
             return
 
         # Extract data for plotting
-        config_names = [r.config_name for r in self.results]
+        [r.config_name for r in self.results]
 
         # Create comparison charts for each metric
         metrics = {

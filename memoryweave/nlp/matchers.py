@@ -7,7 +7,7 @@ including regex-based matchers and more sophisticated matchers.
 import re
 from dataclasses import dataclass
 from re import Pattern
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -18,7 +18,7 @@ class PatternMatch:
     text: str
     start: int
     end: int
-    groups: Dict[str, str]
+    groups: dict[str, str]
     score: float
 
 
@@ -27,8 +27,8 @@ class RegexMatcher:
 
     def __init__(self):
         """Initialize the regex matcher."""
-        self._patterns: Dict[str, Pattern] = {}
-        self._pattern_configs: Dict[str, Dict[str, Any]] = {}
+        self._patterns: dict[str, Pattern] = {}
+        self._pattern_configs: dict[str, dict[str, Any]] = {}
 
     def add_pattern(
         self, pattern_id: str, pattern: str, flags: int = re.IGNORECASE, score: float = 1.0
@@ -37,12 +37,12 @@ class RegexMatcher:
         self._patterns[pattern_id] = re.compile(pattern, flags)
         self._pattern_configs[pattern_id] = {"score": score}
 
-    def add_patterns(self, patterns: Dict[str, str]) -> None:
+    def add_patterns(self, patterns: dict[str, str]) -> None:
         """Add multiple patterns to the matcher."""
         for pattern_id, pattern in patterns.items():
             self.add_pattern(pattern_id, pattern)
 
-    def find_matches(self, text: str) -> List[PatternMatch]:
+    def find_matches(self, text: str) -> list[PatternMatch]:
         """Find all matches in the text."""
         results = []
 
@@ -88,7 +88,7 @@ class NamedEntityMatcher:
         for entity_type, pattern in ENTITY_PATTERNS.items():
             self._matcher.add_pattern(entity_type, pattern)
 
-    def find_entities(self, text: str) -> List[PatternMatch]:
+    def find_entities(self, text: str) -> list[PatternMatch]:
         """Find all entities in the text."""
         # Get initial matches
         matches = self._matcher.find_matches(text)
@@ -96,7 +96,7 @@ class NamedEntityMatcher:
         # Filter out overlapping matches
         return self._filter_overlapping(matches)
 
-    def _filter_overlapping(self, matches: List[PatternMatch]) -> List[PatternMatch]:
+    def _filter_overlapping(self, matches: list[PatternMatch]) -> list[PatternMatch]:
         """Filter out overlapping matches, keeping the highest scoring ones."""
         if not matches:
             return []
@@ -130,7 +130,7 @@ class AttributeMatcher:
         from memoryweave.nlp.patterns import PERSONAL_ATTRIBUTE_PATTERNS
 
         # Create a regex matcher for each attribute type
-        self._matchers: Dict[str, RegexMatcher] = {}
+        self._matchers: dict[str, RegexMatcher] = {}
 
         for attr_type, patterns in PERSONAL_ATTRIBUTE_PATTERNS.items():
             matcher = RegexMatcher()
@@ -139,7 +139,7 @@ class AttributeMatcher:
                 matcher.add_pattern(pattern_id, pattern)
             self._matchers[attr_type] = matcher
 
-    def find_attributes(self, text: str) -> Dict[str, List[PatternMatch]]:
+    def find_attributes(self, text: str) -> dict[str, list[PatternMatch]]:
         """Find all attributes in the text."""
         results = {}
 
@@ -154,14 +154,14 @@ class AttributeMatcher:
 class KeywordMatcher:
     """Matcher for keywords and key phrases."""
 
-    def __init__(self, keywords: Optional[List[str]] = None):
+    def __init__(self, keywords: Optional[list[str]] = None):
         """Initialize the keyword matcher.
 
         Args:
             keywords: Optional list of keywords to initialize the matcher
         """
         self._keywords = set(keywords or [])
-        self._keyword_patterns: Dict[str, Pattern] = {}
+        self._keyword_patterns: dict[str, Pattern] = {}
 
         # Compile patterns for all keywords
         for keyword in self._keywords:
@@ -173,7 +173,7 @@ class KeywordMatcher:
             self._keywords.add(keyword)
             self._compile_keyword(keyword)
 
-    def add_keywords(self, keywords: List[str]) -> None:
+    def add_keywords(self, keywords: list[str]) -> None:
         """Add multiple keywords to the matcher."""
         for keyword in keywords:
             self.add_keyword(keyword)
@@ -185,7 +185,7 @@ class KeywordMatcher:
             if keyword in self._keyword_patterns:
                 del self._keyword_patterns[keyword]
 
-    def find_keywords(self, text: str) -> List[PatternMatch]:
+    def find_keywords(self, text: str) -> list[PatternMatch]:
         """Find all keywords in the text."""
         results = []
 

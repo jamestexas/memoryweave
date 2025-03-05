@@ -4,7 +4,7 @@ import logging
 import math
 import re
 from collections import Counter
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import numpy as np
 
@@ -81,7 +81,7 @@ class HybridBM25VectorSearch(IVectorSearchProvider):
         # Internal state
         self._dirty = True
 
-    def index(self, vectors: np.ndarray, ids: List[Any], texts: Optional[List[str]] = None) -> None:
+    def index(self, vectors: np.ndarray, ids: list[Any], texts: Optional[list[str]] = None) -> None:
         """
         Index vectors and texts with associated IDs.
 
@@ -163,7 +163,7 @@ class HybridBM25VectorSearch(IVectorSearchProvider):
         k: int,
         threshold: Optional[float] = None,
         query_text: Optional[str] = None,
-    ) -> List[Tuple[Any, float]]:
+    ) -> list[tuple[Any, float]]:
         """
         Search using both BM25 and vector similarity.
 
@@ -267,7 +267,7 @@ class HybridBM25VectorSearch(IVectorSearchProvider):
                 self._term_freqs[idx] = term_freq
 
                 # Update document length
-                old_length = self._doc_lengths[idx]
+                self._doc_lengths[idx]
                 new_length = sum(count for term, count in term_freq.items() if term in self._vocab)
                 self._doc_lengths[idx] = new_length
 
@@ -347,7 +347,7 @@ class HybridBM25VectorSearch(IVectorSearchProvider):
 
         self._dirty = True
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get statistics about the index.
 
@@ -382,7 +382,7 @@ class HybridBM25VectorSearch(IVectorSearchProvider):
         """Get the number of vectors in the index."""
         return len(self._doc_ids) if hasattr(self, "_doc_ids") else 0
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         """
         Tokenize text for BM25 indexing.
 
@@ -406,7 +406,7 @@ class HybridBM25VectorSearch(IVectorSearchProvider):
 
         return tokens
 
-    def _calculate_bm25(self, query_tokens: List[str], doc_indices: List[int]) -> List[float]:
+    def _calculate_bm25(self, query_tokens: list[str], doc_indices: list[int]) -> list[float]:
         """
         Calculate BM25 scores for documents matching the query.
 

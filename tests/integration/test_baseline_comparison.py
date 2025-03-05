@@ -8,7 +8,7 @@ works correctly with real retrievers and memory managers.
 import json
 import os
 import tempfile
-from typing import List
+from typing import list
 
 import numpy as np
 import pytest
@@ -21,12 +21,14 @@ from memoryweave.evaluation.baseline_comparison import (
     BaselineConfig,
     ComparisonResult,
 )
+from memoryweave.interfaces.memory import Memory
 from memoryweave.interfaces.retrieval import Query
-from memoryweave.interfaces.memory import Memory, MemoryStore
+from memoryweave.storage.refactored.adapter import MemoryAdapter
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 
 
 @pytest.fixture
-def test_memories() -> List[Memory]:
+def test_memories() -> list[Memory]:
     """Create a set of test memories with embeddings."""
     memories = [
         Memory(
@@ -109,14 +111,14 @@ def test_memories() -> List[Memory]:
 def memory_manager(test_memories) -> MemoryManager:
     """Create a memory manager with test memories."""
     memory_store = StandardMemoryStore()
-memory_adapter = MemoryAdapter(memory_store)
+    MemoryAdapter(memory_store)
     memory_store.add_multiple(test_memories)
 
     return MemoryManager(memory_store=memory_store)
 
 
 @pytest.fixture
-def test_queries() -> List[Query]:
+def test_queries() -> list[Query]:
     """Create test queries for evaluation."""
     return [
         Query(
@@ -129,7 +131,7 @@ def test_queries() -> List[Query]:
 
 
 @pytest.fixture
-def relevant_memory_ids() -> List[List[str]]:
+def relevant_memory_ids() -> list[list[str]]:
     """Define relevant memory IDs for each test query."""
     return [
         ["mem1", "mem5"],  # Relevant to programming language query

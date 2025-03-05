@@ -6,7 +6,7 @@ scaling to large memory stores using approximate nearest neighbor search.
 """
 
 import time
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
+from typing import Any, Callable, Literal, Optional
 
 import faiss
 import numpy as np
@@ -23,9 +23,9 @@ class SimpleVectorStore(IVectorStore):
 
     def __init__(self):
         """Initialize the vector store."""
-        self._vectors: Dict[MemoryID, EmbeddingVector] = {}
-        self._id_to_index: Dict[MemoryID, int] = {}
-        self._index_to_id: Dict[int, MemoryID] = {}
+        self._vectors: dict[MemoryID, EmbeddingVector] = {}
+        self._id_to_index: dict[MemoryID, int] = {}
+        self._index_to_id: dict[int, MemoryID] = {}
         self._dirty: bool = True
         self._matrix: Optional[np.ndarray] = None
         self.component_id = "simple_vector_store"
@@ -47,7 +47,7 @@ class SimpleVectorStore(IVectorStore):
 
     def search(
         self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
-    ) -> List[Tuple[MemoryID, float]]:
+    ) -> list[tuple[MemoryID, float]]:
         """Search for similar vectors."""
         if not self._vectors:
             return []
@@ -142,7 +142,7 @@ class ActivationVectorStore(IVectorStore):
             activation_weight: Weight of activation in final similarity score (0-1)
         """
         self._vector_store = SimpleVectorStore()
-        self._activations: Dict[MemoryID, float] = {}
+        self._activations: dict[MemoryID, float] = {}
         self._activation_weight = activation_weight
         self.component_id = "activation_vector_store"
 
@@ -163,7 +163,7 @@ class ActivationVectorStore(IVectorStore):
 
     def search(
         self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
-    ) -> List[Tuple[MemoryID, float]]:
+    ) -> list[tuple[MemoryID, float]]:
         """Search for similar vectors with activation boost."""
         # Get similarity results
         similarity_results = self._vector_store.search(
@@ -237,9 +237,9 @@ class ANNVectorStore(IVectorStore):
             build_threshold: Minimum number of vectors before building the index
             quantize: Whether to use scalar quantization to reduce memory usage
         """
-        self._vectors: Dict[MemoryID, EmbeddingVector] = {}
-        self._id_to_idx: Dict[MemoryID, int] = {}
-        self._idx_to_id: Dict[int, MemoryID] = {}
+        self._vectors: dict[MemoryID, EmbeddingVector] = {}
+        self._id_to_idx: dict[MemoryID, int] = {}
+        self._idx_to_id: dict[int, MemoryID] = {}
         self._faiss_ids = np.array([], dtype=np.int64)
 
         self._dimension = dimension
@@ -293,7 +293,7 @@ class ANNVectorStore(IVectorStore):
 
     def search(
         self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
-    ) -> List[Tuple[MemoryID, float]]:
+    ) -> list[tuple[MemoryID, float]]:
         """Search for similar vectors using approximate nearest neighbor search."""
         if not self._vectors:
             return []
@@ -316,7 +316,7 @@ class ANNVectorStore(IVectorStore):
         # Search the index
         start_time = time.time()
         k_search = min(k * 2, len(self._vectors))  # Get more results for filtering
-        D, I = self._index.search(np.array([search_vector]), k_search)
+        D, I = self._index.search(np.array([search_vector]), k_search)  # noqa: E741, N806
         self._last_search_time = time.time() - start_time
 
         # Convert scores based on the metric
@@ -370,7 +370,7 @@ class ANNVectorStore(IVectorStore):
         self._dirty = True
         self._count = 0
 
-    def get_performance_stats(self) -> Dict[str, Any]:
+    def get_performance_stats(self) -> dict[str, Any]:
         """Get performance statistics for the vector store."""
         return {
             "vector_count": len(self._vectors),
@@ -388,9 +388,9 @@ class ANNVectorStore(IVectorStore):
         initial_k: int = 100,
         final_k: int = 10,
         filter_fn: Optional[
-            Callable[[List[Tuple[MemoryID, float]]], List[Tuple[MemoryID, float]]]
+            Callable[[list[tuple[MemoryID, float]]], list[tuple[MemoryID, float]]]
         ] = None,
-    ) -> List[Tuple[MemoryID, float]]:
+    ) -> list[tuple[MemoryID, float]]:
         """Perform two-stage retrieval with progressive filtering.
 
         Args:
@@ -500,7 +500,7 @@ class ANNVectorStore(IVectorStore):
 
     def _exact_search(
         self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
-    ) -> List[Tuple[MemoryID, float]]:
+    ) -> list[tuple[MemoryID, float]]:
         """Perform exact search when we have few vectors."""
         if not self._vectors:
             return []
@@ -542,7 +542,7 @@ VectorStoreScaleType = Literal["small", "medium", "large", "auto"]
 IndexTypeOptions = Literal["Flat", "IVF", "IVFPQ", "HNSW"]
 
 
-def get_optimal_faiss_config(scale: VectorStoreScaleType, dimension: int = 768) -> Dict[str, Any]:
+def get_optimal_faiss_config(scale: VectorStoreScaleType, dimension: int = 768) -> dict[str, Any]:
     """Get optimal FAISS configuration based on memory store scale.
 
     Args:
@@ -620,7 +620,7 @@ class ANNActivationVectorStore(IVectorStore):
             build_threshold=build_threshold,
             quantize=quantize,
         )
-        self._activations: Dict[MemoryID, float] = {}
+        self._activations: dict[MemoryID, float] = {}
         self._activation_weight = activation_weight
         self.component_id = "ann_activation_vector_store"
 
@@ -641,7 +641,7 @@ class ANNActivationVectorStore(IVectorStore):
 
     def search(
         self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
-    ) -> List[Tuple[MemoryID, float]]:
+    ) -> list[tuple[MemoryID, float]]:
         """Search for similar vectors with activation boost."""
         # Determine how many candidates to fetch for activation boosting
         initial_k = min(k * 3, len(self._activations)) if self._activations else k
@@ -704,9 +704,9 @@ class ANNActivationVectorStore(IVectorStore):
         initial_k: int = 100,
         final_k: int = 10,
         filter_fn: Optional[
-            Callable[[List[Tuple[MemoryID, float]]], List[Tuple[MemoryID, float]]]
+            Callable[[list[tuple[MemoryID, float]]], list[tuple[MemoryID, float]]]
         ] = None,
-    ) -> List[Tuple[MemoryID, float]]:
+    ) -> list[tuple[MemoryID, float]]:
         """Perform two-stage retrieval with progressive filtering and activation boost.
 
         Args:
@@ -738,7 +738,7 @@ class ANNActivationVectorStore(IVectorStore):
         # Return top k results
         return filtered_results[:final_k]
 
-    def get_performance_stats(self) -> Dict[str, Any]:
+    def get_performance_stats(self) -> dict[str, Any]:
         """Get performance statistics for the vector store."""
         stats = self._vector_store.get_performance_stats()
         stats.update(
