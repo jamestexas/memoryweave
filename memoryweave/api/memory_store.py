@@ -3,10 +3,17 @@ from typing import Any
 
 import numpy as np
 import torch
+from rich.logging import RichHandler
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from memoryweave.storage.memory_store import MemoryStore
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(markup=True, rich_tracebacks=True)],
+)
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"

@@ -23,6 +23,7 @@ class ComponentType(Enum):
     QUERY_ADAPTER = auto()
     POST_PROCESSOR = auto()
     PIPELINE = auto()
+    TEXT_CHUNKER = auto()
 
 
 @runtime_checkable

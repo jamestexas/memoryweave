@@ -30,7 +30,15 @@ class PromptBuilder:
             if top_memories:
                 memory_text = "MEMORY HIGHLIGHTS:\n"
                 for m in top_memories:
-                    content = m["content"]
+                    # Handle different content formats
+                    if isinstance(m.get("content"), dict) and "text" in m["content"]:
+                        content = m["content"]["text"]
+                    elif isinstance(m.get("content"), str):
+                        content = m["content"]
+                    else:
+                        # Try to get content from other possible fields
+                        content = m.get("text", str(m))
+
                     memory_text += (
                         f"- {content[:150]}...\n" if len(content) > 150 else f"- {content}\n"
                     )

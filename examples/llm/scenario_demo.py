@@ -4,41 +4,41 @@
 scenario_demo.py
 
 A self-contained demonstration that shows MemoryWeave's capability to store and recall
-personal/contextual details across multiple conversation turns. It uses Rich logging
-and a CLI interface via rich_click for a user-friendly experience.
-
-Usage:
-  pip install rich_click
-
-  python scenario_demo.py
-    or
-  python scenario_demo.py --model "some-other-hf-model"
-    or
-  python scenario_demo.py --debug
+personal/contextual details across multiple conversation turns.
 """
 
 import logging
+import os
 import time
 
-# rich_click as a drop-in for Click to get pretty terminal formatting
+# Disable HuggingFace warnings and info messages
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+
 import rich_click as click
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.panel import Panel
 
-# Our MemoryWeave LLM wrapper (using the compatibility wrapper)
-from memoryweave.api import MemoryWeaveAPI  # Assuming MemoryWeaveAPI is available
+# Import MemoryWeave API
+from memoryweave.api import MemoryWeaveAPI
 
-FORMAT = "%(message)s"
-logging.basicConfig(
-    level=logging.INFO,  # default to INFO level
-    format=FORMAT,
-    datefmt="[%X]",
-    handlers=[RichHandler()],  # route logging through Rich for pretty logs
-)
-logger = logging.getLogger(__name__)
+# Configure logging
 console = Console(highlight=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(show_path=False, rich_tracebacks=True)],
+)
 
+# Silence other loggers
+logging.getLogger("transformers").setLevel(logging.ERROR)
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
+logging.getLogger("faiss").setLevel(logging.ERROR)
+
+logger = logging.getLogger("scenario_demo")
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 
 
@@ -59,77 +59,122 @@ def main(model, debug):
     showing how personal context is stored, recalled, and updated automatically.
     """
     if debug:
-        logging.getLogger().setLevel(logging.DEBUG)
+        logger.setLevel(logging.DEBUG)
+        logging.getLogger("memoryweave").setLevel(logging.DEBUG)
         logger.debug("Debug logging is enabled.")
+    else:
+        # Keep most logs silenced in normal mode
+        logging.getLogger("memoryweave").setLevel(logging.WARNING)
 
-    console.log("Starting the MemoryWeave scenario demo...", style="bold cyan")
-    console.log(f"[bold]Using model[/bold]: {model}")
+    console.print(
+        Panel.fit(
+            "[bold cyan]MemoryWeave Scenario Demo[/bold cyan]\n\n"
+            f"Model: [yellow]{model}[/yellow]\n"
+            "This demo shows how MemoryWeave stores and recalls personal information across conversation turns.",
+            border_style="cyan",
+        )
+    )
 
-    # 1) Initialize the MemoryWeave API
-    api = MemoryWeaveAPI(model_name=model)
+    # Initialize the MemoryWeave API
+    console.print("[bold]Initializing MemoryWeave...[/bold]")
+    api = None
 
-    # 2) Scenario demonstration
-    # We go through a sequence of user messages and show how MemoryWeave
-    # accumulates personal details. Then the user references them.
+    # Use a single status display for loading
+    with console.status("[bold green]Loading models...[/bold green]", spinner="dots") as status:
+        api = MemoryWeaveAPI(model_name=model)
+        status.update("[bold green]Initialization complete[/bold green]")
+        time.sleep(0.5)  # Give a moment to see the completion message
 
+    console.print("[bold green]✓[/bold green] MemoryWeave ready\n")
+
+    # Define conversation scenario
     conversation = [
-        # (User message, short label/description for logging)
         (
             "Hello! My name is Mark, and I'm allergic to peanuts. I also have a dog named Max.",
-            "Initial info",
+            "Initial introduction",
         ),
         (
             "Nice to meet you. I'd love to get some Thai food. Any suggestions?",
-            "Allergy-based request",
+            "Food recommendation request",
         ),
-        ("Actually, I'd like to confirm: what's my dog's name?", "Memory recall check"),
-        ("Oh, and do you remember my allergy?", "Another memory recall check"),
+        (
+            "Actually, I'd like to confirm: what's my dog's name?",
+            "Memory recall check - dog's name",
+        ),
+        ("Oh, and do you remember my allergy?", "Memory recall check - allergy"),
     ]
 
-    # We'll step through each conversation message:
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description} ({task.completed}/{task.total})"),
-        TimeElapsedColumn(),
-        transient=True,
-    ) as progress:
-        task = progress.add_task("Processing conversation...", total=len(conversation))
+    # Run the conversation
+    console.print("[bold]Starting conversation scenario[/bold]\n")
 
-        for i, (user_msg, label) in enumerate(conversation, start=1):
-            # Show user message
-            console.log(f"\n[bold yellow]User (Step {i} - {label}):[/bold yellow] {user_msg}")
+    for i, (user_msg, label) in enumerate(conversation, start=1):
+        # Show user message in a panel
+        console.print(
+            Panel(
+                user_msg,
+                title=f"[bold]User - Step {i}[/bold]: {label}",
+                title_align="left",
+                border_style="yellow",
+            )
+        )
 
-            # Let MemoryWeave respond
-            start_time = time.time()
+        # Generate response
+        start_time = time.time()
+        assistant_reply = None
+
+        # Use a single status display for thinking
+        with console.status(
+            f"[bold green]Step {i}: Thinking...[/bold green]", spinner="dots"
+        ) as status:
             try:
                 assistant_reply = api.chat(user_msg, max_new_tokens=100)
+                elapsed = time.time() - start_time
+                status.update(f"[bold green]Response ready ({elapsed:.1f}s)[/bold green]")
+                time.sleep(0.5)  # Give a moment to see the completion message
             except Exception as e:
-                logger.error(f"[red]Error generating assistant response:[/red] {e}")
-                continue
-            elapsed = time.time() - start_time
+                status.update(f"[bold red]Error: {str(e)}[/bold red]")
+                time.sleep(1)
 
-            # Print the assistant's reply
-            console.log(f"[bold green]Assistant (Step {i}):[/bold green] {assistant_reply}")
-            logger.debug(f"Response took {elapsed:.2f}s")
-            progress.advance(task)
+        # Show assistant response if we got one
+        if assistant_reply:
+            console.print(
+                Panel(
+                    assistant_reply,
+                    title=f"[bold]Assistant[/bold] ({elapsed:.1f}s)",
+                    title_align="left",
+                    border_style="green",
+                )
+            )
+        else:
+            console.print("[bold red]Failed to generate response[/bold red]")
 
-    # 3) Wrap up
-    console.log("\n[bold cyan]Scenario complete![/bold cyan]")
-    console.log("Below is the final conversation history as stored in MemoryWeave:\n")
+        console.print()  # Add space between exchanges
 
-    # 4) Show entire conversation from the LLM's perspective
+    # Show conversation summary
+    console.print(Panel.fit("[bold cyan]Memory Test Complete![/bold cyan]", border_style="cyan"))
+
+    console.print("[bold]Full conversation history:[/bold]")
+
+    # Display the conversation history
     history = api.get_conversation_history()
-    for turn in history:
-        role = turn["role"]
-        text = turn["content"]
-        role_str = "User" if role == "user" else "Assistant"
-        # We color user messages in yellow, assistant in green
-        color = "yellow" if role == "user" else "green"
-        console.log(f"[bold {color}]{role_str}:[/bold {color}] {text}")
+    if not history:
+        console.print("[yellow]No conversation history recorded[/yellow]")
+    else:
+        for i, turn in enumerate(history):
+            role = turn["role"]
+            text = turn["content"]
 
-    console.log(
-        "\n[bold magenta]Done![/bold magenta] You can see how personal info (name, allergy, dog's name)"
-        " was stored and reused across multiple turns.\n",
+            if role == "user":
+                console.print(f"[yellow]User:[/yellow] {text}")
+            else:
+                console.print(f"[green]Assistant:[/green] {text}")
+
+            # Add separator between turns, but not after the last one
+            if i < len(history) - 1:
+                console.print("─" * 80)
+
+    console.print(
+        "\n[bold cyan]Demo complete![/bold cyan] Personal info (name, allergy, dog's name) was successfully stored and recalled."
     )
 
 

@@ -28,3 +28,6 @@ class ComponentName(str, Enum):
     CONTEXTUAL_FABRIC_STRATEGY = "contextual_fabric_strategy"
     # Dynamic context adaptation
     DYNAMIC_CONTEXT_ADAPTER = "dynamic_context_adapter"
+    # Used for Text Chunking
+    TEXT_CHUNKER = "text_chunker"
+    CHUNKED_FABRIC_STRATEGY = "chunked_fabric_strategy"

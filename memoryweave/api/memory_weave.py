@@ -3,6 +3,8 @@ import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from rich.logging import RichHandler
+
 from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.memory_store import MemoryStoreAdapter, get_device
 from memoryweave.api.prompt_builder import PromptBuilder
@@ -23,7 +25,14 @@ from memoryweave.interfaces.retrieval import QueryType
 from memoryweave.query.analyzer import SimpleQueryAnalyzer
 from memoryweave.storage.memory_store import MemoryStore
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(markup=True)],
+)
 logger = logging.getLogger(__name__)
+logging.getLogger("memoryweave.components.post_processors").setLevel(logging.WARNING)
 
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
