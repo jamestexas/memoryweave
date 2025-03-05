@@ -20,7 +20,7 @@ from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.component_names import ComponentName
 from memoryweave.components.temporal_context import TemporalContextBuilder
 from memoryweave.interfaces.memory import IMemoryStore, MemoryID
-from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.interfaces.memory import MemoryStore
 
 FORMAT = "%(message)s"
 logging.basicConfig(

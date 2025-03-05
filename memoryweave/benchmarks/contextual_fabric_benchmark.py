@@ -42,7 +42,7 @@ from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy imp
     HybridBM25VectorStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.interfaces.memory import MemoryStore
 
 
 class ContextualFabricBenchmark:
@@ -62,7 +62,8 @@ class ContextualFabricBenchmark:
             embedding_dim: Dimension of embeddings
         """
         self.embedding_dim = embedding_dim
-        self.memory_store = MemoryStore()
+        self.memory_store = StandardMemoryStore()
+memory_adapter = MemoryAdapter(memory_store)
 
         # Initialize components
         self.context_enhancer = ContextualEmbeddingEnhancer()

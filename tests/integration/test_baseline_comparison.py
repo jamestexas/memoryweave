@@ -22,7 +22,7 @@ from memoryweave.evaluation.baseline_comparison import (
     ComparisonResult,
 )
 from memoryweave.interfaces.retrieval import Query
-from memoryweave.storage.memory_store import Memory, MemoryStore
+from memoryweave.interfaces.memory import Memory, MemoryStore
 
 
 @pytest.fixture
@@ -108,7 +108,8 @@ def test_memories() -> List[Memory]:
 @pytest.fixture
 def memory_manager(test_memories) -> MemoryManager:
     """Create a memory manager with test memories."""
-    memory_store = MemoryStore()
+    memory_store = StandardMemoryStore()
+memory_adapter = MemoryAdapter(memory_store)
     memory_store.add_multiple(test_memories)
 
     return MemoryManager(memory_store=memory_store)

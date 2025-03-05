@@ -16,7 +16,7 @@ from memoryweave.evaluation.baseline_comparison import (
     ComparisonResult,
 )
 from memoryweave.interfaces.retrieval import Query, QueryType, RetrievalParameters, RetrievalResult
-from memoryweave.storage.memory_store import Memory
+from memoryweave.interfaces.memory import Memory
 
 
 class MockMemoryManager:

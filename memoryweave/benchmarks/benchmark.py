@@ -192,9 +192,10 @@ class UnifiedBenchmark:
 
             # Initialize memory manager
             from memoryweave.components.memory_manager import MemoryManager
-            from memoryweave.storage.memory_store import MemoryStore
+            from memoryweave.interfaces.memory import MemoryStore
 
-            memory_store = MemoryStore()
+            memory_store = StandardMemoryStore()
+memory_adapter = MemoryAdapter(memory_store)
             memory_store.add_multiple(dataset["memories"])
             memory_manager = MemoryManager(memory_store=memory_store)
 

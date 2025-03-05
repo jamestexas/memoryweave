@@ -41,7 +41,7 @@ from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy imp
     HybridBM25VectorStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.interfaces.memory import MemoryStore
 
 logger = logging.getLogger(__name__)
 

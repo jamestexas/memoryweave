@@ -16,7 +16,7 @@ from whoosh.scoring import BM25F
 
 from memoryweave.baselines.base import BaselineRetriever
 from memoryweave.interfaces.retrieval import Query
-from memoryweave.storage.memory_store import Memory
+from memoryweave.interfaces.memory import Memory
 
 
 class BM25Retriever(BaselineRetriever):

@@ -18,7 +18,7 @@ from memoryweave.components.retrieval_strategies.contextual_fabric_strategy impo
     ContextualFabricStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.interfaces.memory import MemoryStore
 
 
 class TestDynamicContextIntegration:
@@ -27,7 +27,8 @@ class TestDynamicContextIntegration:
     def setup_method(self):
         """Set up test environment."""
         # Create components
-        self.memory_store = MemoryStore()
+        self.memory_store = StandardMemoryStore()
+memory_adapter = MemoryAdapter(memory_store)
         self.associative_linker = AssociativeMemoryLinker(self.memory_store)
         self.temporal_context = TemporalContextBuilder(self.memory_store)
         self.activation_manager = ActivationManager(
@@ -173,7 +174,8 @@ class TestDynamicContextIntegration:
     def test_large_memory_adaptations(self):
         """Test adaptations for large memory stores."""
         # Create a larger memory store
-        large_memory_store = MemoryStore()
+        large_memory_store = StandardMemoryStore()
+memory_adapter = MemoryAdapter(memory_store)
 
         # Add a large number of memories
         for i in range(100):

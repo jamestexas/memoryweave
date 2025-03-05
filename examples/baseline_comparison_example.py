@@ -12,7 +12,7 @@ from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.evaluation.baseline_comparison import BaselineComparison, BaselineConfig
 from memoryweave.interfaces.retrieval import Query, QueryType
-from memoryweave.storage.memory_store import Memory, MemoryStore
+from memoryweave.interfaces.memory import Memory, MemoryStore
 
 
 class RetrievalStrategyAdapter:
@@ -103,7 +103,8 @@ def main():
     relevant_ids = data.get("relevant_ids", [])
 
     # Initialize memory manager
-    memory_store = MemoryStore()
+    memory_store = StandardMemoryStore()
+memory_adapter = MemoryAdapter(memory_store)
     memory_store.add_multiple(memories)
     memory_manager = MemoryManager(memory_store=memory_store)
 

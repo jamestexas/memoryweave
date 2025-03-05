@@ -20,7 +20,7 @@ from memoryweave.components.retrieval_strategies.contextual_fabric_strategy impo
     ContextualFabricStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.storage.hybrid_memory_store import HybridMemoryStore
+from memoryweave.storage.refactored import HybridMemoryStore
 
 FORMAT = "%(message)s"
 logging.basicConfig(

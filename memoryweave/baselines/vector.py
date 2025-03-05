@@ -10,7 +10,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from memoryweave.baselines.base import BaselineRetriever
 from memoryweave.interfaces.retrieval import Query
-from memoryweave.storage.memory_store import Memory
+from memoryweave.interfaces.memory import Memory
 
 
 class VectorBaselineRetriever(BaselineRetriever):

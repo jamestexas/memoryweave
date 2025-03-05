@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
 from memoryweave.interfaces.retrieval import Query
-from memoryweave.storage.memory_store import Memory
+from memoryweave.interfaces.memory import Memory
 
 
 class BaselineRetriever(ABC):

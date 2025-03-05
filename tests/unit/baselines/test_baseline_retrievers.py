@@ -10,7 +10,7 @@ import pytest
 
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.interfaces.retrieval import Query, QueryType
-from memoryweave.storage.memory_store import Memory
+from memoryweave.interfaces.memory import Memory
 
 
 @pytest.fixture

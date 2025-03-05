@@ -23,7 +23,7 @@ from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.temporal_context import TemporalContextBuilder
 from memoryweave.interfaces.retrieval import QueryType
 from memoryweave.query.analyzer import SimpleQueryAnalyzer
-from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.storage.refactored import StandardMemoryStore, MemoryAdapter, MemoryAdapter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -83,7 +83,8 @@ class MemoryWeaveAPI:
         self.embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
 
         # Initialize memory components
-        self.memory_store = MemoryStore()
+        self.memory_store = StandardMemoryStore()
+memory_adapter = MemoryAdapter(memory_store)
         self.memory_store_adapter = MemoryStoreAdapter(self.memory_store)
 
         # Initialize associative linker

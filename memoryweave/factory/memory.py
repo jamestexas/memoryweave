@@ -16,7 +16,7 @@ from memoryweave.interfaces.memory import (
 )
 from memoryweave.storage.activation import ActivationManager, TemporalActivationManager
 from memoryweave.storage.category import CategoryManager
-from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.interfaces.memory import MemoryStore
 from memoryweave.storage.vector_store import (
     ActivationVectorStore,
     ANNActivationVectorStore,
