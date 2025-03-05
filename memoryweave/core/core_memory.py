@@ -177,11 +177,13 @@ class CoreMemory:
         """
         memories = []
         for i in range(len(self.memory_metadata)):
-            memories.append({
-                "index": i,
-                "embedding": self.memory_embeddings[i],
-                "metadata": self.memory_metadata[i],
-                "activation": float(self.activation_levels[i]),
-                "temporal_marker": int(self.temporal_markers[i]),
-            })
+            memories.append(
+                {
+                    "index": i,
+                    "embedding": self.memory_embeddings[i],
+                    "metadata": self.memory_metadata[i],
+                    "activation": float(self.activation_levels[i]),
+                    "temporal_marker": int(self.temporal_markers[i]),
+                }
+            )
         return memories

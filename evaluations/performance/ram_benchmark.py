@@ -142,27 +142,33 @@ Despite these challenges, neural networks have been incredibly successful and ar
         # Create memories from article
         chunks = self._chunk_text(self.article, 200, 50)
         for i, chunk in enumerate(chunks):
-            self.memories.append({
-                "text": chunk,
-                "type": "article",
-                "topic": "neural networks",
-                "timestamp": time.time() - (len(chunks) - i) * 3600,  # Older to newer
-            })
+            self.memories.append(
+                {
+                    "text": chunk,
+                    "type": "article",
+                    "topic": "neural networks",
+                    "timestamp": time.time() - (len(chunks) - i) * 3600,  # Older to newer
+                }
+            )
 
         # Add a few other documents for variety
-        self.memories.append({
-            "text": "Transformers are a type of neural network architecture that has revolutionized natural language processing. They rely on a mechanism called attention, which allows the model to focus on different parts of the input sequence when generating each part of the output.",
-            "type": "article",
-            "topic": "transformers",
-            "timestamp": time.time() - 86400,
-        })
+        self.memories.append(
+            {
+                "text": "Transformers are a type of neural network architecture that has revolutionized natural language processing. They rely on a mechanism called attention, which allows the model to focus on different parts of the input sequence when generating each part of the output.",
+                "type": "article",
+                "topic": "transformers",
+                "timestamp": time.time() - 86400,
+            }
+        )
 
-        self.memories.append({
-            "text": "Reinforcement learning is an area of machine learning where an agent learns to make decisions by taking actions in an environment to maximize some notion of cumulative reward. It differs from supervised learning in that the agent is not told which actions to take but must discover which actions yield the most reward by trying them.",
-            "type": "article",
-            "topic": "reinforcement learning",
-            "timestamp": time.time() - 86400 * 2,
-        })
+        self.memories.append(
+            {
+                "text": "Reinforcement learning is an area of machine learning where an agent learns to make decisions by taking actions in an environment to maximize some notion of cumulative reward. It differs from supervised learning in that the agent is not told which actions to take but must discover which actions yield the most reward by trying them.",
+                "type": "article",
+                "topic": "reinforcement learning",
+                "timestamp": time.time() - 86400 * 2,
+            }
+        )
 
         # Create test queries
         self.queries = [
@@ -291,13 +297,15 @@ class ConversationalMemory(BenchmarkScenario):
         for i, turn in enumerate(conversation):
             turn_timestamp = timestamp_base + i * 600  # 10-minute intervals
 
-            self.memories.append({
-                "text": turn["content"],
-                "type": "conversation",
-                "role": turn["role"],
-                "timestamp": turn_timestamp,
-                "turn_index": i,
-            })
+            self.memories.append(
+                {
+                    "text": turn["content"],
+                    "type": "conversation",
+                    "role": turn["role"],
+                    "timestamp": turn_timestamp,
+                    "turn_index": i,
+                }
+            )
 
         # Create test queries about the conversation
         self.queries = [
@@ -333,45 +341,57 @@ class TemporalReferences(BenchmarkScenario):
 
         # Yesterday's memories
         yesterday = now - 86400
-        self.memories.append({
-            "text": "I went for a run in Central Park this morning.",
-            "type": "activity",
-            "timestamp": yesterday + 28800,  # 8 AM yesterday
-        })
+        self.memories.append(
+            {
+                "text": "I went for a run in Central Park this morning.",
+                "type": "activity",
+                "timestamp": yesterday + 28800,  # 8 AM yesterday
+            }
+        )
 
-        self.memories.append({
-            "text": "I had sushi for lunch at Katsu restaurant.",
-            "type": "meal",
-            "timestamp": yesterday + 43200,  # Noon yesterday
-        })
+        self.memories.append(
+            {
+                "text": "I had sushi for lunch at Katsu restaurant.",
+                "type": "meal",
+                "timestamp": yesterday + 43200,  # Noon yesterday
+            }
+        )
 
-        self.memories.append({
-            "text": "I watched the movie 'Inception' in the evening.",
-            "type": "entertainment",
-            "timestamp": yesterday + 72000,  # 8 PM yesterday
-        })
+        self.memories.append(
+            {
+                "text": "I watched the movie 'Inception' in the evening.",
+                "type": "entertainment",
+                "timestamp": yesterday + 72000,  # 8 PM yesterday
+            }
+        )
 
         # Last week's memories
         last_week = now - 7 * 86400
-        self.memories.append({
-            "text": "I started reading a book called 'Project Hail Mary' by Andy Weir.",
-            "type": "activity",
-            "timestamp": last_week + 50000,  # During last week
-        })
+        self.memories.append(
+            {
+                "text": "I started reading a book called 'Project Hail Mary' by Andy Weir.",
+                "type": "activity",
+                "timestamp": last_week + 50000,  # During last week
+            }
+        )
 
-        self.memories.append({
-            "text": "I met with my friend Alex for coffee at Starbucks.",
-            "type": "social",
-            "timestamp": last_week + 150000,  # Later last week
-        })
+        self.memories.append(
+            {
+                "text": "I met with my friend Alex for coffee at Starbucks.",
+                "type": "social",
+                "timestamp": last_week + 150000,  # Later last week
+            }
+        )
 
         # This morning's memories
         this_morning = now - 28800  # 8 hours ago
-        self.memories.append({
-            "text": "I had oatmeal with berries for breakfast.",
-            "type": "meal",
-            "timestamp": this_morning,
-        })
+        self.memories.append(
+            {
+                "text": "I had oatmeal with berries for breakfast.",
+                "type": "meal",
+                "timestamp": this_morning,
+            }
+        )
 
         # Create test queries with temporal references
         self.queries = [
@@ -412,62 +432,80 @@ class MixedKnowledge(BenchmarkScenario):
         )
 
         # Personal facts
-        self.memories.append({
-            "text": "My name is Taylor Chen and I live in San Francisco.",
-            "type": "personal",
-            "timestamp": time.time() - 604800,  # 1 week ago
-        })
+        self.memories.append(
+            {
+                "text": "My name is Taylor Chen and I live in San Francisco.",
+                "type": "personal",
+                "timestamp": time.time() - 604800,  # 1 week ago
+            }
+        )
 
-        self.memories.append({
-            "text": "I have a dog named Rusty who is a 3-year-old Golden Retriever.",
-            "type": "personal",
-            "timestamp": time.time() - 518400,  # 6 days ago
-        })
+        self.memories.append(
+            {
+                "text": "I have a dog named Rusty who is a 3-year-old Golden Retriever.",
+                "type": "personal",
+                "timestamp": time.time() - 518400,  # 6 days ago
+            }
+        )
 
-        self.memories.append({
-            "text": "I work as a software engineer at TechCorp, specializing in backend development.",
-            "type": "personal",
-            "timestamp": time.time() - 432000,  # 5 days ago
-        })
+        self.memories.append(
+            {
+                "text": "I work as a software engineer at TechCorp, specializing in backend development.",
+                "type": "personal",
+                "timestamp": time.time() - 432000,  # 5 days ago
+            }
+        )
 
         # Factual knowledge
-        self.memories.append({
-            "text": "The capital of France is Paris. Paris is known for the Eiffel Tower and the Louvre Museum.",
-            "type": "factual",
-            "timestamp": time.time() - 345600,  # 4 days ago
-        })
+        self.memories.append(
+            {
+                "text": "The capital of France is Paris. Paris is known for the Eiffel Tower and the Louvre Museum.",
+                "type": "factual",
+                "timestamp": time.time() - 345600,  # 4 days ago
+            }
+        )
 
-        self.memories.append({
-            "text": "Water boils at 100 degrees Celsius (212 degrees Fahrenheit) at standard atmospheric pressure.",
-            "type": "factual",
-            "timestamp": time.time() - 259200,  # 3 days ago
-        })
+        self.memories.append(
+            {
+                "text": "Water boils at 100 degrees Celsius (212 degrees Fahrenheit) at standard atmospheric pressure.",
+                "type": "factual",
+                "timestamp": time.time() - 259200,  # 3 days ago
+            }
+        )
 
         # Conversation bits
-        self.memories.append({
-            "text": "User: I'm thinking of learning Python or JavaScript. Which would you recommend?\nAssistant: Both are excellent choices. Python is often recommended for beginners due to its readability and simplicity. It's great for data science, AI, automation, and backend development. JavaScript is essential for web development and has expanded to server-side with Node.js. If you're interested in web development, JavaScript might be better. For data science or general programming, Python might be preferable. What's your primary interest?",
-            "type": "conversation",
-            "timestamp": time.time() - 172800,  # 2 days ago
-        })
+        self.memories.append(
+            {
+                "text": "User: I'm thinking of learning Python or JavaScript. Which would you recommend?\nAssistant: Both are excellent choices. Python is often recommended for beginners due to its readability and simplicity. It's great for data science, AI, automation, and backend development. JavaScript is essential for web development and has expanded to server-side with Node.js. If you're interested in web development, JavaScript might be better. For data science or general programming, Python might be preferable. What's your primary interest?",
+                "type": "conversation",
+                "timestamp": time.time() - 172800,  # 2 days ago
+            }
+        )
 
-        self.memories.append({
-            "text": "User: I think I'll go with Python since I'm interested in data analysis.\nAssistant: That's a great choice for data analysis! Python has excellent libraries like Pandas, NumPy, and Matplotlib that make data manipulation and visualization straightforward. You might also want to look into Jupyter Notebooks, which are perfect for data exploration. Would you like some resources to help you get started with Python for data analysis?",
-            "type": "conversation",
-            "timestamp": time.time() - 86400,  # 1 day ago
-        })
+        self.memories.append(
+            {
+                "text": "User: I think I'll go with Python since I'm interested in data analysis.\nAssistant: That's a great choice for data analysis! Python has excellent libraries like Pandas, NumPy, and Matplotlib that make data manipulation and visualization straightforward. You might also want to look into Jupyter Notebooks, which are perfect for data exploration. Would you like some resources to help you get started with Python for data analysis?",
+                "type": "conversation",
+                "timestamp": time.time() - 86400,  # 1 day ago
+            }
+        )
 
         # More personal facts mixed in
-        self.memories.append({
-            "text": "My favorite food is Thai curry, especially Panang curry with tofu.",
-            "type": "personal",
-            "timestamp": time.time() - 43200,  # 12 hours ago
-        })
+        self.memories.append(
+            {
+                "text": "My favorite food is Thai curry, especially Panang curry with tofu.",
+                "type": "personal",
+                "timestamp": time.time() - 43200,  # 12 hours ago
+            }
+        )
 
-        self.memories.append({
-            "text": "I'm planning a vacation to Hawaii next month, specifically to the islands of Oahu and Maui.",
-            "type": "personal",
-            "timestamp": time.time() - 21600,  # 6 hours ago
-        })
+        self.memories.append(
+            {
+                "text": "I'm planning a vacation to Hawaii next month, specifically to the islands of Oahu and Maui.",
+                "type": "personal",
+                "timestamp": time.time() - 21600,  # 6 hours ago
+            }
+        )
 
         # Create mixed test queries
         self.queries = [
@@ -619,22 +657,26 @@ Ethical and social considerations remain crucial as genomic medicine advances. P
         # Create memories from these articles (will be many when chunked)
         for article in articles:
             # Create a memory for the title
-            self.memories.append({
-                "text": f"Article title: {article['title']}",
-                "type": "article_title",
-                "timestamp": article["timestamp"],
-            })
+            self.memories.append(
+                {
+                    "text": f"Article title: {article['title']}",
+                    "type": "article_title",
+                    "timestamp": article["timestamp"],
+                }
+            )
 
             # Chunk the content into smaller pieces
             chunks = self._chunk_text(article["content"], 250, 50)
             for i, chunk in enumerate(chunks):
-                self.memories.append({
-                    "text": chunk,
-                    "type": "article_content",
-                    "article_title": article["title"],
-                    "chunk_index": i,
-                    "timestamp": article["timestamp"] + i * 60,  # Space out chunks by a minute
-                })
+                self.memories.append(
+                    {
+                        "text": chunk,
+                        "type": "article_content",
+                        "article_title": article["title"],
+                        "chunk_index": i,
+                        "timestamp": article["timestamp"] + i * 60,  # Space out chunks by a minute
+                    }
+                )
 
         # Personal information interleaved with articles
         personal_info = [
@@ -950,13 +992,15 @@ class BenchmarkRunner:
         )
 
         # Configure the system to use only similarity retrieval
-        system.strategy.initialize({
-            "confidence_threshold": 0.1,
-            "similarity_weight": 1.0,  # Only use similarity
-            "associative_weight": 0.0,  # Disable associative retrieval
-            "temporal_weight": 0.0,  # Disable temporal relevance
-            "activation_weight": 0.0,  # Disable activation boosting
-        })
+        system.strategy.initialize(
+            {
+                "confidence_threshold": 0.1,
+                "similarity_weight": 1.0,  # Only use similarity
+                "associative_weight": 0.0,  # Disable associative retrieval
+                "temporal_weight": 0.0,  # Disable temporal relevance
+                "activation_weight": 0.0,  # Disable activation boosting
+            }
+        )
 
         return system
 
@@ -972,13 +1016,15 @@ class BenchmarkRunner:
         )
 
         # Configure the system to prioritize recency
-        system.strategy.initialize({
-            "confidence_threshold": 0.1,
-            "similarity_weight": 0.5,  # Some weight on similarity
-            "associative_weight": 0.0,  # Disable associative retrieval
-            "temporal_weight": 0.5,  # Heavy weight on temporal relevance
-            "activation_weight": 0.0,  # Disable activation patterns
-        })
+        system.strategy.initialize(
+            {
+                "confidence_threshold": 0.1,
+                "similarity_weight": 0.5,  # Some weight on similarity
+                "associative_weight": 0.0,  # Disable associative retrieval
+                "temporal_weight": 0.5,  # Heavy weight on temporal relevance
+                "activation_weight": 0.0,  # Disable activation patterns
+            }
+        )
 
         return system
 
@@ -1096,13 +1142,15 @@ class BenchmarkRunner:
                         accuracy_scores.append(accuracy)
 
                         # Store result
-                        query_results.append({
-                            "query": query,
-                            "response": response,
-                            "time_seconds": elapsed,
-                            "accuracy": accuracy,
-                            "expected": expected_answers,
-                        })
+                        query_results.append(
+                            {
+                                "query": query,
+                                "response": response,
+                                "time_seconds": elapsed,
+                                "accuracy": accuracy,
+                                "expected": expected_answers,
+                            }
+                        )
 
                         progress.advance(query_task)
 

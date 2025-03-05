@@ -7,7 +7,9 @@ from memoryweave.interfaces.memory import Memory
 from memoryweave.storage.memory_store import MemoryStore
 
 import logging
+
 logger = logging.getLogger(__name__)
+
 
 class MemoryManager:
     """
@@ -74,10 +76,12 @@ class MemoryManager:
                     component = self.components[component_name]
                     # Initialize the component with its configuration when building the pipeline
                     component.initialize(step.get("config", {}))
-                    self.pipeline.append({
-                        "component": component,
-                        "config": step.get("config", {}),
-                    })
+                    self.pipeline.append(
+                        {
+                            "component": component,
+                            "config": step.get("config", {}),
+                        }
+                    )
                 else:
                     raise ValueError(f"Component {component_name} not registered") from e
 

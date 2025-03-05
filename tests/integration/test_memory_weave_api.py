@@ -50,12 +50,14 @@ class MemoryWeaveAPIIntegrationTest(unittest.TestCase):
                 elif "python" in query.lower() and "python" in memory["content"].lower():
                     score = 0.97
 
-                results.append({
-                    "memory_id": memory["id"],
-                    "relevance_score": score,
-                    "type": memory_type,
-                    "content": memory["content"],  # Add content directly for easier testing
-                })
+                results.append(
+                    {
+                        "memory_id": memory["id"],
+                        "relevance_score": score,
+                        "type": memory_type,
+                        "content": memory["content"],  # Add content directly for easier testing
+                    }
+                )
 
             # Sort by relevance score
             return sorted(results, key=lambda x: x["relevance_score"], reverse=True)
@@ -79,11 +81,13 @@ class MemoryWeaveAPIIntegrationTest(unittest.TestCase):
             results = []
             for i, memory in enumerate(self.memories):
                 if keyword.lower() in memory["content"].lower():
-                    results.append({
-                        "memory_id": memory["id"],
-                        "relevance_score": 0.8,
-                        "content": memory["content"],
-                    })
+                    results.append(
+                        {
+                            "memory_id": memory["id"],
+                            "relevance_score": 0.8,
+                            "content": memory["content"],
+                        }
+                    )
             return results[: kwargs.get("limit", 10)]
 
         self.api.search_by_keyword.side_effect = mock_search

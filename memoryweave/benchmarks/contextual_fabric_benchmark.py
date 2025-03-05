@@ -90,51 +90,63 @@ class ContextualFabricBenchmark:
         self.baseline_strategy = HybridBM25VectorStrategy(memory=self.memory_adapter)
 
         # Configure components
-        self.context_enhancer.initialize({
-            "conversation_weight": 0.25,
-            "temporal_weight": 0.2,
-            "topical_weight": 0.2,
-        })
+        self.context_enhancer.initialize(
+            {
+                "conversation_weight": 0.25,
+                "temporal_weight": 0.2,
+                "topical_weight": 0.2,
+            }
+        )
 
-        self.associative_linker.initialize({
-            "similarity_threshold": 0.3,
-            "temporal_weight": 0.3,
-            "semantic_weight": 0.7,
-            "max_links_per_memory": 10,
-        })
+        self.associative_linker.initialize(
+            {
+                "similarity_threshold": 0.3,
+                "temporal_weight": 0.3,
+                "semantic_weight": 0.7,
+                "max_links_per_memory": 10,
+            }
+        )
 
-        self.temporal_context.initialize({
-            "temporal_window": 3600,  # 1 hour
-            "decay_half_life": 86400,  # 1 day
-            "recency_boost_factor": 2.0,
-        })
+        self.temporal_context.initialize(
+            {
+                "temporal_window": 3600,  # 1 hour
+                "decay_half_life": 86400,  # 1 day
+                "recency_boost_factor": 2.0,
+            }
+        )
 
-        self.activation_manager.initialize({
-            "base_activation": 0.1,
-            "spreading_factor": 0.5,
-            "max_spreading_hops": 2,
-        })
+        self.activation_manager.initialize(
+            {
+                "base_activation": 0.1,
+                "spreading_factor": 0.5,
+                "max_spreading_hops": 2,
+            }
+        )
 
-        self.contextual_fabric_strategy.initialize({
-            "confidence_threshold": 0.1,
-            "similarity_weight": 0.5,
-            "associative_weight": 0.3,
-            "temporal_weight": 0.1,
-            "activation_weight": 0.1,
-            "max_associative_hops": 2,
-            "debug": True,
-        })
+        self.contextual_fabric_strategy.initialize(
+            {
+                "confidence_threshold": 0.1,
+                "similarity_weight": 0.5,
+                "associative_weight": 0.3,
+                "temporal_weight": 0.1,
+                "activation_weight": 0.1,
+                "max_associative_hops": 2,
+                "debug": True,
+            }
+        )
 
-        self.baseline_strategy.initialize({
-            "confidence_threshold": 0.1,
-            "vector_weight": 0.5,
-            "bm25_weight": 0.5,
-            # Use less strict parameters to ensure BM25 works on synthetic data
-            "bm25_b": 0.5,  # Lower b means less length normalization
-            "bm25_k1": 2.0,  # Higher k1 means more term frequency importance
-            "enable_dynamic_weighting": False,  # Disable dynamic weighting for benchmark
-            "min_results": 5,  # Ensure at least some results are returned
-        })
+        self.baseline_strategy.initialize(
+            {
+                "confidence_threshold": 0.1,
+                "vector_weight": 0.5,
+                "bm25_weight": 0.5,
+                # Use less strict parameters to ensure BM25 works on synthetic data
+                "bm25_b": 0.5,  # Lower b means less length normalization
+                "bm25_k1": 2.0,  # Higher k1 means more term frequency importance
+                "enable_dynamic_weighting": False,  # Disable dynamic weighting for benchmark
+                "min_results": 5,  # Ensure at least some results are returned
+            }
+        )
 
         # Results
         self.results = {

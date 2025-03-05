@@ -279,9 +279,9 @@ class DynamicThresholdAdjuster(PostProcessor):
             type_metrics = [m for m in self.recent_metrics if m.get("query_type") == query_type]
             if type_metrics:
                 type_avg_count = np.mean([m["result_count"] for m in type_metrics])
-                type_avg_score = np.mean([
-                    m["avg_score"] for m in type_metrics if m["avg_score"] > 0
-                ])
+                type_avg_score = np.mean(
+                    [m["avg_score"] for m in type_metrics if m["avg_score"] > 0]
+                )
 
                 # Calculate appropriate threshold for this query type
                 if type_avg_count < self.target_result_count * 0.7:
@@ -318,51 +318,61 @@ class DynamicThresholdAdjuster(PostProcessor):
             keywords_str = ", ".join(keywords) if keywords else query
 
             for i in range(missing_count):
-                results.append({
-                    "memory_id": -1,  # Use negative ID to indicate synthetic result
-                    "relevance_score": 0.1,
-                    "content": f"Limited information available about: {keywords_str}",
-                    "type": "synthetic",
-                    "synthetic_reason": "minimum_result_guarantee",
-                })
+                results.append(
+                    {
+                        "memory_id": -1,  # Use negative ID to indicate synthetic result
+                        "relevance_score": 0.1,
+                        "content": f"Limited information available about: {keywords_str}",
+                        "type": "synthetic",
+                        "synthetic_reason": "minimum_result_guarantee",
+                    }
+                )
         else:
             # If no results at all, create a more specific "no information" entry
-            results.append({
-                "memory_id": -1,
-                "relevance_score": 0.1,
-                "content": f"No information found about: {query}",
-                "type": "synthetic",
-                "synthetic_reason": "no_results",
-            })
+            results.append(
+                {
+                    "memory_id": -1,
+                    "relevance_score": 0.1,
+                    "content": f"No information found about: {query}",
+                    "type": "synthetic",
+                    "synthetic_reason": "no_results",
+                }
+            )
 
             # Add additional context to help with follow-up queries
-            results.append({
-                "memory_id": -2,
-                "relevance_score": 0.1,
-                "content": "You may want to provide more specific details or try a different phrasing.",
-                "type": "synthetic",
-                "synthetic_reason": "suggestion",
-            })
+            results.append(
+                {
+                    "memory_id": -2,
+                    "relevance_score": 0.1,
+                    "content": "You may want to provide more specific details or try a different phrasing.",
+                    "type": "synthetic",
+                    "synthetic_reason": "suggestion",
+                }
+            )
 
             # If query analysis is available, add some additional context
             query_type = context.get("primary_query_type", "")
             if query_type:
                 if query_type == "personal":
-                    results.append({
-                        "memory_id": -3,
-                        "relevance_score": 0.1,
-                        "content": "I don't have personal information about that yet.",
-                        "type": "synthetic",
-                        "synthetic_reason": "query_type_response",
-                    })
+                    results.append(
+                        {
+                            "memory_id": -3,
+                            "relevance_score": 0.1,
+                            "content": "I don't have personal information about that yet.",
+                            "type": "synthetic",
+                            "synthetic_reason": "query_type_response",
+                        }
+                    )
                 elif query_type == "factual":
-                    results.append({
-                        "memory_id": -3,
-                        "relevance_score": 0.1,
-                        "content": "I don't have factual information about that in my memory.",
-                        "type": "synthetic",
-                        "synthetic_reason": "query_type_response",
-                    })
+                    results.append(
+                        {
+                            "memory_id": -3,
+                            "relevance_score": 0.1,
+                            "content": "I don't have factual information about that in my memory.",
+                            "type": "synthetic",
+                            "synthetic_reason": "query_type_response",
+                        }
+                    )
 
         return results
 

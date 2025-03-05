@@ -477,13 +477,15 @@ class UnifiedRetrievalBenchmark:
 
         system.embedding_model = self.shared_resources.embedding_model
 
-        system.strategy.initialize({
-            "confidence_threshold": 0.1,
-            "similarity_weight": 1.0,
-            "associative_weight": 0.0,
-            "temporal_weight": 0.0,
-            "activation_weight": 0.0,
-        })
+        system.strategy.initialize(
+            {
+                "confidence_threshold": 0.1,
+                "similarity_weight": 1.0,
+                "associative_weight": 0.0,
+                "temporal_weight": 0.0,
+                "activation_weight": 0.0,
+            }
+        )
 
         if hasattr(system, "memory_store_adapter"):
             system.memory_store_adapter.invalidate_cache()
@@ -710,15 +712,17 @@ class UnifiedRetrievalBenchmark:
                         # Use combined accuracy score
                         combined_accuracy = (cosine_accuracy + keyword_accuracy) / 2
 
-                        query_results.append({
-                            "query": query,
-                            "expected": expected,
-                            "response": response,
-                            "time": elapsed,
-                            "cosine_accuracy": cosine_accuracy,
-                            "keyword_accuracy": keyword_accuracy,
-                            "combined_accuracy": combined_accuracy,
-                        })
+                        query_results.append(
+                            {
+                                "query": query,
+                                "expected": expected,
+                                "response": response,
+                                "time": elapsed,
+                                "cosine_accuracy": cosine_accuracy,
+                                "keyword_accuracy": keyword_accuracy,
+                                "combined_accuracy": combined_accuracy,
+                            }
+                        )
                         progress.advance(task)
                 scenario_result[system_type.value] = {
                     "queries": query_results,

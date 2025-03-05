@@ -282,14 +282,16 @@ class MemoryWeaveShowcase:
                 self.stats[stats_key]["by_scenario"][scenario_key]["total"] += 1
 
                 # Record result
-                results.append({
-                    "query": query,
-                    "expected": expected,
-                    "response": response,
-                    "result": result,
-                    "found_keywords": found_keywords,
-                    "time": elapsed,
-                })
+                results.append(
+                    {
+                        "query": query,
+                        "expected": expected,
+                        "response": response,
+                        "result": result,
+                        "found_keywords": found_keywords,
+                        "time": elapsed,
+                    }
+                )
 
                 # Update progress
                 progress.update(task, advance=1)

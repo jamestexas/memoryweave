@@ -388,12 +388,14 @@ class ChunkedMemoryAdapter:
 
         results = []
         for chunk in chunks:
-            results.append({
-                "memory_id": memory_id,
-                "chunk_index": chunk.chunk_index,
-                "embedding": chunk.embedding,
-                "content": chunk.text,
-                "metadata": chunk.metadata.copy(),
-            })
+            results.append(
+                {
+                    "memory_id": memory_id,
+                    "chunk_index": chunk.chunk_index,
+                    "embedding": chunk.embedding,
+                    "content": chunk.text,
+                    "metadata": chunk.metadata.copy(),
+                }
+            )
 
         return results

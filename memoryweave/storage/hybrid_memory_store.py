@@ -183,13 +183,15 @@ class HybridMemoryStore(MemoryStore):
 
             # Apply threshold
             if threshold is None or similarity >= threshold:
-                results.append({
-                    "memory_id": memory_id,
-                    "chunk_index": chunk.chunk_index,
-                    "chunk_similarity": similarity,
-                    "content": chunk.text,
-                    "metadata": chunk.metadata.copy(),
-                })
+                results.append(
+                    {
+                        "memory_id": memory_id,
+                        "chunk_index": chunk.chunk_index,
+                        "chunk_similarity": similarity,
+                        "content": chunk.text,
+                        "metadata": chunk.metadata.copy(),
+                    }
+                )
 
         # Sort by similarity (descending)
         results.sort(key=lambda x: x["chunk_similarity"], reverse=True)

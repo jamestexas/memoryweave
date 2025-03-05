@@ -276,13 +276,15 @@ class OptimizedBenchmarkRunner:
             system.embedding_model = self.shared_resources.embedding_model
 
             # Configure the system to use only similarity retrieval
-            system.strategy.initialize({
-                "confidence_threshold": 0.1,
-                "similarity_weight": 1.0,  # Only use similarity
-                "associative_weight": 0.0,  # Disable associative retrieval
-                "temporal_weight": 0.0,  # Disable temporal relevance
-                "activation_weight": 0.0,  # Disable activation boosting
-            })
+            system.strategy.initialize(
+                {
+                    "confidence_threshold": 0.1,
+                    "similarity_weight": 1.0,  # Only use similarity
+                    "associative_weight": 0.0,  # Disable associative retrieval
+                    "temporal_weight": 0.0,  # Disable temporal relevance
+                    "activation_weight": 0.0,  # Disable activation boosting
+                }
+            )
 
             console.print("  [green]✓[/green] Standard RAG initialized")
             return system
@@ -306,13 +308,15 @@ class OptimizedBenchmarkRunner:
             system.embedding_model = self.shared_resources.embedding_model
 
             # Configure the system to prioritize recency
-            system.strategy.initialize({
-                "confidence_threshold": 0.1,
-                "similarity_weight": 0.5,  # Some weight on similarity
-                "associative_weight": 0.0,  # Disable associative retrieval
-                "temporal_weight": 0.5,  # Heavy weight on temporal relevance
-                "activation_weight": 0.0,  # Disable activation patterns
-            })
+            system.strategy.initialize(
+                {
+                    "confidence_threshold": 0.1,
+                    "similarity_weight": 0.5,  # Some weight on similarity
+                    "associative_weight": 0.0,  # Disable associative retrieval
+                    "temporal_weight": 0.5,  # Heavy weight on temporal relevance
+                    "activation_weight": 0.0,  # Disable activation patterns
+                }
+            )
 
             console.print("  [green]✓[/green] Recency-biased system initialized")
             return system
@@ -453,13 +457,15 @@ class OptimizedBenchmarkRunner:
                             accuracy_scores.append(accuracy)
 
                             # Store result
-                            query_results.append({
-                                "query": query,
-                                "response": response,
-                                "time_seconds": elapsed,
-                                "accuracy": accuracy,
-                                "expected": expected_answers,
-                            })
+                            query_results.append(
+                                {
+                                    "query": query,
+                                    "response": response,
+                                    "time_seconds": elapsed,
+                                    "accuracy": accuracy,
+                                    "expected": expected_answers,
+                                }
+                            )
 
                             progress.advance(query_task)
 
@@ -503,12 +509,14 @@ class OptimizedBenchmarkRunner:
                     if system_type not in self.memory_tracker["detailed"]:
                         self.memory_tracker["detailed"][system_type] = []
 
-                    self.memory_tracker["detailed"][system_type].append({
-                        "scenario": scenario_name,
-                        "initial_mb": init_memory,
-                        "peak_mb": peak_memory,
-                        "increase_mb": memory_increase,
-                    })
+                    self.memory_tracker["detailed"][system_type].append(
+                        {
+                            "scenario": scenario_name,
+                            "initial_mb": init_memory,
+                            "peak_mb": peak_memory,
+                            "increase_mb": memory_increase,
+                        }
+                    )
 
                     # Clean up system resources
                     del system

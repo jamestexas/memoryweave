@@ -226,12 +226,14 @@ class MemoryStoreAdapter:
 
             try:
                 memory = self.memory_store.get(memory_id)
-                results.append({
-                    "id": memory.id,
-                    "content": str(memory.content),
-                    "metadata": memory.metadata,
-                    "score": similarity_score,
-                })
+                results.append(
+                    {
+                        "id": memory.id,
+                        "content": str(memory.content),
+                        "metadata": memory.metadata,
+                        "score": similarity_score,
+                    }
+                )
             except Exception as e:
                 logger.error(f"Error retrieving memory {memory_id}: {e}")
 

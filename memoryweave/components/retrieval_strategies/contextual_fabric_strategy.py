@@ -469,12 +469,14 @@ class ContextualFabricStrategy(RetrievalStrategy):
             # Z-score > -1.0 means "not unusually dissimilar"
             if normalized_score > -1.0 or raw_similarity > 0.5:
                 # Add to results
-                results.append({
-                    "memory_id": int(idx),
-                    "similarity_score": raw_similarity,
-                    "normalized_score": normalized_score,
-                    **memory_store.memory_metadata[idx],
-                })
+                results.append(
+                    {
+                        "memory_id": int(idx),
+                        "similarity_score": raw_similarity,
+                        "normalized_score": normalized_score,
+                        **memory_store.memory_metadata[idx],
+                    }
+                )
 
         return results
 
@@ -599,12 +601,14 @@ class ContextualFabricStrategy(RetrievalStrategy):
             # Apply filtering threshold
             if normalized_score > -1.0 or raw_similarity > 0.5:
                 # Add to results
-                results.append({
-                    "memory_id": int(idx),
-                    "similarity_score": raw_similarity,
-                    "normalized_score": normalized_score,
-                    **memory_store.memory_metadata[idx],
-                })
+                results.append(
+                    {
+                        "memory_id": int(idx),
+                        "similarity_score": raw_similarity,
+                        "normalized_score": normalized_score,
+                        **memory_store.memory_metadata[idx],
+                    }
+                )
 
         return results
 

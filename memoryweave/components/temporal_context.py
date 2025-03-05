@@ -414,9 +414,9 @@ class TemporalContextBuilder(Component):
             if matches:
                 result["has_temporal_reference"] = True
                 result["time_type"] = "relative"
-                result["time_expressions"].extend([
-                    m if isinstance(m, str) else " ".join(m) for m in matches
-                ])
+                result["time_expressions"].extend(
+                    [m if isinstance(m, str) else " ".join(m) for m in matches]
+                )
 
                 for match in result["time_expressions"]:
                     parsed_time = self._parse_relative_time(match)
