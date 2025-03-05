@@ -6,7 +6,6 @@ from typing import Any
 from rich.logging import RichHandler
 
 from memoryweave.api.llm_provider import LLMProvider
-from memoryweave.api.memory_store import MemoryStoreAdapter, get_device
 from memoryweave.api.prompt_builder import PromptBuilder
 from memoryweave.api.retrieval_orchestrator import RetrievalOrchestrator
 from memoryweave.api.streaming import StreamingHandler
@@ -23,7 +22,8 @@ from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.temporal_context import TemporalContextBuilder
 from memoryweave.interfaces.retrieval import QueryType
 from memoryweave.query.analyzer import SimpleQueryAnalyzer
-from memoryweave.storage.refactored import StandardMemoryStore, MemoryAdapter, MemoryAdapter
+from memoryweave.storage.refactored import MemoryAdapter, StandardMemoryStore
+from memoryweave.storage.refactored.memory_store import MemoryStoreAdapter, get_device
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,7 +84,10 @@ class MemoryWeaveAPI:
 
         # Initialize memory components
         self.memory_store = StandardMemoryStore()
-memory_adapter = MemoryAdapter(memory_store)
+        self.memory_adapter = MemoryAdapter(self.memory_store)
+
+        # For backward compatibility - both properties point to the same adapter
+        self.memory_store_adapter = self.memory_adapter
         self.memory_store_adapter = MemoryStoreAdapter(self.memory_store)
 
         # Initialize associative linker
@@ -134,17 +137,15 @@ memory_adapter = MemoryAdapter(memory_store)
             temporal_context=self.temporal_context,
             activation_manager=self.activation_manager,
         )
-        self.strategy.initialize(
-            {
-                "confidence_threshold": 0.1,
-                "similarity_weight": 0.4,
-                "associative_weight": 0.3,
-                "temporal_weight": 0.2,
-                "activation_weight": 0.1,
-                "max_associative_hops": 2,
-                "debug": debug,
-            }
-        )
+        self.strategy.initialize({
+            "confidence_threshold": 0.1,
+            "similarity_weight": 0.4,
+            "associative_weight": 0.3,
+            "temporal_weight": 0.2,
+            "activation_weight": 0.1,
+            "max_associative_hops": 2,
+            "debug": debug,
+        })
 
         # Initialize retrieval orchestrator
         self.retrieval_orchestrator = RetrievalOrchestrator(
@@ -171,21 +172,11 @@ memory_adapter = MemoryAdapter(memory_store)
         }
 
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
-        """Store a memory with consistent handling of metadata."""
-        logger.debug(f"Adding memory: {text}")
-
         # Create embedding
         embedding = self.embedding_model.encode(text, show_progress_bar=self.show_progress_bar)
 
-        # Add default metadata if not provided
-        if metadata is None:
-            metadata = {"type": "manual", "created_at": time.time(), "importance": 0.6}
-        elif "created_at" not in metadata:
-            metadata["created_at"] = time.time()
-
-        # Add to memory store
-        mem_id = self.memory_store.add(embedding, text, metadata)
-        self.memory_store_adapter.invalidate_cache()
+        # Add to memory store through the adapter
+        mem_id = self.memory_adapter.add(embedding, text, metadata)
 
         # Add to category if enabled
         if self.category_manager:
@@ -198,7 +189,6 @@ memory_adapter = MemoryAdapter(memory_store)
         if self.memories_since_consolidation >= self.consolidation_interval:
             self._consolidate_memories()
 
-        logger.debug(f"Added memory {mem_id}: {text}")
         return mem_id
 
     def add_memories(
@@ -625,15 +615,13 @@ memory_adapter = MemoryAdapter(memory_store)
                 occurrences = content.lower().count(keyword.lower())
                 relevance = min(1.0, 0.5 + (occurrences * 0.1))
 
-                results.append(
-                    {
-                        "memory_id": memory.id,
-                        "content": content,
-                        "metadata": memory.metadata,
-                        "relevance_score": relevance,
-                        "keyword_occurrences": occurrences,
-                    }
-                )
+                results.append({
+                    "memory_id": memory.id,
+                    "content": content,
+                    "metadata": memory.metadata,
+                    "relevance_score": relevance,
+                    "keyword_occurrences": occurrences,
+                })
 
         # Sort by relevance score
         results.sort(key=lambda x: x["relevance_score"], reverse=True)

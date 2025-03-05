@@ -18,7 +18,7 @@ from memoryweave.components.retrieval_strategies.chunked_fabric_strategy import 
     ChunkedFabricStrategy,
 )
 from memoryweave.components.text_chunker import TextChunker
-from memoryweave.storage.chunked_memory_store import ChunkedMemoryAdapter, ChunkedMemoryStore
+from memoryweave.storage.refactored.chunked_store import ChunkedMemoryAdapter, ChunkedMemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -69,15 +69,13 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         """
         # Initialize chunking components first
         self.text_chunker = TextChunker()
-        self.text_chunker.initialize(
-            {
-                "chunk_size": 200,
-                "chunk_overlap": 50,
-                "min_chunk_size": 30,
-                "respect_paragraphs": True,
-                "respect_sentences": True,
-            }
-        )
+        self.text_chunker.initialize({
+            "chunk_size": 200,
+            "chunk_overlap": 50,
+            "min_chunk_size": 30,
+            "respect_paragraphs": True,
+            "respect_sentences": True,
+        })
         self.llm_provider = llm_provider
         # Replace standard memory store with chunked version
         self.chunked_memory_store = ChunkedMemoryStore()
@@ -498,13 +496,11 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             result = []
 
             for chunk in chunks:
-                result.append(
-                    {
-                        "text": chunk.text,
-                        "metadata": chunk.metadata,
-                        "chunk_index": chunk.chunk_index,
-                    }
-                )
+                result.append({
+                    "text": chunk.text,
+                    "metadata": chunk.metadata,
+                    "chunk_index": chunk.chunk_index,
+                })
 
             return result
         except Exception as e:
