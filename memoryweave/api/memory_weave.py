@@ -1,77 +1,16 @@
-"""
-MemoryWeaveAPI: A unified interface for managing and retrieving memories with advanced contextual understanding.
-
-This module provides the MemoryWeaveAPI class, which integrates a large language model (LLM),
-embedding models, and various memory management components to create a sophisticated memory system.
-
-Key Features:
-- Memory Storage and Retrieval: Stores and retrieves memories using embeddings and contextual strategies.
-- Contextual Understanding: Leverages query analysis, keyword expansion, and temporal context to enhance retrieval.
-- Dynamic Threshold Adjustment: Adapts retrieval thresholds based on query type and performance.
-- Category Management: Organizes memories into categories for efficient retrieval.
-- Personal Attribute Extraction: Extracts and stores personal attributes from user interactions.
-- Associative Linking: Creates links between related memories for associative retrieval.
-- Semantic Coherence: Ensures retrieved memories are semantically relevant to the query.
-- Conversation History: Maintains a history of interactions for contextual responses.
-- Memory Consolidation: Periodically consolidates memories to optimize performance.
-
-Components:
-- MemoryStore: Stores and retrieves memories as embeddings and text.
-- MemoryStoreAdapter: Adapts the MemoryStore for use with retrieval strategies.
-- AssociativeMemoryLinker: Creates and manages associative links between memories.
-- TemporalContextBuilder: Builds temporal context for time-sensitive queries.
-- ActivationManager: Manages memory activation levels.
-- SimpleQueryAnalyzer: Analyzes user queries to determine type and extract keywords.
-- QueryTypeAdapter: Adapts retrieval parameters based on query type.
-- KeywordExpander: Expands keywords to improve retrieval.
-- CategoryManager: Manages memory categories.
-- PersonalAttributeManager: Extracts and manages personal attributes.
-- SemanticCoherenceProcessor: Ensures semantic coherence in retrieved memories.
-- DynamicThresholdAdjuster: Dynamically adjusts retrieval thresholds.
-- ContextualFabricStrategy: A retrieval strategy that combines various contextual factors.
-
-Usage:
-    Create an instance of MemoryWeaveAPI, add memories, and use the chat method to interact.
-
-Example:
-    ```python
-    from memoryweave.api import MemoryWeaveAPI
-
-    api = MemoryWeaveAPI()
-    api.add_memory("The capital of France is Paris.")
-    response = api.chat("What is the capital of France?")
-    print(response)
-    ```
-
-Dependencies:
-    - torch
-    - transformers
-    - typing
-    - logging
-    - time
-    - memoryweave.api.memory_store
-    - memoryweave.components.*
-    - memoryweave.interfaces.retrieval
-    - memoryweave.query.analyzer
-    - memoryweave.storage.memory_store
-"""  # noqa: W291, W505
-
-import asyncio
 import logging
 import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
-import numpy as np
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-from memoryweave.api.memory_store import MemoryStoreAdapter
+from memoryweave.api.llm_provider import LLMProvider
+from memoryweave.api.memory_store import MemoryStoreAdapter, get_device
+from memoryweave.api.prompt_builder import PromptBuilder
+from memoryweave.api.retrieval_orchestrator import RetrievalOrchestrator
+from memoryweave.api.streaming import StreamingHandler
 from memoryweave.components.activation import ActivationManager
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
 from memoryweave.components.category_manager import CategoryManager
-from memoryweave.components.dynamic_threshold_adjuster import DynamicThresholdAdjuster
-from memoryweave.components.keyword_expander import KeywordExpander
 from memoryweave.components.personal_attributes import PersonalAttributeManager
 from memoryweave.components.post_processors import SemanticCoherenceProcessor
 from memoryweave.components.query_adapter import QueryTypeAdapter
@@ -89,45 +28,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
-_TOKENIZER: AutoTokenizer | None = None
-_LLM: AutoModelForCausalLM | None = None
-_DEVICE: str | None = None
-
-
-def _get_device(device: str | None = None) -> str:
-    """Choose a device for running the model."""
-    if torch.mps.is_available():
-        return "mps"
-    elif torch.cuda.is_available():
-        return "cuda"
-    else:
-        return "cpu"
-
-
-def get_tokenizer(model_name: str = DEFAULT_MODEL, **kwargs) -> AutoTokenizer:
-    """Singleton to load a tokenizer."""
-    global _TOKENIZER
-    if _TOKENIZER is None:
-        _TOKENIZER = AutoTokenizer.from_pretrained(model_name, **kwargs)
-    return _TOKENIZER
-
-
-def get_llm(model_name: str = DEFAULT_MODEL, device: str = "mps", **kwargs) -> AutoModelForCausalLM:
-    """Singleton to load a Hugging Face causal LM."""
-    global _LLM, _DEVICE
-    if _LLM is None:
-        _DEVICE = _get_device(device)
-        torch_dtype = torch.float16 if _DEVICE == "cuda" else torch.float32
-
-        print(f"Loading LLM: {model_name}")
-        _LLM = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch_dtype,
-            device_map=_DEVICE,
-            **kwargs,
-        )
-    return _LLM
-
 
 class MemoryWeaveAPI:
     """
@@ -144,85 +44,79 @@ class MemoryWeaveAPI:
         enable_personal_attributes: bool = True,
         enable_semantic_coherence: bool = True,
         enable_dynamic_thresholds: bool = True,
-        consolidation_interval: int = 100,  # Memories added before consolidation
+        consolidation_interval: int = 100,
         show_progress_bar: bool = False,
         debug: bool = False,
         **model_kwargs,
     ):
         """Initialize MemoryWeave with an LLM, embeddings, and memory components."""
-        self.device = _get_device(device)
-        self.show_progress_bar = show_progress_bar
         self.debug = debug
-        self.max_memories = max_memories
-        self.memories_since_consolidation = 0
-        self.consolidation_interval = consolidation_interval
+        self.device = get_device(device)
+        self.show_progress_bar = show_progress_bar
 
         # Configure logging
         if debug:
             logging.basicConfig(level=logging.DEBUG)
             logger.setLevel(logging.DEBUG)
 
-        # Load LLM & tokenizer
-        self.tokenizer = get_tokenizer(model_name)
-        if "show_progress_bar" in model_kwargs:
-            model_kwargs.pop("show_progress_bar")
-        self.model = get_llm(model_name, device=self.device, **model_kwargs)
+        # Initialize LLM provider
+        self.llm_provider = LLMProvider(model_name, self.device, **model_kwargs)
 
-        # Embedding model for memory
+        # Initialize streaming handler
+        self.streaming_handler = StreamingHandler(self.llm_provider)
+
+        # Initialize prompt builder
+        self.prompt_builder = PromptBuilder()
+
+        # Initialize embedding model
         logger.info(f"Loading embedding model: {embedding_model_name}")
         self.embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
 
-        # Initialize Memory Store & Components
+        # Initialize memory components
         self.memory_store = MemoryStore()
         self.memory_store_adapter = MemoryStoreAdapter(self.memory_store)
-        self.associative_linker = AssociativeMemoryLinker(self.memory_store)
-        self.temporal_context = TemporalContextBuilder(self.memory_store)
-        self.activation_manager = ActivationManager(self.memory_store, self.associative_linker)
 
-        # Initialize query processing components
+        # Initialize associative linker
+        self.associative_linker = AssociativeMemoryLinker(self.memory_store)
+
+        # Initialize temporal context builder
+        self.temporal_context = TemporalContextBuilder(self.memory_store)
+
+        # Initialize activation manager
+        self.activation_manager = ActivationManager()
+
+        # Initialize query components
         self.query_analyzer = SimpleQueryAnalyzer()
         self.query_analyzer.initialize({"min_keyword_length": 3, "max_keywords": 10})
 
         self.query_adapter = QueryTypeAdapter()
         self.query_adapter.initialize({"apply_keyword_boost": True, "scale_params_by_length": True})
 
-        self.keyword_expander = KeywordExpander()
-        self.keyword_expander.initialize({"expansion_count": 3, "min_similarity": 0.7})
-
         # Initialize optional components
         self.category_manager = None
         if enable_category_management:
             self.category_manager = CategoryManager()
-            # Get the actual embedding dimension from the model
             embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
             self.category_manager.initialize(
                 config=dict(
                     vigilance_threshold=0.85,
-                    embedding_dim=embedding_dim,  # Use actual dimension from embedding model
+                    embedding_dim=embedding_dim,
                 ),
             )
+
+        # Initialize personal attribute manager
         self.personal_attribute_manager = None
         if enable_personal_attributes:
-            self.personal_attribute_manager = PersonalAttributeManager()  # noqa: F821
+            self.personal_attribute_manager = PersonalAttributeManager()
             self.personal_attribute_manager.initialize()
 
+        # Initialize semantic coherence processor
         self.semantic_coherence_processor = None
         if enable_semantic_coherence:
             self.semantic_coherence_processor = SemanticCoherenceProcessor()
             self.semantic_coherence_processor.initialize()
 
-        self.dynamic_threshold_adjuster = None
-        if enable_dynamic_thresholds:
-            self.dynamic_threshold_adjuster = DynamicThresholdAdjuster()
-            self.dynamic_threshold_adjuster.initialize(
-                config=dict(
-                    min_threshold=0.1,
-                    max_threshold=0.8,
-                    learning_rate=0.05,
-                ),
-            )
-
-        # Retrieval strategy
+        # Initialize retrieval strategy
         self.strategy = ContextualFabricStrategy(
             memory_store=self.memory_store_adapter,
             associative_linker=self.associative_linker,
@@ -239,7 +133,22 @@ class MemoryWeaveAPI:
             "debug": debug,
         })
 
-        # Track conversation history and statistics
+        # Initialize retrieval orchestrator
+        self.retrieval_orchestrator = RetrievalOrchestrator(
+            strategy=self.strategy,
+            activation_manager=self.activation_manager,
+            temporal_context=self.temporal_context,
+            semantic_coherence_processor=self.semantic_coherence_processor,
+            memory_store_adapter=self.memory_store_adapter,
+            debug=debug,
+        )
+
+        # Memory management settings
+        self.max_memories = max_memories
+        self.consolidation_interval = consolidation_interval
+        self.memories_since_consolidation = 0
+
+        # Conversation tracking
         self.conversation_history = []
         self.retrieval_stats = {
             "total_queries": 0,
@@ -249,16 +158,7 @@ class MemoryWeaveAPI:
         }
 
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
-        """
-        Store a memory in the system with optional metadata.
-
-        Args:
-            text: The text content to store
-            metadata: Optional metadata for the memory
-
-        Returns:
-            The ID of the newly created memory
-        """
+        """Store a memory with consistent handling of metadata."""
         logger.debug(f"Adding memory: {text}")
 
         # Create embedding
@@ -274,11 +174,11 @@ class MemoryWeaveAPI:
         mem_id = self.memory_store.add(embedding, text, metadata)
         self.memory_store_adapter.invalidate_cache()
 
-        # Add to category if category management is enabled
+        # Add to category if enabled
         if self.category_manager:
             self.category_manager.add_to_category(mem_id, embedding)
 
-        # Track memories added since last consolidation
+        # Track memories since consolidation
         self.memories_since_consolidation += 1
 
         # Perform consolidation if needed
@@ -291,16 +191,7 @@ class MemoryWeaveAPI:
     def add_memories(
         self, texts: list[str], metadata_list: list[dict[str, Any]] | None = None
     ) -> list[str]:
-        """
-        Add multiple memories efficiently.
-
-        Args:
-            texts: list of text contents to store
-            metadata_list: Optional list of metadata dicts (one per text)
-
-        Returns:
-            list of memory IDs
-        """
+        """Add multiple memories efficiently."""
         if not texts:
             return []
 
@@ -319,91 +210,168 @@ class MemoryWeaveAPI:
         return memory_ids
 
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
-        """Process the user message and generate a response using various subsystems.
-
-        Args:
-            user_message: The user's message.
-            max_new_tokens: Maximum tokens to generate for the response.
-
-        Returns:
-            The assistant's response as a string.
-        """
+        """Process user message and generate a response using memory retrieval."""
         start_time = time.time()
-        now = start_time
 
         # Step 1: Query analysis
-        _query_obj, adapted_params, expanded_keywords, query_type, entities = self._analyze_query(
-            user_message
+        query_info = self._analyze_query(user_message)
+        _query_obj: dict[str, Any]
+        adapted_params: dict[str, Any]
+        expanded_keywords: list[str]
+
+        _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
+
+        # Step 2: Compute query embedding
+
+        if (query_embedding := self._compute_embedding(user_message)) is None:
+            return "Sorry, an error occurred while processing your request."
+
+        # Step 3: Retrieve memories
+        relevant_memories = self.retrieval_orchestrator.retrieve(
+            query_embedding=query_embedding,
+            query=user_message,
+            query_type=query_type,
+            expanded_keywords=expanded_keywords,
+            entities=entities,
+            adapted_params=adapted_params,
+            top_k=adapted_params.get("max_results", 10),
         )
+
+        # Step 4: Extract personal attributes if enabled
+        self._extract_personal_attributes(user_message, time.time())
+
+        # Step 5: Construct prompt
+        prompt = self.prompt_builder.build_chat_prompt(
+            user_message=user_message,
+            memories=relevant_memories,
+            conversation_history=self.conversation_history,
+            query_type=query_type,
+        )
+
+        # Step 6: Generate response
+        assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
+
+        # Step 7: Update history and statistics
+        self._store_interaction(user_message, assistant_reply, time.time())
+        self._update_conversation_history(user_message, assistant_reply)
+        self._update_retrieval_stats(start_time, len(relevant_memories))
+
+        return assistant_reply
+
+    async def chat_stream(
+        self, user_message: str, max_new_tokens: int = 512
+    ) -> AsyncGenerator[str, None]:
+        """Process user message and stream the response."""
+        start_time = time.time()
+
+        # Step 1: Query analysis
+        query_info = self._analyze_query(user_message)
+        query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
 
         # Step 2: Compute query embedding
         query_embedding = self._compute_embedding(user_message)
         if query_embedding is None:
-            return "Sorry, an error occurred while processing your request."
+            yield "Sorry, an error occurred while processing your request."
+            return
 
-        # Step 3: Adjust threshold if dynamic adjustment is enabled
-        self._adjust_confidence_threshold(query_type, adapted_params)
-
-        # Step 4: Retrieve memories
-        relevant_memories = self._retrieve_memories(
-            query_embedding,
-            user_message,
-            query_type,
-            expanded_keywords,
-            entities,
-            now,
-            adapted_params,
+        # Step 3: Retrieve memories
+        now = time.time()
+        relevant_memories = self.retrieval_orchestrator.retrieve(
+            query_embedding=query_embedding,
+            query=user_message,
+            query_type=query_type,
+            expanded_keywords=expanded_keywords,
+            entities=entities,
+            adapted_params=adapted_params,
+            top_k=adapted_params.get("max_results", 10),
         )
 
-        # Step 5: Update memory activations and apply semantic coherence
-        self._update_memory_activation(relevant_memories, now)
-        relevant_memories = self._apply_semantic_coherence(relevant_memories, query_embedding)
-
-        # Step 6: Apply temporal context and clean results
-        cleaned_results = self._apply_temporal_context_and_clean(
-            user_message, relevant_memories, now
-        )
-
-        # Step 7: Extract personal attributes if enabled
+        # Step 4: Extract personal attributes if enabled
         self._extract_personal_attributes(user_message, now)
 
-        # Step 8: Construct prompt with system instructions and conversation history
-        prompt = self._construct_prompt(cleaned_results, query_type, user_message)
+        # Step 5: Construct prompt
+        prompt = self.prompt_builder.build_chat_prompt(
+            user_message=user_message,
+            memories=relevant_memories,
+            conversation_history=self.conversation_history,
+            query_type=query_type,
+        )
 
-        # Step 9: Generate assistant response using LLM
-        assistant_reply = self._generate_response(prompt, max_new_tokens)
+        # Step 6: Stream response
+        full_response = []
+        async for token in self.streaming_handler.stream(prompt, max_new_tokens):
+            full_response.append(token)
+            yield token
 
-        # Step 10: Store interaction and update history/statistics
+        # Step 7: Update history and statistics
+        assistant_reply = "".join(full_response)
         self._store_interaction(user_message, assistant_reply, now)
         self._update_conversation_history(user_message, assistant_reply)
-        self._update_retrieval_stats(start_time, len(cleaned_results))
-        self._update_dynamic_threshold(query_type, len(cleaned_results))
+        self._update_retrieval_stats(start_time, len(relevant_memories))
 
-        return assistant_reply
+    def retrieve(
+        self,
+        query: str,
+        query_embedding=None,
+        top_k: int = 10,
+        confidence_threshold: float = None,
+        **kwargs,
+    ) -> list[dict[str, Any]]:
+        """Direct access to the retrieval system."""
+        # Compute embedding if not provided
+        if query_embedding is None:
+            query_embedding = self._compute_embedding(query)
+            if query_embedding is None:
+                return []
 
-    def _analyze_query(self, user_message: str) -> tuple:
-        """Analyze the user message and extract query details.
+        # Analyze query to get type and keywords
+        query_info = self._analyze_query(query)
+        _, adapted_params, expanded_keywords, query_type, entities = query_info
 
-        Returns:
-            A tuple containing:
-                - query_obj (dict)
-                - adapted_params (dict)
-                - expanded_keywords (list)
-                - query_type (QueryType)
-                - entities (list)
-        """
+        # Override with any provided parameters
+        if confidence_threshold is not None:
+            if adapted_params is None:
+                adapted_params = {}
+            adapted_params["confidence_threshold"] = confidence_threshold
+
+        # Add any custom parameters from kwargs
+        for key, value in kwargs.items():
+            if adapted_params is None:
+                adapted_params = {}
+            adapted_params[key] = value
+
+        # Use retrieval orchestrator for consistent handling
+        memories = self.retrieval_orchestrator.retrieve(
+            query_embedding=query_embedding,
+            query=query,
+            query_type=query_type,
+            expanded_keywords=expanded_keywords,
+            entities=entities,
+            adapted_params=adapted_params,
+            top_k=top_k,
+        )
+
+        return memories
+
+    # Helper methods
+    def _analyze_query(self, user_message: str):
+        """Analyze query to extract type, keywords, and parameters."""
         try:
             query_type = self.query_analyzer.analyze(user_message)
             keywords = self.query_analyzer.extract_keywords(user_message)
             entities = self.query_analyzer.extract_entities(user_message)
+
             query_obj = {
                 "text": user_message,
                 "query_type": query_type,
                 "extracted_keywords": keywords,
                 "extracted_entities": entities,
             }
+
             adapted_params = self.query_adapter.adapt_parameters(query_obj)
-            if self.keyword_expander:
+
+            # Expand keywords if possible
+            if hasattr(self, "keyword_expander") and self.keyword_expander:
                 expanded_obj = self.keyword_expander.expand(query_obj)
                 expanded_keywords = expanded_obj.get("extracted_keywords", keywords)
             else:
@@ -413,6 +381,7 @@ class MemoryWeaveAPI:
             logger.debug(f"Keywords: {keywords}")
             logger.debug(f"Expanded keywords: {expanded_keywords}")
             logger.debug(f"Entities: {entities}")
+
         except Exception as e:
             logger.error(f"Error during query analysis: {e}")
             # Fallback defaults
@@ -422,172 +391,22 @@ class MemoryWeaveAPI:
             expanded_keywords = []
             adapted_params = {"confidence_threshold": 0.1, "max_results": 10}
             query_obj = {"text": user_message}
+
         return query_obj, adapted_params, expanded_keywords, query_type, entities
 
-    def _compute_embedding(self, user_message: str) -> any:
-        """Compute and return the embedding for the user message."""
+    def _compute_embedding(self, text: str):
+        """Compute embedding for text."""
         try:
-            return self.embedding_model.encode(
-                user_message, show_progress_bar=self.show_progress_bar
-            )
+            return self.embedding_model.encode(text, show_progress_bar=self.show_progress_bar)
         except Exception as e:
-            logger.error(f"Error generating query embedding: {e}")
+            logger.error(f"Error generating embedding: {e}")
             import traceback
 
             traceback.print_exc()
             return None
 
-    def _adjust_confidence_threshold(self, query_type: any, adapted_params: dict) -> None:
-        """Dynamically adjust the confidence threshold if enabled."""
-        if self.dynamic_threshold_adjuster:
-            adjusted_threshold = self.dynamic_threshold_adjuster.get_adjusted_threshold(
-                query_type, adapted_params.get("confidence_threshold", 0.1)
-            )
-            adapted_params["confidence_threshold"] = adjusted_threshold
-            logger.debug(f"Adjusted confidence threshold: {adjusted_threshold}")
-
-    def _retrieve_memories(
-        self,
-        query_embedding: any,
-        user_message: str,
-        query_type: any,
-        expanded_keywords: list,
-        entities: list,
-        now: float,
-        adapted_params: dict,
-    ) -> list:
-        """Retrieve relevant memories using the primary strategy, with a fallback.
-
-        Returns:
-            A list of memory items.
-        """
-        self.memory_store_adapter.invalidate_cache()
-        try:
-            logger.debug("Retrieving memories using strategy")
-            retrieval_context = {
-                "query": user_message,
-                "query_type": query_type,
-                "important_keywords": expanded_keywords,
-                "extracted_entities": entities,
-                "current_time": now,
-                "memory_store": self.memory_store_adapter,
-                "adapted_retrieval_params": adapted_params,
-            }
-            # If the strategy doesn't support adapted parameters, remove them from the context.
-            if not hasattr(self.strategy, "_apply_adapted_params"):
-                retrieval_context.pop("adapted_retrieval_params", None)
-
-            relevant_memories = self.strategy.retrieve(
-                query_embedding=query_embedding,
-                top_k=adapted_params.get("max_results", 10),
-                context=retrieval_context,
-            )
-        except Exception as e:
-            logger.error(f"Error using primary retrieval strategy: {e}")
-            import traceback
-
-            traceback.print_exc()
-            relevant_memories = []
-        # Fallback retrieval if primary returned nothing
-        if not relevant_memories:
-            try:
-                logger.warning("Primary retrieval returned no results, using fallback")
-                fallback_results = self.memory_store_adapter.search_by_vector(
-                    query_embedding, limit=10
-                )
-                relevant_memories = [
-                    {
-                        "memory_id": None,
-                        "relevance_score": item.get("score", 0.5),
-                        "content": item.get("content", ""),
-                        "metadata": item.get("metadata", {}),
-                    }
-                    for item in fallback_results
-                ]
-                logger.debug(f"Fallback retrieved {len(relevant_memories)} memories")
-            except Exception as e:
-                logger.error(f"Even fallback retrieval failed: {e}")
-                import traceback
-
-                traceback.print_exc()
-                relevant_memories = []
-        return relevant_memories
-
-    def _update_memory_activation(self, memories: list, now: float) -> None:
-        """Update activation and timestamps for retrieved memories."""
-        for mem_dict in memories:
-            mem_id = mem_dict.get("memory_id")
-            if mem_id is not None:
-                self.activation_manager.activate_memory(mem_id, 0.2, spread=True)
-                self.temporal_context.update_timestamp(mem_id, now)
-
-    def _apply_semantic_coherence(self, memories: list, query_embedding: any) -> list:
-        """Apply semantic coherence check to the memories if enabled."""
-        if self.semantic_coherence_processor and len(memories) > 1:
-            try:
-                coherent_results = self.semantic_coherence_processor.process_results(
-                    memories, query_embedding
-                )
-                if coherent_results:
-                    memories = coherent_results
-                    logger.debug(f"Applied semantic coherence, now have {len(memories)} results")
-            except Exception as e:
-                logger.error(f"Error in semantic coherence processing: {e}")
-        return memories
-
-    def _apply_temporal_context_and_clean(
-        self, user_message: str, memories: list, now: float
-    ) -> list:
-        """Apply temporal context and prepare cleaned memory results for prompt inclusion."""
-        base_context = {"current_time": now}
-        memory_dicts = []
-        for r in memories:
-            base_score = r.get("relevance_score", 0.5)
-            meta = r.get("metadata", {})
-            created_at = meta.get("created_at", 0.0) if isinstance(meta, dict) else 0.0
-            memory_dicts.append({
-                "memory_id": r.get("memory_id"),
-                "created_at": created_at,
-                "relevance_score": base_score,
-                "content": r.get("content", ""),
-                "metadata": meta,
-            })
-
-        memory_dicts = self.temporal_context.apply_temporal_context(
-            query=user_message, results=memory_dicts, context=base_context
-        )
-        memory_dicts.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
-
-        # Clean results: retrieve full content from memory store if possible
-        cleaned_results = []
-        for md in memory_dicts:
-            mem_id = md.get("memory_id")
-            if mem_id is None:
-                continue
-            try:
-                memory_obj = None
-                try:
-                    memory_obj = self.memory_store.get(str(mem_id))
-                except KeyError:
-                    logger.debug(f"No memory found for ID {mem_id}")
-                if memory_obj:
-                    content = (
-                        memory_obj.content.get("text")
-                        if isinstance(memory_obj.content, dict)
-                        else str(memory_obj.content)
-                    )
-                    cleaned_results.append({
-                        "content": content,
-                        "metadata": memory_obj.metadata,
-                        "relevance_score": md.get("relevance_score", 0.5),
-                    })
-            except Exception as e:
-                logger.error(f"Error retrieving memory {mem_id}: {e}")
-        logger.debug(f"After temporal context, have {len(cleaned_results)} memories")
-        return cleaned_results
-
-    def _extract_personal_attributes(self, user_message: str, now: float) -> None:
-        """Extract personal attributes from the user message and store them as synthetic memories."""  # noqa: W505
+    def _extract_personal_attributes(self, user_message: str, timestamp: float):
+        """Extract and store personal attributes."""
         if self.personal_attribute_manager:
             try:
                 attributes = self.personal_attribute_manager.extract_attributes(user_message)
@@ -602,110 +421,60 @@ class MemoryWeaveAPI:
                                     "type": "personal_attribute",
                                     "attribute_type": attr_type,
                                     "attribute_value": attr_value,
-                                    "created_at": now,
+                                    "created_at": timestamp,
                                     "importance": 0.9,
                                 },
                             )
             except Exception as e:
                 logger.error(f"Error extracting personal attributes: {e}")
 
-    def _construct_prompt(self, cleaned_memories: list, query_type: any, user_message: str) -> str:
-        """Construct the final prompt using system instructions, memory highlights, and conversation history."""  # noqa: W505
-        system_prompt = (
-            "You are a helpful assistant. Use the entire conversation context for your answer.\n"
-            "Do not disclose that you have a memory system. If asked about user info, incorporate "
-            "it naturally if available.\n"
-        )
-        # Choose number of top memories based on query type
-        max_memories = 5 if query_type in [QueryType.PERSONAL, QueryType.TEMPORAL] else 3
-        top_memories = sorted(
-            cleaned_memories, key=lambda x: x.get("relevance_score", 0), reverse=True
-        )[:max_memories]
-
-        memory_text = ""
-        if top_memories:
-            memory_text = "MEMORY HIGHLIGHTS:\n"
-            for m in top_memories:
-                content = m["content"]
-                memory_text += f"- {content[:150]}...\n" if len(content) > 150 else f"- {content}\n"
-            memory_text += "\n"
-
-        final_system_prompt = system_prompt + memory_text
-        # Append conversation history
-        history_text = ""
-        max_history_turns = 10
-        recent_history = (
-            self.conversation_history[-max_history_turns:] if self.conversation_history else []
-        )
-        for turn in recent_history:
-            role = "User" if turn["role"] == "user" else "Assistant"
-            history_text += f"{role}: {turn['content']}\n"
-        prompt = f"{final_system_prompt}\n{history_text}User: {user_message}\nAssistant:"
-        return prompt
-
-    def _generate_response(self, prompt: str, max_new_tokens: int) -> str:
-        """Generate a response from the model based on the provided prompt."""
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                temperature=0.7,
-                do_sample=True,
-                top_p=0.9,
-            )
-        full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return full_response[len(prompt) :].strip()
-
-    def _store_interaction(self, user_message: str, assistant_reply: str, now: float) -> None:
-        """Store the user and assistant messages into the memory store."""
+    def _store_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
+        """Store conversation messages as memories."""
         try:
+            # Create embeddings
             user_emb = self.embedding_model.encode(
                 user_message, show_progress_bar=self.show_progress_bar
             )
             assistant_emb = self.embedding_model.encode(
                 assistant_reply, show_progress_bar=self.show_progress_bar
             )
-            user_mem_id = self.memory_store.add(
-                user_emb,
+
+            # Store user message
+            user_mem_id = self.add_memory(
                 user_message,
                 {
                     "type": "user_message",
-                    "created_at": now,
+                    "created_at": timestamp,
                     "conversation_id": id(self.conversation_history),
                     "importance": 0.7,
                 },
             )
-            if self.category_manager:
-                self.category_manager.add_to_category(user_mem_id, user_emb)
-            assistant_mem_id = self.memory_store.add(
-                assistant_emb,
+
+            # Store assistant message
+            assistant_mem_id = self.add_memory(
                 assistant_reply,
                 {
                     "type": "assistant_message",
-                    "created_at": now,
+                    "created_at": timestamp,
                     "conversation_id": id(self.conversation_history),
                     "importance": 0.5,
                 },
             )
-            if self.category_manager:
-                self.category_manager.add_to_category(assistant_mem_id, assistant_emb)
+
+            # Create associative link between messages
             if self.associative_linker:
                 self.associative_linker.create_associative_link(user_mem_id, assistant_mem_id, 0.9)
-            self.memory_store_adapter.invalidate_cache()
-            self.memories_since_consolidation += 2
-            if self.memories_since_consolidation >= self.consolidation_interval:
-                self._consolidate_memories()
+
         except Exception as e:
             logger.error(f"Error storing conversation in memory: {e}")
 
-    def _update_conversation_history(self, user_message: str, assistant_reply: str) -> None:
-        """Append the latest user and assistant messages to the conversation history."""
+    def _update_conversation_history(self, user_message: str, assistant_reply: str):
+        """Add messages to conversation history."""
         self.conversation_history.append({"role": "user", "content": user_message})
         self.conversation_history.append({"role": "assistant", "content": assistant_reply})
 
-    def _update_retrieval_stats(self, start_time: float, results_count: int) -> None:
-        """Update the statistics for retrieval performance."""
+    def _update_retrieval_stats(self, start_time: float, results_count: int):
+        """Update retrieval performance statistics."""
         query_time = time.time() - start_time
         stats = self.retrieval_stats
         stats["total_queries"] += 1
@@ -714,224 +483,42 @@ class MemoryWeaveAPI:
         stats["avg_query_time"] = ((n - 1) * stats["avg_query_time"] + query_time) / n
         stats["avg_results_count"] = ((n - 1) * stats["avg_results_count"] + results_count) / n
 
-    def _update_dynamic_threshold(self, query_type: any, results_count: int) -> None:
-        """Provide feedback to update the dynamic confidence threshold if enabled."""
-        if self.dynamic_threshold_adjuster:
-            self.dynamic_threshold_adjuster.update_threshold(
-                query_type, results_count, had_good_results=results_count > 0
-            )
+    def _consolidate_memories(self):
+        """Consolidate memories to stay within capacity limits."""
+        # Skip if no consolidation needed
+        if len(self.memory_store.get_all()) <= self.max_memories:
+            self.memories_since_consolidation = 0
+            logger.debug("Memory consolidation skipped: no consolidation needed.")
+            return 0
 
-    def get_conversation_history(self) -> list[dict[str, str]]:
-        """Return stored conversation history."""
+        logger.info(f"Consolidating memories to stay within limit of {self.max_memories}")
+
+        # Consolidate category manager if available
+        if self.category_manager:
+            try:
+                # Merge similar categories
+                merged_categories = self.category_manager.consolidate_categories(
+                    similarity_threshold=0.7
+                )
+                logger.info(f"Merged {len(merged_categories)} similar categories")
+            except Exception as e:
+                logger.error(f"Error consolidating categories: {e}")
+
+        # Consolidate memory store
+        removed_ids = self.memory_store.consolidate(self.max_memories)
+        self.memory_store_adapter.invalidate_cache()
+
+        # Reset counter
+        self.memories_since_consolidation = 0
+
+        logger.info(f"Consolidated {len(removed_ids)} memories.")
+        return len(removed_ids)
+
+    def get_conversation_history(self):
+        """Return the conversation history."""
         return self.conversation_history
 
-    def retrieve(
-        self,
-        query: str,
-        query_embedding: np.ndarray | None = None,
-        top_k: int = 10,
-        confidence_threshold: float | None = None,
-        weights: dict[str, float] | None = None,
-        use_progressive_filtering: bool = False,
-        use_batched_computation: bool = False,
-        context: dict[str, Any] | None = None,
-        **kwargs: Any,
-    ) -> list[dict[str, Any]]:
-        """
-        Retrieve memories using the contextual fabric strategy with fine-grained control.
-
-        Args:
-            query: The query string
-            query_embedding: Precomputed query embedding (optional)
-            top_k: Maximum number of results to return
-            confidence_threshold: Minimum confidence for results
-            weights: Custom weights for different factors
-                    (similarity, associative, temporal, activation)
-            use_progressive_filtering: Whether to use progressive filtering (large stores)
-            use_batched_computation: Whether to use batched computation (large stores)
-            context: Additional context information
-            **kwargs: Additional parameters for retrieval
-
-        Returns:
-            List of retrieved memory items with relevance scores and metadata
-        """
-        # Create embedding if not provided
-        if query_embedding is None:
-            query_embedding = self.embedding_model.encode(
-                query, show_progress_bar=self.show_progress_bar
-            )
-
-        # Prepare retrieval context
-        retrieval_context = {
-            "query": query,
-            "current_time": time.time(),
-            "memory_store": self.memory_store_adapter,
-        }
-
-        # Add custom weights if provided
-        if weights:
-            retrieval_context["adapted_retrieval_params"] = weights
-
-        # Add confidence threshold if provided
-        if confidence_threshold is not None:
-            if "adapted_retrieval_params" not in retrieval_context:
-                retrieval_context["adapted_retrieval_params"] = {}
-            retrieval_context["adapted_retrieval_params"]["confidence_threshold"] = (
-                confidence_threshold
-            )
-
-        # Add progressive filtering flags if specified
-        if use_progressive_filtering:
-            if "adapted_retrieval_params" not in retrieval_context:
-                retrieval_context["adapted_retrieval_params"] = {}
-            retrieval_context["adapted_retrieval_params"]["use_progressive_filtering"] = True
-
-        if use_batched_computation:
-            if "adapted_retrieval_params" not in retrieval_context:
-                retrieval_context["adapted_retrieval_params"] = {}
-            retrieval_context["adapted_retrieval_params"]["use_batched_computation"] = True
-
-        # Add any additional context
-        if context:
-            retrieval_context.update(context)
-
-        # Add any additional kwargs
-        for key, value in kwargs.items():
-            retrieval_context[key] = value
-
-        # Retrieve memories using the strategy
-        memories = self.strategy.retrieve(
-            query_embedding=query_embedding, top_k=top_k, context=retrieval_context
-        )
-
-        # Ensure consistent activation updates
-        for memory in memories:
-            memory_id = memory.get("memory_id")
-            if memory_id is not None and self.activation_manager:
-                # Activate memory based on relevance
-                activation_boost = min(memory.get("relevance_score", 0.1) * 0.5, 0.3)
-                self.activation_manager.activate_memory(memory_id, activation_boost, spread=True)
-
-                # Update last accessed timestamp
-                if self.temporal_context:
-                    self.temporal_context.update_timestamp(memory_id, time.time())
-
-        return memories
-
-    def search_by_keyword(self, keyword: str, limit: int = 10) -> list[dict[str, Any]]:
-        """
-        Search for memories containing a specific keyword.
-
-        Args:
-            keyword: The keyword to search for
-            limit: Maximum number of results to return
-
-        Returns:
-            list of matching memories with scores
-        """
-        logger.debug(f"Searching for memories with keyword: {keyword}")
-        results = []
-
-        # Get all memories
-        memories = self.memory_store.get_all()
-
-        # Filter memories containing the keyword
-        for memory in memories:
-            # Extract content text
-            if isinstance(memory.content, dict) and "text" in memory.content:
-                content = memory.content["text"]
-            else:
-                content = str(memory.content)
-
-            # Check if keyword is in content
-            if keyword.lower() in content.lower():
-                # Calculate relevance based on keyword prominence
-                # (Simple heuristic: more occurrences = higher relevance)
-                occurrences = content.lower().count(keyword.lower())
-                relevance = min(1.0, 0.5 + (occurrences * 0.1))
-
-                results.append({
-                    "memory_id": memory.id,
-                    "content": content,
-                    "metadata": memory.metadata,
-                    "relevance_score": relevance,
-                    "keyword_occurrences": occurrences,
-                })
-
-        # Sort by relevance score
-        results.sort(key=lambda x: x["relevance_score"], reverse=True)
-
-        logger.debug(f"Found {len(results)} memories matching keyword: {keyword}")
-        return results[:limit]
-
-    def get_similar_memories(self, memory_id: str, limit: int = 5) -> list[dict[str, Any]]:
-        """
-        Find memories similar to a given memory.
-
-        Args:
-            memory_id: ID of the memory to find similar ones for
-            limit: Maximum number of similar memories to return
-
-        Returns:
-            list of similar memories with similarity scores
-        """
-        logger.debug(f"Finding similar memories for memory ID: {memory_id}")
-        try:
-            # Get the memory
-            memory = self.memory_store.get(memory_id)
-
-            # Use its embedding to find similar memories
-            query_embedding = memory.embedding
-
-            # Use the strategy to retrieve similar memories
-            similar_memories = self.strategy.retrieve(
-                query_embedding=query_embedding,
-                top_k=limit + 1,  # +1 because we'll filter out the original memory
-                context={"memory_store": self.memory_store_adapter, "current_time": time.time()},
-            )
-
-            # Filter out the original memory
-            filtered_memories = [m for m in similar_memories if m.get("memory_id") != memory_id]
-            logger.debug(
-                f"Found {len(filtered_memories)} similar memories for memory ID: {memory_id}"
-            )
-            return filtered_memories
-
-        except KeyError:
-            logger.warning(f"Memory with ID {memory_id} not found")
-            return []
-        except Exception as e:
-            logger.error(f"Error finding similar memories: {e}")
-            return []
-
-    def get_memory_categories(self) -> dict[str, list[str]]:
-        """
-        Get all memory categories if category management is enabled.
-
-        Returns:
-            dictionary mapping category IDs to lists of memory IDs
-        """
-        logger.debug("Getting memory categories")
-        if not self.category_manager:
-            logger.debug("Category management is disabled")
-            return {}
-
-        categories = {}
-
-        # Get all categories
-        for category_id in range(self.category_manager._next_category_id):
-            try:
-                # Get memories in this category
-                memory_ids = self.category_manager.get_category_members(category_id)
-                if memory_ids:
-                    categories[str(category_id)] = memory_ids
-            except KeyError:
-                continue
-
-        logger.debug(f"Found {len(categories)} memory categories")
-        return categories
-
-    def clear_memories(self, keep_personal_attributes: bool = True) -> int:
+    def clear_memories(self, keep_personal_attributes: bool = True):
         """
         Clear all memories except personal attributes if specified.
 
@@ -987,21 +574,94 @@ class MemoryWeaveAPI:
             logger.info(f"Removed {count_before} memories.")
             return count_before
 
-    def get_retrieval_stats(self) -> dict[str, Any]:
+    def get_retrieval_stats(self):
+        """Get statistics about memory retrieval."""
+        return self.retrieval_stats.copy()
+
+    def search_by_keyword(self, keyword: str, limit: int = 10):
         """
-        Get statistics about memory retrieval performance.
+        Search for memories containing a specific keyword.
+
+        Args:
+            keyword: Keyword to search for
+            limit: Maximum number of results to return
 
         Returns:
-            dictionary of retrieval statistics
+            List of matching memories with scores
         """
-        logger.debug("Getting retrieval statistics")
-        stats = self.retrieval_stats.copy()
-        logger.debug(f"Retrieval statistics: {stats}")
-        return stats
+        logger.debug(f"Searching for memories with keyword: {keyword}")
+        results = []
 
-    def update_memory(
-        self, memory_id: str, new_text: str = None, new_metadata: dict = None
-    ) -> bool:
+        # Get all memories
+        memories = self.memory_store.get_all()
+
+        # Filter memories containing the keyword
+        for memory in memories:
+            # Extract content text
+            if isinstance(memory.content, dict) and "text" in memory.content:
+                content = memory.content["text"]
+            else:
+                content = str(memory.content)
+
+            # Check if keyword is in content
+            if keyword.lower() in content.lower():
+                # Calculate relevance based on keyword prominence
+                occurrences = content.lower().count(keyword.lower())
+                relevance = min(1.0, 0.5 + (occurrences * 0.1))
+
+                results.append({
+                    "memory_id": memory.id,
+                    "content": content,
+                    "metadata": memory.metadata,
+                    "relevance_score": relevance,
+                    "keyword_occurrences": occurrences,
+                })
+
+        # Sort by relevance score
+        results.sort(key=lambda x: x["relevance_score"], reverse=True)
+
+        logger.debug(f"Found {len(results)} memories matching keyword: {keyword}")
+        return results[:limit]
+
+    def get_similar_memories(self, memory_id: str, limit: int = 5):
+        """
+        Find memories similar to a given memory.
+
+        Args:
+            memory_id: ID of the reference memory
+            limit: Maximum number of similar memories to return
+
+        Returns:
+            List of similar memories with similarity scores
+        """
+        logger.debug(f"Finding similar memories for memory ID: {memory_id}")
+        try:
+            # Get the memory
+            memory = self.memory_store.get(memory_id)
+
+            # Use its embedding to find similar memories
+            query_embedding = memory.embedding
+
+            # Use the retrieval orchestrator
+            similar_memories = self.retrieval_orchestrator.retrieve(
+                query_embedding=query_embedding,
+                query="",  # No query text for direct embedding search
+                top_k=limit + 1,  # +1 because we'll filter out the original memory
+            )
+
+            # Filter out the original memory
+            filtered_memories = [m for m in similar_memories if m.get("memory_id") != memory_id]
+            logger.debug(f"Found {len(filtered_memories)} similar memories")
+            return filtered_memories
+
+        except KeyError:
+            logger.warning(f"Memory with ID {memory_id} not found")
+            return []
+        except Exception as e:
+            logger.error(f"Error finding similar memories: {e}")
+            return []
+
+    def update_memory(self, memory_id: str, new_text: str = None, new_metadata: dict = None):
         """
         Update an existing memory with new text or metadata.
 
@@ -1011,7 +671,7 @@ class MemoryWeaveAPI:
             new_metadata: New metadata (or None to keep existing)
 
         Returns:
-            True if update was successful, False otherwise
+            True if update successful, False otherwise
         """
         logger.info(f"Updating memory ID: {memory_id}")
         try:
@@ -1074,227 +734,3 @@ class MemoryWeaveAPI:
         except Exception as e:
             logger.error(f"Error updating memory: {e}")
             return False
-
-    def _consolidate_memories(self) -> int:
-        """
-        Consolidate memories to manage memory capacity.
-
-        Returns:
-            Number of memories consolidated
-        """
-        # Skip if no consolidation needed
-        if len(self.memory_store.get_all()) <= self.max_memories:
-            self.memories_since_consolidation = 0
-            logger.debug("Memory consolidation skipped: no consolidation needed.")
-            return 0
-
-        logger.info(f"Consolidating memories to stay within limit of {self.max_memories}")
-
-        # Consolidate category manager if available
-        if self.category_manager:
-            try:
-                # Merge similar categories
-                merged_categories = self.category_manager.consolidate_categories(
-                    similarity_threshold=0.7
-                )
-                logger.info(f"Merged {len(merged_categories)} similar categories")
-            except Exception as e:
-                logger.error(f"Error consolidating categories: {e}")
-
-        # Consolidate memory store
-        removed_ids = self.memory_store.consolidate(self.max_memories)
-        self.memory_store_adapter.invalidate_cache()
-
-        # Reset counter
-        self.memories_since_consolidation = 0
-
-        logger.info(f"Consolidated {len(removed_ids)} memories.")
-        return len(removed_ids)
-
-    def chat_without_memory(self, user_message: str, max_new_tokens: int = 512) -> str:
-        """
-        A baseline method that does not use memory retrieval at all.
-
-        Args:
-            user_message: The user's message
-            max_new_tokens: Maximum number of tokens to generate
-
-        Returns:
-            The assistant's response without memory context
-        """
-        logger.debug("Generating response without memory context.")
-        prompt = f"You are a helpful assistant.\n\nUser: {user_message}\nAssistant:"
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                temperature=0.7,
-                do_sample=True,
-                top_p=0.9,
-            )
-
-        full_response = self.tokenizer.decode(
-            outputs[0],
-            skip_special_tokens=True,
-        )
-        assistant_response = full_response[len(prompt) :].strip()
-        logger.debug("Response generated without memory context.")
-        return assistant_response
-
-    async def chat_stream(
-        self,
-        user_message: str,
-        max_new_tokens: int = 512,
-    ) -> AsyncGenerator[str, None]:
-        """
-        Process a user message and generate a streaming response.
-
-        Args:
-            user_message: The user's message
-            max_new_tokens: Maximum tokens to generate
-
-        Returns:
-            AsyncGenerator yielding response tokens
-        """
-        start_time = time.time()
-
-        # 1. Query analysis (reuse from chat method)
-        _query_obj, adapted_params, expanded_keywords, query_type, entities = self._analyze_query(
-            user_message
-        )
-
-        # 2. Compute query embedding
-        query_embedding = self._compute_embedding(user_message)
-        if query_embedding is None:
-            yield "Sorry, an error occurred while processing your request."
-            return
-
-        # 3. Adjust threshold
-        self._adjust_confidence_threshold(query_type, adapted_params)
-
-        # 4. Retrieve memories
-        now = time.time()
-        relevant_memories = self._retrieve_memories(
-            query_embedding,
-            user_message,
-            query_type,
-            expanded_keywords,
-            entities,
-            now,
-            adapted_params,
-        )
-
-        # 5. Update memory activations and apply coherence
-        self._update_memory_activation(relevant_memories, now)
-        relevant_memories = self._apply_semantic_coherence(relevant_memories, query_embedding)
-
-        # 6. Apply temporal context and clean results
-        cleaned_results = self._apply_temporal_context_and_clean(
-            user_message, relevant_memories, now
-        )
-
-        # 7. Extract personal attributes
-        self._extract_personal_attributes(user_message, now)
-
-        # 8. Construct prompt
-        prompt = self._construct_prompt(cleaned_results, query_type, user_message)
-
-        # 9. Stream generation
-        async for token in self._stream_generate_response(prompt, max_new_tokens):
-            yield token
-
-        # 10. Store interaction and update history
-        full_response = "".join([
-            token
-            async for token in self._stream_generate_response(prompt, max_new_tokens, stream=False)
-        ])
-        self._store_interaction(user_message, full_response, now)
-        self._update_conversation_history(user_message, full_response)
-        self._update_retrieval_stats(start_time, len(cleaned_results))
-        self._update_dynamic_threshold(query_type, len(cleaned_results))
-
-    async def _stream_generate_response(
-        self,
-        prompt: str,
-        max_new_tokens: int,
-        stream: bool = True,
-    ) -> AsyncGenerator[str, None]:
-        """
-        Stream tokens from the model.
-
-        Args:
-            prompt: The input prompt
-            max_new_tokens: Maximum new tokens to generate
-            stream: Whether to stream tokens or return the full response
-
-        Returns:
-            AsyncGenerator yielding tokens or the full response
-        """
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-
-        # Check if HuggingFace Transformer supports streaming
-        if hasattr(self.model.generate, "streamer") and stream:
-            # Use HF TextStreamer if available
-            from transformers import TextStreamer
-
-            streamer = TextStreamer(self.tokenizer)
-            generation_kwargs = {
-                "input_ids": inputs.input_ids,
-                "attention_mask": inputs.attention_mask,
-                "max_new_tokens": max_new_tokens,
-                "temperature": 0.7,
-                "do_sample": True,
-                "top_p": 0.9,
-                "streamer": streamer,
-            }
-
-            # This is a workaround to capture tokens from the streamer
-            token_queue = asyncio.Queue()
-
-            async def _stream_tokens():
-                current_token = ""
-                try:
-                    async for token in streamer:
-                        await token_queue.put(token)
-                    await token_queue.put(None)  # Signal end of generation
-                except Exception as e:
-                    logger.error(f"Error in token streaming: {e}")
-                    await token_queue.put(None)
-
-            # Start streaming task
-            asyncio.create_task(_stream_tokens())
-
-            # Start generation
-            self.model.generate(**generation_kwargs)
-
-            # Yield tokens as they become available
-            while True:
-                token = await token_queue.get()
-                if token is None:
-                    break
-                yield token
-        else:
-            # Fallback for models without streaming support
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    temperature=0.7,
-                    do_sample=True,
-                    top_p=0.9,
-                )
-
-            # Get full response
-            full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            assistant_reply = full_response[len(prompt) :].strip()
-
-            if stream:
-                # Simulate streaming by yielding character by character
-                for char in assistant_reply:
-                    yield char
-                    await asyncio.sleep(0.005)  # Simulate typing speed
-            else:
-                # Return the full response if not streaming
-                yield assistant_reply

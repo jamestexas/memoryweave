@@ -17,14 +17,15 @@ _LLM: AutoModelForCausalLM | None = None
 _DEVICE: str | None = None
 
 
-def _get_device(device: str | None = None) -> str:
+def get_device(device: str | None = None) -> str:
     """Choose a device for running the model."""
-    if torch.mps.is_available():
-        return "mps"
-    elif torch.cuda.is_available():
-        return "cuda"
-    else:
-        return "cpu"
+    if device is None or device == "auto":
+        if torch.mps.is_available():
+            return "mps"
+        elif torch.cuda.is_available():
+            return "cuda"
+        else:
+            return "cpu"
 
 
 def get_tokenizer(model_name: str = DEFAULT_MODEL, **kwargs) -> AutoTokenizer:
@@ -39,7 +40,7 @@ def get_llm(model_name: str = DEFAULT_MODEL, device: str = "mps", **kwargs) -> A
     """Singleton to load a Hugging Face causal LM."""
     global _LLM, _DEVICE
     if _LLM is None:
-        _DEVICE = _get_device(device)
+        _DEVICE = get_device(device)
         torch_dtype = torch.float16 if _DEVICE == "cuda" else torch.float32
 
         print(f"Loading LLM: {model_name}")
@@ -50,6 +51,16 @@ def get_llm(model_name: str = DEFAULT_MODEL, device: str = "mps", **kwargs) -> A
             **kwargs,
         )
     return _LLM
+
+
+def get_device(device: str | None = None) -> str:
+    """Choose a device for running the model."""
+    if torch.mps.is_available():
+        return "mps"
+    elif torch.cuda.is_available():
+        return "cuda"
+    else:
+        return "cpu"
 
 
 class MemoryStoreAdapter:

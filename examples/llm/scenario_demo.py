@@ -22,11 +22,12 @@ import time
 
 # rich_click as a drop-in for Click to get pretty terminal formatting
 import rich_click as click
-
-# Our MemoryWeave LLM wrapper (using the compatibility wrapper)
-from memoryweave_llm_wrapper import MemoryWeaveLLM
 from rich.console import Console
 from rich.logging import RichHandler
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+
+# Our MemoryWeave LLM wrapper (using the compatibility wrapper)
+from memoryweave.api import MemoryWeaveAPI  # Assuming MemoryWeaveAPI is available
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -64,8 +65,8 @@ def main(model, debug):
     console.log("Starting the MemoryWeave scenario demo...", style="bold cyan")
     console.log(f"[bold]Using model[/bold]: {model}")
 
-    # 1) Initialize the MemoryWeave LLM
-    llm = MemoryWeaveLLM(model_name=model)
+    # 1) Initialize the MemoryWeave API
+    api = MemoryWeaveAPI(model_name=model)
 
     # 2) Scenario demonstration
     # We go through a sequence of user messages and show how MemoryWeave
@@ -86,29 +87,38 @@ def main(model, debug):
     ]
 
     # We'll step through each conversation message:
-    for i, (user_msg, label) in enumerate(conversation, start=1):
-        # Show user message
-        console.log(f"\n[bold yellow]User (Step {i} - {label}):[/bold yellow] {user_msg}")
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description} ({task.completed}/{task.total})"),
+        TimeElapsedColumn(),
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Processing conversation...", total=len(conversation))
 
-        # Let MemoryWeave respond
-        start_time = time.time()
-        try:
-            assistant_reply = llm.chat(user_msg, max_new_tokens=100)
-        except Exception as e:
-            logger.error(f"[red]Error generating assistant response:[/red] {e}")
-            continue
-        elapsed = time.time() - start_time
+        for i, (user_msg, label) in enumerate(conversation, start=1):
+            # Show user message
+            console.log(f"\n[bold yellow]User (Step {i} - {label}):[/bold yellow] {user_msg}")
 
-        # Print the assistant's reply
-        console.log(f"[bold green]Assistant (Step {i}):[/bold green] {assistant_reply}")
-        logger.debug(f"Response took {elapsed:.2f}s")
+            # Let MemoryWeave respond
+            start_time = time.time()
+            try:
+                assistant_reply = api.chat(user_msg, max_new_tokens=100)
+            except Exception as e:
+                logger.error(f"[red]Error generating assistant response:[/red] {e}")
+                continue
+            elapsed = time.time() - start_time
+
+            # Print the assistant's reply
+            console.log(f"[bold green]Assistant (Step {i}):[/bold green] {assistant_reply}")
+            logger.debug(f"Response took {elapsed:.2f}s")
+            progress.advance(task)
 
     # 3) Wrap up
     console.log("\n[bold cyan]Scenario complete![/bold cyan]")
     console.log("Below is the final conversation history as stored in MemoryWeave:\n")
 
     # 4) Show entire conversation from the LLM's perspective
-    history = llm.get_conversation_history()
+    history = api.get_conversation_history()
     for turn in history:
         role = turn["role"]
         text = turn["content"]
@@ -118,9 +128,8 @@ def main(model, debug):
         console.log(f"[bold {color}]{role_str}:[/bold {color}] {text}")
 
     console.log(
-        "[bold magenta]Done![/bold magenta] You can see how personal info (name, allergy, dog's name)"
+        "\n[bold magenta]Done![/bold magenta] You can see how personal info (name, allergy, dog's name)"
         " was stored and reused across multiple turns.\n",
-        newline_start=True,
     )
 
 
