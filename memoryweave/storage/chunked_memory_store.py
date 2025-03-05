@@ -6,7 +6,7 @@ large text contexts.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -21,7 +21,7 @@ class ChunkInfo:
     chunk_index: int
     embedding: EmbeddingVector
     text: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ChunkedMemoryStore(MemoryStore):
@@ -36,22 +36,22 @@ class ChunkedMemoryStore(MemoryStore):
     def __init__(self):
         """Initialize the chunked memory store."""
         super().__init__()
-        self._chunks: Dict[MemoryID, List[ChunkInfo]] = {}
+        self._chunks: dict[MemoryID, list[ChunkInfo]] = {}
         self.component_id = "chunked_memory_store"
 
     def add_chunked(
         self,
-        chunks: List[Dict[str, Any]],
-        embeddings: List[EmbeddingVector],
+        chunks: list[dict[str, Any]],
+        embeddings: list[EmbeddingVector],
         original_content: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> MemoryID:
         """
         Add a memory consisting of multiple chunks.
 
         Args:
-            chunks: List of chunk dictionaries with text and metadata
-            embeddings: List of embeddings for each chunk
+            chunks: list of chunk dictionaries with text and metadata
+            embeddings: list of embeddings for each chunk
             original_content: The original full text content
             metadata: Optional metadata for the memory
 
@@ -91,7 +91,7 @@ class ChunkedMemoryStore(MemoryStore):
 
         return memory_id
 
-    def get_chunks(self, memory_id: MemoryID) -> List[ChunkInfo]:
+    def get_chunks(self, memory_id: MemoryID) -> list[ChunkInfo]:
         """
         Get all chunks for a memory.
 
@@ -99,14 +99,14 @@ class ChunkedMemoryStore(MemoryStore):
             memory_id: ID of the memory
 
         Returns:
-            List of ChunkInfo objects
+            list of ChunkInfo objects
         """
         if memory_id not in self._chunks:
             return []
 
         return self._chunks[memory_id]
 
-    def get_chunk_embeddings(self, memory_id: MemoryID) -> List[EmbeddingVector]:
+    def get_chunk_embeddings(self, memory_id: MemoryID) -> list[EmbeddingVector]:
         """
         Get all chunk embeddings for a memory.
 
@@ -114,14 +114,17 @@ class ChunkedMemoryStore(MemoryStore):
             memory_id: ID of the memory
 
         Returns:
-            List of embeddings for each chunk
+            list of embeddings for each chunk
         """
         chunks = self.get_chunks(memory_id)
         return [chunk.embedding for chunk in chunks]
 
     def search_chunks(
-        self, query_embedding: EmbeddingVector, limit: int = 10, threshold: Optional[float] = None
-    ) -> List[Tuple[MemoryID, int, float]]:
+        self,
+        query_embedding: EmbeddingVector,
+        limit: int = 10,
+        threshold: float | None = None,
+    ) -> list[tuple[MemoryID, int, float]]:
         """
         Search for individual chunks matching the query embedding.
 
@@ -131,7 +134,7 @@ class ChunkedMemoryStore(MemoryStore):
             threshold: Minimum similarity threshold
 
         Returns:
-            List of tuples (memory_id, chunk_index, similarity_score)
+            list of tuples (memory_id, chunk_index, similarity_score)
         """
         # Normalize query vector for cosine similarity
         query_norm = np.linalg.norm(query_embedding)
@@ -239,24 +242,24 @@ class ChunkedMemoryAdapter:
         return self._chunk_embeddings_cache
 
     @property
-    def chunk_metadata(self) -> List[Dict[str, Any]]:
+    def chunk_metadata(self) -> list[dict[str, Any]]:
         """
         Get metadata for all chunks.
 
         Returns:
-            List of metadata dictionaries for each chunk
+            list of metadata dictionaries for each chunk
         """
         if self._invalidated or self._chunk_metadata_cache is None:
             self._build_cache()
         return self._chunk_metadata_cache
 
     @property
-    def chunk_ids(self) -> List[Tuple[MemoryID, int]]:
+    def chunk_ids(self) -> list[tuple[MemoryID, int]]:
         """
         Get all (memory_id, chunk_index) pairs.
 
         Returns:
-            List of (memory_id, chunk_index) tuples
+            list of (memory_id, chunk_index) tuples
         """
         if self._invalidated or self._chunk_id_cache is None:
             self._build_cache()
@@ -264,7 +267,7 @@ class ChunkedMemoryAdapter:
 
     def _build_cache(self):
         """Build cache of chunk embeddings and metadata."""
-        # Get all memories
+        # Get all memories from the store
         all_memories = self.memory_store.get_all()
 
         chunk_embeddings = []
@@ -272,11 +275,11 @@ class ChunkedMemoryAdapter:
         chunk_ids = []
 
         # Process each memory and its chunks
-        for memory in all_memories:
+        for memory_idx, memory in enumerate(all_memories):
             memory_id = memory.id
             chunks = self.memory_store.get_chunks(memory_id)
 
-            for chunk in chunks:
+            for chunk_idx, chunk in enumerate(chunks):
                 # Add embedding
                 chunk_embeddings.append(chunk.embedding)
 
@@ -294,6 +297,7 @@ class ChunkedMemoryAdapter:
                 meta["memory_id"] = memory_id
                 meta["chunk_index"] = chunk.chunk_index
                 meta["chunk_text"] = chunk.text
+                meta["internal_memory_idx"] = memory_idx  # Add this for mapping
 
                 chunk_metadata.append(meta)
                 chunk_ids.append((memory_id, chunk.chunk_index))
@@ -303,16 +307,19 @@ class ChunkedMemoryAdapter:
             self._chunk_embeddings_cache = np.stack(chunk_embeddings)
         else:
             # Return empty array with proper shape
-            dim = self.memory_store.get_all()[0].embedding.shape[0] if all_memories else 0
+            dim = self.memory_store.get_all()[0].embedding.shape[0] if all_memories else 768
             self._chunk_embeddings_cache = np.zeros((0, dim))
 
         self._chunk_metadata_cache = chunk_metadata
-        self._chunk_id_cache = chunk_ids
+        self._chunk_ids_cache = chunk_ids
         self._invalidated = False
 
     def search_chunks(
-        self, query_embedding: EmbeddingVector, limit: int = 10, threshold: Optional[float] = None
-    ) -> List[Dict[str, Any]]:
+        self,
+        query_embedding: EmbeddingVector,
+        limit: int = 10,
+        threshold: float | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Search for chunks similar to the query embedding.
 
@@ -322,7 +329,7 @@ class ChunkedMemoryAdapter:
             threshold: Similarity threshold
 
         Returns:
-            List of dictionaries with chunk information and scores
+            list of dictionaries with chunk information and scores
         """
         if self._invalidated or self._chunk_embeddings_cache is None:
             self._build_cache()
@@ -372,7 +379,7 @@ class ChunkedMemoryAdapter:
 
         return results
 
-    def get_memory_chunks(self, memory_id: MemoryID) -> List[Dict[str, Any]]:
+    def get_memory_chunks(self, memory_id: MemoryID) -> list[dict[str, Any]]:
         """
         Get all chunks for a specific memory.
 
@@ -380,7 +387,7 @@ class ChunkedMemoryAdapter:
             memory_id: Memory ID
 
         Returns:
-            List of chunk information dictionaries
+            list of chunk information dictionaries
         """
         chunks = self.memory_store.get_chunks(memory_id)
         if not chunks:
@@ -388,14 +395,12 @@ class ChunkedMemoryAdapter:
 
         results = []
         for chunk in chunks:
-            results.append(
-                {
-                    "memory_id": memory_id,
-                    "chunk_index": chunk.chunk_index,
-                    "embedding": chunk.embedding,
-                    "content": chunk.text,
-                    "metadata": chunk.metadata.copy(),
-                }
-            )
+            results.append({
+                "memory_id": memory_id,
+                "chunk_index": chunk.chunk_index,
+                "embedding": chunk.embedding,
+                "content": chunk.text,
+                "metadata": chunk.metadata.copy(),
+            })
 
         return results

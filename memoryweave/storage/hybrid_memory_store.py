@@ -183,15 +183,13 @@ class HybridMemoryStore(MemoryStore):
 
             # Apply threshold
             if threshold is None or similarity >= threshold:
-                results.append(
-                    {
-                        "memory_id": memory_id,
-                        "chunk_index": chunk.chunk_index,
-                        "chunk_similarity": similarity,
-                        "content": chunk.text,
-                        "metadata": chunk.metadata.copy(),
-                    }
-                )
+                results.append({
+                    "memory_id": memory_id,
+                    "chunk_index": chunk.chunk_index,
+                    "chunk_similarity": similarity,
+                    "content": chunk.text,
+                    "metadata": chunk.metadata.copy(),
+                })
 
         # Sort by similarity (descending)
         results.sort(key=lambda x: x["chunk_similarity"], reverse=True)
@@ -644,15 +642,15 @@ class HybridMemoryAdapter:
         try:
             logger.debug("Building hybrid memory adapter cache")
 
-            # Get memories directly from the hybrid store
-            hybrid_memories = self.memory_store.get_all()
+            # Get all memories directly from the hybrid store
+            memories = self.memory_store.get_all()
 
-            if not hybrid_memories:
+            if not memories:
                 self._memory_embeddings_cache = np.zeros((0, 768))  # Default dimension
                 self._metadata_dict = []
                 self._memory_ids_cache = []
                 self._index_to_id_map = {}
-                logger.debug("No hybrid memories found")
+                logger.debug("No memories found in hybrid store")
                 return
 
             # Process memories into cache
@@ -660,52 +658,36 @@ class HybridMemoryAdapter:
             memory_metadata = []
             memory_ids = []
 
-            # Process each memory
-            for idx, memory in enumerate(hybrid_memories):
-                # Extract the full embedding (hybrid stores maintain both full and chunk embeddings)
-                if (
-                    hasattr(self.memory_store, "_hybrid_info")
-                    and memory.id in self.memory_store._hybrid_info
-                ):
-                    embedding = self.memory_store._hybrid_info[memory.id].full_embedding
-                else:
-                    embedding = memory.embedding
+            # Process each memory and track the mapping explicitly
+            for idx, memory in enumerate(memories):
+                memory_embeddings.append(memory.embedding)
 
-                memory_embeddings.append(embedding)
-
-                # Create metadata entry with memory_id
-                metadata = {}
-                if memory.metadata:
-                    metadata.update(memory.metadata)
-
-                metadata["memory_id"] = idx
-                metadata["original_id"] = memory.id
-                metadata["is_hybrid"] = self.memory_store.is_hybrid(memory.id)
-
+                # Create metadata with explicit index mapping
+                metadata = memory.metadata.copy() if memory.metadata else {}
+                metadata["memory_id"] = idx  # Use sequential index as internal ID
+                metadata["original_id"] = memory.id  # Store original ID
                 memory_metadata.append(metadata)
+
                 memory_ids.append(memory.id)
-                self._index_to_id_map[idx] = memory.id
+                self._index_to_id_map[idx] = memory.id  # Map index to original ID
 
             # Convert to numpy array for embeddings
-            if memory_embeddings:
-                self._memory_embeddings_cache = np.stack(memory_embeddings)
-            else:
-                self._memory_embeddings_cache = np.zeros((0, 768))  # Default dimension
-
-            self._metadata_dict = memory_metadata
+            self._memory_embeddings_cache = (
+                np.stack(memory_embeddings) if memory_embeddings else np.zeros((0, 768))
+            )
+            self._memory_metadata_cache = memory_metadata
             self._memory_ids_cache = memory_ids
-            self._invalidated = False
 
             logger.debug(f"Built hybrid cache with {len(memory_embeddings)} memories")
+            self._invalidated = False
 
         except Exception as e:
             logger.error(f"Error building hybrid cache: {e}")
             import traceback
 
             traceback.print_exc()
-
             # Initialize empty cache on error
-            self._memory_embeddings_cache = np.zeros((0, 768))  # Default dimension
-            self._metadata_dict = []
+            self._memory_embeddings_cache = np.zeros((0, 768))
+            self._memory_metadata_cache = []
             self._memory_ids_cache = []
             self._index_to_id_map = {}
