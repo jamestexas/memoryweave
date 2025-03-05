@@ -8,6 +8,7 @@ from rich.logging import RichHandler
 
 from memoryweave.interfaces.memory import EmbeddingVector, Memory, MemoryID
 from memoryweave.storage.refactored.base_store import BaseMemoryStore
+from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
 logging.basicConfig(
     level="INFO",
@@ -24,15 +25,36 @@ class MemoryAdapter:
     and handles ID translation transparently.
     """
 
-    def __init__(self, memory_store: BaseMemoryStore):
-        """Initialize the adapter with a memory store."""
+    def __init__(
+        self,
+        memory_store: BaseMemoryStore,
+        vector_search: IVectorSearchProvider | None = None,
+    ):
+        """
+        Initialize the adapter with a memory store and optional vector search provider.
+
+        Args:
+            memory_store: Base memory store implementation
+            vector_search: Optional vector search provider (will create a default one if None)
+        """
         self.memory_store = memory_store
+        self._vector_search = vector_search
         self._embeddings_matrix = None
         self._metadata_dict = None
         self._ids_list = None
         self._index_to_id_map = {}
         self._id_to_index_map = {}
         self._invalidated = True
+
+    def set_vector_search(self, vector_search: IVectorSearchProvider) -> None:
+        """
+        Set the vector search provider.
+
+        Args:
+            vector_search: Vector search provider
+        """
+        self._vector_search = vector_search
+        self.invalidate_cache()
 
     @property
     def memory_embeddings(self) -> np.ndarray:
@@ -204,6 +226,50 @@ class MemoryAdapter:
             if len(self._embeddings_matrix) == 0:
                 return []
 
+        # If vector search provider is available, use it
+        if self._vector_search is not None:
+            try:
+                # Use vector search provider
+                search_results = self._vector_search.search(query_vector, limit, threshold)
+
+                # Format results
+                results = []
+                for idx, score in search_results:
+                    # Translate internal index to original ID
+                    original_id = self._index_to_id_map.get(idx)
+                    if original_id is None:
+                        logger.warning(f"Could not resolve index {idx} to memory ID")
+                        continue
+
+                    try:
+                        # Get the full memory
+                        memory = self.memory_store.get(original_id)
+
+                        # Create result object
+                        result = {
+                            "id": original_id,
+                            "memory_id": original_id,  # For backward compatibility
+                            "content": memory.content
+                            if not isinstance(memory.content, dict)
+                            else memory.content.get("text", str(memory.content)),
+                            "metadata": memory.metadata if memory.metadata else {},
+                            "score": score,
+                            "relevance_score": score,  # For backward compatibility
+                        }
+
+                        results.append(result)
+                    except Exception as e:
+                        logger.error(f"Error retrieving memory {original_id}: {e}")
+
+                return results
+
+            except Exception as e:
+                logger.error(
+                    f"Error using vector search provider: {e}, falling back to direct search"
+                )
+                # Fall back to direct search
+
+        # Direct search using NumPy (fallback)
         # Normalize query vector
         query_norm = np.linalg.norm(query_vector)
         if query_norm == 0:

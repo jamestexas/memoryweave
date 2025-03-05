@@ -1,7 +1,7 @@
 """Hybrid memory store implementation with improved ID handling."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -17,7 +17,7 @@ class ChunkInfo:
     chunk_index: int
     embedding: EmbeddingVector
     text: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -25,7 +25,7 @@ class HybridMemoryInfo:
     """Information about a hybrid memory with full and chunk embeddings."""
 
     full_embedding: EmbeddingVector
-    chunks: List[ChunkInfo]
+    chunks: list[ChunkInfo]
     is_hybrid: bool = True
 
 
@@ -43,11 +43,11 @@ class HybridMemoryStore(BaseMemoryStore):
         # Use a standard memory store for the base functionality
         self._base_store = StandardMemoryStore()
         # Store hybrid info for memories
-        self._hybrid_info: Dict[MemoryID, HybridMemoryInfo] = {}
+        self._hybrid_info: dict[MemoryID, HybridMemoryInfo] = {}
         self.component_id = "hybrid_memory_store"
 
     def add(
-        self, embedding: EmbeddingVector, content: Any, metadata: Dict[str, Any | None] = None
+        self, embedding: EmbeddingVector, content: Any, metadata: dict[str, Any | None] = None
     ) -> MemoryID:
         """
         Add a memory without chunking.
@@ -69,7 +69,7 @@ class HybridMemoryStore(BaseMemoryStore):
         memory_id: MemoryID,
         embedding: EmbeddingVector,
         content: Any,
-        metadata: Dict[str, Any | None] = None,
+        metadata: dict[str, Any | None] = None,
     ) -> MemoryID:
         """Add a memory with a specific ID."""
         # Pass to base store
@@ -78,10 +78,10 @@ class HybridMemoryStore(BaseMemoryStore):
     def add_hybrid(
         self,
         full_embedding: EmbeddingVector,
-        chunks: List[Dict[str, Any]],
-        chunk_embeddings: List[EmbeddingVector],
+        chunks: list[dict[str, Any]],
+        chunk_embeddings: list[EmbeddingVector],
         original_content: str,
-        metadata: Dict[str, Any | None] = None,
+        metadata: dict[str, Any | None] = None,
     ) -> MemoryID:
         """
         Add a memory with both full and chunk embeddings.
@@ -143,12 +143,12 @@ class HybridMemoryStore(BaseMemoryStore):
         memory_id = self._resolve_id(memory_id)
         return self._base_store.get(memory_id)
 
-    def get_all(self) -> List[Memory]:
+    def get_all(self) -> list[Memory]:
         """
         Get all memories.
 
         Returns:
-            List of Memory objects
+            list of Memory objects
         """
         return self._base_store.get_all()
 
@@ -165,7 +165,7 @@ class HybridMemoryStore(BaseMemoryStore):
         memory_id = self._resolve_id(memory_id)
         return memory_id in self._hybrid_info
 
-    def get_chunks(self, memory_id: MemoryID) -> List[ChunkInfo]:
+    def get_chunks(self, memory_id: MemoryID) -> list[ChunkInfo]:
         """
         Get all chunks for a memory.
 
@@ -173,14 +173,14 @@ class HybridMemoryStore(BaseMemoryStore):
             memory_id: ID of the memory
 
         Returns:
-            List of ChunkInfo objects
+            list of ChunkInfo objects
         """
         memory_id = self._resolve_id(memory_id)
         if memory_id not in self._hybrid_info:
             return []
         return self._hybrid_info[memory_id].chunks
 
-    def get_chunk_embeddings(self, memory_id: MemoryID) -> List[EmbeddingVector]:
+    def get_chunk_embeddings(self, memory_id: MemoryID) -> list[EmbeddingVector]:
         """
         Get all chunk embeddings for a memory.
 
@@ -188,14 +188,14 @@ class HybridMemoryStore(BaseMemoryStore):
             memory_id: ID of the memory
 
         Returns:
-            List of embeddings for each chunk
+            list of embeddings for each chunk
         """
         chunks = self.get_chunks(memory_id)
         return [chunk.embedding for chunk in chunks]
 
     def search_chunks(
         self, query_embedding: EmbeddingVector, limit: int = 10, threshold: float | None = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Search for individual chunks matching the query embedding.
 
@@ -205,7 +205,7 @@ class HybridMemoryStore(BaseMemoryStore):
             threshold: Minimum similarity threshold
 
         Returns:
-            List of dictionaries with chunk information and scores
+            list of dictionaries with chunk information and scores
         """
         # Normalize query vector for cosine similarity
         query_norm = np.linalg.norm(query_embedding)
@@ -256,8 +256,8 @@ class HybridMemoryStore(BaseMemoryStore):
         query_embedding: EmbeddingVector,
         limit: int = 10,
         threshold: float | None = None,
-        keywords: List[str | None] = None,
-    ) -> List[Dict[str, Any]]:
+        keywords: list[str | None] = None,
+    ) -> list[dict[str, Any]]:
         """
         Search using both full embeddings and chunks with optional keyword filtering.
 
@@ -268,7 +268,7 @@ class HybridMemoryStore(BaseMemoryStore):
             keywords: Optional list of keywords for filtering
 
         Returns:
-            List of dictionaries with memory information and scores
+            list of dictionaries with memory information and scores
         """
         # Normalize query vector for cosine similarity
         query_norm = np.linalg.norm(query_embedding)
@@ -380,7 +380,7 @@ class HybridMemoryStore(BaseMemoryStore):
         combined_results.sort(key=lambda x: x["relevance_score"], reverse=True)
         return combined_results[:limit]
 
-    def update_metadata(self, memory_id: MemoryID, metadata: Dict[str, Any]) -> None:
+    def update_metadata(self, memory_id: MemoryID, metadata: dict[str, Any]) -> None:
         """
         Update metadata for a memory.
 
@@ -428,7 +428,7 @@ class HybridMemoryStore(BaseMemoryStore):
             return 0.0
         return self.get_chunk_count() / len(self._hybrid_info)
 
-    def consolidate(self, max_memories: int) -> List[MemoryID]:
+    def consolidate(self, max_memories: int) -> list[MemoryID]:
         """
         Consolidate memories to stay within capacity.
 
@@ -436,7 +436,7 @@ class HybridMemoryStore(BaseMemoryStore):
             max_memories: Maximum number of memories to keep
 
         Returns:
-            List of removed memory IDs
+            list of removed memory IDs
         """
         # Use the base store's consolidation logic
         removed_ids = self._base_store.consolidate(max_memories)
