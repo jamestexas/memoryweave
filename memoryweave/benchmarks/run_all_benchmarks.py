@@ -89,37 +89,6 @@ DEFAULT_SCENARIOS = dict(
         "I just got back from the doctor. She said I need to take 25mg of Lisinopril every morning for my blood pressure, 10mg of Zolpidem before bed for sleep, and 500mg of Metformin with food twice daily for my blood sugar. I also need to schedule a follow-up in 3 months to check how the treatment is working."
     ],
 )
-default_scenarios = {
-    "factual": {
-        "name": "Factual Recall",
-        "description": "Basic factual recall testing.",
-        "queries": [
-            ("What is my name?", ["Alex", "Thompson"]),
-            ("Where do I live?", ["Seattle"]),
-        ],
-    },
-    "temporal": {
-        "name": "Temporal Context",
-        "description": "Tests ability to understand time references.",
-        "queries": [
-            ("What did I mention earlier about my home?", ["Seattle"]),
-            ("What did I talk about yesterday?", ["Alex", "Thompson", "Seattle"]),
-        ],
-    },
-    "complex": {
-        "name": "Complex Context",
-        "description": "Tests handling of longer, more complex information.",
-        "queries": [
-            (
-                "I need to remember the details about my new medical regimen. Can you help?",
-                ["medication", "doctor", "treatment"],
-            ),
-        ],
-        "preload": [
-            "I just got back from the doctor. She said I need to take 25mg of Lisinopril every morning for my blood pressure, 10mg of Zolpidem before bed for sleep, and 500mg of Metformin with food twice daily for my blood sugar. I also need to schedule a follow-up in 3 months to check how the treatment is working."
-        ],
-    },
-}
 
 
 def compute_accuracy_cosine(response: str, expected_answers: list[str], embedder) -> float:
@@ -193,7 +162,7 @@ class SharedResources:
         gc.collect()
 
 
-# TODO: This is fixing the ability for hybrid memory to properly call the adapter cache building, which was not working correctly
+# TODO: This is fixing the ability for hybrid memory to properly call the adapter cache building, which was not working correctly  # noqa: W505
 # This is a temporary fix until the root cause is identified and fixed
 def enhanced_build_cache(adapter):
     """Enhanced cache building that correctly finds memories in the hybrid store"""

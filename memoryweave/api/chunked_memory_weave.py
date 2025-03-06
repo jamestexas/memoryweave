@@ -24,7 +24,7 @@ from memoryweave.factory.memory_factory import (
     VectorSearchConfig,
     create_memory_store_and_adapter,
 )
-from memoryweave.storage.refactored.memory_store import get_device
+from memoryweave.utils import _get_device
 
 logger = logging.getLogger(__name__)
 
@@ -59,16 +59,18 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         """Initialize the ChunkedMemoryWeaveAPI."""
         # Initialize chunking components first
         self.text_chunker = TextChunker()
-        self.text_chunker.initialize({
-            "chunk_size": 200,
-            "chunk_overlap": 50,
-            "min_chunk_size": 30,
-            "respect_paragraphs": True,
-            "respect_sentences": True,
-        })
+        self.text_chunker.initialize(
+            {
+                "chunk_size": 200,
+                "chunk_overlap": 50,
+                "min_chunk_size": 30,
+                "respect_paragraphs": True,
+                "respect_sentences": True,
+            }
+        )
 
         # Initialize embedding model to get dimension
-        self.device = get_device(device)
+        self.device = _get_device(device)
         embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
         embedding_dim = embedding_model.get_sentence_embedding_dimension()
 
@@ -494,11 +496,13 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             result = []
 
             for chunk in chunks:
-                result.append({
-                    "text": chunk.text,
-                    "metadata": chunk.metadata,
-                    "chunk_index": chunk.chunk_index,
-                })
+                result.append(
+                    {
+                        "text": chunk.text,
+                        "metadata": chunk.metadata,
+                        "chunk_index": chunk.chunk_index,
+                    }
+                )
 
             return result
         except Exception as e:

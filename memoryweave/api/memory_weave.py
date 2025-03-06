@@ -27,7 +27,7 @@ from memoryweave.factory.memory_factory import (
 )
 from memoryweave.interfaces.retrieval import QueryType
 from memoryweave.query.analyzer import SimpleQueryAnalyzer
-from memoryweave.storage.refactored.memory_store import get_device
+from memoryweave.utils import _get_device
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,7 +65,7 @@ class MemoryWeaveAPI:
     ):
         """Initialize MemoryWeave with an LLM, embeddings, and memory components."""
         self.debug = debug
-        self.device = get_device(device)
+        self.device = _get_device(device)
         self.show_progress_bar = show_progress_bar
 
         # Configure logging
@@ -165,15 +165,17 @@ class MemoryWeaveAPI:
             temporal_context=self.temporal_context,
             activation_manager=self.activation_manager,
         )
-        self.strategy.initialize({
-            "confidence_threshold": 0.1,
-            "similarity_weight": 0.4,
-            "associative_weight": 0.3,
-            "temporal_weight": 0.2,
-            "activation_weight": 0.1,
-            "max_associative_hops": 2,
-            "debug": debug,
-        })
+        self.strategy.initialize(
+            {
+                "confidence_threshold": 0.1,
+                "similarity_weight": 0.4,
+                "associative_weight": 0.3,
+                "temporal_weight": 0.2,
+                "activation_weight": 0.1,
+                "max_associative_hops": 2,
+                "debug": debug,
+            }
+        )
 
         # Initialize retrieval orchestrator
         self.retrieval_orchestrator = RetrievalOrchestrator(
@@ -649,13 +651,15 @@ class MemoryWeaveAPI:
                 occurrences = content.lower().count(keyword.lower())
                 relevance = min(1.0, 0.5 + (occurrences * 0.1))
 
-                results.append({
-                    "memory_id": memory.id,
-                    "content": content,
-                    "metadata": memory.metadata,
-                    "relevance_score": relevance,
-                    "keyword_occurrences": occurrences,
-                })
+                results.append(
+                    {
+                        "memory_id": memory.id,
+                        "content": content,
+                        "metadata": memory.metadata,
+                        "relevance_score": relevance,
+                        "keyword_occurrences": occurrences,
+                    }
+                )
 
         # Sort by relevance score
         results.sort(key=lambda x: x["relevance_score"], reverse=True)

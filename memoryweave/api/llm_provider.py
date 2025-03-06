@@ -4,6 +4,8 @@ import torch
 from rich.logging import RichHandler
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from memoryweave.utils import _get_device
+
 logging.basicConfig(
     level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(markup=True)]
 )
@@ -17,20 +19,9 @@ class LLMProvider:
 
     def __init__(self, model_name=DEFAULT_MODEL, device="auto", **model_kwargs):
         self.model_name = model_name
-        self.device = self._get_device(device)
+        self.device = _get_device(device)
         self.model_kwargs = model_kwargs
         self._load_model()
-
-    def _get_device(self, device):
-        """Choose appropriate device."""
-        if device != "auto":
-            return device
-        if torch.mps.is_available():
-            return "mps"
-        elif torch.cuda.is_available():
-            return "cuda"
-        else:
-            return "cpu"
 
     def _load_model(self):
         """Load model and tokenizer."""
