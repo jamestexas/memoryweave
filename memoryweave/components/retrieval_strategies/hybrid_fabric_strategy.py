@@ -7,6 +7,7 @@ retrieval performance with minimal memory usage.
 """
 
 import logging
+import time
 from typing import Any, Optional
 
 import numpy as np
@@ -115,73 +116,119 @@ class HybridFabricStrategy(ContextualFabricStrategy):
 
     def retrieve(
         self,
+        query_embedding: np.ndarray,
+        top_k: int,
         context: dict[str, Any],
-        query: str | None = None,  # Make query optional with a default value of None
-        query_embedding: np.ndarray | None = None,
-        top_k: int = 10,
-        confidence_threshold: float = None,
-        **kwargs,
+        query: str = None,  # Make sure this parameter exists
     ) -> list[dict[str, Any]]:
         """
-        Direct access to the hybrid retrieval system.
+        Retrieve memories using the hybrid fabric strategy.
 
         Args:
-            query: Query text
-            query_embedding: Optional pre-computed embedding (will compute if not provided)
-            top_k: Maximum number of results to return
-            confidence_threshold: Optional confidence threshold for filtering results
-            **kwargs: Additional parameters for the retrieval strategy
+            query_embedding: Query embedding for similarity matching
+            top_k: Number of results to return
+            context: Context containing query, memory, etc.
+            query: Optional query text (will use from context if not provided)
 
         Returns:
-            List of retrieved memories with relevance scores
+            List of retrieved memory dicts with relevance scores
         """
-        # Compute embedding if not provided
+        # Get query from context if not provided directly
+        query = query or context.get("query", "")
 
-        query = query or context.get(
-            "query", ""
-        )  # fill it in from context if available and not provided
-        if query_embedding is None:
-            query_embedding = self._compute_embedding(query)
-            if query_embedding is None:
-                return []
+        # Use the memory store from context or instance
+        memory_store = context.get("memory_store", self.memory_store)
 
-        # Analyze query to get type and keywords
-        query_info = self._analyze_query(query)
-        _, adapted_params, expanded_keywords, query_type, entities = query_info
+        # Get current time from context or use current time
+        current_time = context.get("current_time", time.time())
 
-        # Override with any provided parameters
-        if confidence_threshold is not None:
-            if adapted_params is None:
-                adapted_params = {}
-            adapted_params["confidence_threshold"] = confidence_threshold
+        # Apply parameter adaptation if available
+        adapted_params = context.get("adapted_retrieval_params", {})
+        confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
+        keywords = adapted_params.get("important_keywords", [])
 
-        # Extract keywords for hybrid search
-        if hasattr(self, "query_analyzer") and self.query_analyzer:
-            keywords = self.query_analyzer.extract_keywords(query)
-            if keywords and len(keywords) > 0:
-                if adapted_params is None:
-                    adapted_params = {}
-                adapted_params["important_keywords"] = keywords
-                kwargs["keywords"] = keywords
+        # Log retrieval details if debug enabled
+        if self.debug:
+            self.logger.debug(f"HybridFabricStrategy: Retrieving for query: '{query}'")
+            self.logger.debug(
+                f"HybridFabricStrategy: Using confidence threshold: {confidence_threshold}"
+            )
 
-        # Add any custom parameters from kwargs
-        for key, value in kwargs.items():
-            if adapted_params is None:
-                adapted_params = {}
-            adapted_params[key] = value
+        # Perform hybrid search if supported
+        if self.supports_hybrid and hasattr(memory_store, "search_hybrid"):
+            # Use direct hybrid search
+            hybrid_results = memory_store.search_hybrid(
+                query_vector=query_embedding,
+                limit=top_k * 2,  # Get more candidates for filtering
+                threshold=confidence_threshold,
+                keywords=keywords,
+            )
 
-        # Use retrieval orchestrator for consistent handling
-        memories = self.retrieval_orchestrator.retrieve(
+            # Process results
+            processed_results = []
+            for result in hybrid_results:
+                # Copy to avoid modifying original
+                processed = dict(result)
+
+                # Ensure consistent field names
+                if "score" in processed and "relevance_score" not in processed:
+                    processed["relevance_score"] = processed["score"]
+
+                processed_results.append(processed)
+
+            if self.debug and processed_results:
+                self.logger.debug(
+                    f"HybridFabricStrategy: Retrieved {len(processed_results)} results via direct hybrid search"
+                )
+
+            # Return top results after processing
+            return processed_results[:top_k]
+
+        # Fallback to standard retrieval
+        # 1. Get direct similarity matches
+        similarity_results = self._retrieve_by_similarity(
             query_embedding=query_embedding,
-            query=query,
-            query_type=query_type,
-            expanded_keywords=expanded_keywords,
-            entities=entities,
-            adapted_params=adapted_params,
-            top_k=top_k,
+            max_results=self.max_candidates,
+            memory_store=memory_store,
         )
 
-        return memories
+        # 2. Get associative matches (if linker available)
+        associative_results = self._retrieve_associative_results(similarity_results)
+
+        # 3. Get temporal context (if available)
+        temporal_results = {}
+        if self.temporal_context is not None:
+            temporal_context = context.copy()
+            temporal_context["current_time"] = current_time
+            temporal_results = self._retrieve_temporal_results(
+                query, temporal_context, memory_store
+            )
+
+        # 4. Get activation scores (if available)
+        activation_results = {}
+        if self.activation_manager is not None:
+            # Don't pass current_time parameter
+            activations = self.activation_manager.get_activated_memories(threshold=0.1)
+            activation_results = dict(activations)
+
+        # 5. Combine all sources
+        combined_results = self._combine_results(
+            similarity_results=similarity_results,
+            associative_results=associative_results,
+            temporal_results=temporal_results,
+            activation_results=activation_results,
+            memory_store=memory_store,
+        )
+
+        # 6. Apply threshold and sort
+        filtered_results = [
+            r for r in combined_results if r["relevance_score"] >= confidence_threshold
+        ]
+        if len(filtered_results) < self.min_results:
+            filtered_results = combined_results[: self.min_results]
+
+        # Return top_k results
+        return filtered_results[:top_k]
 
     def _combined_search(
         self,
@@ -580,3 +627,38 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         combined_results.sort(key=lambda x: x["relevance_score"], reverse=True)
 
         return combined_results
+
+    def _analyze_query(self, query: str):
+        """
+        Analyze query to extract type, keywords, and parameters.
+
+        Args:
+            query: Query text
+
+        Returns:
+            Tuple of (query_obj, adapted_params, expanded_keywords, query_type, entities)
+        """
+        # If you have access to the query analyzer
+        if hasattr(self, "query_analyzer") and self.query_analyzer:
+            query_type = self.query_analyzer.analyze(query)
+            keywords = self.query_analyzer.extract_keywords(query)
+            entities = self.query_analyzer.extract_entities(query)
+        else:
+            # Provide reasonable defaults
+            from memoryweave.interfaces.retrieval import QueryType
+
+            query_type = QueryType.UNKNOWN
+            keywords = []
+            entities = []
+
+        query_obj = {
+            "text": query,
+            "query_type": query_type,
+            "extracted_keywords": keywords,
+            "extracted_entities": entities,
+        }
+
+        expanded_keywords = keywords
+        adapted_params = {"confidence_threshold": self.confidence_threshold, "max_results": 10}
+
+        return query_obj, adapted_params, expanded_keywords, query_type, entities

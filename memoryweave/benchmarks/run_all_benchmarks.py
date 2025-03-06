@@ -601,6 +601,8 @@ class UnifiedRetrievalBenchmark:
 
     def run_benchmarks(self):
         """Run the benchmark over each scenario and each system type."""
+        console.rule("[bold blue]Starting New Test Run")
+
         if not self.initialize_shared_resources():
             console.print("[red]Failed to initialize shared resources, aborting benchmark[/red]")
             return

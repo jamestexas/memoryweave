@@ -254,6 +254,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         query_embedding: np.ndarray,
         top_k: int,
         context: dict[str, Any],
+        query: str = None,  # Add this parameter
     ) -> list[dict[str, Any]]:
         """
         Retrieve memories using the contextual fabric strategy.
@@ -262,6 +263,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
             query_embedding: Query embedding for similarity matching.
             top_k: Number of results to return.
             context: Context containing query, memory, etc.
+            query: Original query text (optional)
 
         Returns:
             List of retrieved memory dicts with relevance scores.
@@ -269,11 +271,14 @@ class ContextualFabricStrategy(RetrievalStrategy):
         # Get memory store from context or instance
         memory_store = context.get("memory_store", self.memory_store)
 
-        # Get query from context
-        query = context.get("query", "")
+        # Get query from context or parameter
+        query = query or context.get("query", "")
 
         # Get current time from context or use current time
-        context.get("current_time", time.time())
+        current_time = context.get("current_time", time.time())
+
+        # Pass the current time to the context for temporal operations
+        context["current_time"] = current_time
 
         # Apply parameter adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
@@ -306,11 +311,15 @@ class ContextualFabricStrategy(RetrievalStrategy):
         associative_results = self._retrieve_associative_results(similarity_results)
 
         # Step 3: Get temporal context (if available)
-        temporal_results = self._retrieve_temporal_results(query, context, memory_store)
+        # Pass the current time explicitly
+        temporal_context = context.copy()  # Copy to avoid modifying the original
+        temporal_context["current_time"] = current_time
+        temporal_results = self._retrieve_temporal_results(query, temporal_context, memory_store)
 
         # Step 4: Get activation scores (if available)
         activation_results = {}
         if self.activation_manager is not None:
+            # Don't pass current_time if the method doesn't accept it
             activations = self.activation_manager.get_activated_memories(threshold=0.1)
             activation_results = dict(activations)
 

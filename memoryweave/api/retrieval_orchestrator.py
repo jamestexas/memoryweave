@@ -8,7 +8,10 @@ import numpy as np
 from rich.logging import RichHandler
 
 logging.basicConfig(
-    level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(markup=True)]
+    level=logging.DEBUG,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(markup=True, rich_tracebacks=True, show_path=True)],
 )
 logger = logging.getLogger(__name__)
 
@@ -120,6 +123,7 @@ class RetrievalOrchestrator:
             List of retrieved memories with relevance scores
         """
         start_time = time.time()
+        logger.debug(f"[cyan]Processing retrieval for query:[/] '{query}'")
 
         # Generate cache key if caching is enabled
         cache_key = None
@@ -134,7 +138,7 @@ class RetrievalOrchestrator:
 
                 # Log query time if debugging
                 if self.debug:
-                    logger.debug(f"Cache hit for query: '{query}'")
+                    logger.debug(f"[green]Cache hit for query:[/] '{query}'")
 
                 return self.query_cache[cache_key]
 
@@ -230,6 +234,9 @@ class RetrievalOrchestrator:
             # Update query time statistics
             query_time = time.time() - start_time
             self.cache_stats["last_query_time"] = query_time
+            logger.info(
+                f"[bold cyan]Retrieved {len(memories)} memories[/] in [green]{query_time:.3f}s[/]"
+            )
 
             return processed_memories
 
