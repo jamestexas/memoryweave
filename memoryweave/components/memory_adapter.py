@@ -4,6 +4,8 @@ Memory adapter for integrating core memory with the components architecture.
 
 from typing import Any, Optional
 
+import numpy as np
+
 from memoryweave.components.base import MemoryComponent
 from memoryweave.core.contextual_memory import ContextualMemory
 
@@ -92,3 +94,61 @@ class MemoryAdapter(MemoryComponent):
     def get_memory(self) -> ContextualMemory:
         """Get the underlying memory instance."""
         return self.memory
+
+    def search_hybrid(
+        self,
+        query_vector: np.ndarray,
+        limit: int = 10,
+        threshold: float = 0.0,
+        keywords: list[str] = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Perform hybrid search using vector similarity and keywords.
+
+        Args:
+            query_vector: Query embedding vector
+            limit: Maximum number of results to return
+            threshold: Minimum similarity threshold
+            keywords: Optional keywords to boost results with
+
+        Returns:
+            List of memory dicts with relevance scores
+        """
+        # First perform vector search
+        vector_results = self.search_by_vector(
+            query_vector=query_vector,
+            limit=limit * 2,  # Get more candidates
+            threshold=threshold,
+        )
+
+        # If no keywords, just return vector results
+        if not keywords:
+            return vector_results[:limit]
+
+        # Create text representation of keywords
+        keyword_text = " ".join(keywords)
+
+        # Enhance scores for results containing keywords
+        for result in vector_results:
+            content = str(result.get("content", "")).lower()
+
+            # Count keyword matches
+            keyword_matches = sum(1 for kw in keywords if kw.lower() in content)
+
+            if keyword_matches > 0:
+                # Apply keyword boost proportional to matches
+                boost = min(0.3 * keyword_matches / len(keywords), 0.5)
+
+                # Update score
+                original_score = result.get("relevance_score", result.get("score", 0))
+                new_score = min(0.99, original_score + boost * (1.0 - original_score))
+
+                # Apply the boost
+                result["relevance_score"] = new_score
+                result["keyword_boost"] = boost
+                result["keyword_matches"] = keyword_matches
+
+        # Sort by boosted scores
+        vector_results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+
+        return vector_results[:limit]

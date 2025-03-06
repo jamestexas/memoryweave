@@ -183,37 +183,55 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         self.bm25_documents = []
         self.bm25_doc_ids = []
         self.tokenizer = lambda x: x.lower().split()
+        self.bm25_update_batch_size = 50  # Add documents in batches for efficiency
+        self.bm25_pending_docs = []
+        self.bm25_pending_ids = []
 
     def _update_bm25_index(self, text: str, memory_id: str):
-        """Update BM25 index with new document."""
+        """
+        Update BM25 index with new document, using efficient batched updates.
+
+        This method adds documents to the BM25 index incrementally, only rebuilding
+        the index when necessary to maintain performance with large document collections.
+
+        Args:
+            text: Document text to add to the index
+            memory_id: ID of the memory/document
+        """
         # Add document to BM25 corpus
         self.bm25_documents.append(text)
         self.bm25_doc_ids.append(memory_id)
 
-        # Rebuild index efficiently
-        # Only tokenize the new document, not the entire corpus
+        # For the first document, initialize the index
         if len(self.bm25_documents) == 1:
             tokenized_corpus = [self.tokenizer(text)]
             self.bm25_index = BM25Okapi(tokenized_corpus)
-        else:
-            # Save existing scores for efficiency
-            if hasattr(self.bm25_index, "doc_freqs"):
-                doc_freqs = self.bm25_index.doc_freqs.copy()
-                avg_doc_len = self.bm25_index.avgdl
+            return
 
-                # Tokenize just the new document
-                last_doc_tokens = self.tokenizer(text)
+        # For subsequent documents, check if we should rebuild
+        # We rebuild in these scenarios:
+        # 1. Every 50 documents (configurable batch size)
+        # 2. If the document is very long (indicating potentially important content)
+        should_rebuild = False
 
-                # Create updated tokenized corpus
-                tokenized_corpus = self.bm25_index.corpus.copy()
-                tokenized_corpus.append(last_doc_tokens)
+        # Check if we've reached the batch limit
+        if not hasattr(self, "bm25_batch_size"):
+            self.bm25_batch_size = 50  # Default batch size
 
-                # Recreate BM25 index with updated corpus
-                self.bm25_index = BM25Okapi(tokenized_corpus)
-            else:
-                # Fallback: tokenize entire corpus
-                tokenized_corpus = [self.tokenizer(doc) for doc in self.bm25_documents]
-                self.bm25_index = BM25Okapi(tokenized_corpus)
+        if len(self.bm25_documents) % self.bm25_batch_size == 0:
+            should_rebuild = True
+
+        # Check if document is important (long)
+        if len(text) > 2000:  # Consider a 2000+ character document as important
+            should_rebuild = True
+
+        # Rebuild the index if needed
+        if should_rebuild:
+            # Tokenize all documents - this is necessary because BM25Okapi doesn't support incremental updates
+            tokenized_corpus = [self.tokenizer(doc) for doc in self.bm25_documents]
+            self.bm25_index = BM25Okapi(tokenized_corpus)
+            if self.debug:
+                logger.debug(f"Rebuilt BM25 index with {len(self.bm25_documents)} documents")
 
     def _get_component(self, name: str) -> Any:
         """Lazy-load a component only when it's actually needed."""
@@ -341,6 +359,32 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
     def activation_manager(self):
         return self._get_component("activation_manager")
 
+    def configure_two_stage_retrieval(
+        self,
+        enable: bool = True,
+        first_stage_k: int = 30,
+        first_stage_threshold_factor: float = 0.7,
+    ) -> None:
+        """
+        Configure two-stage retrieval settings.
+
+        Args:
+            enable: Whether to enable two-stage retrieval
+            first_stage_k: Number of candidates to retrieve in first stage
+            first_stage_threshold_factor: Factor to multiply confidence threshold by in first stage
+        """
+        if hasattr(self, "hybrid_strategy") and hasattr(
+            self.hybrid_strategy, "configure_two_stage"
+        ):
+            self.hybrid_strategy.configure_two_stage(
+                enable, first_stage_k, first_stage_threshold_factor
+            )
+            logger.info(
+                f"Configured two-stage retrieval: enable={enable}, "
+                f"first_stage_k={first_stage_k}, "
+                f"first_stage_threshold_factor={first_stage_threshold_factor}"
+            )
+
     @timer()
     def _setup_hybrid_strategy(self):
         """Set up the hybrid fabric strategy to replace the standard strategy."""
@@ -370,6 +414,10 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             "min_results": 3,  # Ensure reasonable number of results
             "max_candidates": 50,  # Consider more candidates for better selection
             "debug": self.debug,
+            # Two-stage configuration
+            "use_two_stage": True,  # Enable two-stage retrieval by default
+            "first_stage_k": 30,  # Get 30 candidates in first stage
+            "first_stage_threshold_factor": 0.7,  # Use 70% of confidence threshold in first stage
             # Advanced optimization parameters
             "use_batched_computation": True,  # Process large matrices in batches
             "batch_size": 200,  # Reasonable batch size for most systems
@@ -496,6 +544,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         logger.debug(f"Added hybrid memory {mem_id} with {len(selected_chunks)} selected chunks")
         return mem_id
 
+    @timer()
     def _analyze_chunking_needs(self, text: str) -> tuple[bool, int]:
         """
         Analyze text to determine if and how it should be chunked.
@@ -504,7 +553,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             text: The text to analyze
 
         Returns:
-            tuple of (should_chunk, chunk_threshold)
+            tuple of (should_chunk, threshold_value)
         """
         # If auto chunking is disabled, use the fixed threshold
         if not self.enable_auto_chunking:
@@ -527,34 +576,36 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         has_lists = bool(re.search(r"\n\s*[-*]\s+|\n\s*\d+\.\s+", text))
 
         # Calculate adaptive threshold based on content characteristics
-        base_threshold = self.adaptive_chunk_threshold
+        threshold_value = self.adaptive_chunk_threshold
 
         # Adjust based on content type
         if has_code_blocks:
             # Code needs more careful chunking to preserve function blocks
-            base_threshold = min(500, base_threshold)  # Lower threshold to chunk more aggressively
-            return True, base_threshold  # Always chunk code
+            threshold_value = min(
+                500, threshold_value
+            )  # Lower threshold to chunk more aggressively
+            return True, threshold_value  # Always chunk code
 
         if has_lists:
             # lists benefit from chunking to preserve item groupings
-            base_threshold = min(700, base_threshold)
+            threshold_value = min(700, threshold_value)
 
         if has_entities:
             # Entity-rich text might benefit from more chunking
-            base_threshold = min(800, base_threshold)
+            threshold_value = min(800, threshold_value)
 
         # Very long sentences suggest complex content that benefits from chunking
         if avg_sentence_length > 100:
-            base_threshold = min(700, base_threshold)
+            threshold_value = min(700, threshold_value)
 
         # Multiple paragraphs suggest natural chunk boundaries
         if len(paragraph_splits) > 5:
             # Benefit from chunking at paragraph boundaries
-            return True, base_threshold
+            return True, threshold_value
 
         # Make final decision
-        should_chunk = len(text) > base_threshold
-        return should_chunk, base_threshold
+        should_chunk = len(text) > threshold_value
+        return should_chunk, threshold_value
 
     @timer()
     def _select_important_chunks(
@@ -584,7 +635,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             return [], []
 
         # Determine if we should use query relevance
-        use_query_relevance = query_embedding is not None
+        use_query_relevance = query_embedding is not None and isinstance(
+            query_embedding, np.ndarray
+        )
 
         # Calculate chunk scores based on multiple factors
         chunk_data = []
@@ -1528,3 +1581,58 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             }
 
         return stats
+
+    def search_by_keywords(self, keywords: list[str], limit: int = 10) -> list[dict[str, Any]]:
+        """
+        Search memories using BM25 keyword matching.
+
+        Args:
+            keywords: List of keywords to search for
+            limit: Maximum number of results to return
+
+        Returns:
+            List of memories matching the keywords
+        """
+        if self.bm25_index is None or not keywords:
+            return []
+
+        # Apply any pending updates
+        if self.bm25_pending_docs and len(self.bm25_pending_docs) > 0:
+            tokenized_corpus = [self.tokenizer(doc) for doc in self.bm25_documents]
+            self.bm25_index = BM25Okapi(tokenized_corpus)
+            self.bm25_pending_docs = []
+            self.bm25_pending_ids = []
+
+        # Create query from keywords
+        query = " ".join(keywords)
+        tokenized_query = self.tokenizer(query)
+
+        # Get document scores
+        doc_scores = self.bm25_index.get_scores(tokenized_query)
+
+        # Get top scores
+        top_indices = np.argsort(doc_scores)[::-1][:limit]
+
+        # Format results
+        results = []
+        for idx in top_indices:
+            if idx < len(self.bm25_doc_ids) and doc_scores[idx] > 0:
+                memory_id = self.bm25_doc_ids[idx]
+                try:
+                    # Get the memory to include content
+                    memory = self.hybrid_memory_adapter.get(memory_id)
+
+                    results.append(
+                        {
+                            "memory_id": memory_id,
+                            "content": memory.content,
+                            "bm25_score": float(doc_scores[idx]),
+                            "retrieval_method": "bm25",
+                            "metadata": memory.metadata,
+                            "relevance_score": min(0.95, float(doc_scores[idx]) / 10),
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(f"Error retrieving BM25 result {memory_id}: {e}")
+
+        return results

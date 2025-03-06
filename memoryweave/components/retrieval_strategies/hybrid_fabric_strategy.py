@@ -79,12 +79,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         # Will be set in initialize()
 
     def initialize(self, config: dict[str, Any]) -> None:
-        """
-        Initialize the strategy with configuration.
-
-        Args:
-            config: Configuration dictionary with parameters
-        """
+        """Initialize the strategy with configuration."""
         # First, initialize base class
         super().initialize(config)
 
@@ -95,6 +90,11 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         self.prioritize_full_embeddings = config.get(
             "prioritize_full_embeddings", self.prioritize_full_embeddings
         )
+
+        # Add two-stage parameters
+        self.use_two_stage_by_default = config.get("use_two_stage", True)
+        self.first_stage_k = config.get("first_stage_k", 30)
+        self.first_stage_threshold_factor = config.get("first_stage_threshold_factor", 0.7)
 
         # Check if memory_store supports hybrid features
         if self.memory_store is not None:
@@ -136,6 +136,24 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         # Get query from context if not provided directly
         query = query or context.get("query", "")
 
+        # Check if we should use two-stage retrieval
+        use_two_stage = context.get(
+            "enable_two_stage_retrieval", getattr(self, "use_two_stage_by_default", True)
+        )
+
+        # IMPORTANT: Check for recursion flag to prevent infinite loops
+        is_in_two_stage = context.get("_in_two_stage_retrieval", False)
+
+        # If two-stage is enabled AND we're not already in a two-stage call, use that approach
+        if use_two_stage and not is_in_two_stage and hasattr(self, "retrieve_two_stage"):
+            return self.retrieve_two_stage(
+                query_embedding=query_embedding,
+                top_k=top_k,
+                context=context,
+                query=query,
+            )
+
+        # Otherwise, continue with original implementation
         # Use the memory store from context or instance
         memory_store = context.get("memory_store", self.memory_store)
 
@@ -229,6 +247,77 @@ class HybridFabricStrategy(ContextualFabricStrategy):
 
         # Return top_k results
         return filtered_results[:top_k]
+
+    def _combine_results_with_rank_fusion(
+        self,
+        results1: list[dict[str, Any]],
+        results2: list[dict[str, Any]],
+        k1: float = 60.0,
+        k2: float = 40.0,
+        top_k: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        Combine results using reciprocal rank fusion.
+
+        This method combines results from different retrieval methods
+        by using their ranks rather than raw scores, making it more robust.
+
+        Args:
+            results1: First result set (typically keyword-based)
+            results2: Second result set (typically vector-based)
+            k1: Constant for first result set (higher values discount rankings)
+            k2: Constant for second result set
+            top_k: Number of top results to return
+
+        Returns:
+            Combined list of results
+        """
+        # Create dictionary of memory_id -> result info
+        result_map = {}
+
+        # Process first result set
+        for rank, result in enumerate(results1):
+            memory_id = result.get("memory_id", result.get("id", ""))
+            # RRF formula: 1/(k + rank)
+            score = 1.0 / (k1 + rank)
+
+            if memory_id not in result_map:
+                result_map[memory_id] = {"result": result, "score": score, "sources": ["keyword"]}
+            else:
+                result_map[memory_id]["score"] += score
+                if "keyword" not in result_map[memory_id]["sources"]:
+                    result_map[memory_id]["sources"].append("keyword")
+
+        # Process second result set
+        for rank, result in enumerate(results2):
+            memory_id = result.get("memory_id", result.get("id", ""))
+            # RRF formula: 1/(k + rank)
+            score = 1.0 / (k2 + rank)
+
+            if memory_id not in result_map:
+                result_map[memory_id] = {"result": result, "score": score, "sources": ["vector"]}
+            else:
+                result_map[memory_id]["score"] += score
+                if "vector" not in result_map[memory_id]["sources"]:
+                    result_map[memory_id]["sources"].append("vector")
+                    # Use vector result as base since it has more metadata
+                    result_map[memory_id]["result"] = result
+
+        # Format combined results
+        combined_results = []
+        for memory_id, data in result_map.items():
+            result_obj = data["result"].copy()
+            result_obj["rrf_score"] = data["score"]
+            result_obj["retrieval_sources"] = data["sources"]
+
+            # Use either original relevance score or set based on RRF score
+            if "relevance_score" not in result_obj:
+                result_obj["relevance_score"] = min(0.99, data["score"] * 0.5)
+
+            combined_results.append(result_obj)
+
+        # Sort by RRF score and return top-k
+        return sorted(combined_results, key=lambda x: x["rrf_score"], reverse=True)[:top_k]
 
     def _combined_search(
         self,
@@ -662,3 +751,230 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         adapted_params = {"confidence_threshold": self.confidence_threshold, "max_results": 10}
 
         return query_obj, adapted_params, expanded_keywords, query_type, entities
+
+    def retrieve_two_stage(
+        self,
+        query_embedding: np.ndarray,
+        top_k: int,
+        context: dict[str, Any],
+        query: str = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Two-stage retrieval approach within the HybridFabricStrategy.
+
+        Stage 1: Get a larger set of candidates with lower threshold
+        Stage 2: Apply more detailed processing and re-ranking
+
+        Args:
+            query_embedding: Query embedding
+            top_k: Final number of results to return
+            context: Context dict with parameters
+            query: Optional query string
+
+        Returns:
+            List of retrieved memory dicts
+        """
+        # Get query and params
+        query = query or context.get("query", "")
+        memory_store = context.get("memory_store", self.memory_store)
+        adapted_params = context.get("adapted_retrieval_params", {})
+
+        # First stage: Get more candidates with lower threshold
+        first_stage_k = adapted_params.get("first_stage_k", self.first_stage_k)
+        first_stage_threshold = adapted_params.get(
+            "confidence_threshold", self.confidence_threshold
+        )
+        first_stage_threshold *= adapted_params.get(
+            "first_stage_threshold_factor", self.first_stage_threshold_factor
+        )
+
+        # AVOID RECURSION: Directly use the appropriate search methods for the first stage
+        candidates = []
+
+        # 1. Direct vector similarity search
+        if hasattr(memory_store, "search_by_vector"):
+            vector_results = memory_store.search_by_vector(
+                query_vector=query_embedding,
+                limit=first_stage_k,
+                threshold=first_stage_threshold,
+            )
+            candidates.extend(vector_results)
+
+        # 2. Add keyword-based results if keywords available
+        keywords = adapted_params.get("important_keywords", context.get("important_keywords", []))
+        if keywords and hasattr(memory_store, "search_by_keywords"):
+            keyword_results = memory_store.search_by_keywords(
+                keywords=keywords,
+                limit=first_stage_k // 2,  # Get fewer keyword results to balance
+            )
+            candidates.extend(keyword_results)
+
+        # Remove duplicates (by memory_id)
+        unique_candidates = {}
+        for result in candidates:
+            memory_id = result.get("memory_id", result.get("id"))
+            if memory_id not in unique_candidates:
+                unique_candidates[memory_id] = result
+
+        candidates = list(unique_candidates.values())
+
+        # If no candidates, return empty list
+        if not candidates:
+            return []
+
+        # Second stage: Apply more sophisticated filtering and re-ranking
+
+        # 1. Apply keyword boosting if keywords available
+        if keywords:
+            candidates = self._apply_keyword_boosting(candidates, keywords)
+
+        # 2. Apply semantic coherence check
+        candidates = self._check_semantic_coherence(candidates, query_embedding)
+
+        # 3. Enhance with associative context
+        candidates = self._enhance_with_associative_context(candidates)
+
+        # 4. Final re-ranking based on combined scores
+        final_results = sorted(candidates, key=lambda x: x.get("relevance_score", 0), reverse=True)
+
+        return final_results[:top_k]
+
+    def _apply_keyword_boosting(
+        self, results: list[dict[str, Any]], keywords: list[str]
+    ) -> list[dict[str, Any]]:
+        """Boost scores for results containing important keywords."""
+        for result in results:
+            content = str(result.get("content", "")).lower()
+
+            # Count keyword matches
+            keyword_matches = sum(1 for kw in keywords if kw.lower() in content)
+
+            if keyword_matches > 0:
+                # Calculate boost factor based on matches
+                boost = min(self.keyword_boost_factor * keyword_matches / len(keywords), 0.5)
+
+                # Apply boost
+                original_score = result.get("relevance_score", 0.5)
+                result["relevance_score"] = min(
+                    0.99, original_score + boost * (1.0 - original_score)
+                )
+                result["keyword_boost"] = boost
+                result["keyword_matches"] = keyword_matches
+
+        return results
+
+    def _check_semantic_coherence(
+        self, results: list[dict[str, Any]], query_embedding: np.ndarray
+    ) -> list[dict[str, Any]]:
+        """Check coherence between results and penalize outliers."""
+        if len(results) <= 1:
+            return results
+
+        # Get embeddings for contents if available
+        content_embeddings = []
+        has_embeddings = False
+
+        for result in results:
+            if "embedding" in result:
+                content_embeddings.append(result["embedding"])
+                has_embeddings = True
+
+        if not has_embeddings:
+            return results
+
+        # Calculate pairwise similarities
+        similarities = np.dot(content_embeddings, np.array(content_embeddings).T)
+
+        # For each result, calculate average similarity to others (coherence)
+        for i, result in enumerate(results):
+            if i < len(similarities):
+                # Remove self-similarity
+                other_similarities = np.concatenate([similarities[i, :i], similarities[i, i + 1 :]])
+
+                # Calculate coherence score (average similarity to others)
+                coherence = float(np.mean(other_similarities))
+
+                # Penalize if below threshold
+                if coherence < 0.3:  # Adjustable threshold
+                    penalty = (0.3 - coherence) * 0.5  # Adjust penalty factor as needed
+                    result["relevance_score"] = max(
+                        0.1, result.get("relevance_score", 0.5) - penalty
+                    )
+                    result["coherence_penalty"] = penalty
+                result["coherence_score"] = coherence
+
+        return results
+
+    def _enhance_with_associative_context(
+        self, results: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Enhance results with associative context from memory fabric."""
+        if not self.associative_linker:
+            return results
+
+        # Keep track of added associative memories to avoid duplicates
+        associative_memories = set()
+
+        # For each result, find associative links
+        enhanced_results = list(results)  # Make a copy to avoid modifying during iteration
+
+        for result in results:
+            memory_id = result.get("memory_id")
+            if not memory_id:
+                continue
+
+            # Get associative links for this memory
+            links = self.associative_linker.get_associative_links(memory_id)
+
+            # Add strongly linked memories that aren't already in results
+            for linked_id, strength in links:
+                if strength > 0.7 and linked_id not in associative_memories:
+                    try:
+                        # Get the memory
+                        if self.memory_store:
+                            memory = self.memory_store.get(linked_id)
+
+                            # Create result dict
+                            associative_result = {
+                                "memory_id": linked_id,
+                                "content": memory.content,
+                                "relevance_score": 0.7 * strength,  # Scale by link strength
+                                "metadata": memory.metadata,
+                                "associative_link": True,
+                                "link_source": memory_id,
+                                "link_strength": strength,
+                            }
+
+                            enhanced_results.append(associative_result)
+                            associative_memories.add(linked_id)
+                    except Exception:
+                        # Skip if memory can't be retrieved
+                        pass
+
+        # Sort by relevance score
+        return sorted(enhanced_results, key=lambda x: x.get("relevance_score", 0), reverse=True)
+
+    def configure_two_stage(
+        self,
+        enable: bool = True,
+        first_stage_k: int = 30,
+        first_stage_threshold_factor: float = 0.7,
+    ) -> None:
+        """
+        Configure two-stage retrieval settings.
+
+        Args:
+            enable: Whether to enable two-stage retrieval by default
+            first_stage_k: Number of candidates to retrieve in first stage
+            first_stage_threshold_factor: Factor to multiply confidence threshold by in first stage
+        """
+        self.use_two_stage_by_default = enable
+        self.first_stage_k = first_stage_k
+        self.first_stage_threshold_factor = first_stage_threshold_factor
+
+        if self.debug:
+            self.logger.debug(
+                f"Configured two-stage retrieval: enable={enable}, "
+                f"first_stage_k={first_stage_k}, "
+                f"first_stage_threshold_factor={first_stage_threshold_factor}"
+            )
