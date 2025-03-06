@@ -14,7 +14,7 @@ import numpy as np
 
 from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
 from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
-from memoryweave.benchmarks.utils.perf_timer import PerformanceTimer
+from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.components.retrieval_strategies.chunked_fabric_strategy import (
     ChunkedFabricStrategy,
 )
@@ -30,6 +30,7 @@ from memoryweave.utils import _get_device
 logger = logging.getLogger(__name__)
 
 
+@timer
 class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
     """
     Enhanced MemoryWeave API with chunking support for large contexts.
@@ -41,6 +42,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
     4. Improved conversation history handling
     """
 
+    @timer("init_chunked_memory_weave")
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
@@ -60,15 +62,13 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         """Initialize the ChunkedMemoryWeaveAPI."""
         # Initialize chunking components first
         self.text_chunker = TextChunker()
-        self.text_chunker.initialize(
-            {
-                "chunk_size": 500,  # Larger chunks (was 200)
-                "chunk_overlap": 150,  # More overlap (was 50)
-                "min_chunk_size": 100,  # Larger minimum (was 50)
-                "respect_paragraphs": True,
-                "respect_sentences": True,
-            }
-        )
+        self.text_chunker.initialize({
+            "chunk_size": 500,  # Larger chunks (was 200)
+            "chunk_overlap": 150,  # More overlap (was 50)
+            "min_chunk_size": 100,  # Larger minimum (was 50)
+            "respect_paragraphs": True,
+            "respect_sentences": True,
+        })
 
         # Initialize embedding model to get dimension
         self.device = _get_device(device)
@@ -129,6 +129,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         # Setup the chunked fabric strategy
         self._setup_chunked_strategy()
 
+    @timer()
     def _setup_chunked_strategy(self):
         """Set up the chunked fabric strategy to replace the standard strategy."""
         # Create chunked strategy
@@ -162,6 +163,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         if hasattr(self, "retrieval_orchestrator"):
             self.retrieval_orchestrator.strategy = self.strategy
 
+    @timer()
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """
         Store a memory with chunking for large texts.
@@ -317,13 +319,10 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             Assistant's response
         """
         start_time = time.time()
-        timer = PerformanceTimer()
 
         # Step 1: Query analysis
-        timer.start("query_analysis")
         query_info = self._analyze_query(user_message)
         _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
-        timer.stop("query_analysis")
 
         # Step 2: Determine if query needs chunking
         should_chunk_query = len(user_message) > self.auto_chunk_threshold
@@ -331,21 +330,19 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         # Step 3: Handle query embedding differently based on size
         if should_chunk_query:
             # Create query chunks
-            timer.start("chunking")
-            timer.start("chunk_creation")
+            self.timer.start("chunking_query")
             query_chunks = self.text_chunker.create_chunks(user_message)
-            timer.stop("chunk_creation")
             # Create embeddings for each chunk
             query_embeddings = []
-            timer.start("chunk_embedding")
+            self.timer.start("chunk_embedding")
             for chunk in query_chunks:
                 chunk_text = chunk["text"]
                 embedding = self.embedding_model.encode(
                     chunk_text, show_progress_bar=self.show_progress_bar
                 )
                 query_embeddings.append(embedding)
-            timer.stop("chunk_embedding")
-            timer.stop("chunking")
+            self.timer.stop("chunk_embedding")
+            self.timer.stop("chunking_query")
             # Use the first chunk as primary embedding, but store all for reference
             query_embedding = query_embeddings[0]
             adapted_params["query_chunks"] = query_chunks
@@ -354,15 +351,12 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             logger.debug(f"Chunked query into {len(query_chunks)} chunks")
         else:
             # Use standard embedding for small queries
-            timer.start("standard_embedding")
             query_embedding = self._compute_embedding(user_message)
             if query_embedding is None:
                 return "Sorry, an error occurred while processing your request."
-            timer.stop("standard_embedding")
 
         # Step 4: Use retrieval orchestrator for memory retrieval
         # IMPORTANT: Use the orchestrator instead of direct strategy calls
-        timer.start("keyword_extraction")
         relevant_memories = self.retrieval_orchestrator.retrieve(
             query_embedding=query_embedding,
             query=user_message,
@@ -372,47 +366,35 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             adapted_params=adapted_params,
             top_k=adapted_params.get("max_results", 10),
         )
-        timer.stop("memory_search")
 
         # Step 5: Extract personal attributes if enabled
-        timer.start("personal_attribute_extraction")
         self._extract_personal_attributes(user_message, time.time())
-        timer.stop("personal_attribute_extraction")
 
         # Step 6: Construct prompt
-        timer.start("prompt_assembly")
         prompt = self.prompt_builder.build_chat_prompt(
             user_message=user_message,
             memories=relevant_memories,
             conversation_history=self.conversation_history,
             query_type=query_type,
         )
-        timer.stop("prompt_assembly")
 
         logger.debug("[bold cyan]===== Prompt Start =====[/]")
-        logging.debug(f"[dim]{prompt}[/]")
+        logging.debug(f"[bold]{prompt}[/]")
         logger.debug("[bold cyan]===== Prompt End =====[/]")
 
         # Step 7: Generate response
-        timer.start("pure_inference")
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
-        timer.stop("pure_inference")
 
         # Step 8: Store conversation as chunked memory
-        timer.start("store_chunked_interaction")
         self._store_chunked_interaction(user_message, assistant_reply, time.time())
-        timer.stop("store_chunked_interaction")
 
         # Step 9: Update history and statistics
-        timer.start("history_update")
         self._update_conversation_history(user_message, assistant_reply)
-        timer.stop("history_update")
-        timer.start("retrieval_stats_update")
         self._update_retrieval_stats(start_time, len(relevant_memories))
-        timer.stop("retrieve_stats_update")
 
         return assistant_reply
 
+    @timer()
     def _store_chunked_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
         """
         Store conversation messages as chunked memories when appropriate.
@@ -519,13 +501,11 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             result = []
 
             for chunk in chunks:
-                result.append(
-                    {
-                        "text": chunk.text,
-                        "metadata": chunk.metadata,
-                        "chunk_index": chunk.chunk_index,
-                    }
-                )
+                result.append({
+                    "text": chunk.text,
+                    "metadata": chunk.metadata,
+                    "chunk_index": chunk.chunk_index,
+                })
 
             return result
         except Exception as e:

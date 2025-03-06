@@ -9,7 +9,7 @@ from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.prompt_builder import PromptBuilder
 from memoryweave.api.retrieval_orchestrator import RetrievalOrchestrator
 from memoryweave.api.streaming import StreamingHandler
-from memoryweave.benchmarks.utils.perf_timer import PerformanceTimer
+from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.components.activation import ActivationManager
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
 from memoryweave.components.category_manager import CategoryManager
@@ -43,6 +43,7 @@ DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
+@timer
 class MemoryWeaveAPI:
     """
     A unified API for MemoryWeave, managing memory and retrieval in a simple interface.
@@ -66,6 +67,7 @@ class MemoryWeaveAPI:
     ):
         """Initialize MemoryWeave with an LLM, embeddings, and memory components."""
         self.debug = debug
+        self.timer.start("init")
         self.device = _get_device(device)
         self.show_progress_bar = show_progress_bar
 
@@ -119,7 +121,7 @@ class MemoryWeaveAPI:
         self.activation_manager = ActivationManager()
 
         # Initialize query components
-        self.query_analyzer = SimpleQueryAnalyzer()
+        self.query_analyzer: SimpleQueryAnalyzer = SimpleQueryAnalyzer()
         self.query_analyzer.initialize(
             config=dict(
                 min_keyword_length=3,
@@ -166,17 +168,15 @@ class MemoryWeaveAPI:
             temporal_context=self.temporal_context,
             activation_manager=self.activation_manager,
         )
-        self.strategy.initialize(
-            {
-                "confidence_threshold": 0.1,
-                "similarity_weight": 0.4,
-                "associative_weight": 0.3,
-                "temporal_weight": 0.2,
-                "activation_weight": 0.1,
-                "max_associative_hops": 2,
-                "debug": debug,
-            }
-        )
+        self.strategy.initialize({
+            "confidence_threshold": 0.1,
+            "similarity_weight": 0.4,
+            "associative_weight": 0.3,
+            "temporal_weight": 0.2,
+            "activation_weight": 0.1,
+            "max_associative_hops": 2,
+            "debug": debug,
+        })
 
         # Initialize retrieval orchestrator
         self.retrieval_orchestrator = RetrievalOrchestrator(
@@ -201,6 +201,7 @@ class MemoryWeaveAPI:
             "avg_query_time": 0,
             "avg_results_count": 0,
         }
+        self.timer.stop("init")
 
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """Store a memory with consistent handling of metadata."""
@@ -253,28 +254,25 @@ class MemoryWeaveAPI:
 
         return memory_ids
 
+    @timer()
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
         """Process user message and generate a response using memory retrieval."""
         start_time = time.time()
-        timer = PerformanceTimer()
 
         # Step 1: Query analysis
-        timer.start("query_analysis")
         query_info = self._analyze_query(user_message)
         _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
-        timer.stop("query_analysis")
 
         # Step 2: Compute query embedding
-        timer.start("embedding_computation")
+        self.timer.start("embedding_computation")
         query_embedding = self._compute_embedding(user_message)
-        timer.stop("embedding_computation")
+        self.timer.stop("embedding_computation")
 
         if query_embedding is None:
             return "Sorry, an error occurred while processing your request."
 
         # Step 3: Retrieve memories
         # IMPORTANT: Use the orchestrator instead of direct strategy calls
-        timer.start("keyword_extraction")
         relevant_memories = self.retrieval_orchestrator.retrieve(
             query_embedding=query_embedding,
             query=user_message,
@@ -284,40 +282,29 @@ class MemoryWeaveAPI:
             adapted_params=adapted_params,
             top_k=adapted_params.get("max_results", 10),
         )
-        timer.stop("memory_search")
 
         # Step 4: Extract personal attributes if enabled
-        timer.start("personal_attribute_extraction")
         self._extract_personal_attributes(user_message, time.time())
-        timer.stop("personal_attribute_extraction")
 
         # Step 5: Construct prompt
-        timer.start("prompt_assembly")
         prompt = self.prompt_builder.build_chat_prompt(
             user_message=user_message,
             memories=relevant_memories,
             conversation_history=self.conversation_history,
             query_type=query_type,
         )
-        timer.stop("prompt_assembly")
         logger.debug("[bold cyan]===== Prompt Start =====[/]")
-        logging.debug(f"[dim]{prompt}[/]")
+        logger.debug(f"[bold]{prompt}[/]")
         logger.debug("[bold cyan]===== Prompt End =====[/]")
         # Step 6: Generate response
-        timer.start("pure_inference")
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
-        timer.stop("pure_inference")
 
         # Step 7: Update history and statistics
-        timer.start("store_interaction")
         self._store_interaction(user_message, assistant_reply, time.time())
-        timer.stop("store_interaction")
-        timer.start("update_history")
+        self.timer.start("update_history")
         self._update_conversation_history(user_message, assistant_reply)
-        timer.stop("update_history")
-        timer.start("update_stats")
+
         self._update_retrieval_stats(start_time, len(relevant_memories))
-        timer.stop("update_stats")
 
         return assistant_reply
 
@@ -417,6 +404,7 @@ class MemoryWeaveAPI:
         return memories
 
     # Helper methods
+    @timer()
     def _analyze_query(self, user_message: str):
         """Analyze query to extract type, keywords, and parameters."""
         try:
@@ -457,6 +445,7 @@ class MemoryWeaveAPI:
 
         return query_obj, adapted_params, expanded_keywords, query_type, entities
 
+    @timer()
     def _compute_embedding(self, text: str):
         """Compute embedding for text."""
         try:
@@ -468,6 +457,7 @@ class MemoryWeaveAPI:
             traceback.print_exc()
             return None
 
+    @timer()
     def _extract_personal_attributes(self, user_message: str, timestamp: float):
         """Extract and store personal attributes."""
         if self.personal_attribute_manager:
@@ -491,6 +481,7 @@ class MemoryWeaveAPI:
             except Exception as e:
                 logger.error(f"Error extracting personal attributes: {e}")
 
+    @timer()
     def _store_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
         """Store conversation messages as memories."""
         try:
@@ -533,11 +524,13 @@ class MemoryWeaveAPI:
         except Exception as e:
             logger.error(f"Error storing conversation in memory: {e}")
 
+    @timer()
     def _update_conversation_history(self, user_message: str, assistant_reply: str):
         """Add messages to conversation history."""
         self.conversation_history.append({"role": "user", "content": user_message})
         self.conversation_history.append({"role": "assistant", "content": assistant_reply})
 
+    @timer()
     def _update_retrieval_stats(self, start_time: float, results_count: int):
         """Update retrieval performance statistics."""
         query_time = time.time() - start_time
@@ -672,15 +665,13 @@ class MemoryWeaveAPI:
                 occurrences = content.lower().count(keyword.lower())
                 relevance = min(1.0, 0.5 + (occurrences * 0.1))
 
-                results.append(
-                    {
-                        "memory_id": memory.id,
-                        "content": content,
-                        "metadata": memory.metadata,
-                        "relevance_score": relevance,
-                        "keyword_occurrences": occurrences,
-                    }
-                )
+                results.append({
+                    "memory_id": memory.id,
+                    "content": content,
+                    "metadata": memory.metadata,
+                    "relevance_score": relevance,
+                    "keyword_occurrences": occurrences,
+                })
 
         # Sort by relevance score
         results.sort(key=lambda x: x["relevance_score"], reverse=True)

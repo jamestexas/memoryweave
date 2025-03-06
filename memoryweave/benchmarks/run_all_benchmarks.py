@@ -423,13 +423,15 @@ class UnifiedRetrievalBenchmark:
 
             # Configure strategy for pure RAG
             if hasattr(system, "strategy"):
-                system.strategy.initialize({
-                    "confidence_threshold": 0.1,
-                    "similarity_weight": 1.0,
-                    "associative_weight": 0.0,
-                    "temporal_weight": 0.0,
-                    "activation_weight": 0.0,
-                })
+                system.strategy.initialize(
+                    {
+                        "confidence_threshold": 0.1,
+                        "similarity_weight": 1.0,
+                        "associative_weight": 0.0,
+                        "temporal_weight": 0.0,
+                        "activation_weight": 0.0,
+                    }
+                )
                 console.print("  [green]✓[/green] Configured strategy for pure RAG")
 
             console.print("  [green]✓[/green] Created MemoryWeaveAPI (RAG)")
@@ -1297,27 +1299,31 @@ class UnifiedRetrievalBenchmark:
             )
 
             # Store results
-            query_data.update({
-                "response": response,
-                "time": total_time,
-                "timings": {
-                    "preparation": timer.get_average("preparation"),
-                    "retrieval": timer.get_average("retrieval"),
-                    "inference": timer.get_average("inference"),
-                    "memory_ops": timer.get_average("memory_ops"),
-                    "total": total_time,
-                },
-                "accuracy": accuracy_results,
-                "retrieved_count": len(retrieved_memories) if retrieved_memories else 0,
-            })
+            query_data.update(
+                {
+                    "response": response,
+                    "time": total_time,
+                    "timings": {
+                        "preparation": timer.get_average("preparation"),
+                        "retrieval": timer.get_average("retrieval"),
+                        "inference": timer.get_average("inference"),
+                        "memory_ops": timer.get_average("memory_ops"),
+                        "total": total_time,
+                    },
+                    "accuracy": accuracy_results,
+                    "retrieved_count": len(retrieved_memories) if retrieved_memories else 0,
+                }
+            )
 
         except Exception as e:
             console.print(f"[red]Error processing query: {e}[/red]")
-            query_data.update({
-                "status": "error",
-                "error": str(e),
-                "time": timer.stop("total") if "total" in timer._start_times else 0,
-            })
+            query_data.update(
+                {
+                    "status": "error",
+                    "error": str(e),
+                    "time": timer.stop("total") if "total" in timer._start_times else 0,
+                }
+            )
             if self.debug:
                 console.print(traceback.format_exc())
 

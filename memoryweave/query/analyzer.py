@@ -8,10 +8,12 @@ import re
 from collections import Counter
 from typing import Any
 
+from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.interfaces.query import IQueryAnalyzer
 from memoryweave.interfaces.retrieval import QueryType
 
 
+@timer
 class SimpleQueryAnalyzer(IQueryAnalyzer):
     """Simple rule-based query analyzer implementation."""
 
@@ -197,6 +199,7 @@ class SimpleQueryAnalyzer(IQueryAnalyzer):
             # Default to unknown if no matches
             return QueryType.UNKNOWN
 
+    @timer()
     def extract_keywords(self, query_text: str) -> list[str]:
         """Extract keywords from a query."""
         # Tokenize and clean the query

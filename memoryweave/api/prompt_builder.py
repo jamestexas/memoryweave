@@ -1,3 +1,7 @@
+from memoryweave.benchmarks.utils.perf_timer import timer
+
+
+@timer
 class PromptBuilder:
     """Builds prompts for LLM interaction."""
 
@@ -8,6 +12,7 @@ class PromptBuilder:
             "it naturally if available.\n"
         )
 
+    @timer()
     def build_chat_prompt(
         self, user_message, memories=None, conversation_history=None, query_type=None
     ):

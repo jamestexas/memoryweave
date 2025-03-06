@@ -1,4 +1,5 @@
 # Add these imports at the top of your benchmark script
+import functools
 import time
 from typing import Any
 
@@ -46,17 +47,11 @@ def compute_accuracy(response: str, expected_answers: list[str], embedder) -> di
     }
 
 
-# Add this class for detailed timing
 class PerformanceTimer:
-    """Track detailed performance metrics for each benchmark operation."""
+    """Track detailed performance metrics for benchmark operations."""
 
     def __init__(self):
-        self.timings = {
-            "retrieval": [],
-            "inference": [],
-            "total": [],
-            "memory_ops": [],
-        }
+        self.timings = {}
         self._start_times = {}
 
     def start(self, operation: str) -> None:
@@ -91,3 +86,109 @@ class PerformanceTimer:
                     "count": len(times),
                 }
         return summary
+
+
+# Global timer for use with decorators
+_global_timer = PerformanceTimer()
+
+
+def get_global_timer() -> PerformanceTimer:
+    """Get the global timer instance for reporting."""
+    return _global_timer
+
+
+def timer(operation: str = None, timer_instance: PerformanceTimer = None):
+    """
+    Decorator to time operations. Can be used on methods or classes.
+
+    When used on a class, it adds a timer instance to the class.
+    When used on a method, it times the method execution.
+
+    Args:
+        operation: Name of the operation to time (only for method decoration)
+        timer_instance: Optional timer instance to use instead of the global one
+    """
+
+    def _get_timer_instance(instance=None):
+        """Get the timer instance to use based on context."""
+        # If a timer instance was explicitly provided, use it
+        if timer_instance is not None:
+            return timer_instance
+
+        # If decorating a method of a class that has a timer, use that
+        if (
+            instance is not None
+            and hasattr(instance, "timer")
+            and isinstance(instance.timer, PerformanceTimer)
+        ):
+            return instance.timer
+
+        # Otherwise use the global timer
+        return _global_timer
+
+    def class_decorator(cls):
+        """Add a timer instance to the class."""
+        original_init = cls.__init__
+
+        @functools.wraps(original_init)
+        def init_with_timer(self, *args, **kwargs):
+            # Add timer instance to the class
+            self.timer = PerformanceTimer()
+            # Call the original __init__
+            original_init(self, *args, **kwargs)
+
+        # Replace __init__ with our version
+        cls.__init__ = init_with_timer
+        return cls
+
+    def method_decorator(func):
+        """Time a method execution."""
+
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            # Get the appropriate timer
+            timer = _get_timer_instance(self)
+
+            # Use the function name if no operation name provided
+            op_name = operation or func.__name__
+
+            # Start timing
+            timer.start(op_name)
+            try:
+                # Run the function
+                result = func(self, *args, **kwargs)
+                return result
+            finally:
+                # Stop timing even if an exception occurs
+                timer.stop(op_name)
+
+        return wrapper
+
+    # Handle both class and method decoration
+    def decorator(obj):
+        if isinstance(obj, type):
+            # It's a class - add a timer to it
+            return class_decorator(obj)
+        else:
+            # It's a function/method - time it
+            return method_decorator(obj)
+
+    # Handle when called with or without arguments
+    if callable(operation):
+        # Called as @timer without parentheses
+        return decorator(operation)
+    else:
+        # Called as @timer() or @timer("name")
+        return decorator
+
+
+# For direct method timing without decoration
+def time_operation(operation_name, func, *args, timer_obj=None, **kwargs):
+    """Time a function call directly without decoration."""
+    t = timer_obj or _global_timer
+    t.start(operation_name)
+    try:
+        result = func(*args, **kwargs)
+        return result
+    finally:
+        t.stop(operation_name)

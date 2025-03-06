@@ -15,7 +15,7 @@ import numpy as np
 
 from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
 from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
-from memoryweave.benchmarks.utils.perf_timer import PerformanceTimer
+from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.components.retrieval_strategies.hybrid_fabric_strategy import HybridFabricStrategy
 from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.text_chunker import TextChunker
@@ -29,6 +29,7 @@ from memoryweave.utils import _get_device
 logger = logging.getLogger(__name__)
 
 
+@timer
 class HybridMemoryWeaveAPI(MemoryWeaveAPI):
     """
     Memory-efficient MemoryWeave API with adaptive chunking and hierarchical embeddings.
@@ -40,6 +41,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
     - Maintains low memory footprint while preserving context awareness
     """
 
+    @timer("init")
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
@@ -58,16 +60,16 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
     ):
         """Initialize the HybridMemoryWeaveAPI."""
         # Initialize chunking components first
+        self.debug = debug
+        self.timer.start("init")
         self.text_chunker = TextChunker()
-        self.text_chunker.initialize(
-            {
-                "chunk_size": 300,  # Larger chunks than the full chunked version
-                "chunk_overlap": 30,  # Less overlap to save memory
-                "min_chunk_size": 50,
-                "respect_paragraphs": True,
-                "respect_sentences": True,
-            }
-        )
+        self.text_chunker.initialize({
+            "chunk_size": 300,  # Larger chunks than the full chunked version
+            "chunk_overlap": 30,  # Less overlap to save memory
+            "min_chunk_size": 50,
+            "respect_paragraphs": True,
+            "respect_sentences": True,
+        })
 
         # Initialize embedding model to get dimension
         self.device = _get_device(device)
@@ -132,6 +134,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # Setup hybrid strategy
         self._setup_hybrid_strategy()
 
+    @timer()
     def _setup_hybrid_strategy(self):
         """Set up the hybrid fabric strategy to replace the standard strategy."""
         # Create hybrid strategy
@@ -164,6 +167,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         if hasattr(self, "retrieval_orchestrator"):
             self.retrieval_orchestrator.strategy = self.strategy
 
+    @timer()
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """
         Store a memory with adaptive chunking for efficient memory usage.
@@ -245,6 +249,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         logger.debug(f"Added hybrid memory {mem_id} with {len(selected_chunks)} selected chunks")
         return mem_id
 
+    @timer()
     def _select_important_chunks(
         self,
         chunks: list[dict[str, Any]],
@@ -312,17 +317,15 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
             # 6. Information density - prefer text with entities, numbers, etc.
             text = chunk["text"].lower()
-            info_markers = sum(
-                [
-                    3 * text.count("@"),  # Emails, handles
-                    2 * sum(c.isdigit() for c in text) / max(1, len(text)),  # Number density
-                    2
-                    * len(
-                        re.findall(r"\b[A-Z][a-z]*(?:\s+[A-Z][a-z]*)+\b", chunk["text"])
-                    ),  # Proper nouns
-                    1 * len(re.findall(r"https?://\S+|www\.\S+", text)),  # URLs
-                ]
-            )
+            info_markers = sum([
+                3 * text.count("@"),  # Emails, handles
+                2 * sum(c.isdigit() for c in text) / max(1, len(text)),  # Number density
+                2
+                * len(
+                    re.findall(r"\b[A-Z][a-z]*(?:\s+[A-Z][a-z]*)+\b", chunk["text"])
+                ),  # Proper nouns
+                1 * len(re.findall(r"https?://\S+|www\.\S+", text)),  # URLs
+            ])
             score += min(0.1, info_markers * 0.01)  # Up to 10% for information density
 
             chunk_scores.append((i, score, chunk))
@@ -374,6 +377,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         return selected_chunks, selected_embeddings
 
+    @timer()
     def add_conversation_memory(
         self, turns: list[dict[str, str]], metadata: dict[str, Any] = None
     ) -> str:
@@ -430,13 +434,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                     chunk_text = f"{role}: {content}"
 
                     chunk_metadata = metadata.copy()
-                    chunk_metadata.update(
-                        {
-                            "chunk_index": i,
-                            "is_conversation": True,
-                            "role": role,
-                        }
-                    )
+                    chunk_metadata.update({
+                        "chunk_index": i,
+                        "is_conversation": True,
+                        "role": role,
+                    })
 
                     chunks.append({"text": chunk_text, "metadata": chunk_metadata})
 
@@ -479,6 +481,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         logger.debug(f"Added conversation memory {mem_id}")
         return mem_id
 
+    @timer()
     def _adaptive_conversation_chunking(
         self, turns: list[dict[str, str]], metadata: dict[str, Any]
     ) -> list[dict[str, Any]]:
@@ -508,13 +511,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 chunk_text = f"{role}: {content}"
 
                 chunk_metadata = metadata.copy()
-                chunk_metadata.update(
-                    {
-                        "chunk_index": i,
-                        "is_conversation": True,
-                        "role": role,
-                    }
-                )
+                chunk_metadata.update({
+                    "chunk_index": i,
+                    "is_conversation": True,
+                    "role": role,
+                })
 
                 chunks.append({"text": chunk_text, "metadata": chunk_metadata})
             return chunks
@@ -529,14 +530,12 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         first_text = f"{first_role}: {first_content}"
 
         first_metadata = metadata.copy()
-        first_metadata.update(
-            {
-                "chunk_index": 0,
-                "is_conversation": True,
-                "role": first_role,
-                "is_first": True,
-            }
-        )
+        first_metadata.update({
+            "chunk_index": 0,
+            "is_conversation": True,
+            "role": first_role,
+            "is_first": True,
+        })
 
         chunks.append({"text": first_text, "metadata": first_metadata})
 
@@ -557,13 +556,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 )
 
                 group_metadata = metadata.copy()
-                group_metadata.update(
-                    {
-                        "chunk_index": len(chunks),
-                        "is_conversation": True,
-                        "turn_range": (i + 1, min(i + group_size, middle_count)),
-                    }
-                )
+                group_metadata.update({
+                    "chunk_index": len(chunks),
+                    "is_conversation": True,
+                    "turn_range": (i + 1, min(i + group_size, middle_count)),
+                })
 
                 chunks.append({"text": group_text, "metadata": group_metadata})
 
@@ -574,19 +571,18 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         last_text = f"{last_role}: {last_content}"
 
         last_metadata = metadata.copy()
-        last_metadata.update(
-            {
-                "chunk_index": len(chunks),
-                "is_conversation": True,
-                "role": last_role,
-                "is_last": True,
-            }
-        )
+        last_metadata.update({
+            "chunk_index": len(chunks),
+            "is_conversation": True,
+            "role": last_role,
+            "is_last": True,
+        })
 
         chunks.append({"text": last_text, "metadata": last_metadata})
 
         return chunks
 
+    @timer()
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
         """
         Process user message and generate a response using hybrid memory retrieval.
@@ -601,34 +597,28 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             Assistant's response
         """
         start_time = time.time()
-        timer = PerformanceTimer()
 
         # Step 1: Query analysis
-        timer.start("query_analysis")
         query_info = self._analyze_query(user_message)
         _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
-        timer.stop("query_analysis")
 
         # Step 2: Compute query embedding
-        timer.start("embedding_computation")
+        self.timer.start("embedding_computation")
         query_embedding = self._compute_embedding(user_message)
-        timer.stop("embedding_computation")
+        self.timer.stop("embedding_computation")
         if query_embedding is None:
             return "Sorry, an error occurred while processing your request."
 
         # Step 3: Add keyword filtering if available
         if hasattr(self, "query_analyzer") and self.query_analyzer:
-            timer.start("keyword_extraction")
             keywords = self.query_analyzer.extract_keywords(user_message)
             if keywords and len(keywords) > 0:
                 if adapted_params is None:
                     adapted_params = {}
                 adapted_params["important_keywords"] = keywords
-            timer.stop("keyword_extraction")
 
         # Step 4: Use retrieval orchestrator for consistent memory retrieval
         # IMPORTANT: Use the orchestrator instead of direct strategy calls
-        timer.start("keyword_extraction")
         relevant_memories = self.retrieval_orchestrator.retrieve(
             query_embedding=query_embedding,
             query=user_message,
@@ -638,47 +628,39 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             adapted_params=adapted_params,
             top_k=adapted_params.get("max_results", 10),
         )
-        timer.stop("memory_search")
 
         # Step 5: Extract personal attributes if enabled
-        timer.start("personal_attribute_extraction")
         self._extract_personal_attributes(user_message, time.time())
-        timer.stop("personal_attribute_extraction")
 
         # Step 6: Construct prompt
-        timer.start("prompt_assembly")
         prompt = self.prompt_builder.build_chat_prompt(
             user_message=user_message,
             memories=relevant_memories,
             conversation_history=self.conversation_history,
             query_type=query_type,
         )
-        timer.stop("prompt_assembly")
 
         logger.debug("[bold cyan]===== Prompt Start =====[/]")
-        logging.debug(f"[dim]{prompt}[/]")
+        logging.debug(f"[bold]{prompt}[/]")
         logger.debug("[bold cyan]===== Prompt End =====[/]")
 
         # Step 7: Generate response
-        timer.start("pure_inference")
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
-        timer.stop("pure_inference")
 
         # Step 8: Store interaction
-        timer.start("store_hybrid_interaction")
         self._store_hybrid_interaction(user_message, assistant_reply, time.time())
-        timer.stop("store_hybrid_interaction")
 
         # Step 9: Update history and statistics
-        timer.start("update_history")
+        self.timer.start("update_history")
         self._update_conversation_history(user_message, assistant_reply)
-        timer.stop("update_history")
-        timer.start("update_retrieval_stats")
+        self.timer.stop("update_history")
+        self.timer.start("update_retrieval_stats")
         self._update_retrieval_stats(start_time, len(relevant_memories))
-        timer.start("update_retrieval_stats")
+        self.timer.start("update_retrieval_stats")
 
         return assistant_reply
 
+    @timer()
     def _store_hybrid_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
         """
         Store conversation messages efficiently with hybrid approach.

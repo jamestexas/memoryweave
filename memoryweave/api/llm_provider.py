@@ -4,6 +4,7 @@ import torch
 from rich.logging import RichHandler
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.utils import _get_device
 
 logging.basicConfig(
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 
 
+@timer
 class LLMProvider:
     """Manages LLM loading and generation."""
 
@@ -38,6 +40,7 @@ class LLMProvider:
             self.model_name, torch_dtype=torch_dtype, device_map=self.device, **self.model_kwargs
         )
 
+    @timer("llm_inference")
     def generate(self, prompt, max_new_tokens=512, **kwargs):
         """Generate a response."""
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)

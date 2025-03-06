@@ -7,6 +7,8 @@ from importlib.util import find_spec
 import numpy as np
 from rich.logging import RichHandler
 
+from memoryweave.benchmarks.utils.perf_timer import timer
+
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(message)s",
@@ -47,9 +49,11 @@ def determine_optimal_workers() -> int:
     return max_workers
 
 
+@timer
 class RetrievalOrchestrator:
     """Orchestrates the memory retrieval process with parallel processing."""
 
+    @timer()
     def __init__(
         self,
         strategy,
@@ -97,6 +101,7 @@ class RetrievalOrchestrator:
         self.query_cache = {}
         self.cache_stats = {"hits": 0, "misses": 0, "last_query_time": 0}
 
+    @timer("memory_search")
     def retrieve(
         self,
         query_embedding,
@@ -255,16 +260,14 @@ class RetrievalOrchestrator:
             emb_hash = hash(str(query))
 
         # Create composite key from query features
-        return hash(
-            (
-                emb_hash,
-                query,
-                query_type,
-                tuple(keywords) if keywords else None,
-                tuple(entities) if entities else None,
-                top_k,
-            )
-        )
+        return hash((
+            emb_hash,
+            query,
+            query_type,
+            tuple(keywords) if keywords else None,
+            tuple(entities) if entities else None,
+            top_k,
+        ))
 
     def _prepare_activations(self, top_k):
         """Pre-fetch activations to speed up post-processing."""
