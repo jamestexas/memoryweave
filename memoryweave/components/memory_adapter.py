@@ -7,7 +7,9 @@ from typing import Any, Optional
 import numpy as np
 
 from memoryweave.components.base import MemoryComponent
-from memoryweave.core.contextual_memory import ContextualMemory
+
+# Remove the import from core
+# from memoryweave.core.contextual_memory import ContextualMemory
 
 
 class MemoryAdapter(MemoryComponent):
@@ -18,15 +20,23 @@ class MemoryAdapter(MemoryComponent):
     interface, allowing it to be used seamlessly within the pipeline architecture.
     """
 
-    def __init__(self, memory: Optional[ContextualMemory] = None, **memory_kwargs):
+    def __init__(self, memory: Optional[Any] = None, **memory_kwargs):
         """
         Initialize the memory adapter.
 
         Args:
-            memory: Existing ContextualMemory instance to adapt
-            **memory_kwargs: Arguments to pass to ContextualMemory constructor if creating a new instance
+            memory: Existing memory instance to adapt
+            **memory_kwargs: Arguments to pass to memory constructor if creating a new instance
         """
-        self.memory = memory or ContextualMemory(**memory_kwargs)
+        self.memory = memory
+
+        # If no memory provided, use the refactored memory store
+        if self.memory is None:
+            from memoryweave.storage.refactored.adapter import MemoryAdapter as RefactoredAdapter
+            from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+
+            memory_store = StandardMemoryStore()
+            self.memory = RefactoredAdapter(memory_store)
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the component with configuration."""
@@ -91,7 +101,7 @@ class MemoryAdapter(MemoryComponent):
         # Default response if no operation matched
         return {}
 
-    def get_memory(self) -> ContextualMemory:
+    def get_memory(self) -> Any:
         """Get the underlying memory instance."""
         return self.memory
 
@@ -124,9 +134,6 @@ class MemoryAdapter(MemoryComponent):
         # If no keywords, just return vector results
         if not keywords:
             return vector_results[:limit]
-
-        # Create text representation of keywords
-        keyword_text = " ".join(keywords)
 
         # Enhance scores for results containing keywords
         for result in vector_results:

@@ -5,8 +5,8 @@ import numpy as np
 
 from memoryweave.components.base import RetrievalStrategy
 
-# Import here to avoid circular imports
-from memoryweave.core import ContextualMemory
+# Remove the import from core
+# from memoryweave.core import ContextualMemory
 
 
 class SimilarityRetrievalStrategy(RetrievalStrategy):
@@ -14,7 +14,7 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
     Retrieves memories based purely on similarity to query embedding.
     """
 
-    def __init__(self, memory: ContextualMemory):
+    def __init__(self, memory: Any):
         self.memory = memory
 
     def initialize(self, config: dict[str, Any]) -> None:
@@ -157,7 +157,7 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
                 # Use keywords if available
                 keywords = context.get("important_keywords", set())
                 if keywords:
-                    for i, kw in enumerate(keywords):
+                    for _i, kw in enumerate(keywords):
                         pos = hash(kw) % dim
                         embedding[pos] += 0.5
             else:
@@ -196,7 +196,7 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
     Retrieves memories based on recency and activation.
     """
 
-    def __init__(self, memory: ContextualMemory):
+    def __init__(self, memory: Any):
         self.memory = memory
 
     def initialize(self, config: dict[str, Any]) -> None:
@@ -306,7 +306,7 @@ class HybridRetrievalStrategy(RetrievalStrategy):
     Hybrid retrieval combining similarity, recency, and keyword matching.
     """
 
-    def __init__(self, memory: ContextualMemory):
+    def __init__(self, memory: Any):
         self.memory = memory
 
     def initialize(self, config: dict[str, Any]) -> None:
@@ -458,7 +458,7 @@ class HybridRetrievalStrategy(RetrievalStrategy):
                 # Use keywords if available
                 keywords = context.get("important_keywords", set())
                 if keywords:
-                    for i, kw in enumerate(keywords):
+                    for _i, kw in enumerate(keywords):
                         pos = hash(kw) % dim
                         embedding[pos] += 0.5
             else:
@@ -501,7 +501,7 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
 
     def __init__(
         self,
-        memory: ContextualMemory,
+        memory: Any,
         base_strategy: RetrievalStrategy = None,
         post_processors: list = None,
     ):
@@ -816,7 +816,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
     categories.
     """
 
-    def __init__(self, memory: ContextualMemory):
+    def __init__(self, memory: Any):
         """
         Initialize with memory and category manager.
 
@@ -1037,7 +1037,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
                 # Use keywords if available
                 keywords = context.get("important_keywords", set())
                 if keywords:
-                    for i, kw in enumerate(keywords):
+                    for _i, kw in enumerate(keywords):
                         pos = hash(kw) % dim
                         embedding[pos] += 0.5
             else:

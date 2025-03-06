@@ -1,248 +1,125 @@
 """
-Factory functions for creating and configuring memory components.
+Factory for creating memory components.
 """
 
 from typing import Any
 
-from memoryweave.components.adapters import CategoryAdapter, CoreRetrieverAdapter
+from memoryweave.components.adapters import CategoryAdapter
+from memoryweave.components.base import Component
 from memoryweave.components.category_manager import CategoryManager
 from memoryweave.components.memory_adapter import MemoryAdapter
-from memoryweave.components.memory_manager import MemoryManager
-from memoryweave.components.post_processors import (
-    AdaptiveKProcessor,
-    KeywordBoostProcessor,
-    SemanticCoherenceProcessor,
+from memoryweave.components.retrieval_strategies_impl import (
+    CategoryRetrievalStrategy,
+    HybridRetrievalStrategy,
+    SimilarityRetrievalStrategy,
+    TemporalRetrievalStrategy,
+    TwoStageRetrievalStrategy,
 )
-from memoryweave.components.query_adapter import QueryAdapter
-from memoryweave.components.query_analysis import QueryAnalyzer
-from memoryweave.components.retrieval_strategies import CategoryRetrievalStrategy
-from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
-from memoryweave.core.contextual_memory import ContextualMemory
 
 
-def create_memory_system(config: dict[str, Any] = None) -> dict[str, Any]:
+def create_memory_system(config: dict[str, Any]) -> dict[str, Component]:
     """
-    Create a complete memory system with all components.
-
-    This factory function creates a ContextualMemory instance, wraps it
-    with appropriate adapters, and registers everything with a MemoryManager.
+    Create a memory system from configuration.
 
     Args:
-        config: Configuration dictionary for the memory system
+        config: Configuration dictionary
 
     Returns:
-        Dictionary containing the memory, adapters, and manager
+        Dictionary of components
     """
-    config = config or {}
+    components: dict[str, Component] = {}
 
-    # Create the core memory system
+    # Create memory adapter
     memory_config = config.get("memory", {})
-    memory = ContextualMemory(**memory_config)
+    memory_adapter = MemoryAdapter(**memory_config)
+    components["memory"] = memory_adapter
 
-    # Create Category Manager component
-    category_config = config.get("category", {})
-    core_category_manager = CoreCategoryManager(
-        embedding_dim=memory_config.get("embedding_dim", 768), **category_config
-    )
-    category_manager = CategoryManager(core_category_manager)
-    category_manager.initialize(category_config)
+    # Create category manager if enabled
+    if config.get("use_categories", False):
+        category_config = config.get("category", {})
+        category_manager = CategoryManager()
+        category_manager.initialize(category_config)
+        components["category_manager"] = category_manager
 
-    # Attach category manager to memory
-    memory.category_manager = core_category_manager
+        # Create category adapter
+        category_adapter = CategoryAdapter(category_manager)
+        components["category_adapter"] = category_adapter
 
-    # Create adapters
-    memory_adapter = MemoryAdapter(memory=memory)
-    retriever_adapter = CoreRetrieverAdapter(
-        memory=memory,
-        default_top_k=config.get("default_top_k", 5),
-        confidence_threshold=config.get("confidence_threshold", 0.0),
-    )
-    category_adapter = CategoryAdapter(
-        core_category_manager=core_category_manager, component_category_manager=category_manager
-    )
+    # Create retrieval strategy
+    retrieval_type = config.get("retrieval_type", "similarity")
+    retrieval_config = config.get("retrieval", {})
 
-    # Create memory manager
-    manager = MemoryManager()
+    if retrieval_type == "similarity":
+        retrieval_strategy = SimilarityRetrievalStrategy(memory_adapter.memory)
+        retrieval_strategy.initialize(retrieval_config)
+        components["retrieval_strategy"] = retrieval_strategy
+    elif retrieval_type == "hybrid":
+        retrieval_strategy = HybridRetrievalStrategy(memory_adapter.memory)
+        retrieval_strategy.initialize(retrieval_config)
+        components["retrieval_strategy"] = retrieval_strategy
+    elif retrieval_type == "temporal":
+        retrieval_strategy = TemporalRetrievalStrategy(memory_adapter.memory)
+        retrieval_strategy.initialize(retrieval_config)
+        components["retrieval_strategy"] = retrieval_strategy
+    elif retrieval_type == "two_stage":
+        # Create base strategy
+        base_type = retrieval_config.get("base_strategy", "similarity")
+        base_config = retrieval_config.get("base_config", {})
 
-    # Create and register a category retrieval strategy
-    category_retrieval = CategoryRetrievalStrategy(memory)
-    category_retrieval.initialize(
-        {
-            "confidence_threshold": config.get("confidence_threshold", 0.3),
-            "max_categories": config.get("max_categories", 3),
-            "activation_boost": config.get("activation_boost", True),
-            "category_selection_threshold": config.get("category_selection_threshold", 0.5),
-            "min_results": config.get("min_results", 3),
-        }
-    )
+        if base_type == "similarity":
+            base_strategy = SimilarityRetrievalStrategy(memory_adapter.memory)
+        elif base_type == "hybrid":
+            base_strategy = HybridRetrievalStrategy(memory_adapter.memory)
+        else:
+            base_strategy = SimilarityRetrievalStrategy(memory_adapter.memory)
 
-    # Register components
-    manager.register_component("memory", memory_adapter)
-    manager.register_component("core_retriever", retriever_adapter)
-    manager.register_component("category_manager", category_adapter)
-    manager.register_component("category_retrieval", category_retrieval)
+        base_strategy.initialize(base_config)
 
-    # Create and register components needed for pipeline tests
-    query_analyzer = QueryAnalyzer()
-    query_adapter = QueryAdapter()
-    keyword_boost = KeywordBoostProcessor()
-    adaptive_k = AdaptiveKProcessor()
-    coherence = SemanticCoherenceProcessor()
+        # Create two-stage strategy
+        retrieval_strategy = TwoStageRetrievalStrategy(
+            memory_adapter.memory,
+            base_strategy=base_strategy,
+        )
+        retrieval_strategy.initialize(retrieval_config)
+        components["retrieval_strategy"] = retrieval_strategy
+    elif retrieval_type == "category":
+        if "category_manager" not in components:
+            # Create category manager if not already created
+            category_config = config.get("category", {})
+            category_manager = CategoryManager()
+            category_manager.initialize(category_config)
+            components["category_manager"] = category_manager
 
-    # Register these components
-    manager.register_component("query_analyzer", query_analyzer)
-    manager.register_component("query_adapter", query_adapter)
-    manager.register_component("keyword_boost", keyword_boost)
-    manager.register_component("adaptive_k", adaptive_k)
-    manager.register_component("coherence", coherence)
-    manager.register_component(
-        "two_stage_retrieval", category_retrieval
-    )  # Use category retrieval as two-stage for tests
+        retrieval_strategy = CategoryRetrievalStrategy(memory_adapter.memory)
+        retrieval_strategy.initialize(retrieval_config)
+        components["retrieval_strategy"] = retrieval_strategy
 
-    # Return all created objects
-    return dict(
-        memory=memory,
-        memory_adapter=memory_adapter,
-        retriever_adapter=retriever_adapter,
-        category_manager=category_manager,
-        category_adapter=category_adapter,
-        category_retrieval=category_retrieval,
-        manager=manager,
-    )
+    return components
 
 
-def configure_memory_pipeline(
-    manager: MemoryManager,
-    pipeline_type: str = "standard",
-) -> None:
+def configure_memory_pipeline(config: dict[str, Any]) -> list[Component]:
     """
-    Configure a memory pipeline with the specified components.
+    Configure a memory pipeline from configuration.
 
     Args:
-        manager: The MemoryManager to configure
-        pipeline_type: Type of pipeline to configure ('standard', 'advanced', etc.)
+        config: Configuration dictionary
+
+    Returns:
+        List of pipeline components
     """
-    if pipeline_type == "standard":
-        # Configure a basic pipeline with query analysis and retrieval
-        pipeline_config = [
-            {"component": "query_analyzer", "config": {}},
-            {
-                "component": "core_retriever",
-                "config": {
-                    "confidence_threshold": 0.3,
-                    "top_k": 5,
-                    "use_categories": True,
-                    "activation_boost": True,
-                },
-            },
-        ]
-        manager.build_pipeline(pipeline_config)
+    components = create_memory_system(config)
 
-    elif pipeline_type == "advanced":
-        # Configure an advanced pipeline with more components
-        pipeline_config = [
-            {"component": "query_analyzer", "config": {}},
-            {
-                "component": "query_adapter",
-                "config": {
-                    "adaptation_strength": 1.0,
-                },
-            },
-            {
-                "component": "core_retriever",
-                "config": {
-                    "confidence_threshold": 0.25,
-                    "top_k": 10,
-                    "use_categories": True,
-                    "activation_boost": True,
-                },
-            },
-            {
-                "component": "keyword_boost",
-                "config": {
-                    "keyword_boost_weight": 0.5,
-                },
-            },
-            {
-                "component": "coherence",
-                "config": {
-                    "coherence_threshold": 0.2,
-                },
-            },
-            {
-                "component": "adaptive_k",
-                "config": {
-                    "adaptive_k_factor": 0.3,
-                },
-            },
-        ]
-        manager.build_pipeline(pipeline_config)
+    # Create pipeline
+    pipeline: list[Component] = []
 
-    elif pipeline_type == "category":
-        # Configure a pipeline using category-based retrieval
-        pipeline_config = [
-            {"component": "query_analyzer", "config": {}},
-            {
-                "component": "query_adapter",
-                "config": {
-                    "adaptation_strength": 1.0,
-                },
-            },
-            {
-                "component": "category_retrieval",
-                "config": {
-                    "confidence_threshold": 0.25,
-                    "max_categories": 3,
-                    "category_selection_threshold": 0.5,
-                    "activation_boost": True,
-                },
-            },
-            {
-                "component": "keyword_boost",
-                "config": {
-                    "keyword_boost_weight": 0.6,
-                },
-            },
-            {
-                "component": "adaptive_k",
-                "config": {
-                    "adaptive_k_factor": 0.3,
-                },
-            },
-        ]
-        manager.build_pipeline(pipeline_config)
+    # Add components to pipeline in the correct order
+    if "memory" in components:
+        pipeline.append(components["memory"])
 
-    elif pipeline_type == "hybrid_category":
-        # Configure a pipeline using both category and similarity retrieval
-        pipeline_config = [
-            {"component": "query_analyzer", "config": {}},
-            {
-                "component": "query_adapter",
-                "config": {
-                    "adaptation_strength": 1.0,
-                },
-            },
-            {
-                "component": "two_stage_retrieval",
-                "config": {
-                    "confidence_threshold": 0.25,
-                    "base_strategy": "category_retrieval",
-                    "first_stage_k": 10,
-                    "first_stage_threshold_factor": 0.7,
-                    "enable_semantic_coherence": True,
-                },
-            },
-            {
-                "component": "keyword_boost",
-                "config": {
-                    "keyword_boost_weight": 0.5,
-                },
-            },
-            {
-                "component": "coherence",
-                "config": {
-                    "coherence_threshold": 0.2,
-                },
-            },
-        ]
-        manager.build_pipeline(pipeline_config)
+    if "category_adapter" in components:
+        pipeline.append(components["category_adapter"])
+
+    if "retrieval_strategy" in components:
+        pipeline.append(components["retrieval_strategy"])
+
+    return pipeline

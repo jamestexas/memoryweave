@@ -18,7 +18,6 @@ from whoosh.qparser import QueryParser
 from whoosh.scoring import BM25F
 
 from memoryweave.components.base import RetrievalStrategy
-from memoryweave.core import ContextualMemory
 
 
 class HybridBM25VectorStrategy(RetrievalStrategy):
@@ -31,7 +30,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
     3. Configurable weighting to balance between the two approaches
     """
 
-    def __init__(self, memory: ContextualMemory):
+    def __init__(self, memory: Any):
         """
         Initialize the hybrid BM25 + vector retrieval strategy.
 
