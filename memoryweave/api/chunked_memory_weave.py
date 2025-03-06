@@ -61,9 +61,9 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         self.text_chunker = TextChunker()
         self.text_chunker.initialize(
             {
-                "chunk_size": 200,
-                "chunk_overlap": 50,
-                "min_chunk_size": 30,
+                "chunk_size": 500,  # Larger chunks (was 200)
+                "chunk_overlap": 150,  # More overlap (was 50)
+                "min_chunk_size": 100,  # Larger minimum (was 50)
                 "respect_paragraphs": True,
                 "respect_sentences": True,
             }

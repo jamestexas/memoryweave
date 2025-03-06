@@ -285,19 +285,11 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
         return results
 
     def _aggregate_chunks_by_memory(
-        self, chunk_results: list[dict[str, Any]]
+        self,
+        chunk_results: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """
-        Group chunk results by memory ID and calculate memory-level scores.
-
-        This method combines scores from multiple chunks of the same memory
-        to create a unified memory-level result.
-
-        Args:
-            chunk_results: List of chunk results
-
-        Returns:
-            List of memory-level results
+        Enhanced chunk aggregation with semantic coherence preservation.
         """
         if not chunk_results:
             return []
@@ -314,7 +306,7 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
 
             memory_groups[memory_id].append(result)
 
-        # Calculate memory-level scores
+        # Calculate memory-level scores with improved logic
         memory_results = []
         for memory_id, chunks in memory_groups.items():
             # Sort chunks by similarity (descending)
@@ -325,18 +317,28 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
             # Limit to max_chunks_per_memory
             top_chunks = sorted_chunks[: self.max_chunks_per_memory]
 
-            # Calculate combined score
+            # Identify sequential chunks for stronger semantic coherence
+            chunk_indices = [chunk.get("chunk_index", 0) for chunk in top_chunks]
+            has_sequential_chunks = self._are_chunks_sequential(chunk_indices)
+
+            # Calculate combined score with emphasis on sequential chunks
             if self.combine_chunk_scores:
-                # Use a weighted sum with decay
+                # Use a weighted sum with decay and sequential bonus
                 weights = [self.chunk_weight_decay**i for i in range(len(top_chunks))]
                 total_weight = sum(weights)
-                combined_score = (
+
+                # Basic weighted score
+                basic_score = (
                     sum(
                         chunk.get("chunk_similarity", 0.0) * weight
                         for chunk, weight in zip(top_chunks, weights)
                     )
                     / total_weight
                 )
+
+                # Apply sequential bonus if applicable (up to 30% boost)
+                sequential_bonus = 0.3 if has_sequential_chunks else 0.0
+                combined_score = min(1.0, basic_score * (1.0 + sequential_bonus))
             else:
                 # Use the best chunk score
                 combined_score = top_chunks[0].get("chunk_similarity", 0.0)
@@ -349,6 +351,7 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
                 "chunk_count": len(chunks),
                 "top_chunks": top_chunks,
                 "best_chunk_index": best_chunk.get("chunk_index", 0),
+                "has_sequential_chunks": has_sequential_chunks,
             }
 
             # Add metadata from the best chunk
@@ -357,19 +360,13 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
                     if key not in ("memory_id", "chunk_index", "chunk_text"):
                         memory_result[key] = value
 
-            # Add content from the best chunk or combine content
-            if self.prioritize_coherent_chunks and len(top_chunks) > 1:
-                # Check if chunks are sequential
-                chunk_indices = [chunk.get("chunk_index", 0) for chunk in top_chunks]
-                if self._are_chunks_sequential(chunk_indices):
-                    # Combine content from sequential chunks
-                    combined_content = " ".join(chunk.get("content", "") for chunk in top_chunks)
-                    memory_result["content"] = combined_content
-                else:
-                    # Use content from best chunk
-                    memory_result["content"] = best_chunk.get("content", "")
+            # Build content with improved semantic coherence
+            if has_sequential_chunks and len(top_chunks) > 1:
+                # Get the sequential chunks in order
+                sequential_chunks = self._get_sequential_chunks(top_chunks)
+                combined_content = " ".join(chunk.get("content", "") for chunk in sequential_chunks)
+                memory_result["content"] = combined_content
             else:
-                # Use content from best chunk
                 memory_result["content"] = best_chunk.get("content", "")
 
             memory_results.append(memory_result)

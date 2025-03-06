@@ -7,6 +7,7 @@ retrieval quality.
 """
 
 import logging
+import re
 import time
 from typing import Any
 
@@ -244,75 +245,133 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         return mem_id
 
     def _select_important_chunks(
-        self, chunks: list[dict[str, Any]], full_embedding: np.ndarray
+        self,
+        chunks: list[dict[str, Any]],
+        full_embedding: np.ndarray,
+        query_embedding: np.ndarray | None = None,
     ) -> tuple[list[dict[str, Any]], list[np.ndarray]]:
         """
-        Select the most important chunks to embed and store.
-
-        This method rates chunks by information density and importance,
-        keeping only the most valuable chunks to reduce memory usage.
+        Enhanced chunk selection using semantic importance and query relevance.
 
         Args:
-            chunks: list of chunk dictionaries
-            full_embedding: Embedding of the full text
+            chunks: List of chunk dictionaries
+            full_embedding: Embedding of full text
+            query_embedding: Optional query embedding for relevance scoring
 
         Returns:
-            tuple of (selected_chunks, chunk_embeddings)
+            Tuple of (selected_chunks, chunk_embeddings)
         """
         if not chunks:
             return [], []
 
-        # Limit total number of chunks
-        if len(chunks) > self.max_chunks_per_memory:
-            # Extract keywords from chunks to help identify important ones
-            all_keywords = []
-            for chunk in chunks:
-                # Use query analyzer to extract keywords if available
-                chunk_text = chunk["text"]
-                if hasattr(self, "query_analyzer") and self.query_analyzer:
-                    keywords = self.query_analyzer.extract_keywords(chunk_text)
-                    all_keywords.append(keywords)
-                else:
-                    # Simple keyword extraction fallback
-                    words = chunk_text.lower().split()
-                    # Filter out common words and keep longer words
-                    keywords = [w for w in words if len(w) > 5 and w.isalpha()]
-                    all_keywords.append(keywords[:10])  # Limit to 10 keywords
+        # Determine if we should use query relevance
+        use_query_relevance = query_embedding is not None
 
-            # Calculate chunk scores
-            chunk_scores = []
-            for i, chunk in enumerate(chunks):
-                # Score based on multiple factors
-                score = 0.0
-
-                # 1. Position score - first and last chunks often have key information
-                if i == 0 or i == len(chunks) - 1:
-                    score += 0.3
-
-                # 2. Keyword density
-                if i < len(all_keywords):
-                    score += min(0.5, len(all_keywords[i]) * 0.05)
-
-                # 3. Length score - longer chunks may have more information
-                score += min(0.2, len(chunk["text"]) / 1000)
-
-                chunk_scores.append(score)
-
-            # Select top N chunks based on scores
-            sorted_indices = np.argsort(chunk_scores)[::-1]
-            top_indices = sorted_indices[: self.max_chunks_per_memory]
-            chunks = [chunks[i] for i in top_indices]
-
-        # Create embeddings for the selected chunks
+        # Calculate chunk scores based on multiple factors
+        chunk_scores = []
         chunk_embeddings = []
-        for chunk in chunks:
+
+        for i, chunk in enumerate(chunks):
+            # Score based on multiple factors
+            score = 0.0
+
+            # 1. Create embedding for this chunk
             chunk_text = chunk["text"]
-            embedding = self.embedding_model.encode(
+            chunk_embedding = self.embedding_model.encode(
                 chunk_text, show_progress_bar=self.show_progress_bar
             )
-            chunk_embeddings.append(embedding)
+            chunk_embeddings.append(chunk_embedding)
 
-        return chunks, chunk_embeddings
+            # 2. Calculate semantic importance (cosine similarity to full embedding)
+            # This measures how representative this chunk is of the full text
+            full_norm = np.linalg.norm(full_embedding)
+            chunk_norm = np.linalg.norm(chunk_embedding)
+
+            if full_norm > 0 and chunk_norm > 0:
+                semantic_importance = np.dot(full_embedding, chunk_embedding) / (
+                    full_norm * chunk_norm
+                )
+                score += semantic_importance * 0.4  # 40% weight to semantic importance
+
+            # 3. Query relevance (if available)
+            if use_query_relevance:
+                query_norm = np.linalg.norm(query_embedding)
+                if query_norm > 0 and chunk_norm > 0:
+                    query_relevance = np.dot(query_embedding, chunk_embedding) / (
+                        query_norm * chunk_norm
+                    )
+                    score += query_relevance * 0.4  # 40% weight to query relevance
+
+            # 4. Position importance - first and last chunks often have key information
+            if i == 0 or i == len(chunks) - 1:
+                score += 0.1  # 10% boost for position
+
+            # 5. Length score - longer chunks may have more information
+            score += min(0.1, len(chunk["text"]) / 1000)  # Up to 10% for length
+
+            # 6. Information density - prefer text with entities, numbers, etc.
+            text = chunk["text"].lower()
+            info_markers = sum(
+                [
+                    3 * text.count("@"),  # Emails, handles
+                    2 * sum(c.isdigit() for c in text) / max(1, len(text)),  # Number density
+                    2
+                    * len(
+                        re.findall(r"\b[A-Z][a-z]*(?:\s+[A-Z][a-z]*)+\b", chunk["text"])
+                    ),  # Proper nouns
+                    1 * len(re.findall(r"https?://\S+|www\.\S+", text)),  # URLs
+                ]
+            )
+            score += min(0.1, info_markers * 0.01)  # Up to 10% for information density
+
+            chunk_scores.append((i, score, chunk))
+
+        # Sort chunks by score
+        chunk_scores.sort(key=lambda x: x[1], reverse=True)
+
+        # Select top N chunks, but ensure we also maintain sequence when useful
+        max_chunks = min(self.max_chunks_per_memory, len(chunks))
+        selected_indices = [item[0] for item in chunk_scores[:max_chunks]]
+
+        # Check if selected chunks are sequential
+        selected_indices.sort()  # Sort to check sequence
+        is_sequential = all(
+            selected_indices[i + 1] == selected_indices[i] + 1
+            for i in range(len(selected_indices) - 1)
+        )
+
+        # If not sequential and we have high-scoring chunks that are close to each other,
+        # try to select a sequential segment instead
+        if not is_sequential and len(selected_indices) > 1:
+            # Find the longest sequential segment
+            best_segment = []
+            for start_idx in range(len(chunks)):
+                # Try segments of length max_chunks starting at start_idx
+                segment = list(range(start_idx, min(start_idx + max_chunks, len(chunks))))
+
+                # Calculate segment score (sum of chunk scores)
+                segment_score = sum(chunk_scores[i][1] for i in segment)
+
+                # If this segment is better than current best, update
+                if len(segment) > len(best_segment) or (
+                    len(segment) == len(best_segment)
+                    and segment_score > sum(chunk_scores[i][1] for i in best_segment)
+                ):
+                    best_segment = segment
+
+            # If we found a good segment and it's not too much worse than original selection
+            best_segment_score = sum(chunk_scores[i][1] for i in best_segment)
+            selected_score = sum(chunk_scores[i][1] for i in selected_indices)
+
+            if len(best_segment) >= max_chunks * 0.7 and best_segment_score >= selected_score * 0.8:
+                # Use the sequential segment instead
+                selected_indices = best_segment
+
+        # Get the selected chunks and embeddings
+        selected_chunks = [chunks[i] for i in selected_indices]
+        selected_embeddings = [chunk_embeddings[i] for i in selected_indices]
+
+        return selected_chunks, selected_embeddings
 
     def add_conversation_memory(
         self, turns: list[dict[str, str]], metadata: dict[str, Any] = None
