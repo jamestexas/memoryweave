@@ -2,7 +2,7 @@
 name = "memoryweave"
 version = "0.1.0"
 description = "A contextual fabric approach to LLM memory management inspired by biological memory systems"
-readme = "README.md"
+readme = "readme.md"
 authors = [
     { name = "jamestexas", email = "18285880+jamestexas@users.noreply.github.com" },
 ]

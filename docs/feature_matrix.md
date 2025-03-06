@@ -1,106 +1,164 @@
-# MemoryWeave Feature Matrix
+# MemoryWeave Components Feature Matrix
 
-This document tracks the implementation status of features from the original `ContextualRetriever` in the new component-based architecture.
+## Executive Summary
 
-## Status Legend
+The `memoryweave/components` directory implements a sophisticated component-based architecture for memory management in language models. This directory contains modules responsible for query analysis, memory manipulation, retrieval adaptation, and contextual enhancement. The architecture follows a pipeline pattern where components can be combined flexibly for different retrieval strategies.
 
-- ✅ Complete - Feature fully implemented in component architecture
-- 🟡 Partial - Feature partially implemented
-- ❌ Not Started - Feature not yet implemented
-- 🔄 In Progress - Feature currently being implemented
+Several files show direct dependencies on the deprecated "core" module, particularly in adapter classes and integration points. These should be prioritized for refactoring to complete the architectural transition.
 
-## Core Retrieval Features
+## Foundation Components
 
-| Feature | Status | Component | Notes |
-|---------|--------|-----------|-------|
-| Basic similarity retrieval | ✅ | SimilarityRetrievalStrategy | Basic vector similarity implemented |
-| Temporal retrieval | ✅ | TemporalRetrievalStrategy | Recency-based retrieval implemented |
-| Hybrid retrieval | ✅ | HybridRetrievalStrategy | Combines similarity and recency |
-| Two-stage retrieval | ✅ | TwoStageRetrievalStrategy | Implemented with first and second stage processing |
-| Approximate Nearest Neighbor search | ✅ | ANNVectorStore, ANNActivationVectorStore | Optimized vector storage for large memory sets |
-| Progressive filtering | ✅ | ANNVectorStore | Two-stage retrieval with filtering for large sets |
-| Dynamic scale adaptation | ✅ | VectorStoreFactory | Automatic configuration based on memory size |
-| Confidence thresholding | ✅ | RetrievalStrategy | Implemented in all strategies |
-| Query type adaptation | ✅ | QueryTypeAdapter | Dynamically adjusts parameters based on query type |
-| Dynamic threshold adjustment | ✅ | DynamicThresholdAdjuster | Enhanced implementation with advanced features |
-| Minimum result guarantee | ✅ | MinimumResultGuaranteeProcessor | Implemented as post-processor |
+<details>
 
-## Memory Enhancement Features
+| File | Purpose | Key Features | Core Dependencies | Code Quality Notes |
+|------|---------|--------------|-------------------|-------------------|
+| `base.py` | Defines base component interfaces | • Abstract `Component` base class<br>• `MemoryComponent` for memory operations<br>• `RetrievalComponent` for queries<br>• `RetrievalStrategy` for memory retrieval | None | Clean implementation with clear abstractions |
+| `component_names.py` | Defines component type enumeration | • `ComponentName` enum for all components<br>• Used for component registration and pipeline config | None | Concise, well-organized enumeration |
+| `pipeline_config.py` | Defines configuration models | • `PipelineStep` for single steps<br>• `PipelineConfig` for complete pipeline<br>• Pydantic validation | None | Good use of Pydantic for validation |
 
-| Feature | Status | Component | Notes |
-|---------|--------|-----------|-------|
-| ART clustering integration | ✅ | CategoryManager | Implemented with get_category_similarities method |
-| Memory decay | ✅ | MemoryDecayComponent | Implemented with configurable decay parameters |
-| Category-based retrieval | ✅ | CategoryRetrievalStrategy | Implementation with ART clustering integration |
-| Activation boosting | ✅ | RetrievalStrategy | Fully implemented in all retrieval strategies |
+</details>
 
-## Query Processing Features
+## Query Processing
 
-| Feature | Status | Component | Notes |
-|---------|--------|-----------|-------|
-| Query analysis | ✅ | QueryAnalyzer | Comprehensive query type identification implemented |
-| Keyword extraction | ✅ | QueryAnalyzer | Implemented via NLPExtractor |
-| Keyword expansion | ✅ | KeywordExpander | Comprehensive implementation with synonyms and irregular plurals |
-| Query context building | ✅ | QueryContextBuilder | Implemented with conversation history, temporal markers, and entity extraction |
+<details>
 
-## Post-Processing Features
+| File | Purpose | Key Features | Core Dependencies | Code Quality Notes |
+|------|---------|--------------|-------------------|-------------------|
+| `query_analysis.py` | Analyzes query type and content | • Query type classification (personal, factual, etc.)<br>• Keyword extraction<br>• Parameter recommendations by query type | None | Has hardcoded patterns for test cases; could benefit from refactoring |
+| `query_adapter.py` | Adapts retrieval parameters | • Parameter adjustment by query type<br>• Configurable adaptation strength<br>• Optimizes for different query patterns | None | Complex adaptation logic with some redundant logging |
+| `query_context_builder.py` | Enriches queries with context | • Extracts temporal markers and entities<br>• Builds context from conversation history<br>• Enhances query embeddings | None | Good separation of concerns; could use more documentation |
+| `keyword_expander.py` | Expands keywords for better recall | • Handles singular/plural forms including irregulars<br>• Extensive synonym dictionary<br>• Configurable expansion parameters | None | Well-structured but large hardcoded dictionaries could be externalized |
 
-| Feature | Status | Component | Notes |
-|---------|--------|-----------|-------|
-| Keyword boosting | ✅ | KeywordBoostProcessor | Basic implementation exists |
-| Semantic coherence check | ✅ | SemanticCoherenceProcessor | Enhanced implementation with clustering and pairwise coherence |
-| Adaptive K selection | ✅ | AdaptiveKProcessor | Implementation exists |
-| Personal attribute enhancement | ✅ | PersonalAttributeManager, PersonalAttributeProcessor | Implemented with deep integration in retrieval pipeline |
+</details>
 
-## Integration Features
+## Memory Organization
 
-| Feature | Status | Component | Notes |
-|---------|--------|-----------|-------|
-| Conversation state tracking | 🟡 | Retriever | Basic implementation exists |
-| Pipeline configuration | ✅ | MemoryManager | Flexible pipeline configuration implemented |
-| Component initialization | ✅ | Component | All components support initialization with config |
+<details>
 
-## Next Steps
+| File | Purpose | Key Features | Core Dependencies | Code Quality Notes |
+|------|---------|--------------|-------------------|-------------------|
+| `memory_manager.py` | Orchestrates memory components | • Component registration<br>• Pipeline building and execution<br>• Centralized memory access | Indirect through `BaseMemoryStore` | Clear responsibilities and good error handling |
+| `category_manager.py` | Organizes memories into categories | • ART-inspired clustering<br>• Dynamic category management<br>• Category consolidation<br>• Category-based retrieval | Depends on `CoreCategoryManager` | Mostly clean implementation; adapter pattern to core |
+| `personal_attributes.py` | Manages user attributes | • Extracts attributes from text<br>• Categorizes into preferences, demographics, etc.<br>• Retrieves attributes relevant to queries | None | Complex methods with multiple responsibilities; some hardcoded patterns |
+| `text_chunker.py` | Breaks down large texts | • Chunking by paragraphs, sentences, or size<br>• Maintains context between chunks<br>• Special handling for conversations | None | Good implementation with appropriate regex usage |
 
-1. ✅ Implement two-stage retrieval in the component architecture
-1. ✅ Enhance query type adaptation to drive retrieval behavior
-1. ✅ Refactor to modular architecture as per architecture decision record
-1. ✅ Integrate with ART clustering from ContextualMemory
-1. ✅ Implement full keyword expansion
-1. ✅ Enhance personal attribute integration
-1. ✅ Implement memory decay
-1. ✅ Add query context building
-1. 🔄 Improve hybrid retrieval to combine BM25 and vector search advantages
-1. 🔄 Enhance vector retrieval precision while maintaining recall
-1. 🔄 Expand benchmark datasets for more diverse query types
+</details>
 
-## Evaluation and Benchmarking
+## Contextual Enhancement
 
-| Feature | Status | Component | Notes |
-|---------|--------|-----------|-------|
-| Synthetic benchmarks | ✅ | benchmarks module | Comprehensive benchmarking across configurations |
-| Semantic benchmarks | ✅ | run_semantic_benchmark.py | Real-world query evaluation |
-| Baseline comparison | ✅ | baselines module | Compare against BM25 and vector search baselines with proper metrics |
-| Visualization tools | ✅ | examples/visualize_results.py | Generate charts and reports for benchmark results |
-| Performance metrics | ✅ | evaluation module | Precision, recall, F1, MRR, and coherence metrics |
+<details>
 
-## Refactoring Progress
+| File | Purpose | Key Features | Core Dependencies | Code Quality Notes |
+|------|---------|--------------|-------------------|-------------------|
+| `context_enhancement.py` | Enhances memory embeddings | • `ContextualEmbeddingEnhancer` for richer embeddings<br>• Integrates conversation, temporal, topical context<br>• `ContextSignalExtractor` for context signals | None | Good separation of concerns; could use more documentation |
+| `temporal_context.py` | Manages temporal aspects | • `TemporalContextBuilder` for time context<br>• `TemporalDecayComponent` for activation decay<br>• Groups memories into temporal episodes<br>• Extracts time references from queries | Indirect through `BaseMemoryStore` | Complex implementation with multiple responsibilities |
+| `associative_linking.py` | Creates memory connections | • Creates bidirectional links between related memories<br>• Calculates link strength (similarity + temporal)<br>• Implements spreading activation<br>• Includes network visualization | Uses `BaseMemoryStore` and `MemoryID` | Good implementation with clear methods |
+| `activation.py` | Manages memory activation levels | • Tracks activation for all memories<br>• Implements spreading activation<br>• Applies decay over time<br>• Boosts retrieval based on activation | Interacts with `AssociativeMemoryLinker` | Well-structured with good separation of concerns |
 
-| Phase | Task | Status | Notes |
-|-------|------|--------|-------|
-| 1 | Create interface definitions | ✅ | memory.py, retrieval.py, query.py, and pipeline.py created |
-| 1 | Define data models | ✅ | Memory, Query, and pipeline models defined |
-| 2 | Create storage components | ✅ | Implemented MemoryStore, VectorStore, ActivationManager, CategoryManager |
-| 2 | Create retrieval components | ✅ | Implemented similarity, temporal, hybrid, and two-stage retrieval strategies |
-| 2 | Create query components | ✅ | Implemented query analyzer, adapter, and keyword expander |
-| 2 | Create NLP utilities | ✅ | Implemented extraction, matchers, patterns, and keywords |
-| 3 | Create pipeline architecture | ✅ | Implemented registry, builder, manager, and executor |
-| 3 | Create configuration system | ✅ | Implemented options, validation, and loaders |
-| 3 | Create factory methods | ✅ | Implemented memory, retrieval, and pipeline factories |
-| 4 | Create adapters | ✅ | Implemented memory, retrieval, pipeline, and category adapters |
-| 4 | Migrate feature implementations | ✅ | Added component migration utility and completed feature migration |
-| 4 | Update tests | ✅ | Added unit and integration tests for all components |
-| 5 | Remove deprecated code | 🟡 | Phase 1: Removed deprecated directory and contextual_fabric.py; Phase 2: Converting core components to stubs; Phase 3: Complete removal planned |
-| 5 | Update documentation | ✅ | Architecture ADR added, feature matrix updated |
-| 5 | Update examples | ✅ | Added migration example demonstrating all migration approaches |
-| 5 | Add baseline comparison | ✅ | Implemented BM25 and vector search baselines for evaluation |
+</details>
+
+## Dynamic Adaptation
+
+<details>
+
+| File | Purpose | Key Features | Core Dependencies | Code Quality Notes |
+|------|---------|--------------|-------------------|-------------------|
+| `dynamic_threshold_adjuster.py` | Adjusts confidence thresholds | • Analyzes retrieval metrics<br>• Adapts thresholds by query type<br>• Distribution-based adjustment<br>• Minimum results guarantee | None | Well-structured with good Pydantic usage |
+| `dynamic_context_adapter.py` | Context-aware adaptation | • Adapts for memory size, query type, complexity<br>• Implements adaptive weights<br>• Handles conversation context<br>• Supports extensive logging | None | Comprehensive adaptation logic |
+| `memory_decay.py` | Applies decay to activations | • Configurable decay rate and interval<br>• Exponential decay implementation<br>• Handles both component and legacy memory | Has compatibility code for core activation levels | Clean implementation with good error handling |
+
+</details>
+
+## Post-Processing
+
+<details>
+
+| File | Purpose | Key Features | Core Dependencies | Code Quality Notes |
+|------|---------|--------------|-------------------|-------------------|
+| `post_processors.py` | Refines retrieval results | • `KeywordBoostProcessor`: Boosts keyword matches<br>• `SemanticCoherenceProcessor`: Ensures coherence<br>• `AdaptiveKProcessor`: Adjusts result count<br>• `MinimumResultGuaranteeProcessor`: Ensures min results<br>• `PersonalAttributeProcessor`: Applies attributes | None | Good separation of concerns; complex coherence processor could be further split |
+
+</details>
+
+## Integration and Adapters
+
+<details>
+
+| File | Purpose | Key Features | Core Dependencies | Code Quality Notes |
+|------|---------|--------------|-------------------|-------------------|
+| `adapters.py` | Connects core with components | • `CoreRetrieverAdapter`: Adapts core retriever<br>• `CategoryAdapter`: Adapts category managers<br>• Bidirectional compatibility | Directly uses `ContextualMemory` and `CoreCategoryManager` | Clean adapters with clear responsibilities |
+| `memory_adapter.py` | Adapts core memory | • Wraps `ContextualMemory`<br>• Methods for adding/retrieving memories<br>• Implements hybrid search | Directly uses `ContextualMemory` | Clear adapter implementation |
+| `retrieval_strategies_impl.py` | Implements retrieval strategies | • Multiple strategy implementations<br>• Each with unique retrieval approach<br>• Extensive error handling and logging | Directly uses `ContextualMemory` | Complex strategies with some redundancy |
+| `retriever.py` | Main entry point for retrieval | • Initializes and configures components<br>• Builds retrieval pipelines<br>• High-level retrieval interface<br>• Conversation state tracking | Uses `StandardMemoryStore` | Complex with many responsibilities |
+| `factory.py` | Creates memory components | • `create_memory_system` for complete system<br>• `configure_memory_pipeline` for different pipelines<br>• Standard configs for different use cases | Directly uses `CoreCategoryManager` and `ContextualMemory` | Clean factory implementation |
+
+</details>
+
+## Documentation Reorganization Recommendations
+
+<details>
+
+1. **Consolidate Planning Documents**:
+
+   - Merge `next_steps.md` with `plan_for_improvement.md` to create a single document for improvement planning
+   - Align `development_priorities.md` with `roadmap.md` to ensure consistency in priorities
+
+1. **Consolidate Refactoring Documentation**:
+
+   - Merge `refactoring_summary.md` (root) with `docs/refactoring_progress.md` to create a comprehensive refactoring history
+
+1. **Update Key Documents**:
+
+   - Replace `docs/feature_matrix.md` with this new feature matrix
+   - Update `readme.md` to reflect current architecture and capabilities
+   - Update `architecture.md` with latest component interactions
+
+1. **Create New Documentation**:
+
+   - Create a component-specific README for the `memoryweave/components` directory
+   - Consider creating visual diagrams showing component interactions
+
+</details>
+
+## Code Quality Assessment Summary
+
+<details>
+
+1. **Strengths**:
+
+   - Clear component boundaries and interfaces
+   - Good use of modern Python features (Pydantic, type hints)
+   - Well-structured class hierarchy
+   - Good error handling throughout
+
+1. **Areas for Improvement**:
+
+   - Several files have dependencies on deprecated "core" module
+   - Some complex methods could be refactored for clarity
+   - Hardcoded test patterns in several components
+   - Some redundancy between different implementations
+
+1. **Priority Refactoring Targets**:
+
+   - `adapters.py` and `memory_adapter.py` (direct core dependencies)
+   - `factory.py` (direct core dependencies)
+   - `retrieval_strategies_impl.py` (direct core dependencies)
+   - `query_analysis.py` (hardcoded patterns)
+   - `personal_attributes.py` (complex methods)
+
+</details>
+
+## Deprecated Core Usage Summary
+
+<details>
+
+| File | Core Dependencies | Impact | Refactoring Priority |
+|------|-------------------|--------|---------------------|
+| `adapters.py` | `ContextualMemory`, `CoreCategoryManager` | High - Direct dependency | 1 - Critical |
+| `memory_adapter.py` | `ContextualMemory` | High - Direct dependency | 1 - Critical |
+| `factory.py` | `ContextualMemory`, `CoreCategoryManager` | High - Direct dependency | 1 - Critical |
+| `retrieval_strategies_impl.py` | `ContextualMemory` | High - Direct dependency | 1 - Critical |
+| `category_manager.py` | `CoreCategoryManager` | Medium - Adapter pattern | 2 - Important |
+| `temporal_context.py` | Indirect through `BaseMemoryStore` | Low - Indirect | 3 - Optional |
+| `activation.py` | None, but interacts with deprecated pattern | Low - Pattern | 3 - Optional |
+
+</details>
