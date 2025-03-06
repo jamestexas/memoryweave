@@ -20,6 +20,7 @@ import json
 import logging
 import time
 from dataclasses import asdict, dataclass, field
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Optional
 
@@ -592,13 +593,11 @@ class RealWorldEvaluator:
                                     # Convert to standard format
                                     results = []
                                     for idx, score, metadata in memory_results:
-                                        results.append(
-                                            {
-                                                "memory_id": idx,
-                                                "relevance_score": score,
-                                                "content": metadata.get("content", ""),
-                                            }
-                                        )
+                                        results.append({
+                                            "memory_id": idx,
+                                            "relevance_score": score,
+                                            "content": metadata.get("content", ""),
+                                        })
                                 else:
                                     # Fall back to regular retrieval
                                     results = retriever.retrieve(query, top_k=config.result_count)

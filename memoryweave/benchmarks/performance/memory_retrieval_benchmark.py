@@ -2,6 +2,7 @@
 
 import gc
 import logging
+import os
 import time
 from dataclasses import dataclass
 from importlib.util import find_spec
@@ -11,7 +12,7 @@ import numpy as np
 from rich.logging import RichHandler
 
 from memoryweave.benchmarks.base import Benchmark, BenchmarkConfig, BenchmarkResult
-from memoryweave.benchmarks.utils.visualization import create_bar_chart, create_radar_chart
+from memoryweave.benchmarks.visualize_contextual_fabric import create_bar_chart, create_radar_chart
 from memoryweave.components.retriever import Retriever
 from memoryweave.core.contextual_memory import ContextualMemory
 
@@ -22,6 +23,10 @@ logging.basicConfig(
     handlers=[RichHandler(markup=True)],
 )
 logger = logging.getLogger(__name__)
+
+# Disable warning messages from dependencies (huggingface transformers and the like)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 
 
 if find_spec("sentence_transformers") is not None:
