@@ -41,11 +41,11 @@ from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy imp
     HybridBM25VectorStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.interfaces.memory import MemoryStore
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 
 logger = logging.getLogger(__name__)
 
-_MEMORY_STORE = MemoryStore()
+_MEMORY_STORE = StandardMemoryStore()
 _EMBEDDER = None
 _EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-MiniLM-L6-v2"
 _RETRIEVER = None
@@ -54,7 +54,7 @@ _RETRIEVER = None
 def _get_memory_store():
     global _MEMORY_STORE
     if _MEMORY_STORE is None:
-        _MEMORY_STORE = MemoryStore()
+        _MEMORY_STORE = StandardMemoryStore()
     return _MEMORY_STORE
 
 
@@ -66,7 +66,7 @@ def _get_embedder(model_name: str = _EMBEDDING_MODEL_NAME, **kwargs) -> Any:
 
 
 def _get_retriever(
-    memory_store: None | MemoryStore = None,
+    memory_store: None | StandardMemoryStore = None,
     embedding_model: None | SentenceTransformer | Any = None,
     embedding_model_name: str = "sentence-transformers/paraphrase-MiniLM-L6-v2",
 ):
@@ -89,7 +89,7 @@ class Retriever:
     components for query analysis, retrieval strategies, and post-processing.
     """
 
-    def __init__(self, memory: MemoryStore | None = None, embedding_model=None) -> None:
+    def __init__(self, memory: StandardMemoryStore | None = None, embedding_model=None) -> None:
         """
         Initialize the retriever.
 
@@ -100,7 +100,7 @@ class Retriever:
         # If memory is not provided, create a new memory manager
         self.memory_manager = MemoryManager(memory)  # Pass along if you have one
         if memory is None:
-            self.memory = self.memory_manager.memory_store  # Use the created MemoryStore
+            self.memory = self.memory_manager.memory_store  # Use the created StandardMemoryStore
 
         # Else use the provided memory instance
         else:

@@ -15,7 +15,8 @@ import numpy as np
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
 from memoryweave.components.base import Component
 from memoryweave.components.component_names import ComponentName
-from memoryweave.interfaces.memory import IMemoryStore, MemoryID
+from memoryweave.interfaces.memory import MemoryID
+from memoryweave.storage.refactored.base_store import BaseMemoryStore
 
 
 class ActivationManager(Component):
@@ -34,7 +35,7 @@ class ActivationManager(Component):
 
     def __init__(
         self,
-        memory_store: Optional[IMemoryStore] = None,
+        memory_store: Optional[BaseMemoryStore] = None,
         associative_linker: Optional[AssociativeMemoryLinker] = None,
     ):
         """

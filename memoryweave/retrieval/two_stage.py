@@ -8,12 +8,14 @@ from typing import Any, Optional
 
 import numpy as np
 
-from memoryweave.interfaces.memory import EmbeddingVector, IMemoryStore, IVectorStore
+from memoryweave.interfaces.memory import EmbeddingVector
 from memoryweave.interfaces.retrieval import (
     IRetrievalStrategy,
     RetrievalParameters,
     RetrievalResult,
 )
+from memoryweave.storage.refactored.base_store import BaseMemoryStore
+from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
 
 class TwoStageRetrievalStrategy(IRetrievalStrategy):
@@ -21,8 +23,8 @@ class TwoStageRetrievalStrategy(IRetrievalStrategy):
 
     def __init__(
         self,
-        memory_store: IMemoryStore,
-        vector_store: IVectorStore,
+        memory_store: BaseMemoryStore,
+        vector_store: IVectorSearchProvider,
         first_stage_strategy: Optional[IRetrievalStrategy] = None,
         second_stage_strategy: Optional[IRetrievalStrategy] = None,
     ):

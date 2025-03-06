@@ -8,12 +8,14 @@ from typing import Any, Optional
 
 import numpy as np
 
-from memoryweave.interfaces.memory import EmbeddingVector, IMemoryStore, IVectorStore
+from memoryweave.interfaces.memory import EmbeddingVector
 from memoryweave.interfaces.retrieval import (
     IRetrievalStrategy,
     RetrievalParameters,
     RetrievalResult,
 )
+from memoryweave.storage.refactored.base_store import BaseMemoryStore
+from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
 
 class SimilarityRetrievalStrategy(IRetrievalStrategy):
@@ -53,7 +55,7 @@ class SimilarityRetrievalStrategy(IRetrievalStrategy):
         # Pass through for unsupported input types
         return input_data
 
-    def __init__(self, memory_store: IMemoryStore, vector_store: IVectorStore):
+    def __init__(self, memory_store: BaseMemoryStore, vector_store: IVectorSearchProvider):
         """Initialize the similarity retrieval strategy.
 
         Args:
@@ -131,7 +133,7 @@ class SimilarityRetrievalStrategy(IRetrievalStrategy):
                     if query_norm > 0 and memory_norm > 0:
                         similarity = np.dot(query_embedding, embedding) / (query_norm * memory_norm)
                         similarity_scores[memory_id] = similarity
-                except Exception:
+                except Exception:  # noqa: S110
                     pass  # Skip memories with missing or invalid embeddings
 
             # Sort by similarity
