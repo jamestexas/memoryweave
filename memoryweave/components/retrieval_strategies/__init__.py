@@ -9,11 +9,6 @@ on different approaches, such as similarity, temporal factors, or hybrid methods
 from memoryweave.components.retrieval_strategies.contextual_fabric_strategy import (
     ContextualFabricStrategy,
 )
-
-# Import new strategies
-from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import (
-    HybridBM25VectorStrategy,
-)
 from memoryweave.components.retrieval_strategies_impl import (
     CategoryRetrievalStrategy,
     HybridRetrievalStrategy,
@@ -28,7 +23,6 @@ __all__ = [
     "HybridRetrievalStrategy",
     "TwoStageRetrievalStrategy",
     "CategoryRetrievalStrategy",
-    "HybridBM25VectorStrategy",
     "ContextualFabricStrategy",
 ]
 
@@ -40,6 +34,5 @@ available_strategies = {
     "hybrid": HybridRetrievalStrategy,
     "two_stage": TwoStageRetrievalStrategy,
     "category": CategoryRetrievalStrategy,
-    "hybrid_bm25_vector": HybridBM25VectorStrategy,
     "contextual_fabric": ContextualFabricStrategy,
 }
