@@ -55,43 +55,82 @@ class RetrievalMetrics:
         return result
 
 
-def calculate_recall_at_k(retrieved_ids, relevant_ids, k, id_variations=None):
-    """Calculate recall@k - proportion of relevant items found in top-k results."""
+def calculate_recall_at_k(retrieved_ids: list[str], relevant_ids: set[str], k: int) -> float:
+    """Calculate recall@k with improved ID matching."""
     if not relevant_ids:
         return 0.0
 
     # Get top-k retrieved IDs
     top_k_ids = retrieved_ids[:k]
 
-    # Check for ID variations if provided
+    # Create normalized versions of relevant IDs for matching
+    normalized_relevant = set()
+    for rel_id in relevant_ids:
+        # Add original ID
+        normalized_relevant.add(rel_id)
+        # Add just the numeric part if it exists
+        if "_" in rel_id:
+            normalized_relevant.add(rel_id.split("_")[-1])
+        # Add as int if it's numeric
+        if rel_id.isdigit():
+            normalized_relevant.add(int(rel_id))
+
+    # Calculate intersection using normalized IDs
     found = set()
     for item_id in top_k_ids:
-        # Direct match
-        if item_id in relevant_ids:
-            found.add(item_id)
+        # Try string and int versions of the ID
+        str_id = str(item_id)
+        int_id = int(item_id) if str_id.isdigit() else None
+
+        if str_id in normalized_relevant or int_id in normalized_relevant:
+            found.add(str_id)
             continue
 
-        # Check variations if available
-        if id_variations and item_id in id_variations:
-            variations = id_variations[item_id]
-            for var_id in variations:
-                if var_id in relevant_ids:
-                    found.add(var_id)
-                    break
+        # Handle prefixed IDs (e.g., "conv_3")
+        if "_" in str_id:
+            base_id = str_id.split("_")[-1]
+            if base_id in normalized_relevant or (
+                base_id.isdigit() and int(base_id) in normalized_relevant
+            ):
+                found.add(str_id)
 
     # Calculate recall
     return len(found) / len(relevant_ids)
 
 
 def calculate_mrr(retrieved_ids: list[str], relevant_ids: set[str]) -> float:
-    """Calculate Mean Reciprocal Rank - position of first relevant result."""
+    """Calculate Mean Reciprocal Rank with improved ID matching."""
     if not relevant_ids:
         return 0.0
 
+    # Create normalized versions of relevant IDs for matching
+    normalized_relevant = set()
+    for rel_id in relevant_ids:
+        # Add original ID
+        normalized_relevant.add(rel_id)
+        # Add just the numeric part if it exists
+        if isinstance(rel_id, str) and "_" in rel_id:
+            normalized_relevant.add(rel_id.split("_")[-1])
+        # Add as int if it's numeric
+        if isinstance(rel_id, str) and rel_id.isdigit():
+            normalized_relevant.add(int(rel_id))
+
     # Find the first relevant ID in the retrieved list
     for i, item_id in enumerate(retrieved_ids):
-        if item_id in relevant_ids:
+        # Try string and int versions of the ID
+        str_id = str(item_id)
+        int_id = int(item_id) if str_id.isdigit() else None
+
+        if str_id in normalized_relevant or int_id in normalized_relevant:
             return 1.0 / (i + 1)
+
+        # Handle prefixed IDs (e.g., "conv_3")
+        if isinstance(str_id, str) and "_" in str_id:
+            base_id = str_id.split("_")[-1]
+            if base_id in normalized_relevant or (
+                base_id.isdigit() and int(base_id) in normalized_relevant
+            ):
+                return 1.0 / (i + 1)
 
     # No relevant items found
     return 0.0
