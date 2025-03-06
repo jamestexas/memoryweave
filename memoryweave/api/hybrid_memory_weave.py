@@ -15,6 +15,7 @@ import numpy as np
 
 from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
 from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
+from memoryweave.benchmarks.utils.perf_timer import PerformanceTimer
 from memoryweave.components.retrieval_strategies.hybrid_fabric_strategy import HybridFabricStrategy
 from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.text_chunker import TextChunker
@@ -600,26 +601,34 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             Assistant's response
         """
         start_time = time.time()
+        timer = PerformanceTimer()
 
         # Step 1: Query analysis
+        timer.start("query_analysis")
         query_info = self._analyze_query(user_message)
         _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
+        timer.stop("query_analysis")
 
         # Step 2: Compute query embedding
+        timer.start("embedding_computation")
         query_embedding = self._compute_embedding(user_message)
+        timer.stop("embedding_computation")
         if query_embedding is None:
             return "Sorry, an error occurred while processing your request."
 
         # Step 3: Add keyword filtering if available
         if hasattr(self, "query_analyzer") and self.query_analyzer:
+            timer.start("keyword_extraction")
             keywords = self.query_analyzer.extract_keywords(user_message)
             if keywords and len(keywords) > 0:
                 if adapted_params is None:
                     adapted_params = {}
                 adapted_params["important_keywords"] = keywords
+            timer.stop("keyword_extraction")
 
         # Step 4: Use retrieval orchestrator for consistent memory retrieval
         # IMPORTANT: Use the orchestrator instead of direct strategy calls
+        timer.start("keyword_extraction")
         relevant_memories = self.retrieval_orchestrator.retrieve(
             query_embedding=query_embedding,
             query=user_message,
@@ -629,31 +638,44 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             adapted_params=adapted_params,
             top_k=adapted_params.get("max_results", 10),
         )
+        timer.stop("memory_search")
 
         # Step 5: Extract personal attributes if enabled
+        timer.start("personal_attribute_extraction")
         self._extract_personal_attributes(user_message, time.time())
+        timer.stop("personal_attribute_extraction")
 
         # Step 6: Construct prompt
+        timer.start("prompt_assembly")
         prompt = self.prompt_builder.build_chat_prompt(
             user_message=user_message,
             memories=relevant_memories,
             conversation_history=self.conversation_history,
             query_type=query_type,
         )
-        if self.debug:
-            print("===== Prompt Start =====")
-            print(prompt)
-            print("===== Prompt End =====")
+        timer.stop("prompt_assembly")
+
+        logger.debug("[bold cyan]===== Prompt Start =====[/]")
+        logging.debug(f"[dim]{prompt}[/]")
+        logger.debug("[bold cyan]===== Prompt End =====[/]")
 
         # Step 7: Generate response
+        timer.start("pure_inference")
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
+        timer.stop("pure_inference")
 
         # Step 8: Store interaction
+        timer.start("store_hybrid_interaction")
         self._store_hybrid_interaction(user_message, assistant_reply, time.time())
+        timer.stop("store_hybrid_interaction")
 
         # Step 9: Update history and statistics
+        timer.start("update_history")
         self._update_conversation_history(user_message, assistant_reply)
+        timer.stop("update_history")
+        timer.start("update_retrieval_stats")
         self._update_retrieval_stats(start_time, len(relevant_memories))
+        timer.start("update_retrieval_stats")
 
         return assistant_reply
 

@@ -3,23 +3,23 @@
 Unified Retrieval Benchmark for MemoryWeave
 
 This script benchmarks MemoryWeave using shared resources to compare
-three retrieval strategies:
+retrieval strategies across different implementations:
     - hybrid (MemoryWeaveHybridAPI)
     - standard (MemoryWeaveAPI with standard configuration)
     - chunked (ChunkedMemoryWeaveAPI)
     - standard_rag (MemoryWeaveAPI configured as a standard RAG)
 
 Each system uses the built‑in chat method that manages context automatically.
-Results (average query time and accuracy) are aggregated across scenarios,
-displayed in a rich table, and visualized with matplotlib charts.
+Results are aggregated across scenarios, displayed in a rich table, and
+visualized with matplotlib charts.
 """
 
 import gc
 import json
 import logging
 import os
+import platform
 import secrets
-import time
 import traceback
 from datetime import datetime
 from enum import Enum
@@ -32,17 +32,22 @@ import numpy as np
 import rich_click as click
 from rich.console import Console
 from rich.logging import RichHandler
+from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
+from rich.traceback import install
 
 # Import sentence-transformers once at the beginning
-from sentence_transformers import util
-
 from memoryweave.api.chunked_memory_weave import ChunkedMemoryWeaveAPI
 from memoryweave.api.hybrid_memory_weave import HybridMemoryWeaveAPI
 from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.memory_weave import MemoryWeaveAPI
+from memoryweave.benchmarks.utils.perf_timer import PerformanceTimer, compute_accuracy
 from memoryweave.components.retriever import _get_embedder
+
+# Install rich traceback handler for better error reporting
+install(show_locals=True)
+
 
 # Configure logging
 console = Console(highlight=True)
@@ -58,71 +63,150 @@ logger = logging.getLogger("unified_benchmark")
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 OUTPUT_DIR = "./benchmark_results"
-DEFAULT_SCENARIOS = dict(
-    factual=dict(
-        name="Factual Recall",
-        description="Basic factual recall testing.",
-        queries=[
+
+# Enhanced benchmark scenarios for better testing
+ENHANCED_SCENARIOS = {
+    "factual": {
+        "name": "Factual Recall",
+        "description": "Recall basic facts with clear patterns.",
+        "queries": [
             ("What is my name?", ["Alex", "Thompson"]),
             ("Where do I live?", ["Seattle"]),
+            ("What is my profession?", ["software", "engineer", "developer"]),
+            ("What are my hobbies?", ["hiking", "photography", "reading"]),
         ],
-    ),
-    temporal=dict(
-        name="Temporal Context",
-        description="Tests ability to understand time references.",
-        queries=[
-            ("What did I mention earlier about my home?", ["Seattle"]),
-            ("What did I talk about yesterday?", ["Alex", "Thompson", "Seattle"]),
+        "preload": [
+            "My name is Alex Thompson and I live in Seattle.",
+            "I work as a software engineer at a tech company in downtown Seattle.",
+            "My favorite hobbies are hiking in the mountains, photography, and reading science fiction books.",
         ],
-    ),
-    complex=dict(
-        name="Complex Context",
-        description="Tests handling of longer, more complex information.",
-        queries=[
+    },
+    "temporal": {
+        "name": "Temporal Context",
+        "description": "Tests ability to understand time references.",
+        "queries": [
+            ("What did I mention earlier about my home?", ["Seattle", "downtown"]),
+            ("What did I tell you yesterday about my career?", ["software", "engineer", "tech"]),
             (
-                "I need to remember the details about my new medical regimen. Can you help?",
-                ["medication", "doctor", "treatment"],
+                "What activities did I say I enjoyed last week?",
+                ["hiking", "mountains", "photography", "reading"],
+            ),
+            (
+                "What was the medical information I shared with you recently?",
+                ["blood pressure", "Lisinopril", "medication"],
             ),
         ],
-    ),
-    preload=[
-        "I just got back from the doctor. She said I need to take 25mg of Lisinopril every morning for my blood pressure, 10mg of Zolpidem before bed for sleep, and 500mg of Metformin with food twice daily for my blood sugar. I also need to schedule a follow-up in 3 months to check how the treatment is working."
-    ],
-)
+        "preload": [
+            "Yesterday I told you that I'm a software engineer with 8 years of experience in the tech industry.",
+            "Last week I mentioned that I enjoy hiking in the Cascade mountains, landscape photography, and reading science fiction novels.",
+            "Earlier today I mentioned that I recently moved to a new apartment in downtown Seattle with a view of Puget Sound.",
+            "I just got back from the doctor. She said I need to take 25mg of Lisinopril every morning for my blood pressure.",
+        ],
+    },
+    "complex": {
+        "name": "Complex Context",
+        "description": "Tests handling of longer, more complex information.",
+        "queries": [
+            (
+                "Can you summarize my medical regimen?",
+                [
+                    "Lisinopril",
+                    "25mg",
+                    "morning",
+                    "blood pressure",
+                    "Zolpidem",
+                    "10mg",
+                    "sleep",
+                    "Metformin",
+                    "500mg",
+                    "blood sugar",
+                ],
+            ),
+            ("When do I need to schedule my follow-up appointment?", ["3 months", "follow-up"]),
+            (
+                "What side effects should I watch for with my medications?",
+                ["dizziness", "drowsiness", "stomach", "cough"],
+            ),
+            ("How should I take the Metformin?", ["twice", "daily", "food"]),
+        ],
+        "preload": [
+            "I just got back from the doctor. She said I need to take 25mg of Lisinopril every morning for my blood pressure, 10mg of Zolpidem before bed for sleep, and 500mg of Metformin with food twice daily for my blood sugar. I also need to schedule a follow-up in 3 months to check how the treatment is working.",
+            "The doctor warned me to watch for side effects including dizziness from the Lisinopril, drowsiness from the Zolpidem, and stomach upset from the Metformin. She also mentioned that Lisinopril might cause a dry cough and that Metformin works best when I maintain a consistent meal schedule.",
+        ],
+    },
+    "associative": {
+        "name": "Associative Memory",
+        "description": "Tests ability to make connections between related information.",
+        "queries": [
+            (
+                "Tell me about my vacation plans.",
+                ["Italy", "Rome", "Florence", "Venice", "September"],
+            ),
+            (
+                "What dietary restrictions should I keep in mind for my trip?",
+                ["gluten", "celiac", "pasta", "bread", "alternatives"],
+            ),
+            (
+                "What languages will be useful for my upcoming travels?",
+                ["Italian", "basic phrases", "translation app"],
+            ),
+        ],
+        "preload": [
+            "I'm planning a trip to Italy in September, visiting Rome, Florence, and Venice over two weeks.",
+            "I have celiac disease, so I need to avoid gluten. I'm a bit worried about finding gluten-free alternatives to pasta and bread in Italy.",
+            "I've been learning some basic Italian phrases, but I'll probably rely on a translation app for most conversations during my trip.",
+        ],
+    },
+    "chunked_content": {
+        "name": "Large Document Processing",
+        "description": "Tests ability to handle and retrieve from large documents.",
+        "queries": [
+            (
+                "What are the core components of the MemoryWeave architecture?",
+                ["contextual fabric", "activation", "associative", "temporal"],
+            ),
+            (
+                "How does MemoryWeave handle temporal context?",
+                ["time references", "recency", "timestamps"],
+            ),
+            (
+                "What retrieval strategies does MemoryWeave support?",
+                ["similarity", "hybrid", "BM25", "vector", "contextual fabric"],
+            ),
+        ],
+        "preload": [
+            # Include the README.md content
+            """MemoryWeave is an experimental approach to memory management for language models that uses a "contextual fabric" approach inspired by biological memory systems. Rather than traditional knowledge graph approaches with discrete nodes and edges, MemoryWeave focuses on capturing rich contextual signatures of information for improved long-context coherence in LLM conversations.
 
+MemoryWeave implements several biologically-inspired memory management principles:
+- Contextual Fabric: Memory traces capture rich contextual signatures rather than isolated facts
+- Activation-Based Retrieval: Memory retrieval uses dynamic activation patterns similar to biological systems
+- Episodic Structure: Memories maintain temporal relationships and episodic anchoring
+- Non-Structured Memory: Works with raw LLM outputs without requiring structured formats
 
-def compute_accuracy_cosine(response: str, expected_answers: list[str], embedder) -> float:
-    """
-    Compute cosine similarity between the LLM response and each expected answer.
-    Returns the best similarity score as a float between 0 and 1.
-    """
-    if not expected_answers:
-        return 0.0
+MemoryWeave uses a component-based architecture with several modular pieces that can be configured for different use cases:
 
-    response_emb = embedder.encode(response, convert_to_tensor=True)
-    expected_embs = embedder.encode(expected_answers, convert_to_tensor=True)
+Core Components:
+1. Memory Management
+   - MemoryManager: Coordinates memory operations and component interactions
+   - MemoryStore: Stores embeddings, content, and metadata
+   - VectorStore: Handles vector similarity search and indexing
+   - ActivationManager: Manages memory activation levels
 
-    cos_scores = util.cos_sim(response_emb, expected_embs)[0]  # shape: [n_expected]
-    best_score = cos_scores.max().item()
-    return best_score
+2. Retrieval Strategies
+   - SimilarityRetrievalStrategy: Pure vector similarity-based retrieval
+   - TemporalRetrievalStrategy: Time and recency-based retrieval
+   - HybridRetrievalStrategy: Combines similarity and temporal retrieval
+   - HybridBM25VectorStrategy: Combines lexical and semantic matching
+   - ContextualFabricStrategy: Advanced multi-dimensional contextual retrieval
 
-
-def compute_keyword_accuracy(response: str, expected_answers: list[str]) -> float:
-    """
-    Compute accuracy based on presence of expected keywords in the response.
-    Returns a score between 0 and 1.
-    """
-    if not expected_answers:
-        return 0.0
-
-    response_lower = response.lower()
-    found_keywords = 0
-
-    for keyword in expected_answers:
-        if keyword.lower() in response_lower:
-            found_keywords += 1
-
-    return found_keywords / len(expected_answers)
+3. Query Processing
+   - QueryAnalyzer: Analyzes and classifies query types
+   - QueryAdapter: Adapts retrieval parameters based on query
+   - PersonalAttributeManager: Extracts and manages personal attributes"""
+        ],
+    },
+}
 
 
 def get_random_seed_message() -> str:
@@ -162,62 +246,6 @@ class SharedResources:
         gc.collect()
 
 
-# TODO: This is fixing the ability for hybrid memory to properly call the adapter cache building, which was not working correctly  # noqa: W505
-# This is a temporary fix until the root cause is identified and fixed
-def enhanced_build_cache(adapter):
-    """Enhanced cache building that correctly finds memories in the hybrid store"""
-    console.print("  - Building enhanced hybrid adapter cache")
-    try:
-        # Get all memories directly from the hybrid store
-        memories = adapter.memory_store.get_all()
-
-        if not memories:
-            adapter._embeddings_matrix = np.zeros((0, 768))
-            adapter._metadata_dict = []
-            adapter._ids_list = []
-            adapter._index_to_id_map = {}
-            console.print("  - No memories found in hybrid store")
-            return
-
-        # Process each memory
-        embeddings = []
-        metadata_list = []
-        ids_list = []
-        adapter._index_to_id_map = {}
-
-        for idx, memory in enumerate(memories):
-            embeddings.append(memory.embedding)
-
-            # Create metadata entry
-            mdata = {}
-            if hasattr(memory, "metadata") and memory.metadata:
-                mdata = memory.metadata.copy()
-
-            mdata["memory_id"] = idx
-            mdata["original_id"] = memory.id
-            metadata_list.append(mdata)
-
-            ids_list.append(memory.id)
-            adapter._index_to_id_map[idx] = memory.id
-
-        # Store processed data
-        adapter._embeddings_matrix = np.stack(embeddings) if embeddings else np.zeros((0, 768))
-        adapter._metadata_dict = metadata_list
-        adapter._ids_list = ids_list
-
-        console.print(f"  - Enhanced hybrid cache built with {len(embeddings)} memories")
-
-    except Exception as e:
-        console.print(f"  - Error in enhanced hybrid cache: {e}")
-        import traceback
-
-        console.print(traceback.format_exc())
-        adapter._embeddings_matrix = np.zeros((0, 768))
-        adapter._metadata_dict = []
-        adapter._ids_list = []
-        adapter._index_to_id_map = {}
-
-
 class UnifiedRetrievalBenchmark:
     """
     Benchmarks MemoryWeave retrieval strategies using shared resources.
@@ -226,9 +254,9 @@ class UnifiedRetrievalBenchmark:
 
     Args:
         model_name (str): Name of the LLM model to use.
-        systems_to_test (list[SystemType]): List of system types to test.
+        systems_to_test (list[SystemType]): list of system types to test.
         output_dir (str): Directory to save benchmark results.
-        scenarios (dict): Dictionary of scenarios to run.
+        scenarios (dict): dictionary of scenarios to run.
         debug (bool): Enable debug logging for more detailed output.
     """
 
@@ -237,7 +265,7 @@ class UnifiedRetrievalBenchmark:
         model_name: str = DEFAULT_MODEL,
         systems_to_test: list[SystemType] = None,
         output_dir: str = OUTPUT_DIR,
-        scenarios: dict[str, Any] = DEFAULT_SCENARIOS,
+        scenarios: dict[str, Any] = ENHANCED_SCENARIOS,
         debug: bool = False,
     ):
         self.model_name = model_name
@@ -257,9 +285,7 @@ class UnifiedRetrievalBenchmark:
             SystemType.STANDARD_RAG,
         ]
 
-        # Enhanced scenarios with better testing for different memory capabilities
-
-        # Load scenarios or use defaults
+        # Load scenarios
         self.scenarios = scenarios
 
         self.shared_resources = SharedResources()
@@ -274,10 +300,9 @@ class UnifiedRetrievalBenchmark:
 
     def initialize_shared_resources(self) -> bool:
         """Initialize shared LLM provider and embedding model."""
-        console.print("[bold cyan]Initializing Shared Resources[/bold cyan]")
+        console.print(Panel("[bold cyan]Initializing Shared Resources[/bold cyan]", expand=False))
         try:
             # Import components on-demand
-
             embedding_model = DEFAULT_EMBEDDING_MODEL
             console.print(f"Loading embedding model: {embedding_model}")
             self.shared_resources.embedding_model = _get_embedder(
@@ -317,17 +342,22 @@ class UnifiedRetrievalBenchmark:
         This improved version ensures components are correctly initialized.
         """
         try:
-            if system_type == SystemType.MEMORYWEAVE_HYBRID:
-                return self._create_hybrid_system()
-            elif system_type == SystemType.MEMORYWEAVE_CHUNKED:
-                return self._create_chunked_system()
-            elif system_type == SystemType.MEMORYWEAVE_DEFAULT:
-                return self._create_default_system()
-            elif system_type == SystemType.STANDARD_RAG:
-                return self._create_standard_rag_system()
-            else:
-                console.print(f"[red]✗[/red] Unknown system type: {system_type}")
+            # First create the system instance
+            system = self._create_system_instance(system_type)
+
+            if system is None:
                 return None
+
+            # Then ensure proper initialization of memory storage
+            self._initialize_memory_storage(system, system_type)
+
+            # Force cache invalidation to ensure clean state
+            self._invalidate_all_caches(system)
+
+            # Verify the memory connections are properly established
+            self._verify_memory_connections(system)
+
+            return system
 
         except Exception as e:
             console.print(f"[red]✗[/red] Error creating system: {e}")
@@ -335,177 +365,174 @@ class UnifiedRetrievalBenchmark:
                 console.print(traceback.format_exc())
             return None
 
-    def _create_hybrid_system(self):
-        """Creates and initializes a HybridMemoryWeaveAPI system."""
-        console.print("Creating HybridMemoryWeaveAPI system...")
+    def _create_system_instance(self, system_type: SystemType):
+        """Create the appropriate system instance based on type."""
+        console.print(f"Creating {system_type.value} system...")
 
-        system = HybridMemoryWeaveAPI(
-            model_name=self.model_name,
-            embedding_model_name="unused",  # will be replaced
-            llm_provider=self.shared_resources.llm_provider,
-            debug=self.debug,
-        )
-        _original_method = system.hybrid_memory_adapter._build_cache
-        system.hybrid_memory_adapter._build_cache = lambda: enhanced_build_cache(
-            system.hybrid_memory_adapter
-        )
-        system.embedding_model = self.shared_resources.embedding_model
-        system.hybrid_memory_adapter.invalidate_cache()
-        console.print("  [green]✓[/green] Enhanced hybrid adapter cache building applied")
-
-        if hasattr(system, "configure_chunking"):
-            system.configure_chunking(
-                adaptive_chunk_threshold=800,
-                max_chunks_per_memory=3,
-                enable_auto_chunking=True,
+        if system_type == SystemType.MEMORYWEAVE_HYBRID:
+            system = HybridMemoryWeaveAPI(
+                model_name=self.model_name,
+                embedding_model_name="unused",  # will be replaced
+                llm_provider=self.shared_resources.llm_provider,
+                debug=self.debug,
             )
 
-        if hasattr(system, "strategy") and hasattr(system, "hybrid_memory_adapter"):
-            system.strategy.memory_store = system.hybrid_memory_adapter
-            console.print("  [green]✓[/green] Connected strategy to hybrid adapter")
+            # Check if we need to add _build_cache method
+            # if hasattr(system, "hybrid_memory_adapter"):
+            #     added = add_build_cache_to_hybrid_adapter(system.hybrid_memory_adapter)
+            #     if added:
+            #         console.print("  [green]✓[/green] Added _build_cache method to hybrid adapter")
 
-        if hasattr(system, "hybrid_memory_adapter"):
-            system.hybrid_memory_adapter.invalidate_cache()
+            console.print("  [green]✓[/green] Created HybridMemoryWeaveAPI")
+            return system
 
-        if self.debug:
-            self._debug_system_state(system, "HybridMemoryWeaveAPI")
+        elif system_type == SystemType.MEMORYWEAVE_CHUNKED:
+            system = ChunkedMemoryWeaveAPI(
+                model_name=self.model_name,
+                embedding_model_name="unused",  # will be replaced
+                llm_provider=self.shared_resources.llm_provider,
+                debug=self.debug,
+            )
+            console.print("  [green]✓[/green] Created ChunkedMemoryWeaveAPI")
+            return system
 
-        console.print("  [green]✓[/green] HybridMemoryWeave initialized")
-        return system
+        elif system_type == SystemType.MEMORYWEAVE_DEFAULT:
+            system = MemoryWeaveAPI(
+                model_name=self.model_name,
+                embedding_model_name="unused",  # will be replaced
+                llm_provider=self.shared_resources.llm_provider,
+                debug=self.debug,
+            )
+            console.print("  [green]✓[/green] Created MemoryWeaveAPI (Standard)")
+            return system
 
-    def _create_chunked_system(self):
-        """Creates and initializes a ChunkedMemoryWeaveAPI system."""
-        console.print("Creating ChunkedMemoryWeaveAPI system...")
+        elif system_type == SystemType.STANDARD_RAG:
+            system = MemoryWeaveAPI(
+                model_name=self.model_name,
+                embedding_model_name="unused",  # will be replaced
+                llm_provider=self.shared_resources.llm_provider,
+                enable_category_management=False,
+                enable_personal_attributes=False,
+                enable_semantic_coherence=False,
+                enable_dynamic_thresholds=False,
+                debug=self.debug,
+            )
 
-        system = ChunkedMemoryWeaveAPI(
-            model_name=self.model_name,
-            embedding_model_name="unused",  # will be replaced
-            llm_provider=self.shared_resources.llm_provider,
-            debug=self.debug,
-        )
+            # Configure strategy for pure RAG
+            if hasattr(system, "strategy"):
+                system.strategy.initialize(
+                    {
+                        "confidence_threshold": 0.1,
+                        "similarity_weight": 1.0,
+                        "associative_weight": 0.0,
+                        "temporal_weight": 0.0,
+                        "activation_weight": 0.0,
+                    }
+                )
+                console.print("  [green]✓[/green] Configured strategy for pure RAG")
 
-        system.embedding_model = self.shared_resources.embedding_model
+            console.print("  [green]✓[/green] Created MemoryWeaveAPI (RAG)")
+            return system
 
-        if hasattr(system, "configure_chunking"):
+        else:
+            console.print(f"[red]✗[/red] Unknown system type: {system_type}")
+            return None
+
+    def _initialize_memory_storage(self, system, system_type):
+        """Initialize memory storage consistently across all systems."""
+        # Replace the embedding model with the shared one
+        if hasattr(system, "embedding_model"):
+            system.embedding_model = self.shared_resources.embedding_model
+            console.print("  [green]✓[/green] set shared embedding model")
+
+        # For hybrid system, set up proper connections
+        if system_type == SystemType.MEMORYWEAVE_HYBRID:
+            if hasattr(system, "hybrid_memory_adapter") and hasattr(system, "hybrid_memory_store"):
+                # Ensure adapter has reference to store
+                system.hybrid_memory_adapter.memory_store = system.hybrid_memory_store
+
+                # Ensure strategy connects to the right adapter
+                if hasattr(system, "strategy"):
+                    system.strategy.memory_store = system.hybrid_memory_adapter
+                    console.print("  [green]✓[/green] Connected strategy to hybrid adapter")
+
+                # Handle special case for hybrid store
+                if hasattr(system.hybrid_memory_adapter, "hybrid_store"):
+                    console.print("  [green]✓[/green] Verified hybrid_store reference exists")
+
+        # For chunked system, set up proper connections
+        elif system_type == SystemType.MEMORYWEAVE_CHUNKED:
+            if hasattr(system, "chunked_memory_adapter") and hasattr(
+                system, "chunked_memory_store"
+            ):
+                # Ensure adapter has reference to store
+                system.chunked_memory_adapter.memory_store = system.chunked_memory_store
+
+                # Ensure strategy connects to the right adapter
+                if hasattr(system, "strategy"):
+                    system.strategy.memory_store = system.chunked_memory_adapter
+                    console.print("  [green]✓[/green] Connected strategy to chunked adapter")
+
+        # Configure chunking for appropriate systems
+        if system_type == SystemType.MEMORYWEAVE_CHUNKED and hasattr(system, "configure_chunking"):
             system.configure_chunking(
                 auto_chunk_threshold=500,
                 chunk_size=200,
                 chunk_overlap=50,
                 max_chunk_count=5,
             )
+            console.print("  [green]✓[/green] Configured chunking parameters")
 
-        if hasattr(system, "strategy") and hasattr(system, "chunked_memory_adapter"):
-            system.strategy.memory_store = system.chunked_memory_adapter
-            console.print("  [green]✓[/green] Connected strategy to chunked adapter")
-
-        if hasattr(system, "chunked_memory_adapter"):
-            system.chunked_memory_adapter.invalidate_cache()
-
-        if self.debug:
-            self._debug_system_state(system, "ChunkedMemoryWeaveAPI")
-
-        console.print("  [green]✓[/green] ChunkedMemoryWeave initialized")
-        return system
-
-    def _create_default_system(self):
-        """Creates and initializes a MemoryWeaveAPI system (standard)."""
-        console.print("Creating MemoryWeaveAPI (Standard) system...")
-
-        system = MemoryWeaveAPI(
-            model_name=self.model_name,
-            embedding_model_name="unused",
-            llm_provider=self.shared_resources.llm_provider,
-            debug=self.debug,
-        )
-
-        system.embedding_model = self.shared_resources.embedding_model
-
-        if hasattr(system, "memory_store_adapter"):
-            system.memory_store_adapter.invalidate_cache()
-
-        if self.debug:
-            self._debug_system_state(system, "MemoryWeaveAPI (Standard)")
-
-        console.print("  [green]✓[/green] MemoryWeave Standard initialized")
-        return system
-
-    def _create_standard_rag_system(self):
-        """Creates and initializes a MemoryWeaveAPI system (standard RAG)."""
-        console.print("Creating MemoryWeaveAPI (RAG) system...")
-
-        system = MemoryWeaveAPI(
-            model_name=self.model_name,
-            embedding_model_name="unused",
-            llm_provider=self.shared_resources.llm_provider,
-            enable_category_management=False,
-            enable_personal_attributes=False,
-            enable_semantic_coherence=False,
-            enable_dynamic_thresholds=False,
-            debug=self.debug,
-        )
-
-        system.embedding_model = self.shared_resources.embedding_model
-
-        system.strategy.initialize(
-            {
-                "confidence_threshold": 0.1,
-                "similarity_weight": 1.0,
-                "associative_weight": 0.0,
-                "temporal_weight": 0.0,
-                "activation_weight": 0.0,
-            }
-        )
-
-        if hasattr(system, "memory_store_adapter"):
-            system.memory_store_adapter.invalidate_cache()
-
-        if self.debug:
-            self._debug_system_state(system, "MemoryWeaveAPI (RAG)")
-
-        console.print("  [green]✓[/green] Standard RAG initialized")
-        return system
-
-    def _debug_system_state(self, system, system_name):
-        """Print detailed debug information about system internal state."""
-        console.print(f"  [blue]Debug information for {system_name}:[/blue]")
-
-        # Check memory stores
-        if hasattr(system, "memory_store"):
-            console.print(f"  - memory_store: {type(system.memory_store).__name__}")
-        if hasattr(system, "chunked_memory_store"):
-            console.print(f"  - chunked_memory_store: {type(system.chunked_memory_store).__name__}")
-        if hasattr(system, "hybrid_memory_store"):
-            console.print(f"  - hybrid_memory_store: {type(system.hybrid_memory_store).__name__}")
-
-        # Check adapters
-        if hasattr(system, "memory_store_adapter"):
-            console.print(f"  - memory_store_adapter: {type(system.memory_store_adapter).__name__}")
-        if hasattr(system, "chunked_memory_adapter"):
-            console.print(
-                f"  - chunked_memory_adapter: {type(system.chunked_memory_adapter).__name__}"
+        if system_type == SystemType.MEMORYWEAVE_HYBRID and hasattr(system, "configure_chunking"):
+            system.configure_chunking(
+                adaptive_chunk_threshold=800,
+                max_chunks_per_memory=3,
+                enable_auto_chunking=True,
             )
-            # Check chunk embeddings shape
-            if hasattr(system.chunked_memory_adapter, "chunk_embeddings"):
-                shape = getattr(system.chunked_memory_adapter.chunk_embeddings, "shape", None)
-                console.print(f"  - chunk_embeddings shape: {shape}")
-        if hasattr(system, "hybrid_memory_adapter"):
+            console.print("  [green]✓[/green] Configured hybrid chunking parameters")
+
+    def _invalidate_all_caches(self, system):
+        """Force cache invalidation on all adapters."""
+        cache_invalidated = False
+
+        # Try different adapters
+        for adapter_name in [
+            "memory_adapter",
+            "memory_store_adapter",
+            "hybrid_memory_adapter",
+            "chunked_memory_adapter",
+        ]:
+            if hasattr(system, adapter_name):
+                adapter = getattr(system, adapter_name)
+                if hasattr(adapter, "invalidate_cache"):
+                    adapter.invalidate_cache()
+                    cache_invalidated = True
+                    console.print(f"  [green]✓[/green] Invalidated cache on {adapter_name}")
+
+        if not cache_invalidated:
             console.print(
-                f"  - hybrid_memory_adapter: {type(system.hybrid_memory_adapter).__name__}"
+                "  [yellow]- No caches invalidated (no invalidate_cache method found)[/yellow]"
             )
 
-        # Check settings
-        if hasattr(system, "auto_chunk_threshold"):
-            console.print(f"  - auto_chunk_threshold: {system.auto_chunk_threshold}")
-        if hasattr(system, "adaptive_chunk_threshold"):
-            console.print(f"  - adaptive_chunk_threshold: {system.adaptive_chunk_threshold}")
+    def _verify_memory_connections(self, system):
+        """Verify that all memory components are properly connected."""
+        # Check strategy connection
+        if hasattr(system, "strategy") and hasattr(system.strategy, "memory_store"):
+            if system.strategy.memory_store is not None:
+                console.print("  [green]✓[/green] Strategy has memory_store reference")
+            else:
+                console.print("  [yellow]- Strategy missing memory_store reference[/yellow]")
 
-        # Check strategy
-        if hasattr(system, "strategy"):
-            console.print(f"  - strategy: {type(system.strategy).__name__}")
-            console.print(f"  - similarity_weight: {system.strategy.similarity_weight}")
-            console.print(f"  - associative_weight: {system.strategy.associative_weight}")
-            console.print(f"  - temporal_weight: {system.strategy.temporal_weight}")
-            console.print(f"  - activation_weight: {system.strategy.activation_weight}")
+        # Check retrieval orchestrator
+        if hasattr(system, "retrieval_orchestrator") and hasattr(
+            system.retrieval_orchestrator, "strategy"
+        ):
+            if system.retrieval_orchestrator.strategy is not None:
+                console.print("  [green]✓[/green] Retrieval orchestrator has strategy reference")
+            else:
+                console.print(
+                    "  [yellow]- Retrieval orchestrator missing strategy reference[/yellow]"
+                )
 
     def verify_system_functionality(self, system, system_type):
         """Test system with a standard memory entry to verify it's working properly."""
@@ -515,108 +542,165 @@ class UnifiedRetrievalBenchmark:
         test_content = "This is a test memory containing information about Seattle and a person named Alex Thompson who lives there."
 
         try:
-            # Add the test memory - CRITICAL FIX: Use the right method
+            # Add the test memory with error handling
             memory_id = None
-            if system_type == SystemType.MEMORYWEAVE_HYBRID and hasattr(
-                system, "hybrid_memory_store"
-            ):
-                # Add directly to the hybrid memory store
-                embedding = system.embedding_model.encode(test_content)
-                memory_id = system.hybrid_memory_store.add(embedding, test_content)
-                # Force cache rebuild
-                if hasattr(system, "hybrid_memory_adapter"):
-                    system.hybrid_memory_adapter.invalidate_cache()
-                console.print("  - Added test memory directly to hybrid store")
-            else:
-                # Use standard add_memory
+            try:
                 memory_id = system.add_memory(test_content)
+                console.print("  [green]✓[/green] Added test memory via standard method")
+            except Exception as e:
+                console.print(f"  [yellow]Error adding memory via standard method: {e}[/yellow]")
+                # Try alternative method for hybrid systems
+                if system_type == SystemType.MEMORYWEAVE_HYBRID:
+                    try:
+                        embedding = system.embedding_model.encode(test_content)
+                        if hasattr(system, "hybrid_memory_store"):
+                            memory_id = system.hybrid_memory_store.add(embedding, test_content)
+                            if hasattr(system, "hybrid_memory_adapter"):
+                                system.hybrid_memory_adapter.invalidate_cache()
+                            console.print(
+                                "  [green]✓[/green] Added test memory using direct hybrid store method"
+                            )
+                    except Exception as inner_e:
+                        console.print(
+                            f"  [red]Error with direct hybrid store method: {inner_e}[/red]"
+                        )
 
-            # Check system-specific behavior
-            if system_type == SystemType.MEMORYWEAVE_CHUNKED:
-                if hasattr(system, "chunked_memory_store") and hasattr(
-                    system.chunked_memory_store, "get_chunks"
-                ):
-                    chunks = system.chunked_memory_store.get_chunks(memory_id)
-                    console.print(f"  - Test memory chunked into {len(chunks)} parts")
-                else:
-                    console.print(
-                        "  [yellow]- Chunking not verified (method not available)[/yellow]"
-                    )
-
-            elif system_type == SystemType.MEMORYWEAVE_HYBRID:
-                if hasattr(system, "hybrid_memory_store") and hasattr(
-                    system.hybrid_memory_store, "is_hybrid"
-                ):
-                    is_hybrid = system.hybrid_memory_store.is_hybrid(memory_id)
-                    console.print(f"  - Test memory stored as hybrid: {is_hybrid}")
-                else:
-                    console.print(
-                        "  [yellow]- Hybrid storage not verified (method not available)[/yellow]"
-                    )
-
-            # ADDITIONAL DIAGNOSTIC: Check memory counts in all stores
-            if hasattr(system, "memory_store"):
-                console.print(
-                    f"  - Memory count in standard store: {len(system.memory_store.get_all())}"
-                )
-            if hasattr(system, "hybrid_memory_store"):
-                console.print(
-                    f"  - Memory count in hybrid store: {len(system.hybrid_memory_store.get_all())}"
-                )
-
-            # Test retrieval - CRITICAL FIX: Use hybrid_search if available
-            if system_type == SystemType.MEMORYWEAVE_HYBRID and hasattr(
-                system.hybrid_memory_adapter, "search_hybrid"
-            ):
-                query_embedding = system.embedding_model.encode("Where does Alex live?")
-                result = system.hybrid_memory_adapter.search_hybrid(
-                    query_embedding, limit=10, keywords=["alex", "live", "seattle"]
-                )
-                console.print(f"  - Direct hybrid search returned {len(result)} results")
-
-            # Standard retrieval test
-            result = system.retrieve("Where does Alex live?", top_k=1)
-            if result and len(result) > 0:
-                console.print(f"  - Test retrieval successful: {len(result)} results")
-                return True
-            else:
-                console.print("  [yellow]- Test retrieval returned no results[/yellow]")
-
-                # Last-ditch effort: try getting ALL memories and check manually
-                if hasattr(system.strategy, "memory_store") and hasattr(
-                    system.strategy.memory_store, "get_all"
-                ):
-                    memories = system.strategy.memory_store.get_all()
-                    console.print(f"  - Strategy's memory store has {len(memories)} memories")
-
+            if not memory_id:
+                console.print("  [red]Failed to add test memory[/red]")
                 return False
 
-        except Exception as e:
-            console.print(f"  [red]- System verification failed: {e}[/red]")
-            if self.debug:
-                import traceback
+            console.print(f"  [green]✓[/green] Added test memory with ID: {memory_id}")
 
+            # Verify functionality through multiple methods
+            success = self._verify_all_memory_access(system, memory_id, system_type)
+            return success
+
+        except Exception as e:
+            console.print(f"  [red]System verification failed: {e}[/red]")
+            if self.debug:
                 console.print(traceback.format_exc())
             return False
 
+    def _verify_all_memory_access(self, system, memory_id, system_type):
+        """Run all verification methods and ensure at least one succeeds."""
+        # Define verification methods
+        verification_methods = [
+            self._verify_standard_retrieval,
+            self._verify_direct_memory_access,
+            self._verify_keyword_retrieval,
+        ]
+
+        # Try each verification method
+        success_count = 0
+        for method in verification_methods:
+            if method(system, memory_id, system_type):
+                success_count += 1
+
+        # Return true if at least one verification method succeeded
+        console.print(
+            f"  - {success_count} out of {len(verification_methods)} verification methods succeeded"
+        )
+        return success_count >= 1
+
+    def _verify_standard_retrieval(self, system, memory_id, system_type):
+        """Verify memory retrieval works using standard retrieve method."""
+        try:
+            console.print("  - Testing standard retrieval...")
+            result = system.retrieve("Where does Alex live?", top_k=1)
+
+            if result and len(result) > 0:
+                console.print(
+                    f"  [green]✓[/green] Standard retrieval returned {len(result)} results"
+                )
+                return True
+            else:
+                console.print("  [yellow]- Standard retrieval returned no results[/yellow]")
+                return False
+        except Exception as e:
+            console.print(f"  [yellow]- Standard retrieval failed: {e}[/yellow]")
+            return False
+
+    def _verify_direct_memory_access(self, system, memory_id, system_type):
+        """Verify direct memory access works."""
+        try:
+            console.print("  - Testing direct memory access...")
+
+            # Try different memory stores depending on system type
+            memory = None
+
+            if system_type == SystemType.MEMORYWEAVE_HYBRID and hasattr(
+                system, "hybrid_memory_store"
+            ):
+                memory = system.hybrid_memory_store.get(memory_id)
+            elif system_type == SystemType.MEMORYWEAVE_CHUNKED and hasattr(
+                system, "chunked_memory_store"
+            ):
+                memory = system.chunked_memory_store.get(memory_id)
+            elif hasattr(system, "memory_store"):
+                memory = system.memory_store.get(memory_id)
+
+            if memory:
+                console.print("  [green]✓[/green] Direct memory access succeeded")
+                return True
+            else:
+                console.print("  [yellow]- Direct memory access returned no result[/yellow]")
+                return False
+        except Exception as e:
+            console.print(f"  [yellow]- Direct memory access failed: {e}[/yellow]")
+            return False
+
+    def _verify_keyword_retrieval(self, system, memory_id, system_type):
+        """Verify keyword-based retrieval works."""
+        try:
+            console.print("  - Testing keyword retrieval...")
+
+            # Use search_by_keyword if available
+            if hasattr(system, "search_by_keyword"):
+                result = system.search_by_keyword("Seattle", limit=5)
+
+                if result and len(result) > 0:
+                    console.print(
+                        f"  [green]✓[/green] Keyword retrieval returned {len(result)} results"
+                    )
+                    return True
+                else:
+                    console.print("  [yellow]- Keyword retrieval returned no results[/yellow]")
+
+            # Try direct chat as fallback
+            response = system.chat("Tell me what you know about Seattle", max_new_tokens=100)
+            if "Seattle" in response and len(response) > 10:
+                console.print(
+                    "  [green]✓[/green] Chat retrieval succeeded with Seattle information"
+                )
+                return True
+
+            return False
+        except Exception as e:
+            console.print(f"  [yellow]- Keyword retrieval failed: {e}[/yellow]")
+            return False
+
     def run_benchmarks(self):
-        """Run the benchmark over each scenario and each system type."""
-        console.rule("[bold blue]Starting New Test Run")
+        """Run the benchmark over each scenario and each system type with improved timing and metrics."""
+        console.rule("[bold blue]Starting Unified Retrieval Benchmark")
 
         if not self.initialize_shared_resources():
             console.print("[red]Failed to initialize shared resources, aborting benchmark[/red]")
             return
 
-        overall_metrics = {
-            s.value: {"total_time": 0, "total_queries": 0, "accuracy": []}
-            for s in self.systems_to_test
-        }
+        # Create detailed result structure for timing analysis
+        timing_data = {}
+        benchmark_data = {}
 
         for scenario_key, scenario in self.scenarios.items():
             console.print(
-                f"\n[bold cyan]Running scenario: {scenario_key}[/bold cyan] - {scenario.get('description', '')}"
+                Panel(
+                    f"[bold cyan]Scenario: {scenario_key}[/bold cyan]\n{scenario.get('description', '')}",
+                    expand=False,
+                )
             )
             scenario_result = {}
+            benchmark_data[scenario_key] = {}
+            timing_data[scenario_key] = {}
 
             # Get queries for this scenario
             queries = scenario.get("queries", [])
@@ -626,141 +710,310 @@ class UnifiedRetrievalBenchmark:
 
             for system_type in self.systems_to_test:
                 console.print(f"\n[bold]Testing system: {system_type.value}[/bold]")
-
-                # Create and initialize system
-                system = self.create_system(system_type)
-                if system is None:
-                    continue
-
-                # Verify system functionality
-                if not self.verify_system_functionality(system, system_type):
-                    console.print(
-                        "[yellow]System verification failed, results may not be reliable[/yellow]"
-                    )
-
-                # Preload scenario-specific data if any
-                if preload_data:
-                    console.print("  Preloading scenario data...")
-                    for data in preload_data:
-                        system.add_memory(data)
-
-                # --- Seed conversation with a random message ---
-                seed_message = get_random_seed_message()
-                seed_response = system.chat(seed_message, max_new_tokens=150)
-                console.print(f"[bold cyan]Seed turn message:[/bold cyan] {seed_message}")
-                console.print(f"[bold cyan]Seed turn response:[/bold cyan] {seed_response}\n")
-                # -----------------------------------------------------
-
-                query_results = []
-                total_time = 0
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[bold blue]{task.description}"),
-                    BarColumn(),
-                    TimeElapsedColumn(),
-                    console=console,
-                ) as progress:
-                    task = progress.add_task(
-                        f"Processing {len(queries)} queries...", total=len(queries)
-                    )
-                    for query, expected in queries:
-                        start = time.time()
-                        response = system.chat(query, max_new_tokens=150)
-                        console.print(f"[bold magenta]Query:[/bold magenta] {query}")
-                        console.print(f"[bold green]Response:[/bold green] {response}\n")
-                        elapsed = time.time() - start
-                        total_time += elapsed
-
-                        # Compute accuracy using both methods
-                        cosine_accuracy = compute_accuracy_cosine(
-                            response,
-                            expected,
-                            embedder=self.shared_resources.embedding_model,
-                        )
-
-                        keyword_accuracy = compute_keyword_accuracy(response, expected)
-
-                        # Use combined accuracy score
-                        combined_accuracy = (cosine_accuracy + keyword_accuracy) / 2
-
-                        query_results.append(
-                            {
-                                "query": query,
-                                "expected": expected,
-                                "response": response,
-                                "time": elapsed,
-                                "cosine_accuracy": cosine_accuracy,
-                                "keyword_accuracy": keyword_accuracy,
-                                "combined_accuracy": combined_accuracy,
-                            }
-                        )
-                        progress.advance(task)
-                scenario_result[system_type.value] = {
-                    "queries": query_results,
-                    "stats": {
-                        "total_time": total_time,
-                        "total_queries": len(queries),
-                        "accuracy": sum(r["combined_accuracy"] for r in query_results)
-                        / len(query_results)
-                        if query_results
-                        else 0,
-                    },
+                benchmark_data[scenario_key][system_type.value] = {
+                    "query_results": [],
+                    "system_verification": False,
+                    "errors": [],
                 }
-                overall_metrics[system_type.value]["total_time"] += total_time
-                overall_metrics[system_type.value]["total_queries"] += len(queries)
-                overall_metrics[system_type.value]["accuracy"].append(
-                    scenario_result[system_type.value]["stats"]["accuracy"]
-                )
-                # Clean up system instance
-                del system
-                gc.collect()
-            self.results["scenario_results"][scenario_key] = scenario_result
 
-        # Compute summary metrics across scenarios
-        summary = {}
-        for sys, metrics in overall_metrics.items():
-            total_time = metrics["total_time"]
-            total_queries = metrics["total_queries"]
-            avg_time = total_time / total_queries if total_queries > 0 else 0
-            avg_accuracy = (
-                sum(metrics["accuracy"]) / len(metrics["accuracy"]) if metrics["accuracy"] else 0
-            )
-            summary[sys] = {"avg_time": avg_time, "avg_accuracy": avg_accuracy}
-        self.results["system_metrics"] = summary
+                # Initialize performance timer for this system
+                timer = PerformanceTimer()
+                timing_data[scenario_key][system_type.value] = timer
 
+                try:
+                    # Create and initialize system
+                    system = self.create_system(system_type)
+                    if system is None:
+                        benchmark_data[scenario_key][system_type.value]["errors"].append(
+                            "Failed to create system"
+                        )
+                        continue
+
+                    # Verify system functionality
+                    verification_success = self.verify_system_functionality(system, system_type)
+                    benchmark_data[scenario_key][system_type.value]["system_verification"] = (
+                        verification_success
+                    )
+
+                    if not verification_success:
+                        console.print(
+                            "[yellow]System verification failed, results may not be reliable[/yellow]"
+                        )
+                        benchmark_data[scenario_key][system_type.value]["errors"].append(
+                            "System verification failed"
+                        )
+
+                    # Preload scenario-specific data
+                    self._preload_scenario_data(
+                        system, preload_data, benchmark_data[scenario_key][system_type.value]
+                    )
+
+                    # Run seed conversation
+                    self._run_seed_conversation(system)
+
+                    # Run the actual queries with detailed timing
+                    query_results = []
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[bold blue]{task.description}"),
+                        BarColumn(),
+                        TimeElapsedColumn(),
+                        console=console,
+                    ) as progress:
+                        task = progress.add_task(
+                            f"Processing {len(queries)} queries...", total=len(queries)
+                        )
+                        for query, expected in queries:
+                            # Run query with detailed timing
+                            query_data = self.run_detailed_query(
+                                system=system, query=query, expected_answers=expected, timer=timer
+                            )
+
+                            query_results.append(query_data)
+                            progress.advance(task)
+
+                    # Calculate scenario results
+                    successful_queries = [r for r in query_results if r["status"] == "success"]
+
+                    avg_accuracy = (
+                        sum(r["accuracy"]["combined"] for r in successful_queries)
+                        / len(successful_queries)
+                        if successful_queries
+                        else 0
+                    )
+
+                    # Calculate average times for each phase
+                    timing_summary = timer.get_summary()
+
+                    scenario_result[system_type.value] = {
+                        "queries": query_results,
+                        "stats": {
+                            "total_time": sum(r["time"] for r in successful_queries),
+                            "total_queries": len(queries),
+                            "successful_queries": len(successful_queries),
+                            "accuracy": avg_accuracy,
+                            "keyword_accuracy": (
+                                sum(r["accuracy"]["keyword"] for r in successful_queries)
+                                / len(successful_queries)
+                                if successful_queries
+                                else 0
+                            ),
+                            "cosine_accuracy": (
+                                sum(r["accuracy"]["cosine"] for r in successful_queries)
+                                / len(successful_queries)
+                                if successful_queries
+                                else 0
+                            ),
+                            "timing": timing_summary,
+                        },
+                    }
+
+                    # Store detailed results for analysis
+                    benchmark_data[scenario_key][system_type.value]["query_results"] = query_results
+
+                    # Clean up system instance
+                    del system
+                    gc.collect()
+
+                except Exception as e:
+                    console.print(f"[red]Error testing system {system_type.value}: {e}[/red]")
+                    benchmark_data[scenario_key][system_type.value]["errors"].append(
+                        f"System testing error: {str(e)}"
+                    )
+                    if self.debug:
+                        console.print(traceback.format_exc())
+
+                self.results["scenario_results"][scenario_key] = scenario_result
+
+        # Store the complete timing data
+        self.results["timing_data"] = timing_data
+
+        # Store the detailed benchmark data
+        self.results["benchmark_data"] = benchmark_data
+
+        # Generate summary metrics
+        self._generate_summary_metrics()
+
+        # Display the results
         self.display_results()
         self.save_results()
         self._create_comparative_charts()
 
+    def _preload_scenario_data(self, system, preload_data, error_tracking):
+        """Preload scenario data with proper error handling."""
+        if not preload_data:
+            return
+
+        console.print("  Preloading scenario data...")
+        for data in preload_data:
+            try:
+                system.add_memory(data)
+            except Exception as e:
+                console.print(f"  [yellow]Error preloading data: {e}[/yellow]")
+                error_tracking["errors"].append(f"Error preloading data: {str(e)}")
+
+                # Try direct method as fallback
+                try:
+                    embedding = system.embedding_model.encode(data)
+                    if hasattr(system, "hybrid_memory_store"):
+                        system.hybrid_memory_store.add(embedding, data)
+                    elif hasattr(system, "chunked_memory_store"):
+                        system.chunked_memory_store.add(embedding, data)
+                    elif hasattr(system, "memory_store"):
+                        system.memory_store.add(embedding, data)
+                    console.print("  [green]✓[/green] Used fallback method for preloading")
+                except Exception as inner_e:
+                    console.print(f"  [red]Fallback preloading also failed: {inner_e}[/red]")
+
+    def _run_seed_conversation(self, system):
+        """Run a seed conversation to initialize the system."""
+        seed_message = get_random_seed_message()
+        try:
+            seed_response = system.chat(seed_message, max_new_tokens=150)
+            # Print in chronological order for easier reading
+            console.print(f"[bold cyan]Seed message:[/bold cyan] {seed_message}")
+            console.print(f"[bold cyan]Seed response:[/bold cyan] {seed_response}\n")
+        except Exception as e:
+            console.print(f"[yellow]Error during seed conversation: {e}[/yellow]")
+            # Continue anyway - seed conversation is not critical
+
+    def _generate_summary_metrics(self):
+        """Generate summary metrics across scenarios."""
+        summary = {}
+
+        # Process each scenario
+        for _scenario_key, scenario_data in self.results.get("scenario_results", {}).items():
+            for system, data in scenario_data.items():
+                if system not in summary:
+                    summary[system] = {
+                        "total_time": 0,
+                        "total_queries": 0,
+                        "retrieval_time": 0,
+                        "inference_time": 0,
+                        "accuracy": [],
+                    }
+
+                # Add stats
+                stats = data.get("stats", {})
+                summary[system]["total_time"] += stats.get("total_time", 0)
+                summary[system]["total_queries"] += stats.get("total_queries", 0)
+
+                # Add timing data if available
+                timing = stats.get("timing", {})
+                if "retrieval" in timing:
+                    summary[system]["retrieval_time"] += timing["retrieval"].get("total", 0)
+                if "inference" in timing:
+                    summary[system]["inference_time"] += timing["inference"].get("total", 0)
+
+                # Add accuracy
+                summary[system]["accuracy"].append(stats.get("accuracy", 0))
+
+        # Calculate averages
+        for system, metrics in summary.items():
+            total_queries = metrics["total_queries"]
+            if total_queries > 0:
+                metrics["avg_time"] = metrics["total_time"] / total_queries
+                metrics["avg_retrieval_time"] = metrics["retrieval_time"] / total_queries
+                metrics["avg_inference_time"] = metrics["inference_time"] / total_queries
+
+            metrics["avg_accuracy"] = (
+                sum(metrics["accuracy"]) / len(metrics["accuracy"]) if metrics["accuracy"] else 0
+            )
+
+        self.results["system_metrics"] = summary
+
     def display_results(self):
-        """Display aggregated benchmark results in a rich table."""
+        """Display aggregated benchmark results in a rich table with enhanced timing details."""
         summary = self.results.get("system_metrics", {})
+
+        # Overall results table
         table = Table(title="Unified Retrieval Benchmark Results")
-        table.add_column("System", style="cyan")
-        table.add_column("Avg Time (s)", style="yellow")
-        table.add_column("Avg Accuracy", style="green")
+        table.add_column("System")
+        table.add_column("Avg Time (s)", header_style="yellow")
+        table.add_column("Retrieval (s)", header_style="yellow")
+        table.add_column("Inference (s)", header_style="yellow")
+        table.add_column("Avg Accuracy", header_style="green")
+        table.add_column("Total Queries", header_style="blue")
+
         for sys, metrics in summary.items():
-            table.add_row(sys, f"{metrics['avg_time']:.3f}", f"{metrics['avg_accuracy']:.2f}")
+            table.add_row(
+                sys,
+                f"{metrics.get('avg_time', 0):.3f}",
+                f"{metrics.get('avg_retrieval_time', 0):.3f}",
+                f"{metrics.get('avg_inference_time', 0):.3f}",
+                f"{metrics.get('avg_accuracy', 0):.2f}",
+                str(metrics.get("total_queries", 0)),
+            )
+
         console.print("\n[bold cyan]Overall Benchmark Results[/bold cyan]")
         console.print(table)
 
         # Display per-scenario comparison
         for scenario_key, scenario_data in self.results.get("scenario_results", {}).items():
             scenario_table = Table(title=f"Results for {scenario_key} scenario")
-            scenario_table.add_column("System", style="cyan")
-            scenario_table.add_column("Avg Time (s)", style="yellow")
-            scenario_table.add_column("Accuracy", style="green")
+            scenario_table.add_column("System", header_style="cyan")
+            scenario_table.add_column("Total (s)", header_style="yellow")
+            scenario_table.add_column("Retrieval (s)", header_style="yellow")
+            scenario_table.add_column("Inference (s)", header_style="yellow")
+            scenario_table.add_column("Accuracy", header_style="green")
+            scenario_table.add_column("Keyword Acc", header_style="green")
+            scenario_table.add_column("Success Rate", header_style="blue")
 
             for system, data in scenario_data.items():
                 stats = data.get("stats", {})
+                timing = stats.get("timing", {})
+
+                # Calculate average times
                 avg_time = stats.get("total_time", 0) / stats.get("total_queries", 1)
+
+                retrieval_time = 0
+                if "retrieval" in timing:
+                    retrieval_time = timing["retrieval"].get("avg", 0)
+
+                inference_time = 0
+                if "inference" in timing:
+                    inference_time = timing["inference"].get("avg", 0)
+
                 accuracy = stats.get("accuracy", 0)
-                scenario_table.add_row(system, f"{avg_time:.3f}", f"{accuracy:.2f}")
+                keyword_acc = stats.get("keyword_accuracy", 0)
+                success_rate = (
+                    f"{stats.get('successful_queries', 0)}/{stats.get('total_queries', 0)}"
+                )
+
+                scenario_table.add_row(
+                    system,
+                    f"{avg_time:.3f}",
+                    f"{retrieval_time:.3f}",
+                    f"{inference_time:.3f}",
+                    f"{accuracy:.2f}",
+                    f"{keyword_acc:.2f}",
+                    success_rate,
+                )
 
             console.print(scenario_table)
 
+        # Display any errors encountered
+        errors_found = False
+        for scenario_key, scenario_data in self.results.get("benchmark_data", {}).items():
+            for system, data in scenario_data.items():
+                if data.get("errors"):
+                    if not errors_found:
+                        console.print("\n[bold red]Errors Encountered[/bold red]")
+                        errors_found = True
+                    console.print(f"[yellow]{scenario_key} - {system}:[/yellow]")
+                    for error in data["errors"]:
+                        console.print(f"  - {error}")
+
     def save_results(self):
-        """Save benchmark results to a JSON file."""
+        """Save benchmark results to a JSON file with enhanced metadata."""
+        # Add version information and execution details
+        self.results["metadata"] = {
+            "version": "2.0",
+            "execution_time": datetime.now().isoformat(),
+            "memory_usage_mb": self._get_memory_usage(),
+            "platform": self._get_platform_info(),
+        }
+
         filename = os.path.join(
             self.output_dir, f"unified_retrieval_benchmark_{self.timestamp}.json"
         )
@@ -771,68 +1024,331 @@ class UnifiedRetrievalBenchmark:
         except Exception as e:
             console.print(f"[yellow]Failed to save results: {e}[/yellow]")
 
+        # Also save a summary for easy review
+        summary_filename = os.path.join(self.output_dir, f"benchmark_summary_{self.timestamp}.txt")
+        try:
+            with open(summary_filename, "w") as f:
+                f.write("MemoryWeave Benchmark Summary\n")
+                f.write(f"Date: {datetime.now().isoformat()}\n")
+                f.write(f"Model: {self.model_name}\n\n")
+
+                f.write("Overall Results:\n")
+                for sys, metrics in self.results.get("system_metrics", {}).items():
+                    f.write(f"  {sys}:\n")
+                    f.write(f"    Average Time: {metrics['avg_time']:.3f}s\n")
+                    f.write(f"    Average Accuracy: {metrics['avg_accuracy']:.2f}\n")
+                    f.write(f"    Total Queries: {metrics['total_queries']}\n\n")
+
+            console.print(f"\n[bold green]Summary saved to:[/bold green] {summary_filename}")
+        except Exception as e:
+            console.print(f"[yellow]Failed to save summary: {e}[/yellow]")
+
     def _create_comparative_charts(self):
-        """Generate comparative charts for average query time and accuracy."""
+        """Generate comprehensive comparative charts with detailed timing information."""
         try:
             summary = self.results.get("system_metrics", {})
             systems = list(summary.keys())
-            times = [summary[sys]["avg_time"] for sys in systems]
-            accuracies = [summary[sys]["avg_accuracy"] for sys in systems]
 
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+            if not systems:
+                console.print("[yellow]No data available for charts[/yellow]")
+                return
 
-            # Colors for the bars
-            colors = ["skyblue", "lightgreen", "salmon", "khaki"]
+            # Extract timing data
+            times = [summary[sys].get("avg_time", 0) for sys in systems]
+            retrieval_times = [summary[sys].get("avg_retrieval_time", 0) for sys in systems]
+            inference_times = [summary[sys].get("avg_inference_time", 0) for sys in systems]
+            accuracies = [summary[sys].get("avg_accuracy", 0) for sys in systems]
 
-            # Adjusting for better readability
-            system_labels = [s.replace("memoryweave_", "") for s in systems]
+            # Create a comprehensive figure for multiple metrics
+            fig = plt.figure(figsize=(16, 10))
 
-            # Time chart
-            ax1.bar(system_labels, times, color=colors[: len(systems)])
-            ax1.set_title("Average Query Time")
-            ax1.set_ylabel("Time (s)")
-            ax1.tick_params(axis="x", rotation=45)
+            # Add title
+            plt.suptitle("MemoryWeave Unified Retrieval Benchmark", fontsize=16, fontweight="bold")
+            plt.subplots_adjust(top=0.88, wspace=0.3, hspace=0.4)
 
-            # Add values on top of bars
-            for i, v in enumerate(times):
-                ax1.text(i, v + 0.1, f"{v:.2f}s", ha="center")
-
-            # Accuracy chart
-            ax2.bar(system_labels, accuracies, color=colors[: len(systems)])
-            ax2.set_title("Average Accuracy")
-            ax2.set_ylabel("Accuracy Score")
-            ax2.set_ylim(0, 1.0)  # Set y-axis from 0 to 1
-            ax2.tick_params(axis="x", rotation=45)
+            # Accuracy subplot
+            ax1 = plt.subplot(2, 2, 1)
+            bars1 = ax1.bar(systems, accuracies, color="#5DA5DA")
+            ax1.set_title("Average Accuracy", fontsize=12)
+            ax1.set_ylabel("Accuracy Score")
+            ax1.set_ylim(0, 1.0)
+            ax1.tick_params(axis="x", rotation=45, labelsize=10)
 
             # Add values on top of bars
             for i, v in enumerate(accuracies):
-                ax2.text(i, v + 0.02, f"{v:.2f}", ha="center")
+                ax1.text(i, v + 0.03, f"{v:.2f}", ha="center")
+
+            # Time comparison (total, retrieval, inference)
+            ax2 = plt.subplot(2, 2, 2)
+
+            # Set bar width
+            bar_width = 0.25
+            r1 = np.arange(len(systems))
+            r2 = [x + bar_width for x in r1]
+            r3 = [x + bar_width for x in r2]
+
+            # Create grouped bars
+            bars2 = ax2.bar(r1, times, width=bar_width, label="Total", color="#5DA5DA")
+            bars3 = ax2.bar(
+                r2, retrieval_times, width=bar_width, label="Retrieval", color="#FAA43A"
+            )
+            bars4 = ax2.bar(
+                r3, inference_times, width=bar_width, label="Inference", color="#60BD68"
+            )
+
+            # Add labels and legend
+            ax2.set_title("Performance Breakdown", fontsize=12)
+            ax2.set_ylabel("Time (s)")
+            ax2.set_xticks([r + bar_width for r in range(len(systems))])
+            ax2.set_xticklabels(systems, rotation=45, ha="right", fontsize=10)
+            ax2.legend()
+
+            # Stacked percentage chart
+            ax3 = plt.subplot(2, 2, 3)
+
+            # Calculate percentages
+            percentages = []
+            for i in range(len(systems)):
+                total = max(times[i], 0.001)  # Avoid division by zero
+                retrieval_pct = min(retrieval_times[i] / total, 1.0) * 100
+                inference_pct = min(inference_times[i] / total, 1.0) * 100
+                other_pct = max(0, 100 - retrieval_pct - inference_pct)
+                percentages.append([retrieval_pct, inference_pct, other_pct])
+
+            percentages = np.array(percentages)
+
+            # Create stacked bars
+            ax3.bar(systems, percentages[:, 0], label="Retrieval", color="#FAA43A")
+            ax3.bar(
+                systems,
+                percentages[:, 1],
+                bottom=percentages[:, 0],
+                label="Inference",
+                color="#60BD68",
+            )
+            ax3.bar(
+                systems,
+                percentages[:, 2],
+                bottom=percentages[:, 0] + percentages[:, 1],
+                label="Other",
+                color="#F17CB0",
+            )
+
+            # Add labels and legend
+            ax3.set_title("Time Percentage Breakdown", fontsize=12)
+            ax3.set_ylabel("Percentage (%)")
+            ax3.set_ylim(0, 100)
+            ax3.set_yticks(range(0, 101, 20))
+            ax3.tick_params(axis="x", rotation=45, labelsize=10)
+            ax3.legend()
+
+            # Per-scenario performance
+            ax4 = plt.subplot(2, 2, 4)
+
+            # Process data for grouped bar chart
+            scenario_keys = list(self.results.get("scenario_results", {}).keys())
+            width = 0.8 / len(systems)  # width of the bars
+            x = np.arange(len(scenario_keys))
+
+            # Plot bars for each system
+            for i, system in enumerate(systems):
+                system_scores = []
+                for scenario in scenario_keys:
+                    if scenario in self.results.get("scenario_results", {}):
+                        if system in self.results["scenario_results"][scenario]:
+                            score = (
+                                self.results["scenario_results"][scenario][system]
+                                .get("stats", {})
+                                .get("accuracy", 0)
+                            )
+                            system_scores.append(score)
+                        else:
+                            system_scores.append(0)
+                    else:
+                        system_scores.append(0)
+
+                # Calculate bar positions
+                positions = x + (i - len(systems) / 2 + 0.5) * width
+
+                ax4.bar(
+                    positions, system_scores, width * 0.9, label=system.replace("memoryweave_", "")
+                )
+
+            # Add labels and legend
+            ax4.set_title("Accuracy by Scenario", fontsize=12)
+            ax4.set_xticks(x)
+            ax4.set_xticklabels(scenario_keys, rotation=45, ha="right", fontsize=10)
+            ax4.set_ylabel("Accuracy Score")
+            ax4.set_ylim(0, 1.0)
+            ax4.legend(loc="upper right", fontsize=8)
 
             plt.tight_layout()
             chart_path = os.path.join(
                 self.output_dir, f"unified_retrieval_benchmark_chart_{self.timestamp}.png"
             )
-            plt.savefig(chart_path)
+            plt.savefig(chart_path, dpi=150)
             console.print(f"\n[bold green]Performance chart saved to:[/bold green] {chart_path}")
-
-            # Try to display the chart (will work in environments that support it)
-            # In your _create_comparative_charts method, remove or comment out plt.show():
-            try:
-                plt.savefig(chart_path)
-                console.print(
-                    f"\n[bold green]Performance chart saved to:[/bold green] {chart_path}"
-                )
-                # In headless mode, skip showing the chart
-                # plt.show()  # Remove or comment out this line
-            except Exception as e:
-                console.print(f"[yellow]Failed to create charts: {e}[/yellow]")
 
         except Exception as e:
             console.print(f"[yellow]Failed to create charts: {e}[/yellow]")
             if self.debug:
-                import traceback
-
                 console.print(traceback.format_exc())
+
+        def _get_platform_info(self):
+            """Get information about the platform for more detailed reporting."""
+            import platform
+
+            info = {
+                "python_version": platform.python_version(),
+                "system": platform.system(),
+                "release": platform.release(),
+                "machine": platform.machine(),
+            }
+
+            # Try to get more detailed hardware info
+            try:
+                if find_spec("psutil") is not None:
+                    import psutil
+
+                    mem = psutil.virtual_memory()
+                    info["memory_total"] = mem.total / (1024 * 1024 * 1024)  # GB
+                    info["memory_available"] = mem.available / (1024 * 1024 * 1024)  # GB
+                    info["cpu_count"] = psutil.cpu_count()
+            except Exception:  # noqa: S110
+                pass
+
+            return info
+
+    # Add this method to the UnifiedRetrievalBenchmark class
+    def run_detailed_query(
+        self, system, query: str, expected_answers: list[str], timer: PerformanceTimer
+    ) -> dict[str, Any]:
+        """
+        Run a query with detailed performance timing.
+
+        Args:
+            system: The system to test
+            query: The query to run
+            expected_answers: Expected answers for accuracy calculation
+            timer: Performance timer instance
+
+        Returns:
+            dictionary with query results and performance metrics
+        """
+        query_data = {
+            "query": query,
+            "expected": expected_answers,
+            "status": "success",
+            "timings": {},
+        }
+
+        try:
+            # Start timing total operation
+            timer.start("total")
+
+            # Preparation phase (embedding computation, etc.)
+            timer.start("preparation")
+            # This varies by system, but generally involves:
+            query_info = None
+            query_embedding = None
+
+            if hasattr(system, "_analyze_query") and hasattr(system, "_compute_embedding"):
+                # Start with query analysis if available
+                query_info = system._analyze_query(query)
+                query_embedding = system._compute_embedding(query)
+            timer.stop("preparation")
+
+            # Retrieval phase
+            timer.start("retrieval")
+            if hasattr(system, "retrieve") and query_embedding is not None:
+                # Direct retrieval if we have embedding and method
+                retrieved_memories = system.retrieve(
+                    query=query, query_embedding=query_embedding, top_k=10
+                )
+            else:
+                # Skip direct measurement if we can't separate it
+                retrieved_memories = []
+            timer.stop("retrieval")
+
+            # Memory operations (update activations, etc.)
+            timer.start("memory_ops")
+            # This would normally happen inside the chat method
+            # We're just measuring the time separately
+            timer.stop("memory_ops")
+
+            # Inference phase (LLM generation)
+            timer.start("inference")
+            response = system.chat(query, max_new_tokens=150)
+            timer.stop("inference")
+
+            # Stop timing total operation
+            total_time = timer.stop("total")
+
+            # Print the query and response if debugging
+            console.print(f"[bold magenta]Query:[/bold magenta] {query}")
+            console.print(f"[bold green]Response:[/bold green] {response}\n")
+
+            # Calculate accuracy
+            accuracy_results = compute_accuracy(
+                response,
+                expected_answers,
+                embedder=self.shared_resources.embedding_model,
+            )
+
+            # Store results
+            query_data.update(
+                {
+                    "response": response,
+                    "time": total_time,
+                    "timings": {
+                        "preparation": timer.get_average("preparation"),
+                        "retrieval": timer.get_average("retrieval"),
+                        "inference": timer.get_average("inference"),
+                        "memory_ops": timer.get_average("memory_ops"),
+                        "total": total_time,
+                    },
+                    "accuracy": accuracy_results,
+                    "retrieved_count": len(retrieved_memories) if retrieved_memories else 0,
+                }
+            )
+
+        except Exception as e:
+            console.print(f"[red]Error processing query: {e}[/red]")
+            query_data.update(
+                {
+                    "status": "error",
+                    "error": str(e),
+                    "time": timer.stop("total") if "total" in timer._start_times else 0,
+                }
+            )
+            if self.debug:
+                console.print(traceback.format_exc())
+
+        return query_data
+
+    def _get_platform_info(self):
+        """Get information about the platform for more detailed reporting."""
+
+        info = {
+            "python_version": platform.python_version(),
+            "system": platform.system(),
+            "release": platform.release(),
+            "machine": platform.machine(),
+        }
+
+        # Try to get more detailed hardware info
+        try:
+            if find_spec("psutil") is not None:
+                import psutil
+
+                mem = psutil.virtual_memory()
+                info["memory_total"] = mem.total / (1024 * 1024 * 1024)  # GB
+                info["memory_available"] = mem.available / (1024 * 1024 * 1024)  # GB
+                info["cpu_count"] = psutil.cpu_count()
+        except Exception:
+            pass
+
+        return info
 
 
 @click.command()
@@ -859,10 +1375,46 @@ class UnifiedRetrievalBenchmark:
     is_flag=True,
     help="Enable debug logging for more detailed output",
 )
-def main(model: str, scenario: list[str], system_types: list[str], debug: bool):
+@click.option(
+    "--output-dir",
+    default=OUTPUT_DIR,
+    help=f"Directory to save benchmark results (default: {OUTPUT_DIR})",
+)
+@click.option(
+    "--seed",
+    is_flag=True,
+    help="Use consistent random seed for reproducibility",
+)
+def main(
+    model: str,
+    scenario: list[str],
+    system_types: list[str],
+    debug: bool,
+    output_dir: str,
+    seed: bool,
+):
     """
-    Unified Retrieval Benchmark: Compare MemoryWeave retrieval strategies under identical conditions.
+    Unified Retrieval Benchmark: Compare MemoryWeave retrieval strategies with enhanced metrics.
+
+    This benchmark runs multiple retrieval strategies on the same test scenarios and compares
+    their performance in terms of accuracy, speed, and reliability.
     """
+    if seed:
+        # set consistent seeds for reproducibility
+        import random
+
+        random.seed(42)
+        np.random.seed(42)
+        try:
+            import torch
+
+            torch.manual_seed(42)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(42)
+            console.print("[yellow]Random seeds fixed for reproducibility[/yellow]")
+        except ImportError:
+            pass
+
     if debug:
         logger.setLevel(logging.DEBUG)
         logging.getLogger("memoryweave").setLevel(logging.DEBUG)
@@ -871,134 +1423,42 @@ def main(model: str, scenario: list[str], system_types: list[str], debug: bool):
     # Filter scenarios if specified
     scenarios_to_run = {}
     if scenario:
-        # Custom scenarios
-        # You can define your scenarios here or keep them in a separate file
-        all_scenarios = {
-            "factual": {
-                "name": "Factual Recall",
-                "description": "Recall basic facts.",
-                "queries": [
-                    ("What is my name?", ["Alex", "Thompson"]),
-                    ("Where do I live?", ["Seattle"]),
-                ],
-            },
-            "temporal": {
-                "name": "Temporal Context",
-                "description": "Tests ability to understand time references.",
-                "queries": [
-                    ("What did I mention earlier about my home?", ["Seattle"]),
-                    ("What did I say yesterday about my name?", ["Alex", "Thompson"]),
-                ],
-                "preload": [
-                    "Yesterday I told you my name is Alex Thompson.",
-                    "Earlier today I mentioned that I live in Seattle.",
-                ],
-            },
-            "complex": {
-                "name": "Complex Context",
-                "description": "Tests handling of longer, more complex information.",
-                "queries": [
-                    (
-                        "I need to remember the details about my medical regimen. Can you help?",
-                        ["Lisinopril", "25mg", "Zolpidem", "10mg", "Metformin", "500mg"],
-                    ),
-                    (
-                        "When do I need to schedule my follow-up appointment?",
-                        ["3 months", "follow-up"],
-                    ),
-                ],
-                "preload": [
-                    "I just got back from the doctor. She said I need to take 25mg of Lisinopril every morning for my blood pressure, 10mg of Zolpidem before bed for sleep, and 500mg of Metformin with food twice daily for my blood sugar. I also need to schedule a follow-up in 3 months to check how the treatment is working."
-                ],
-            },
-        }
-
         # Filter to only selected scenarios
         for key in scenario:
-            if key in all_scenarios:
-                scenarios_to_run[key] = all_scenarios[key]
+            if key in ENHANCED_SCENARIOS:
+                scenarios_to_run[key] = ENHANCED_SCENARIOS[key]
+            else:
+                console.print(f"[yellow]Warning: Scenario '{key}' not found, skipping[/yellow]")
     else:
         # No specific scenarios selected, use all
-        scenarios_to_run = None
+        scenarios_to_run = ENHANCED_SCENARIOS
 
     # Filter systems if specified
     systems_to_test = None
     if system_types:
         systems_to_test = [SystemType(s) for s in system_types]
 
-    benchmark = UnifiedRetrievalBenchmark(
-        model_name=model, scenarios=scenarios_to_run, systems_to_test=systems_to_test, debug=debug
+    # Print banner
+    console.print(
+        Panel(
+            "[bold cyan]MemoryWeave Unified Retrieval Benchmark[/bold cyan]\n"
+            f"Model: {model}\n"
+            f"Scenarios: {', '.join(scenarios_to_run.keys())}\n"
+            f"Systems: {', '.join([s.value for s in (systems_to_test or list(SystemType))])}\n"
+            f"Output directory: {output_dir}",
+            expand=False,
+        )
     )
-    benchmark.run_benchmarks()
-    """
-    Unified Retrieval Benchmark: Compare MemoryWeave retrieval strategies under identical conditions.
-    """
-    if debug:
-        logger.setLevel(logging.DEBUG)
-        logging.getLogger("memoryweave").setLevel(logging.DEBUG)
-        console.print("[yellow]Debug logging enabled[/yellow]")
 
-    # Filter scenarios if specified
-    scenarios_to_run = {}
-    if scenario:
-        # Custom scenarios
-        # You can define your scenarios here or keep them in a separate file
-        all_scenarios = {
-            "factual": {
-                "name": "Factual Recall",
-                "description": "Recall basic facts.",
-                "queries": [
-                    ("What is my name?", ["Alex", "Thompson"]),
-                    ("Where do I live?", ["Seattle"]),
-                ],
-            },
-            "temporal": {
-                "name": "Temporal Context",
-                "description": "Tests ability to understand time references.",
-                "queries": [
-                    ("What did I mention earlier about my home?", ["Seattle"]),
-                    ("What did I say yesterday about my name?", ["Alex", "Thompson"]),
-                ],
-                "preload": [
-                    "Yesterday I told you my name is Alex Thompson.",
-                    "Earlier today I mentioned that I live in Seattle.",
-                ],
-            },
-            "complex": {
-                "name": "Complex Context",
-                "description": "Tests handling of longer, more complex information.",
-                "queries": [
-                    (
-                        "I need to remember the details about my medical regimen. Can you help?",
-                        ["Lisinopril", "25mg", "Zolpidem", "10mg", "Metformin", "500mg"],
-                    ),
-                    (
-                        "When do I need to schedule my follow-up appointment?",
-                        ["3 months", "follow-up"],
-                    ),
-                ],
-                "preload": [
-                    "I just got back from the doctor. She said I need to take 25mg of Lisinopril every morning for my blood pressure, 10mg of Zolpidem before bed for sleep, and 500mg of Metformin with food twice daily for my blood sugar. I also need to schedule a follow-up in 3 months to check how the treatment is working."
-                ],
-            },
-        }
-
-        # Filter to only selected scenarios
-        for key in scenario:
-            if key in all_scenarios:
-                scenarios_to_run[key] = all_scenarios[key]
-    else:
-        # No specific scenarios selected, use all
-        scenarios_to_run = None
-
-    # Filter systems if specified
-    systems_to_test = None
-    if system_types:
-        systems_to_test = [SystemType(s) for s in system_types]
-
+    # Run the benchmark
     benchmark = UnifiedRetrievalBenchmark(
-        model_name=model, scenarios=scenarios_to_run, systems_to_test=systems_to_test, debug=debug
+        model_name=model,
+        scenarios=scenarios_to_run,
+        systems_to_test=systems_to_test,
+        debug=debug,
+        output_dir=output_dir,
     )
+
     benchmark.run_benchmarks()
 
 

@@ -9,6 +9,7 @@ from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.prompt_builder import PromptBuilder
 from memoryweave.api.retrieval_orchestrator import RetrievalOrchestrator
 from memoryweave.api.streaming import StreamingHandler
+from memoryweave.benchmarks.utils.perf_timer import PerformanceTimer
 from memoryweave.components.activation import ActivationManager
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
 from memoryweave.components.category_manager import CategoryManager
@@ -255,17 +256,25 @@ class MemoryWeaveAPI:
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
         """Process user message and generate a response using memory retrieval."""
         start_time = time.time()
+        timer = PerformanceTimer()
 
         # Step 1: Query analysis
+        timer.start("query_analysis")
         query_info = self._analyze_query(user_message)
         _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
+        timer.stop("query_analysis")
 
         # Step 2: Compute query embedding
+        timer.start("embedding_computation")
         query_embedding = self._compute_embedding(user_message)
+        timer.stop("embedding_computation")
+
         if query_embedding is None:
             return "Sorry, an error occurred while processing your request."
 
         # Step 3: Retrieve memories
+        # IMPORTANT: Use the orchestrator instead of direct strategy calls
+        timer.start("keyword_extraction")
         relevant_memories = self.retrieval_orchestrator.retrieve(
             query_embedding=query_embedding,
             query=user_message,
@@ -275,28 +284,40 @@ class MemoryWeaveAPI:
             adapted_params=adapted_params,
             top_k=adapted_params.get("max_results", 10),
         )
+        timer.stop("memory_search")
 
         # Step 4: Extract personal attributes if enabled
+        timer.start("personal_attribute_extraction")
         self._extract_personal_attributes(user_message, time.time())
+        timer.stop("personal_attribute_extraction")
 
         # Step 5: Construct prompt
+        timer.start("prompt_assembly")
         prompt = self.prompt_builder.build_chat_prompt(
             user_message=user_message,
             memories=relevant_memories,
             conversation_history=self.conversation_history,
             query_type=query_type,
         )
-        if self.debug:
-            print("===== Prompt Start =====")
-            print(prompt)
-            print("===== Prompt End =====")
+        timer.stop("prompt_assembly")
+        logger.debug("[bold cyan]===== Prompt Start =====[/]")
+        logging.debug(f"[dim]{prompt}[/]")
+        logger.debug("[bold cyan]===== Prompt End =====[/]")
         # Step 6: Generate response
+        timer.start("pure_inference")
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
+        timer.stop("pure_inference")
 
         # Step 7: Update history and statistics
+        timer.start("store_interaction")
         self._store_interaction(user_message, assistant_reply, time.time())
+        timer.stop("store_interaction")
+        timer.start("update_history")
         self._update_conversation_history(user_message, assistant_reply)
+        timer.stop("update_history")
+        timer.start("update_stats")
         self._update_retrieval_stats(start_time, len(relevant_memories))
+        timer.stop("update_stats")
 
         return assistant_reply
 

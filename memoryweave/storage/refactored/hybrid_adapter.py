@@ -242,3 +242,85 @@ class HybridMemoryAdapter(MemoryAdapter):
             Average chunk count
         """
         return self.hybrid_store.get_average_chunks_per_memory()
+
+    def _build_cache(self):
+        """Build cache of all memory embeddings and metadata."""
+        try:
+            if not hasattr(self.hybrid_store, "get_all"):
+                # Fall back to memory_store if hybrid_store doesn't have get_all
+                memories = self.memory_store.get_all()
+            else:
+                memories = self.hybrid_store.get_all()
+
+            if not memories:
+                self._embeddings_matrix = np.zeros((0, 768))  # Default embedding dim
+                self._metadata_dict = []
+                self._ids_list = []
+                self._index_to_id_map = {}
+                self._id_to_index_map = {}
+                self._invalidated = False
+                return
+
+            # Extract data from memories
+            embeddings = []
+            metadata_list = []
+            ids_list = []
+
+            # Reset ID mappings
+            self._index_to_id_map = {}
+            self._id_to_index_map = {}
+
+            for idx, memory in enumerate(memories):
+                # Store embedding
+                embeddings.append(memory.embedding)
+
+                # Create metadata entry
+                if memory.metadata is not None and isinstance(memory.metadata, dict):
+                    metadata = memory.metadata.copy()
+                else:
+                    metadata = {}
+
+                # Add adapter-specific metadata
+                metadata["memory_id"] = idx  # Internal index ID for matrix operations
+                metadata["original_id"] = memory.id  # Original ID from store
+
+                # Extract content
+                if isinstance(memory.content, dict) and "text" in memory.content:
+                    metadata["content"] = memory.content["text"]
+                else:
+                    metadata["content"] = str(memory.content)
+
+                metadata_list.append(metadata)
+                ids_list.append(memory.id)
+
+                # Update ID mappings
+                self._index_to_id_map[idx] = memory.id
+                self._id_to_index_map[memory.id] = idx
+
+            # Create embeddings matrix
+            if embeddings:
+                self._embeddings_matrix = np.stack(embeddings)
+            else:
+                self._embeddings_matrix = np.zeros((0, 768))  # Default embedding dimension
+
+            # Store metadata and IDs
+            self._metadata_dict = metadata_list
+            self._ids_list = ids_list
+            self._invalidated = False
+
+            # Also build chunk cache if appropriate
+            if hasattr(self, "_build_chunk_cache"):
+                self._build_chunk_cache()
+
+        except Exception as e:
+            logging.error(f"Error building memory cache: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+            # Initialize empty cache on error
+            self._embeddings_matrix = np.zeros((0, 768))
+            self._metadata_dict = []
+            self._ids_list = []
+            self._index_to_id_map = {}
+            self._id_to_index_map = {}
