@@ -9,6 +9,9 @@ on different approaches, such as similarity, temporal factors, or hybrid methods
 from memoryweave.components.retrieval_strategies.contextual_fabric_strategy import (
     ContextualFabricStrategy,
 )
+from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy import (
+    HybridBM25VectorStrategy,
+)
 from memoryweave.components.retrieval_strategies_impl import (
     CategoryRetrievalStrategy,
     HybridRetrievalStrategy,
@@ -18,21 +21,22 @@ from memoryweave.components.retrieval_strategies_impl import (
 )
 
 __all__ = [
+    "CategoryRetrievalStrategy",
+    "ContextualFabricStrategy",
     "SimilarityRetrievalStrategy",
     "TemporalRetrievalStrategy",
     "HybridRetrievalStrategy",
+    "HybridBM25VectorStrategy",
     "TwoStageRetrievalStrategy",
-    "CategoryRetrievalStrategy",
-    "ContextualFabricStrategy",
 ]
 
 # Define a mapping of strategy names to classes
 # This allows dynamic instantiation by name
 available_strategies = {
+    "category": CategoryRetrievalStrategy,
+    "contextual_fabric": ContextualFabricStrategy,
     "similarity": SimilarityRetrievalStrategy,
     "temporal": TemporalRetrievalStrategy,
     "hybrid": HybridRetrievalStrategy,
     "two_stage": TwoStageRetrievalStrategy,
-    "category": CategoryRetrievalStrategy,
-    "contextual_fabric": ContextualFabricStrategy,
 }
