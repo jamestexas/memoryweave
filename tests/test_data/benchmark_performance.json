@@ -254,6 +254,24 @@
         "query_food": 0.0002040863037109375
       },
       "timestamp": 1740962949.6839209
+    },
+    {
+      "config_name": "Performance-Basic",
+      "execution_times": [
+        0.21135401725769043
+      ],
+      "avg_time": 0.21135401725769043,
+      "min_time": 0.21135401725769043,
+      "max_time": 0.21135401725769043,
+      "std_dev": 0,
+      "avg_query_times": {
+        "query_travel": 0.0011489391326904297,
+        "query_cat": 0.0014767646789550781,
+        "query_weather": 0.0011758804321289062,
+        "query_food": 0.0012388229370117188,
+        "query_color": 0.001154184341430664
+      },
+      "timestamp": 1741138736.522978
     }
   ]
 }

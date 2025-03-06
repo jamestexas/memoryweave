@@ -7,7 +7,9 @@ from typing import Any, Optional
 import numpy as np
 
 from memoryweave.components.base import Component
-from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
+
+# Remove the import from core
+# from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
 
 
 class CategoryManager(Component):
@@ -19,12 +21,25 @@ class CategoryManager(Component):
     Resonance Theory.
     """
 
-    def __init__(self, core_category_manager: Optional[CoreCategoryManager] = None):
+    def __init__(self, core_category_manager: Optional[Any] = None):
         """Initialize with optional existing category manager."""
         self.core_manager = core_category_manager
         self.vigilance_threshold = 0.8
         self.learning_rate = 0.2
         self.embedding_dim = 768
+
+        # Initialize category structures
+        self.category_prototypes = np.zeros((0, self.embedding_dim), dtype=np.float32)
+        self.memory_categories = np.zeros(0, dtype=np.int64)
+        self.category_activations = np.zeros(0, dtype=np.float32)
+
+        # Tracking variables
+        self.memories_added = 0
+        self.last_consolidation = 0
+
+        # For compatibility with tests
+        self.activation_levels = None
+        self.memory_embeddings = None
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
@@ -34,21 +49,23 @@ class CategoryManager(Component):
 
         # Create core manager if not provided
         if not self.core_manager:
-            self.core_manager = CoreCategoryManager(
-                embedding_dim=self.embedding_dim,
-                vigilance_threshold=self.vigilance_threshold,
-                learning_rate=self.learning_rate,
-                dynamic_vigilance=config.get("dynamic_vigilance", False),
-                vigilance_strategy=config.get("vigilance_strategy", "decreasing"),
-                min_vigilance=config.get("min_vigilance", 0.5),
-                max_vigilance=config.get("max_vigilance", 0.9),
-                target_categories=config.get("target_categories", 5),
-                enable_category_consolidation=config.get("enable_category_consolidation", False),
-                consolidation_threshold=config.get("consolidation_threshold", 0.7),
-                min_category_size=config.get("min_category_size", 3),
-                consolidation_frequency=config.get("consolidation_frequency", 50),
-                hierarchical_method=config.get("hierarchical_method", "average"),
-            )
+            # Instead of using CoreCategoryManager, implement the functionality directly
+            # Initialize category structures
+            self.category_prototypes = np.zeros((0, self.embedding_dim), dtype=np.float32)
+            self.memory_categories = np.zeros(0, dtype=np.int64)
+            self.category_activations = np.zeros(0, dtype=np.float32)
+
+            # Additional configuration
+            self.dynamic_vigilance = config.get("dynamic_vigilance", False)
+            self.vigilance_strategy = config.get("vigilance_strategy", "decreasing")
+            self.min_vigilance = config.get("min_vigilance", 0.5)
+            self.max_vigilance = config.get("max_vigilance", 0.9)
+            self.target_categories = config.get("target_categories", 5)
+            self.enable_category_consolidation = config.get("enable_category_consolidation", False)
+            self.consolidation_threshold = config.get("consolidation_threshold", 0.7)
+            self.min_category_size = config.get("min_category_size", 3)
+            self.consolidation_frequency = config.get("consolidation_frequency", 50)
+            self.hierarchical_method = config.get("hierarchical_method", "average")
         elif hasattr(self.core_manager, "vigilance_threshold"):
             # Update existing core manager parameters if they exist
             self.core_manager.vigilance_threshold = self.vigilance_threshold

@@ -16,7 +16,8 @@ import numpy as np
 
 from memoryweave.components.base import Component, MemoryComponent
 from memoryweave.components.component_names import ComponentName
-from memoryweave.interfaces.memory import IMemoryStore, MemoryID
+from memoryweave.interfaces.memory import MemoryID
+from memoryweave.storage.refactored.base_store import BaseMemoryStore
 
 
 class AssociativeMemoryLinker(MemoryComponent):
@@ -33,7 +34,7 @@ class AssociativeMemoryLinker(MemoryComponent):
     multi-hop connections and cognitive-inspired memory access patterns.
     """
 
-    def __init__(self, memory_store: Optional[IMemoryStore] = None):
+    def __init__(self, memory_store: Optional[BaseMemoryStore] = None):
         """
         Initialize the associative memory linker.
 

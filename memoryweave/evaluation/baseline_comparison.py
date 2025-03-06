@@ -7,7 +7,7 @@ import os
 import time
 
 # Define a protocol for the memory manager interface
-from typing import Any, Dict, List, Optional, Protocol, Type
+from typing import Any, Optional, Protocol
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,18 +31,18 @@ class BaselineConfig(BaseModel):
     """Configuration for a baseline retriever."""
 
     name: str
-    retriever_class: Type[BaselineRetriever]
-    parameters: Dict[str, Any] = {}
+    retriever_class: type[BaselineRetriever]
+    parameters: dict[str, Any] = {}
 
 
 class ComparisonResult(BaseModel):
     """Results from comparing MemoryWeave with baselines."""
 
-    memoryweave_metrics: Dict[str, Dict[str, Any]]
-    baseline_metrics: Dict[str, Dict[str, Dict[str, Any]]]
-    query_details: Dict[str, List[Dict[str, Any]]]
-    runtime_stats: Dict[str, Dict[str, float]]
-    dataset_stats: Dict[str, Any]
+    memoryweave_metrics: dict[str, dict[str, Any]]
+    baseline_metrics: dict[str, dict[str, dict[str, Any]]]
+    query_details: dict[str, list[dict[str, Any]]]
+    runtime_stats: dict[str, dict[str, float]]
+    dataset_stats: dict[str, Any]
 
     class Config:
         arbitrary_types_allowed = True
@@ -55,8 +55,8 @@ class BaselineComparison:
         self,
         memory_manager: IMemoryManager,
         memoryweave_retriever: IRetrievalStrategy,
-        baseline_configs: List[BaselineConfig],
-        metrics: List[str] = ["precision", "recall", "f1", "mrr"],
+        baseline_configs: list[BaselineConfig],
+        metrics: list[str] = None,
     ):
         """Initialize baseline comparison framework.
 
@@ -66,20 +66,22 @@ class BaselineComparison:
             baseline_configs: List of baseline configurations
             metrics: List of metrics to compute
         """
+        if metrics is None:
+            metrics = ["precision", "recall", "f1", "mrr"]
         self.memory_manager = memory_manager
         self.memoryweave_retriever = memoryweave_retriever
         self.metrics = metrics
 
         # Initialize baseline retrievers
-        self.baseline_retrievers: Dict[str, BaselineRetriever] = {}
+        self.baseline_retrievers: dict[str, BaselineRetriever] = {}
         for config in baseline_configs:
             retriever = config.retriever_class(**config.parameters)
             self.baseline_retrievers[config.name] = retriever
 
     def run_comparison(
         self,
-        queries: List[Query],
-        relevant_memory_ids: List[List[str]],
+        queries: list[Query],
+        relevant_memory_ids: list[list[str]],
         max_results: int = 10,
         threshold: float = 0.0,
     ) -> ComparisonResult:
@@ -116,8 +118,8 @@ class BaselineComparison:
             memoryweave_times.append(query_time)
 
         # Run queries on baseline retrievers
-        baseline_results: Dict[str, List[RetrievalResult]] = {}
-        baseline_times: Dict[str, List[float]] = {}
+        baseline_results: dict[str, list[RetrievalResult]] = {}
+        baseline_times: dict[str, list[float]] = {}
 
         for name, retriever in self.baseline_retrievers.items():
             results = []
@@ -140,7 +142,7 @@ class BaselineComparison:
         )
 
         # Compute metrics for baselines
-        baseline_metrics: Dict[str, Dict[str, Dict[str, float]]] = {}
+        baseline_metrics: dict[str, dict[str, dict[str, float]]] = {}
 
         for name, results in baseline_results.items():
             baseline_metrics[name] = self._compute_metrics(results, queries, relevant_memory_ids)
@@ -220,10 +222,10 @@ class BaselineComparison:
 
     def _compute_metrics(
         self,
-        results: List[RetrievalResult],
-        queries: List[Query],
-        relevant_memory_ids: List[List[str]],
-    ) -> Dict[str, Dict[str, float]]:
+        results: list[RetrievalResult],
+        queries: list[Query],
+        relevant_memory_ids: list[list[str]],
+    ) -> dict[str, dict[str, float]]:
         """Compute evaluation metrics for retrieval results.
 
         Args:
@@ -236,7 +238,7 @@ class BaselineComparison:
         """
         metrics_by_query = {}
 
-        for i, (result, query, rel_ids) in enumerate(zip(results, queries, relevant_memory_ids)):
+        for i, (result, _query, rel_ids) in enumerate(zip(results, queries, relevant_memory_ids)):
             query_id = f"query_{i}"
             metrics_by_query[query_id] = {}
 
@@ -289,7 +291,7 @@ class BaselineComparison:
         # Return metrics by query and averages
         return {"by_query": metrics_by_query, "average": avg_metrics}
 
-    def _calculate_precision(self, retrieved_ids: List[str], relevant_ids: List[str]) -> float:
+    def _calculate_precision(self, retrieved_ids: list[str], relevant_ids: list[str]) -> float:
         """Calculate precision of retrieved results.
 
         Args:
@@ -305,7 +307,7 @@ class BaselineComparison:
         relevant_count = sum(1 for mem_id in retrieved_ids if mem_id in relevant_ids)
         return relevant_count / len(retrieved_ids)
 
-    def _calculate_recall(self, retrieved_ids: List[str], relevant_ids: List[str]) -> float:
+    def _calculate_recall(self, retrieved_ids: list[str], relevant_ids: list[str]) -> float:
         """Calculate recall of retrieved results.
 
         Args:
@@ -321,7 +323,7 @@ class BaselineComparison:
         relevant_count = sum(1 for mem_id in retrieved_ids if mem_id in relevant_ids)
         return relevant_count / len(relevant_ids)
 
-    def _calculate_mrr(self, retrieved_ids: List[str], relevant_ids: List[str]) -> float:
+    def _calculate_mrr(self, retrieved_ids: list[str], relevant_ids: list[str]) -> float:
         """Calculate Mean Reciprocal Rank.
 
         Args:
@@ -515,23 +517,23 @@ class BaselineComparison:
         </head>
         <body>
             <h1>{title}</h1>
-            
+
             <h2>Summary</h2>
             <p>
-                Dataset: {comparison_result.dataset_stats["num_memories"]} memories, 
+                Dataset: {comparison_result.dataset_stats["num_memories"]} memories,
                 {comparison_result.dataset_stats["num_queries"]} queries
             </p>
-            
+
             <div class="chart-container">
                 <h3>Performance Metrics</h3>
                 <img src="{os.path.basename(img_path)}" alt="Performance Comparison Chart" style="max-width:100%">
             </div>
-            
+
             <div class="chart-container">
                 <h3>Query Performance</h3>
                 <img src="{os.path.basename(img_path).replace(".png", "_time.png")}" alt="Query Time Comparison Chart" style="max-width:100%">
             </div>
-            
+
             <h2>Average Metrics</h2>
             <table>
                 <tr>
@@ -575,7 +577,7 @@ class BaselineComparison:
 
         html_content += """
             </table>
-            
+
             <h2>Dataset Statistics</h2>
             <table>
                 <tr>
@@ -590,7 +592,7 @@ class BaselineComparison:
 
         html_content += """
             </table>
-            
+
             <h2>System Details</h2>
             <table>
                 <tr>
@@ -614,7 +616,7 @@ class BaselineComparison:
 
         html_content += """
             </table>
-            
+
             <footer>
                 <p>Generated by MemoryWeave Baseline Comparison Framework</p>
             </footer>

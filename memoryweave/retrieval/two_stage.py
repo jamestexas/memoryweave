@@ -4,16 +4,18 @@ This module provides implementations of a two-stage retrieval approach
 where an initial broader search is followed by more refined filtering.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 
-from memoryweave.interfaces.memory import EmbeddingVector, IMemoryStore, IVectorStore
+from memoryweave.interfaces.memory import EmbeddingVector
 from memoryweave.interfaces.retrieval import (
     IRetrievalStrategy,
     RetrievalParameters,
     RetrievalResult,
 )
+from memoryweave.storage.refactored.base_store import BaseMemoryStore
+from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
 
 class TwoStageRetrievalStrategy(IRetrievalStrategy):
@@ -21,8 +23,8 @@ class TwoStageRetrievalStrategy(IRetrievalStrategy):
 
     def __init__(
         self,
-        memory_store: IMemoryStore,
-        vector_store: IVectorStore,
+        memory_store: BaseMemoryStore,
+        vector_store: IVectorSearchProvider,
         first_stage_strategy: Optional[IRetrievalStrategy] = None,
         second_stage_strategy: Optional[IRetrievalStrategy] = None,
     ):
@@ -93,7 +95,7 @@ class TwoStageRetrievalStrategy(IRetrievalStrategy):
 
     def retrieve(
         self, query_embedding: EmbeddingVector, parameters: Optional[RetrievalParameters] = None
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """Retrieve memories using a two-stage approach."""
         # Merge parameters with defaults
         params = self._default_params.copy()
@@ -166,7 +168,7 @@ class TwoStageRetrievalStrategy(IRetrievalStrategy):
         results.sort(key=lambda x: x["relevance_score"], reverse=True)
         return results[:final_max_results]
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the retrieval strategy."""
         if "first_stage_threshold" in config:
             self._default_params["first_stage_threshold"] = config["first_stage_threshold"]
@@ -192,12 +194,12 @@ class TwoStageRetrievalStrategy(IRetrievalStrategy):
 
     def _refine_candidates(
         self,
-        candidates: List[RetrievalResult],
+        candidates: list[RetrievalResult],
         query_embedding: EmbeddingVector,
-        keywords: List[str],
+        keywords: list[str],
         keyword_boost: float,
         threshold: float,
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """Refine candidates using similarity and keyword matching."""
         refined_results = []
 

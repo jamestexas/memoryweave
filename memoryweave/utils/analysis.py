@@ -2,19 +2,19 @@
 Utilities for analyzing memory retrieval performance and distributions.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 
 def analyze_query_similarities(
-    memory_system: Dict[str, Any],
+    memory_system: dict[str, Any],
     query: str,
-    expected_relevant_indices: Optional[List[int]] = None,
+    expected_relevant_indices: Optional[list[int]] = None,
     plot: bool = True,
     save_path: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Analyze similarity distributions for a specific query.
 
@@ -104,7 +104,7 @@ def analyze_query_similarities(
 
         # Get similarities of expected memories
         expected_similarities = similarities[expected_relevant_indices]
-        expected_boosted = boosted_similarities[expected_relevant_indices]
+        boosted_similarities[expected_relevant_indices]
 
         results["expected_similarity_stats"] = {
             "mean": float(np.mean(expected_similarities)),
@@ -210,8 +210,8 @@ def analyze_query_similarities(
 
 
 def visualize_memory_categories(
-    memory_system: Dict[str, Any], save_path: Optional[str] = None
-) -> Dict[str, Any]:
+    memory_system: dict[str, Any], save_path: Optional[str] = None
+) -> dict[str, Any]:
     """
     Visualize memory categories and their relationships.
 
@@ -267,11 +267,11 @@ def visualize_memory_categories(
 
 
 def analyze_retrieval_performance(
-    memory_system: Dict[str, Any],
-    test_queries: List[Tuple[str, List[int]]],
-    parameter_variations: List[Dict[str, Any]],
+    memory_system: dict[str, Any],
+    test_queries: list[tuple[str, list[int]]],
+    parameter_variations: list[dict[str, Any]],
     save_path: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Analyze retrieval performance across different parameter settings.
 

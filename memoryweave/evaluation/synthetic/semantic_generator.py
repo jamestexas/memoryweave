@@ -7,19 +7,30 @@ relationships, memory chains, contradictions, and temporal structures.
 """
 
 import json
+import logging
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Optional, Union
 
 import numpy as np
+from rich.logging import RichHandler
 
-try:
+logging.basicConfig(
+    level="INFO",
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(markup=True)],
+)
+logger = logging.getLogger("memoryweave")
+if find_spec("sentence_transformers") is not None:
     from sentence_transformers import SentenceTransformer, util
 
     HAS_SENTENCE_TRANSFORMERS = True
-except ImportError:
+else:
+    logger.warning("[bold yellow]Optional dependency 'sentence_transformers' is not installed.[/]")
     HAS_SENTENCE_TRANSFORMERS = False
 
 
@@ -615,7 +626,7 @@ class SemanticDataGenerator:
         used_memory_indices = set()
 
         # Generate queries
-        for i in range(num_queries):
+        for _i in range(num_queries):
             # Select query type
             query_type = secrets.choice(query_types)
 

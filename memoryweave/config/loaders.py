@@ -7,8 +7,9 @@ such as JSON files, YAML files, and environment variables.
 import json
 import logging
 import os
+from importlib.util import find_spec
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 from memoryweave.config.options import get_default_config
 from memoryweave.config.validation import ConfigValidationError, validate_config
@@ -23,7 +24,7 @@ class ConfigLoader:
 
     def load_from_file(
         self, file_path: Union[str, Path], component_type: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Load configuration from a file.
 
         Args:
@@ -58,7 +59,7 @@ class ConfigLoader:
 
         return config
 
-    def load_with_defaults(self, config: Dict[str, Any], component_type: str) -> Dict[str, Any]:
+    def load_with_defaults(self, config: dict[str, Any], component_type: str) -> dict[str, Any]:
         """Load configuration with default values for missing options.
 
         Args:
@@ -75,7 +76,7 @@ class ConfigLoader:
 
         return merged
 
-    def load_from_env(self, prefix: str, component_type: Optional[str] = None) -> Dict[str, Any]:
+    def load_from_env(self, prefix: str, component_type: Optional[str] = None) -> dict[str, Any]:
         """Load configuration from environment variables.
 
         Args:
@@ -107,23 +108,22 @@ class ConfigLoader:
 
         return config
 
-    def _load_json(self, file_path: Path) -> Dict[str, Any]:
+    def _load_json(self, file_path: Path) -> dict[str, Any]:
         """Load configuration from a JSON file."""
         with open(file_path) as f:
             return json.load(f)
 
-    def _load_yaml(self, file_path: Path) -> Dict[str, Any]:
+    def _load_yaml(self, file_path: Path) -> dict[str, Any]:
         """Load configuration from a YAML file."""
-        try:
-            import yaml
-
-            with open(file_path) as f:
-                return yaml.safe_load(f)
-        except ImportError:
+        if find_spec("yaml") is None:
             self._logger.error(
                 "PyYAML is required to load YAML files. Install with 'pip install pyyaml'"
             )
             raise ImportError("PyYAML is required to load YAML files")
+        import yaml
+
+        with open(file_path) as f:
+            return yaml.safe_load(f)
 
     def _convert_env_value(self, value: str) -> Any:
         """Convert environment variable string to appropriate type."""

@@ -3,7 +3,7 @@ Unit tests for the MemoryDecayComponent.
 """
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 

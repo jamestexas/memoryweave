@@ -7,7 +7,7 @@ to improve retrieval relevance and capture relationships between memories.
 """
 
 import time
-from typing import Any, Dict, List, Set
+from typing import Any
 
 import numpy as np
 
@@ -35,11 +35,11 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
         self.topical_weight = 0.25
         self.context_window_size = 5
         self.decay_factor = 0.8
-        self.context_history: List[Dict[str, Any]] = []
+        self.context_history: list[dict[str, Any]] = []
         self.max_history_items = 20
         self.component_id = ComponentName.CONTEXTUAL_EMBEDDING_ENHANCER
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
 
@@ -59,7 +59,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
         self.decay_factor = config.get("decay_factor", 0.8)
         self.max_history_items = config.get("max_history_items", 20)
 
-    def process(self, data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """
         Process memory data to enhance embeddings with contextual information.
 
@@ -114,7 +114,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
 
         return result
 
-    def _update_context_history(self, data: Dict[str, Any], context: Dict[str, Any]) -> None:
+    def _update_context_history(self, data: dict[str, Any], context: dict[str, Any]) -> None:
         """
         Update the internal context history with new information.
 
@@ -138,7 +138,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
             self.context_history = self.context_history[-self.max_history_items :]
 
     def _extract_conversation_context(
-        self, conversation_history: List[Dict[str, Any]]
+        self, conversation_history: list[dict[str, Any]]
     ) -> np.ndarray:
         """
         Extract context embedding from conversation history.
@@ -182,7 +182,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
 
         return combined_embedding
 
-    def _extract_temporal_context(self, current_time: float, data: Dict[str, Any]) -> np.ndarray:
+    def _extract_temporal_context(self, current_time: float, data: dict[str, Any]) -> np.ndarray:
         """
         Extract temporal context embedding.
 
@@ -229,7 +229,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
 
         return time_vector
 
-    def _extract_topical_context(self, topics, data: Dict[str, Any]) -> np.ndarray:
+    def _extract_topical_context(self, topics, data: dict[str, Any]) -> np.ndarray:
         """
         Extract topical context embedding.
 
@@ -346,7 +346,7 @@ class ContextSignalExtractor(Component):
         """Initialize the context signal extractor."""
         self.component_id = "context_signal_extractor"
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
 
@@ -356,8 +356,8 @@ class ContextSignalExtractor(Component):
         pass
 
     def extract_conversation_signals(
-        self, conversation_history: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self, conversation_history: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """
         Extract signals from conversation history.
 
@@ -402,7 +402,7 @@ class ContextSignalExtractor(Component):
 
         return signals
 
-    def extract_temporal_signals(self, timestamps: List[float]) -> Dict[str, Any]:
+    def extract_temporal_signals(self, timestamps: list[float]) -> dict[str, Any]:
         """
         Extract temporal signals from a list of timestamps.
 
@@ -443,7 +443,7 @@ class ContextSignalExtractor(Component):
 
         return {"pattern": pattern, "frequency": frequency, "recency": recency}
 
-    def extract_content_signals(self, content: str) -> Dict[str, Any]:
+    def extract_content_signals(self, content: str) -> dict[str, Any]:
         """
         Extract signals from content text.
 

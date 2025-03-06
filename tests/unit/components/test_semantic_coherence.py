@@ -8,8 +8,9 @@ This module tests the SemanticCoherenceProcessor component to ensure:
 4. Different configurations use different coherence parameters
 """
 
-import pytest
 import numpy as np
+import pytest
+
 from memoryweave.components.post_processors import SemanticCoherenceProcessor
 
 
@@ -98,9 +99,11 @@ class TestSemanticCoherenceProcessor:
         factual_result = next(r for r in processed_results if r["type"] == "factual")
 
         # Find a personal result about cats (should not be penalized)
-        cat_result = next(
-            r for r in processed_results if "cat" in r["content"] and r["type"] == "personal"
-        )
+        assert (  # noqa: S101
+            cat_result := next(
+                r for r in processed_results if "cat" in r["content"] and r["type"] == "personal"
+            )
+        ) is not None, ""
 
         # The factual result should have a lower score than original
         original_factual = next(r for r in self.sample_results if r["type"] == "factual")

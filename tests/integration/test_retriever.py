@@ -5,8 +5,8 @@ Integration tests for the MemoryWeave retriever.
 import unittest
 
 from memoryweave.core.refactored_retrieval import RefactoredRetriever
-# ContextualRetriever has been migrated to components architecture
 
+# ContextualRetriever has been migrated to components architecture
 from tests.utils.mock_models import MockEmbeddingModel, MockMemory
 
 
@@ -181,9 +181,7 @@ class RetrieverIntegrationTest(unittest.TestCase):
         first_query = "Tell me about Python"
         conversation_history = []
 
-        first_results = self.refactored_retriever.retrieve_for_context(
-            first_query, conversation_history
-        )
+        self.refactored_retriever.retrieve_for_context(first_query, conversation_history)
 
         # Create conversation history
         conversation_history = [

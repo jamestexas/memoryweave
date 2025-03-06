@@ -6,7 +6,6 @@ including activation updates, decay, and retrieval based on activation level.
 
 import math
 import time
-from typing import Dict, List, Tuple
 
 from memoryweave.interfaces.memory import IActivationManager, MemoryID
 
@@ -27,8 +26,8 @@ class ActivationManager(IActivationManager):
             max_activation: Maximum activation level
             min_activation: Minimum activation level
         """
-        self._activations: Dict[MemoryID, float] = {}
-        self._last_updated: Dict[MemoryID, float] = {}
+        self._activations: dict[MemoryID, float] = {}
+        self._last_updated: dict[MemoryID, float] = {}
         self._initial_activation = initial_activation
         self._max_activation = max_activation
         self._min_activation = min_activation
@@ -79,7 +78,7 @@ class ActivationManager(IActivationManager):
             # Store updated activation
             self._activations[memory_id] = new_activation
 
-    def get_most_active(self, k: int) -> List[Tuple[MemoryID, float]]:
+    def get_most_active(self, k: int) -> list[tuple[MemoryID, float]]:
         """Get the k most active memories."""
         if not self._activations:
             return []
@@ -113,8 +112,8 @@ class TemporalActivationManager(IActivationManager):
             min_activation: Minimum activation level
             half_life_days: Number of days for activation to decay by half
         """
-        self._activations: Dict[MemoryID, float] = {}
-        self._last_updated: Dict[MemoryID, float] = {}
+        self._activations: dict[MemoryID, float] = {}
+        self._last_updated: dict[MemoryID, float] = {}
         self._initial_activation = initial_activation
         self._max_activation = max_activation
         self._min_activation = min_activation
@@ -177,7 +176,7 @@ class TemporalActivationManager(IActivationManager):
             self._activations[memory_id] = new_activation
             self._last_updated[memory_id] = current_time
 
-    def get_most_active(self, k: int) -> List[Tuple[MemoryID, float]]:
+    def get_most_active(self, k: int) -> list[tuple[MemoryID, float]]:
         """Get the k most active memories with decay applied."""
         if not self._activations:
             return []

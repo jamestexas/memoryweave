@@ -2,11 +2,12 @@
 Tests for the Pipeline and PipelineBuilder components.
 """
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
 from memoryweave.interfaces.pipeline import IPipelineStage
-from memoryweave.pipeline.builder import PipelineBuilder, Pipeline
+from memoryweave.pipeline.builder import Pipeline, PipelineBuilder
 
 
 class TestPipelineBuilder:

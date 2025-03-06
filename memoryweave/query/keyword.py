@@ -5,7 +5,7 @@ to enhance query understanding and retrieval relevance.
 """
 
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from memoryweave.interfaces.query import IQueryExpander
 from memoryweave.interfaces.retrieval import Query
@@ -14,19 +14,19 @@ from memoryweave.interfaces.retrieval import Query
 class KeywordExpander(IQueryExpander):
     """Expands queries with additional related keywords."""
 
-    def __init__(self, word_embeddings: Optional[Dict[str, List[float]]] = None):
+    def __init__(self, word_embeddings: Optional[dict[str, list[float]]] = None):
         """Initialize the keyword expander.
 
         Args:
             word_embeddings: Optional dictionary mapping words to embedding vectors
         """
         self._word_embeddings = word_embeddings or {}
-        self._word_to_id: Dict[str, int] = {
+        self._word_to_id: dict[str, int] = {
             word: i for i, word in enumerate(self._word_embeddings.keys())
         }
 
         # Word relationships (if no embeddings provided)
-        self._word_relationships: Dict[str, List[str]] = {}
+        self._word_relationships: dict[str, list[str]] = {}
 
         # Default configuration
         self._config = {
@@ -65,7 +65,7 @@ class KeywordExpander(IQueryExpander):
 
         return expanded_query
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the keyword expander."""
         if "expansion_count" in config:
             self._config["expansion_count"] = config["expansion_count"]
@@ -81,7 +81,7 @@ class KeywordExpander(IQueryExpander):
             for word, related in config["word_relationships"].items():
                 self._word_relationships[word] = related
 
-    def _find_related_keywords(self, keyword: str, count: int, min_similarity: float) -> List[str]:
+    def _find_related_keywords(self, keyword: str, count: int, min_similarity: float) -> list[str]:
         """Find related keywords for a given keyword."""
         if self._config["use_embeddings"] and keyword in self._word_embeddings:
             return self._find_related_by_embedding(keyword, count, min_similarity)
@@ -90,7 +90,7 @@ class KeywordExpander(IQueryExpander):
 
     def _find_related_by_embedding(
         self, keyword: str, count: int, min_similarity: float
-    ) -> List[str]:
+    ) -> list[str]:
         """Find related keywords using word embeddings."""
         if not self._word_embeddings or keyword not in self._word_embeddings:
             return []
@@ -109,12 +109,12 @@ class KeywordExpander(IQueryExpander):
         related = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
         return [word for word, _ in related[:count]]
 
-    def _find_related_by_relationships(self, keyword: str, count: int) -> List[str]:
+    def _find_related_by_relationships(self, keyword: str, count: int) -> list[str]:
         """Find related keywords using predefined relationships."""
         related = self._word_relationships.get(keyword.lower(), [])
         return related[:count]
 
-    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+    def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
         """Compute cosine similarity between two vectors."""
         if len(vec1) != len(vec2):
             return 0.0

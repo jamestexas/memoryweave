@@ -5,7 +5,7 @@ allowing components to be registered, retrieved, and managed.
 """
 
 import logging
-from typing import Dict, List, Optional, Set
+from typing import Optional
 
 from memoryweave.interfaces.pipeline import (
     ComponentID,
@@ -20,8 +20,8 @@ class ComponentRegistry(IComponentRegistry):
 
     def __init__(self):
         """Initialize the component registry."""
-        self._components: Dict[ComponentID, IComponent] = {}
-        self._type_index: Dict[ComponentType, Set[ComponentID]] = {
+        self._components: dict[ComponentID, IComponent] = {}
+        self._type_index: dict[ComponentType, set[ComponentID]] = {
             component_type: set() for component_type in ComponentType
         }
         self._logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ class ComponentRegistry(IComponentRegistry):
         """Get a component by ID."""
         return self._components.get(component_id)
 
-    def get_components_by_type(self, component_type: ComponentType) -> List[IComponent]:
+    def get_components_by_type(self, component_type: ComponentType) -> list[IComponent]:
         """Get all components of a specific type."""
         component_ids = self._type_index.get(component_type, set())
         return [self._components[component_id] for component_id in component_ids]
@@ -79,7 +79,7 @@ class ComponentRegistry(IComponentRegistry):
         self._logger.debug(f"Removed component '{component_id}'")
         return True
 
-    def get_all_components(self) -> List[IComponent]:
+    def get_all_components(self) -> list[IComponent]:
         """Get all registered components."""
         return list(self._components.values())
 
@@ -91,10 +91,10 @@ class ComponentRegistry(IComponentRegistry):
         """Check if a component with the given ID is registered."""
         return component_id in self._components
 
-    def get_component_ids(self) -> List[ComponentID]:
+    def get_component_ids(self) -> list[ComponentID]:
         """Get all registered component IDs."""
         return list(self._components.keys())
 
-    def get_component_ids_by_type(self, component_type: ComponentType) -> List[ComponentID]:
+    def get_component_ids_by_type(self, component_type: ComponentType) -> list[ComponentID]:
         """Get all component IDs of a specific type."""
         return list(self._type_index.get(component_type, set()))

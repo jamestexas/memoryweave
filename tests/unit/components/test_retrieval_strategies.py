@@ -14,7 +14,6 @@ from memoryweave.components.retrieval_strategies import (
 )
 from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
 from tests.utils.mock_models import MockMemory
-from tests.utils.test_fixtures import create_test_embedding
 
 
 class RetrievalStrategiesTest(unittest.TestCase):

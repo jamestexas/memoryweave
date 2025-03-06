@@ -2,7 +2,7 @@
 Metrics for evaluating conversational coherence and memory effectiveness.
 """
 
-from typing import Any, List, Dict
+from typing import Any
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -134,7 +134,7 @@ def response_consistency(
     return float(similarity)
 
 
-def calculate_semantic_coherence(memories: List[Dict[str, Any]]) -> float:
+def calculate_semantic_coherence(memories: list[dict[str, Any]]) -> float:
     """
     Calculate semantic coherence between a set of retrieved memories.
 

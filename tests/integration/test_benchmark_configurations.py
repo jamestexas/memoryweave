@@ -5,20 +5,14 @@ This test creates a simplified version of the benchmark to validate
 that different configurations lead to measurably different metrics.
 """
 
-import pytest
-import numpy as np
 from dataclasses import dataclass
-from typing import Dict, Any, List, Set
+
+import numpy as np
+import pytest
 
 from memoryweave.components.retriever import Retriever
-from memoryweave.core.contextual_memory import ContextualMemory
 from memoryweave.evaluation.synthetic.benchmark import BenchmarkConfig
-
-from tests.utils.test_fixtures import (
-    create_test_memory,
-    verify_retrieval_results,
-    assert_specific_difference,
-)
+from tests.utils.test_fixtures import create_test_memory, verify_retrieval_results
 
 
 @dataclass
@@ -29,7 +23,7 @@ class BenchmarkMetrics:
     recall: float
     f1_score: float
     retrieval_count: float
-    significant_features: Set[str]
+    significant_features: set[str]
 
     @property
     def summary(self) -> str:

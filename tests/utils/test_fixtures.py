@@ -4,16 +4,17 @@ This module provides fixtures for creating test data, verifying results,
 and setting up test environments in a consistent way.
 """
 
-import numpy as np
-from typing import Dict, List, Any, Tuple, Set, Optional, Union
 import hashlib
+from typing import Any, Union, dict, list, tuple
 
-from memoryweave.core.contextual_memory import ContextualMemory
+import numpy as np
+
 from memoryweave.components.retrieval_strategies import (
-    SimilarityRetrievalStrategy,
     HybridRetrievalStrategy,
+    SimilarityRetrievalStrategy,
     TwoStageRetrievalStrategy,
 )
+from memoryweave.core.contextual_memory import ContextualMemory
 
 
 class PredictableTestEmbeddings:
@@ -117,8 +118,8 @@ def create_test_embedding(text: str, dim: int = 768) -> np.ndarray:
             embedding[i % dim] += ord(char) / 1000
 
         # Use hash of text for additional patterns
-        text_hash = hashlib.md5(text.encode()).digest()
-        for i, byte in enumerate(text_hash):
+        text_hash = hashlib.md5(text.encode()).digest()  # noqa: S324
+        for _i, byte in enumerate(text_hash):
             pos = byte % dim
             embedding[pos] += byte / 256
 
@@ -135,7 +136,7 @@ def create_test_embedding(text: str, dim: int = 768) -> np.ndarray:
 
 def create_test_memories(
     num_memories: int = 10, embedding_dim: int = 768
-) -> Tuple[List[np.ndarray], List[str], List[Dict[str, Any]]]:
+) -> tuple[list[np.ndarray], list[str], list[dict[str, Any]]]:
     """Create test memories with deterministic patterns.
 
     Args:
@@ -143,7 +144,7 @@ def create_test_memories(
         embedding_dim: Dimension of the memory embeddings
 
     Returns:
-        Tuple of (embeddings, texts, metadata)
+        tuple of (embeddings, texts, metadata)
     """
     embeddings = []
     texts = []
@@ -284,24 +285,32 @@ def create_test_memory(embedding_dim: int = 768) -> ContextualMemory:
     return memory
 
 
-def create_retrieval_components(memory: ContextualMemory) -> Dict[str, Any]:
+def create_retrieval_components(memory: ContextualMemory) -> dict[str, Any]:
     """Create a suite of retrieval components for testing.
 
     Args:
         memory: ContextualMemory instance to use for retrieval
 
     Returns:
-        Dictionary of retrieval components
+        dictionary of retrieval components
     """
     # Create base retrieval strategies
     similarity_strategy = SimilarityRetrievalStrategy(memory)
     similarity_strategy.initialize(
-        {"confidence_threshold": 0.3, "activation_boost": True, "min_results": 3}
+        {
+            "confidence_threshold": 0.3,
+            "activation_boost": True,
+            "min_results": 3,
+        }
     )
 
     hybrid_strategy = HybridRetrievalStrategy(memory)
     hybrid_strategy.initialize(
-        {"confidence_threshold": 0.3, "relevance_weight": 0.7, "recency_weight": 0.3}
+        {
+            "confidence_threshold": 0.3,
+            "relevance_weight": 0.7,
+            "recency_weight": 0.3,
+        }
     )
 
     # Create mock post-processors
@@ -316,7 +325,11 @@ def create_retrieval_components(memory: ContextualMemory) -> Dict[str, Any]:
         memory, base_strategy=similarity_strategy, post_processors=[]
     )
     basic_two_stage.initialize(
-        {"confidence_threshold": 0.3, "first_stage_k": 3, "first_stage_threshold_factor": 0.7}
+        {
+            "confidence_threshold": 0.3,
+            "first_stage_k": 3,
+            "first_stage_threshold_factor": 0.7,
+        }
     )
 
     advanced_two_stage = TwoStageRetrievalStrategy(
@@ -325,7 +338,11 @@ def create_retrieval_components(memory: ContextualMemory) -> Dict[str, Any]:
         post_processors=[keyword_processor, coherence_processor],
     )
     advanced_two_stage.initialize(
-        {"confidence_threshold": 0.3, "first_stage_k": 5, "first_stage_threshold_factor": 0.7}
+        {
+            "confidence_threshold": 0.3,
+            "first_stage_k": 5,
+            "first_stage_threshold_factor": 0.7,
+        }
     )
 
     return {
@@ -341,13 +358,13 @@ def create_retrieval_components(memory: ContextualMemory) -> Dict[str, Any]:
 class MockKeywordProcessor:
     """Mock implementation of a keyword boost processor."""
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
         self.keyword_boost_weight = config.get("keyword_boost_weight", 0.5)
 
     def process_results(
-        self, results: List[Dict[str, Any]], query: str, context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Process results by boosting keyword matches."""
         # Get keywords from context
         keywords = context.get("important_keywords", set())
@@ -391,13 +408,13 @@ class MockKeywordProcessor:
 class MockCoherenceProcessor:
     """Mock implementation of a semantic coherence processor."""
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
         self.coherence_threshold = config.get("coherence_threshold", 0.2)
 
     def process_results(
-        self, results: List[Dict[str, Any]], query: str, context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Process results by filtering and adjusting for coherence."""
         # Check if semantic coherence is enabled
         if not context.get("enable_semantic_coherence", False):
@@ -437,7 +454,7 @@ class MockCoherenceProcessor:
         return processed_results
 
 
-def create_test_queries(num_queries: int = 3, embedding_dim: int = 768) -> List[Dict[str, Any]]:
+def create_test_queries(num_queries: int = 3, embedding_dim: int = 768) -> list[dict[str, Any]]:
     """Create test queries with predictable patterns.
 
     Args:
@@ -445,7 +462,7 @@ def create_test_queries(num_queries: int = 3, embedding_dim: int = 768) -> List[
         embedding_dim: Dimension of the query embeddings
 
     Returns:
-        List of query dictionaries
+        list of query dictionaries
     """
     queries = []
 
@@ -490,11 +507,11 @@ def create_test_queries(num_queries: int = 3, embedding_dim: int = 768) -> List[
 
 
 def verify_retrieval_results(
-    results: List[Dict[str, Any]],
-    expected_content: Union[List[int], List[str]],
+    results: list[dict[str, Any]],
+    expected_content: Union[list[int], list[str]],
     require_all: bool = False,
     check_order: bool = False,
-) -> Union[bool, Tuple[bool, Dict[str, Any]]]:
+) -> Union[bool, tuple[bool, dict[str, Any]]]:
     """Verify retrieval results against expected content.
 
     This function can check for either:
@@ -502,8 +519,8 @@ def verify_retrieval_results(
     2. Content keywords in the retrieved memories
 
     Args:
-        results: List of retrieval results
-        expected_content: List of expected memory indices or content keywords
+        results: list of retrieval results
+        expected_content: list of expected memory indices or content keywords
         require_all: Whether all expected content must be present
         check_order: Whether to check the order of results
 
@@ -521,12 +538,12 @@ def verify_retrieval_results(
 
 
 def _verify_content_keywords(
-    results: List[Dict[str, Any]], expected_keywords: List[str], require_all: bool = False
+    results: list[dict[str, Any]], expected_keywords: list[str], require_all: bool = False
 ) -> bool:
     """Check if result content contains the expected keywords.
 
     Args:
-        results: List of retrieval results
+        results: list of retrieval results
         expected_keywords: Keywords to look for in content
         require_all: Whether all keywords must be found
 
@@ -560,21 +577,21 @@ def _verify_content_keywords(
 
 
 def _verify_indices(
-    results: List[Dict[str, Any]],
-    expected_indices: List[int],
+    results: list[dict[str, Any]],
+    expected_indices: list[int],
     require_all: bool = False,
     check_order: bool = False,
-) -> Tuple[bool, Dict[str, Any]]:
+) -> tuple[bool, dict[str, Any]]:
     """Verify retrieval results against expected indices.
 
     Args:
-        results: List of retrieval results
-        expected_indices: List of expected memory indices
+        results: list of retrieval results
+        expected_indices: list of expected memory indices
         require_all: Whether all expected indices must be present
         check_order: Whether to check the order of results
 
     Returns:
-        Tuple of (success, metrics)
+        tuple of (success, metrics)
     """
     # Extract indices from results
     retrieved_indices = []
@@ -642,8 +659,8 @@ def _verify_indices(
 
 
 def assert_specific_difference(
-    results1: List[Dict[str, Any]], results2: List[Dict[str, Any]], message_prefix: str
-) -> Tuple[bool, str]:
+    results1: list[dict[str, Any]], results2: list[dict[str, Any]], message_prefix: str
+) -> tuple[bool, str]:
     """Assert that two result sets have specific, meaningful differences.
 
     Args:
@@ -652,7 +669,7 @@ def assert_specific_difference(
         message_prefix: Prefix for the error message
 
     Returns:
-        Tuple of (difference_found, message)
+        tuple of (difference_found, message)
     """
     differences = []
 

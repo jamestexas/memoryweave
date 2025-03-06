@@ -19,8 +19,9 @@ from memoryweave.components.associative_linking import AssociativeMemoryLinker
 from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.component_names import ComponentName
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.interfaces.memory import IMemoryStore, MemoryID
-from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.interfaces.memory import MemoryID
+from memoryweave.storage.refactored.base_store import BaseMemoryStore
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -49,7 +50,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
 
     def __init__(
         self,
-        memory_store: Optional[IMemoryStore] = None,
+        memory_store: Optional[BaseMemoryStore] = None,
         associative_linker: Optional[AssociativeMemoryLinker] = None,
         temporal_context: Optional[TemporalContextBuilder] = None,
         activation_manager: Optional[ActivationManager] = None,
@@ -129,7 +130,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         self,
         query: str,
         context: dict[str, Any],
-        memory_store: MemoryStore | None = None,
+        memory_store: StandardMemoryStore | None = None,
     ) -> dict:
         """
         Retrieve temporal matching results based on query time references.
@@ -253,6 +254,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         query_embedding: np.ndarray,
         top_k: int,
         context: dict[str, Any],
+        query: str = None,  # Add this parameter
     ) -> list[dict[str, Any]]:
         """
         Retrieve memories using the contextual fabric strategy.
@@ -261,6 +263,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
             query_embedding: Query embedding for similarity matching.
             top_k: Number of results to return.
             context: Context containing query, memory, etc.
+            query: Original query text (optional)
 
         Returns:
             List of retrieved memory dicts with relevance scores.
@@ -268,11 +271,14 @@ class ContextualFabricStrategy(RetrievalStrategy):
         # Get memory store from context or instance
         memory_store = context.get("memory_store", self.memory_store)
 
-        # Get query from context
-        query = context.get("query", "")
+        # Get query from context or parameter
+        query = query or context.get("query", "")
 
         # Get current time from context or use current time
         current_time = context.get("current_time", time.time())
+
+        # Pass the current time to the context for temporal operations
+        context["current_time"] = current_time
 
         # Apply parameter adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
@@ -305,11 +311,15 @@ class ContextualFabricStrategy(RetrievalStrategy):
         associative_results = self._retrieve_associative_results(similarity_results)
 
         # Step 3: Get temporal context (if available)
-        temporal_results = self._retrieve_temporal_results(query, context, memory_store)
+        # Pass the current time explicitly
+        temporal_context = context.copy()  # Copy to avoid modifying the original
+        temporal_context["current_time"] = current_time
+        temporal_results = self._retrieve_temporal_results(query, temporal_context, memory_store)
 
         # Step 4: Get activation scores (if available)
         activation_results = {}
         if self.activation_manager is not None:
+            # Don't pass current_time if the method doesn't accept it
             activations = self.activation_manager.get_activated_memories(threshold=0.1)
             activation_results = dict(activations)
 
@@ -387,7 +397,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         self,
         query_embedding: np.ndarray,
         max_results: int,
-        memory_store: Optional[IMemoryStore],
+        memory_store: Optional[BaseMemoryStore],
         use_progressive_filtering: bool = False,
         use_batched_computation: bool = False,
         batch_size: int = 200,
@@ -469,12 +479,14 @@ class ContextualFabricStrategy(RetrievalStrategy):
             # Z-score > -1.0 means "not unusually dissimilar"
             if normalized_score > -1.0 or raw_similarity > 0.5:
                 # Add to results
-                results.append({
-                    "memory_id": int(idx),
-                    "similarity_score": raw_similarity,
-                    "normalized_score": normalized_score,
-                    **memory_store.memory_metadata[idx],
-                })
+                results.append(
+                    {
+                        "memory_id": int(idx),
+                        "similarity_score": raw_similarity,
+                        "normalized_score": normalized_score,
+                        **memory_store.memory_metadata[idx],
+                    }
+                )
 
         return results
 
@@ -482,7 +494,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         self,
         query_embedding: np.ndarray,
         max_results: int,
-        memory_store: IMemoryStore,
+        memory_store: BaseMemoryStore,
         use_progressive_filtering: bool,
         use_batched_computation: bool,
         batch_size: int,
@@ -599,12 +611,14 @@ class ContextualFabricStrategy(RetrievalStrategy):
             # Apply filtering threshold
             if normalized_score > -1.0 or raw_similarity > 0.5:
                 # Add to results
-                results.append({
-                    "memory_id": int(idx),
-                    "similarity_score": raw_similarity,
-                    "normalized_score": normalized_score,
-                    **memory_store.memory_metadata[idx],
-                })
+                results.append(
+                    {
+                        "memory_id": int(idx),
+                        "similarity_score": raw_similarity,
+                        "normalized_score": normalized_score,
+                        **memory_store.memory_metadata[idx],
+                    }
+                )
 
         return results
 
@@ -614,7 +628,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         associative_results: dict[MemoryID, float],
         temporal_results: dict[MemoryID, float],
         activation_results: dict[MemoryID, float],
-        memory_store: Optional[IMemoryStore],
+        memory_store: Optional[BaseMemoryStore],
     ) -> list[dict[str, Any]]:
         """
         Combine results from different sources with enhanced temporal handling.
@@ -682,7 +696,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
 
             # Adjust other weights proportionally
             remaining_weight = 1.0 - (similarity_weight + activation_weight)
-            proportion = associative_weight / (associative_weight + temporal_weight)
+            proportion = associative_weight / max(0.0001, (associative_weight + temporal_weight))
             associative_weight = remaining_weight * proportion
             temporal_weight = remaining_weight * (1 - proportion)
 
@@ -789,7 +803,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
                 combined_dict[memory_id]["activation_score"] = score
 
         # Calculate weighted scores
-        for memory_id, result in combined_dict.items():
+        for _memory_id, result in combined_dict.items():
             # Use normalized score if available, otherwise raw similarity
             similarity = result.get("normalized_score", result["similarity_score"])
 

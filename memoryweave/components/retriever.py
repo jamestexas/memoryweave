@@ -41,11 +41,11 @@ from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy imp
     HybridBM25VectorStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 
 logger = logging.getLogger(__name__)
 
-_MEMORY_STORE = MemoryStore()
+_MEMORY_STORE = StandardMemoryStore()
 _EMBEDDER = None
 _EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-MiniLM-L6-v2"
 _RETRIEVER = None
@@ -54,7 +54,7 @@ _RETRIEVER = None
 def _get_memory_store():
     global _MEMORY_STORE
     if _MEMORY_STORE is None:
-        _MEMORY_STORE = MemoryStore()
+        _MEMORY_STORE = StandardMemoryStore()
     return _MEMORY_STORE
 
 
@@ -66,7 +66,7 @@ def _get_embedder(model_name: str = _EMBEDDING_MODEL_NAME, **kwargs) -> Any:
 
 
 def _get_retriever(
-    memory_store: None | MemoryStore = None,
+    memory_store: None | StandardMemoryStore = None,
     embedding_model: None | SentenceTransformer | Any = None,
     embedding_model_name: str = "sentence-transformers/paraphrase-MiniLM-L6-v2",
 ):
@@ -89,7 +89,7 @@ class Retriever:
     components for query analysis, retrieval strategies, and post-processing.
     """
 
-    def __init__(self, memory: MemoryStore | None = None, embedding_model=None) -> None:
+    def __init__(self, memory: StandardMemoryStore | None = None, embedding_model=None) -> None:
         """
         Initialize the retriever.
 
@@ -100,7 +100,7 @@ class Retriever:
         # If memory is not provided, create a new memory manager
         self.memory_manager = MemoryManager(memory)  # Pass along if you have one
         if memory is None:
-            self.memory = self.memory_manager.memory_store  # Use the created MemoryStore
+            self.memory = self.memory_manager.memory_store  # Use the created StandardMemoryStore
 
         # Else use the provided memory instance
         else:
@@ -188,14 +188,16 @@ class Retriever:
 
         # Hybrid BM25+Vector
         hybrid_bm25_vector_retrieval = HybridBM25VectorStrategy(self.memory)
-        hybrid_bm25_vector_retrieval.initialize({
-            "vector_weight": 0.2,
-            "bm25_weight": 0.8,
-            "confidence_threshold": self.minimum_relevance,
-            "activation_boost": True,
-            "enable_dynamic_weighting": True,
-            "keyword_weight_bias": 0.7,
-        })
+        hybrid_bm25_vector_retrieval.initialize(
+            {
+                "vector_weight": 0.2,
+                "bm25_weight": 0.8,
+                "confidence_threshold": self.minimum_relevance,
+                "activation_boost": True,
+                "enable_dynamic_weighting": True,
+                "keyword_weight_bias": 0.7,
+            }
+        )
         self.memory_manager.register_component(
             "hybrid_bm25_vector_retrieval", hybrid_bm25_vector_retrieval
         )
@@ -216,15 +218,17 @@ class Retriever:
             temporal_context=temporal_context,
             activation_manager=activation_manager,
         )
-        contextual_fabric.initialize({
-            "confidence_threshold": self.minimum_relevance,
-            "similarity_weight": 0.5,
-            "associative_weight": 0.3,
-            "temporal_weight": 0.1,
-            "activation_weight": 0.1,
-            "activation_boost_factor": 1.5,
-            "memory_store": self.memory,
-        })
+        contextual_fabric.initialize(
+            {
+                "confidence_threshold": self.minimum_relevance,
+                "similarity_weight": 0.5,
+                "associative_weight": 0.3,
+                "temporal_weight": 0.1,
+                "activation_weight": 0.1,
+                "activation_boost_factor": 1.5,
+                "memory_store": self.memory,
+            }
+        )
 
         self.memory_manager.register_component("contextual_fabric_strategy", contextual_fabric)
 
@@ -244,21 +248,25 @@ class Retriever:
         self.post_processors.append(attribute_processor)
 
         memory_decay = MemoryDecayComponent()
-        memory_decay.initialize({
-            "memory_decay_enabled": self.memory_decay_enabled,
-            "memory_decay_rate": self.memory_decay_rate,
-            "memory_decay_interval": self.memory_decay_interval,
-            "memory": self.memory,
-        })
+        memory_decay.initialize(
+            {
+                "memory_decay_enabled": self.memory_decay_enabled,
+                "memory_decay_rate": self.memory_decay_rate,
+                "memory_decay_interval": self.memory_decay_interval,
+                "memory": self.memory,
+            }
+        )
         self.memory_manager.register_component("memory_decay", memory_decay)
 
         min_result_processor = MinimumResultGuaranteeProcessor()
-        min_result_processor.initialize({
-            "min_results": self.min_results_guarantee,
-            "fallback_threshold_factor": 0.5,
-            "min_fallback_threshold": 0.05,
-            "memory": self.memory,
-        })
+        min_result_processor.initialize(
+            {
+                "min_results": self.min_results_guarantee,
+                "fallback_threshold_factor": 0.5,
+                "min_fallback_threshold": 0.05,
+                "memory": self.memory,
+            }
+        )
         self.memory_manager.register_component("min_result_guarantee", min_result_processor)
         self.post_processors.append(min_result_processor)
 
@@ -397,6 +405,7 @@ class Retriever:
             logger.debug(
                 f"Step {i}: {comp.__class__.__name__}, id={id(comp)} config={step.get('config')}"
             )
+
     def _ensure_components_registered(self):
         """Ensure all required components are registered properly."""
         # Check for missing core components and register them if needed
@@ -471,12 +480,14 @@ class Retriever:
         if not hasattr(self, "semantic_coherence_processor"):
             self.semantic_coherence_processor = SemanticCoherenceProcessor()
             # Initialize with proper configuration
-            self.semantic_coherence_processor.initialize({
-                "coherence_threshold": 0.2,
-                "enable_query_type_filtering": True,
-                "enable_pairwise_coherence": True,
-                "enable_clustering": False,
-            })
+            self.semantic_coherence_processor.initialize(
+                {
+                    "coherence_threshold": 0.2,
+                    "enable_query_type_filtering": True,
+                    "enable_pairwise_coherence": True,
+                    "enable_clustering": False,
+                }
+            )
             logger.info(
                 "Retriever.configure_semantic_coherence: Created new SemanticCoherenceProcessor"
             )
@@ -747,11 +758,13 @@ class Retriever:
             self.conversation_history = conversation_history
 
         # Add current input to conversation history
-        self.conversation_history.append({
-            "role": "user",
-            "content": current_input,
-            "timestamp": np.datetime64("now"),
-        })
+        self.conversation_history.append(
+            {
+                "role": "user",
+                "content": current_input,
+                "timestamp": np.datetime64("now"),
+            }
+        )
 
         # Limit conversation history length
         max_history = 10
@@ -855,11 +868,13 @@ class Retriever:
         # If we already have a two-stage strategy, update its configuration
         if self.two_stage_strategy:
             # Update the existing strategy with the new parameters
-            self.two_stage_strategy.initialize({
-                "confidence_threshold": self.minimum_relevance,
-                "first_stage_k": first_stage_k,
-                "first_stage_threshold_factor": first_stage_threshold_factor,
-            })
+            self.two_stage_strategy.initialize(
+                {
+                    "confidence_threshold": self.minimum_relevance,
+                    "first_stage_k": first_stage_k,
+                    "first_stage_threshold_factor": first_stage_threshold_factor,
+                }
+            )
 
         # Rebuild pipeline with updated configuration
         self._build_default_pipeline()
@@ -881,12 +896,14 @@ class Retriever:
 
         # Update query adapter configuration
         if self.query_adapter:
-            self.query_adapter.initialize({
-                "adaptation_strength": adaptation_strength if enable else 0.0,
-                "confidence_threshold": self.minimum_relevance,
-                "first_stage_k": self.first_stage_k,
-                "first_stage_threshold_factor": self.first_stage_threshold_factor,
-            })
+            self.query_adapter.initialize(
+                {
+                    "adaptation_strength": adaptation_strength if enable else 0.0,
+                    "confidence_threshold": self.minimum_relevance,
+                    "first_stage_k": self.first_stage_k,
+                    "first_stage_threshold_factor": self.first_stage_threshold_factor,
+                }
+            )
 
         # Rebuild pipeline with updated configuration
         self._build_default_pipeline()

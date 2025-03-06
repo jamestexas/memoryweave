@@ -1,13 +1,12 @@
 # memoryweave/components/retrieval_strategies.py
-from typing import Any, List, Optional
+from typing import Any
 
 import numpy as np
 
 from memoryweave.components.base import RetrievalStrategy
 
-# Import here to avoid circular imports
-from memoryweave.core import ContextualMemory
-from memoryweave.core.category_manager import CategoryManager
+# Remove the import from core
+# from memoryweave.core import ContextualMemory
 
 
 class SimilarityRetrievalStrategy(RetrievalStrategy):
@@ -15,7 +14,7 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
     Retrieves memories based purely on similarity to query embedding.
     """
 
-    def __init__(self, memory: ContextualMemory):
+    def __init__(self, memory: Any):
         self.memory = memory
 
     def initialize(self, config: dict[str, Any]) -> None:
@@ -158,7 +157,7 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
                 # Use keywords if available
                 keywords = context.get("important_keywords", set())
                 if keywords:
-                    for i, kw in enumerate(keywords):
+                    for _i, kw in enumerate(keywords):
                         pos = hash(kw) % dim
                         embedding[pos] += 0.5
             else:
@@ -197,7 +196,7 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
     Retrieves memories based on recency and activation.
     """
 
-    def __init__(self, memory: ContextualMemory):
+    def __init__(self, memory: Any):
         self.memory = memory
 
     def initialize(self, config: dict[str, Any]) -> None:
@@ -270,7 +269,7 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
                 )
 
         # Check if we're in evaluation mode
-        in_evaluation = context.get("in_evaluation", False)
+        context.get("in_evaluation", False)
 
         # Standard retrieval logic
         logger.info("TemporalRetrievalStrategy: Using temporal retrieval")
@@ -307,7 +306,7 @@ class HybridRetrievalStrategy(RetrievalStrategy):
     Hybrid retrieval combining similarity, recency, and keyword matching.
     """
 
-    def __init__(self, memory: ContextualMemory):
+    def __init__(self, memory: Any):
         self.memory = memory
 
     def initialize(self, config: dict[str, Any]) -> None:
@@ -459,7 +458,7 @@ class HybridRetrievalStrategy(RetrievalStrategy):
                 # Use keywords if available
                 keywords = context.get("important_keywords", set())
                 if keywords:
-                    for i, kw in enumerate(keywords):
+                    for _i, kw in enumerate(keywords):
                         pos = hash(kw) % dim
                         embedding[pos] += 0.5
             else:
@@ -502,7 +501,7 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
 
     def __init__(
         self,
-        memory: ContextualMemory,
+        memory: Any,
         base_strategy: RetrievalStrategy = None,
         post_processors: list = None,
     ):
@@ -817,7 +816,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
     categories.
     """
 
-    def __init__(self, memory: ContextualMemory):
+    def __init__(self, memory: Any):
         """
         Initialize with memory and category manager.
 
@@ -839,7 +838,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
 
     def retrieve(
         self, query_embedding: np.ndarray, top_k: int, context: dict[str, Any]
-    ) -> List[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Retrieve memories using category-based retrieval."""
         import logging
 
@@ -1038,7 +1037,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
                 # Use keywords if available
                 keywords = context.get("important_keywords", set())
                 if keywords:
-                    for i, kw in enumerate(keywords):
+                    for _i, kw in enumerate(keywords):
                         pos = hash(kw) % dim
                         embedding[pos] += 0.5
             else:

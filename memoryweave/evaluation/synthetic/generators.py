@@ -10,16 +10,17 @@ evaluation data that can test diverse memory retrieval scenarios.
 import json
 import secrets
 from dataclasses import dataclass, field
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Optional, Union
 
 import numpy as np
 
-try:
+if find_spec("sentence_transformers") is not None:
     from sentence_transformers import SentenceTransformer
 
     HAS_SENTENCE_TRANSFORMERS = True
-except ImportError:
+else:
     HAS_SENTENCE_TRANSFORMERS = False
 
 
@@ -776,7 +777,7 @@ class SyntheticQueryGenerator:
                 slot_values[slot] = secrets.choice(query_data["generic"][slot])
             # If still not found, try any category
             else:
-                for cat, attrs in query_data.items():
+                for _cat, attrs in query_data.items():
                     if slot in attrs and attrs[slot]:
                         slot_values[slot] = secrets.choice(attrs[slot])
                         break

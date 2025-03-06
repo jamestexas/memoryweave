@@ -5,7 +5,7 @@ allowing flexible configuration of processing steps.
 """
 
 import logging
-from typing import Generic, List, TypeVar
+from typing import Generic, TypeVar
 
 from memoryweave.interfaces.pipeline import IPipeline, IPipelineBuilder, IPipelineStage
 
@@ -16,7 +16,7 @@ U = TypeVar("U")
 class Pipeline(Generic[T, U], IPipeline[T, U]):
     """Implementation of a component pipeline."""
 
-    def __init__(self, stages: List[IPipelineStage], name: str = "pipeline"):
+    def __init__(self, stages: list[IPipelineStage], name: str = "pipeline"):
         """Initialize the pipeline.
 
         Args:
@@ -42,7 +42,7 @@ class Pipeline(Generic[T, U], IPipeline[T, U]):
         # Return the final result
         return current_data
 
-    def get_stages(self) -> List[IPipelineStage]:
+    def get_stages(self) -> list[IPipelineStage]:
         """Get all stages in the pipeline."""
         return self._stages.copy()
 
@@ -56,7 +56,7 @@ class PipelineBuilder(IPipelineBuilder, Generic[T, U]):
         Args:
             name: Name of the pipeline
         """
-        self._stages: List[IPipelineStage] = []
+        self._stages: list[IPipelineStage] = []
         self._name = name
         self._logger = logging.getLogger(__name__)
 

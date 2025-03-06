@@ -8,14 +8,15 @@ enabling spreading activation through the associative memory fabric.
 
 import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import numpy as np
 
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
 from memoryweave.components.base import Component
 from memoryweave.components.component_names import ComponentName
-from memoryweave.interfaces.memory import IMemoryStore, MemoryID
+from memoryweave.interfaces.memory import MemoryID
+from memoryweave.storage.refactored.base_store import BaseMemoryStore
 
 
 class ActivationManager(Component):
@@ -34,7 +35,7 @@ class ActivationManager(Component):
 
     def __init__(
         self,
-        memory_store: Optional[IMemoryStore] = None,
+        memory_store: Optional[BaseMemoryStore] = None,
         associative_linker: Optional[AssociativeMemoryLinker] = None,
     ):
         """
@@ -58,12 +59,12 @@ class ActivationManager(Component):
         self.long_term_threshold = 7 * 86400  # 7 days
 
         # Activation state
-        self.activation_levels: Dict[MemoryID, float] = defaultdict(float)
-        self.activation_history: Dict[MemoryID, List[Tuple[float, float]]] = defaultdict(list)
+        self.activation_levels: dict[MemoryID, float] = defaultdict(float)
+        self.activation_history: dict[MemoryID, list[tuple[float, float]]] = defaultdict(list)
         self.last_update_time = time.time()
-        self.activation_timestamps: Dict[MemoryID, float] = {}
+        self.activation_timestamps: dict[MemoryID, float] = {}
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
 
@@ -127,7 +128,7 @@ class ActivationManager(Component):
 
     def activate_memory(
         self, memory_id: MemoryID, activation_level: float = 1.0, spread: bool = True
-    ) -> Dict[MemoryID, float]:
+    ) -> dict[MemoryID, float]:
         """
         Activate a specific memory and optionally spread activation.
 
@@ -174,7 +175,7 @@ class ActivationManager(Component):
 
     def _spread_activation(
         self, source_id: MemoryID, source_activation: float
-    ) -> Dict[MemoryID, float]:
+    ) -> dict[MemoryID, float]:
         """
         Spread activation from a source memory through associative links.
 
@@ -308,7 +309,7 @@ class ActivationManager(Component):
         """
         return self.activation_levels.get(memory_id, self.base_activation)
 
-    def get_activated_memories(self, threshold: Optional[float] = None) -> Dict[MemoryID, float]:
+    def get_activated_memories(self, threshold: Optional[float] = None) -> dict[MemoryID, float]:
         """
         Get all memories with activation above a threshold.
 
@@ -331,7 +332,7 @@ class ActivationManager(Component):
             if activation >= threshold
         }
 
-    def get_activation_history(self, memory_id: MemoryID) -> List[Tuple[float, float]]:
+    def get_activation_history(self, memory_id: MemoryID) -> list[tuple[float, float]]:
         """
         Get activation history for a memory.
 
@@ -344,8 +345,8 @@ class ActivationManager(Component):
         return self.activation_history.get(memory_id, [])
 
     def boost_by_recency(
-        self, results: List[Dict[str, Any]], boost_factor: float = 2.0
-    ) -> List[Dict[str, Any]]:
+        self, results: list[dict[str, Any]], boost_factor: float = 2.0
+    ) -> list[dict[str, Any]]:
         """
         Boost retrieval results by activation level.
 
@@ -395,7 +396,7 @@ class ActivationManager(Component):
 
         return boosted_results
 
-    def generate_activation_heatmap(self, top_k: int = 20) -> Dict[str, Any]:
+    def generate_activation_heatmap(self, top_k: int = 20) -> dict[str, Any]:
         """
         Generate data for visualizing activation heatmap.
 
@@ -443,7 +444,7 @@ class ActivationManager(Component):
             "timestamp": time.time(),
         }
 
-    def get_activation_pattern(self) -> Dict[str, Any]:
+    def get_activation_pattern(self) -> dict[str, Any]:
         """
         Get the current activation pattern across all memories.
 

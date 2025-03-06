@@ -8,13 +8,12 @@ signals without requiring explicit human feedback.
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 import numpy as np
-from collections import defaultdict
 
 from memoryweave.components.base import Component
 from memoryweave.components.component_names import ComponentName
-from memoryweave.interfaces.memory import IMemoryStore
 
 
 class DynamicContextAdapter(Component):
@@ -43,7 +42,7 @@ class DynamicContextAdapter(Component):
         self.adaptation_history = []
         self.max_history_size = 20
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+    def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize the component with configuration.
 
@@ -84,7 +83,7 @@ class DynamicContextAdapter(Component):
                 f"DynamicContextAdapter initialized with adaptation_strength={self.adaptation_strength}"
             )
 
-    def process_query(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """
         Process a query to dynamically adapt retrieval parameters.
 
@@ -132,7 +131,7 @@ class DynamicContextAdapter(Component):
 
         return {"adapted_retrieval_params": final_params}
 
-    def _extract_signals(self, query: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_signals(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """
         Extract contextual signals from query and context.
 
@@ -214,8 +213,8 @@ class DynamicContextAdapter(Component):
         return signals
 
     def _adapt_for_memory_size(
-        self, params: Dict[str, Any], signals: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, params: dict[str, Any], signals: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Adapt parameters based on memory store characteristics.
 
@@ -297,8 +296,8 @@ class DynamicContextAdapter(Component):
         return adapted
 
     def _adapt_for_query_type(
-        self, params: Dict[str, Any], signals: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, params: dict[str, Any], signals: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Adapt parameters based on query type.
 
@@ -386,8 +385,8 @@ class DynamicContextAdapter(Component):
         return adapted
 
     def _adapt_for_query_characteristics(
-        self, params: Dict[str, Any], signals: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, params: dict[str, Any], signals: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Adapt parameters based on query specificity and complexity.
 
@@ -472,8 +471,8 @@ class DynamicContextAdapter(Component):
         return adapted
 
     def _apply_adaptation_strength(
-        self, original_params: Dict[str, Any], adapted_params: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, original_params: dict[str, Any], adapted_params: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Apply adaptation strength to control parameter changes.
 
@@ -530,7 +529,7 @@ class DynamicContextAdapter(Component):
 
         return result
 
-    def _log_adaptation(self, query: str, signals: Dict[str, Any], params: Dict[str, Any]) -> None:
+    def _log_adaptation(self, query: str, signals: dict[str, Any], params: dict[str, Any]) -> None:
         """
         Log adaptation decisions.
 
@@ -565,7 +564,7 @@ class DynamicContextAdapter(Component):
             self.logger.info("Optimization: Using batched computation")
 
     def _store_adaptation(
-        self, query: str, signals: Dict[str, Any], params: Dict[str, Any]
+        self, query: str, signals: dict[str, Any], params: dict[str, Any]
     ) -> None:
         """
         Store adaptation in history.

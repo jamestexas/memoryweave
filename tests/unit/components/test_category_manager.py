@@ -7,7 +7,6 @@ import pytest
 
 from memoryweave.components.category_manager import CategoryManager
 from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
-from tests.utils.test_fixtures import create_test_embedding
 
 
 class TestCategoryManager:
@@ -213,14 +212,14 @@ class TestCategoryManager:
         manager.core_manager.vigilance_threshold = 0.5
 
         # Get current stats
-        before_stats = manager.get_category_statistics()
+        manager.get_category_statistics()
 
         # Explicitly run consolidation
         threshold = 0.6  # Higher threshold means more merging
         num_categories = manager.consolidate_categories(threshold=threshold)
 
         # Get after stats
-        after_stats = manager.get_category_statistics()
+        manager.get_category_statistics()
 
         # Should reduce number of categories or stay the same
         assert num_categories <= len(initial_categories)

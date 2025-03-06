@@ -5,12 +5,13 @@ These tests validate that the baseline comparison framework
 works correctly with real retrievers and memory managers.
 """
 
+import json
 import os
 import tempfile
-import json
+from typing import list
+
 import numpy as np
 import pytest
-from typing import List, Dict, Any
 
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.components.memory_manager import MemoryManager
@@ -20,12 +21,14 @@ from memoryweave.evaluation.baseline_comparison import (
     BaselineConfig,
     ComparisonResult,
 )
+from memoryweave.interfaces.memory import Memory
 from memoryweave.interfaces.retrieval import Query
-from memoryweave.storage.memory_store import Memory, MemoryStore
+from memoryweave.storage.refactored.adapter import MemoryAdapter
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 
 
 @pytest.fixture
-def test_memories() -> List[Memory]:
+def test_memories() -> list[Memory]:
     """Create a set of test memories with embeddings."""
     memories = [
         Memory(
@@ -107,14 +110,15 @@ def test_memories() -> List[Memory]:
 @pytest.fixture
 def memory_manager(test_memories) -> MemoryManager:
     """Create a memory manager with test memories."""
-    memory_store = MemoryStore()
+    memory_store = StandardMemoryStore()
+    MemoryAdapter(memory_store)
     memory_store.add_multiple(test_memories)
 
     return MemoryManager(memory_store=memory_store)
 
 
 @pytest.fixture
-def test_queries() -> List[Query]:
+def test_queries() -> list[Query]:
     """Create test queries for evaluation."""
     return [
         Query(
@@ -127,7 +131,7 @@ def test_queries() -> List[Query]:
 
 
 @pytest.fixture
-def relevant_memory_ids() -> List[List[str]]:
+def relevant_memory_ids() -> list[list[str]]:
     """Define relevant memory IDs for each test query."""
     return [
         ["mem1", "mem5"],  # Relevant to programming language query
@@ -188,7 +192,7 @@ def test_baseline_comparison_integration(memory_manager, test_queries, relevant_
         comparison.save_results(result, temp_path)
 
         # Verify file content
-        with open(temp_path, "r") as f:
+        with open(temp_path) as f:
             saved_data = json.load(f)
 
         assert "memoryweave_metrics" in saved_data

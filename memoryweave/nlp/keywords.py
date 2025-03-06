@@ -6,14 +6,14 @@ including stopword filtering and keyword ranking.
 
 import re
 from collections import Counter
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Optional
 
 from memoryweave.nlp.patterns import STOPWORDS
 
 
 def extract_keywords(
-    text: str, stopwords: Optional[Set[str]] = None, min_length: int = 3, max_keywords: int = 10
-) -> List[str]:
+    text: str, stopwords: Optional[set[str]] = None, min_length: int = 3, max_keywords: int = 10
+) -> list[str]:
     """Extract keywords from text.
 
     Args:
@@ -47,14 +47,14 @@ def extract_keywords(
     return [word for word, _ in most_common]
 
 
-def tokenize(text: str) -> List[str]:
+def tokenize(text: str) -> list[str]:
     """Tokenize text into words."""
     # Remove punctuation and split by whitespace
     words = re.findall(r"\b\w+\b", text.lower())
     return words
 
 
-def rank_keywords(keywords: List[str], text: str) -> List[Tuple[str, float]]:
+def rank_keywords(keywords: list[str], text: str) -> list[tuple[str, float]]:
     """Rank keywords by importance in the text.
 
     Args:
@@ -102,8 +102,8 @@ def rank_keywords(keywords: List[str], text: str) -> List[Tuple[str, float]]:
 
 
 def expand_keywords(
-    keywords: List[str], word_relationships: Dict[str, List[str]], expansion_count: int = 3
-) -> List[str]:
+    keywords: list[str], word_relationships: dict[str, list[str]], expansion_count: int = 3
+) -> list[str]:
     """Expand keywords with related terms.
 
     Args:

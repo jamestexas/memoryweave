@@ -4,28 +4,28 @@ Tests for baseline comparison framework.
 
 import os
 import tempfile
-from typing import List
 
 import numpy as np
 import pytest
+
 from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
 from memoryweave.evaluation.baseline_comparison import (
     BaselineComparison,
     BaselineConfig,
     ComparisonResult,
 )
+from memoryweave.interfaces.memory import Memory
 from memoryweave.interfaces.retrieval import Query, QueryType, RetrievalParameters, RetrievalResult
-from memoryweave.storage.memory_store import Memory
 
 
 class MockMemoryManager:
     """Mock memory manager for testing."""
 
-    def __init__(self, memories: List[Memory]):
+    def __init__(self, memories: list[Memory]):
         """Initialize with pre-defined memories."""
         self.memories = memories
 
-    def get_all_memories(self) -> List[Memory]:
+    def get_all_memories(self) -> list[Memory]:
         """Return all memories."""
         return self.memories
 
@@ -33,7 +33,7 @@ class MockMemoryManager:
 class MockRetriever:
     """Mock retrieval strategy for testing."""
 
-    def __init__(self, memories: List[Memory], name: str = "mock_retriever"):
+    def __init__(self, memories: list[Memory], name: str = "mock_retriever"):
         """Initialize with pre-defined memories and name."""
         self.memories = memories
         self.name = name
@@ -78,7 +78,7 @@ class MockRetriever:
 
 
 @pytest.fixture
-def sample_memories() -> List[Memory]:
+def sample_memories() -> list[Memory]:
     """Create a set of sample memories for testing."""
     memories = [
         Memory(
@@ -116,7 +116,7 @@ def sample_memories() -> List[Memory]:
 
 
 @pytest.fixture
-def sample_queries() -> List[Query]:
+def sample_queries() -> list[Query]:
     """Create a set of sample queries for testing."""
     return [
         Query(
@@ -144,7 +144,7 @@ def sample_queries() -> List[Query]:
 
 
 @pytest.fixture
-def relevant_memory_ids() -> List[List[str]]:
+def relevant_memory_ids() -> list[list[str]]:
     """Create a set of relevant memory IDs for each query."""
     return [
         ["1", "5"],  # Relevant to "What programming language is easy to learn?"

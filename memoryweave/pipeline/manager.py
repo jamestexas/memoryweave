@@ -5,7 +5,7 @@ including component registration, pipeline creation, and execution.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from memoryweave.interfaces.pipeline import (
     ComponentID,
@@ -24,14 +24,14 @@ class PipelineManager:
     def __init__(self):
         """Initialize the pipeline manager."""
         self._registry = ComponentRegistry()
-        self._pipelines: Dict[str, IPipeline] = {}
+        self._pipelines: dict[str, IPipeline] = {}
         self._logger = logging.getLogger(__name__)
 
     def register_component(self, component: IComponent) -> None:
         """Register a component with the manager."""
         self._registry.register(component)
 
-    def create_pipeline(self, name: str, stage_ids: List[ComponentID]) -> Optional[IPipeline]:
+    def create_pipeline(self, name: str, stage_ids: list[ComponentID]) -> Optional[IPipeline]:
         """Create a pipeline from registered components."""
         self._logger.debug(f"Creating pipeline '{name}' with {len(stage_ids)} stages")
 
@@ -77,7 +77,7 @@ class PipelineManager:
         """Get a component by ID."""
         return self._registry.get_component(component_id)
 
-    def get_components_by_type(self, component_type: ComponentType) -> List[IComponent]:
+    def get_components_by_type(self, component_type: ComponentType) -> list[IComponent]:
         """Get all components of a specific type."""
         return self._registry.get_components_by_type(component_type)
 
@@ -86,15 +86,15 @@ class PipelineManager:
         self._registry.clear()
         self._pipelines.clear()
 
-    def list_pipelines(self) -> List[str]:
+    def list_pipelines(self) -> list[str]:
         """Get names of all registered pipelines."""
         return list(self._pipelines.keys())
 
-    def list_components(self) -> List[ComponentID]:
+    def list_components(self) -> list[ComponentID]:
         """Get IDs of all registered components."""
         return self._registry.get_component_ids()
 
-    def initialize_component(self, component_id: ComponentID, config: Dict[str, Any]) -> bool:
+    def initialize_component(self, component_id: ComponentID, config: dict[str, Any]) -> bool:
         """Initialize a component with configuration."""
         component = self._registry.get_component(component_id)
         if component is None:

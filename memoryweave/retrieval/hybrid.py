@@ -4,7 +4,8 @@ This module provides implementations of retrieval strategies that combine
 multiple approaches such as similarity and temporal factors.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
+
 import numpy as np
 
 from memoryweave.interfaces.memory import (
@@ -93,7 +94,7 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
 
     def retrieve(
         self, query_embedding: EmbeddingVector, parameters: Optional[RetrievalParameters] = None
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """Retrieve memories using a hybrid approach."""
         # Merge parameters with defaults
         params = self._default_params.copy()
@@ -205,7 +206,7 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
 
         return ranked_results[:max_results]
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the retrieval strategy."""
         if "similarity_threshold" in config:
             self._default_params["similarity_threshold"] = config["similarity_threshold"]

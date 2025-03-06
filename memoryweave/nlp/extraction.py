@@ -6,7 +6,7 @@ information from text, such as entities, attributes, and relationships.
 
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional
 
 from memoryweave.nlp.patterns import PERSONAL_ATTRIBUTE_PATTERNS
 
@@ -76,7 +76,7 @@ class NLPExtractor:
         # Default configuration
         self._config = {"confidence_threshold": 0.7, "max_entities": 10}
 
-    def extract_personal_attributes(self, text: str) -> List[ExtractedAttribute]:
+    def extract_personal_attributes(self, text: str) -> list[ExtractedAttribute]:
         """Extract personal attributes from text."""
         results = []
 
@@ -118,7 +118,7 @@ class NLPExtractor:
             )
 
         # Pattern matching for relationships generally
-        elif not "wife" in text.lower():  # Skip if we already matched above
+        elif "wife" not in text.lower():  # Skip if we already matched above
             relationship_match = re.search(r"my (\w+) (?:is|was|has been) (\w+)", text.lower())
             if relationship_match:
                 relation = relationship_match.group(1)
@@ -186,7 +186,7 @@ class NLPExtractor:
 
         return results
 
-    def extract_entities(self, text: str) -> List[ExtractedEntity]:
+    def extract_entities(self, text: str) -> list[ExtractedEntity]:
         """Extract named entities from text."""
         results = []
 
@@ -212,14 +212,14 @@ class NLPExtractor:
         # Limit to max entities
         return filtered_results[: self._config["max_entities"]]
 
-    def extract_keywords(self, text: str, stopwords: Optional[Set[str]] = None) -> List[str]:
+    def extract_keywords(self, text: str, stopwords: Optional[set[str]] = None) -> list[str]:
         """Extract keywords from text."""
         from memoryweave.nlp.keywords import extract_keywords
 
         # Use the keyword extraction module
         return extract_keywords(text, stopwords)
 
-    def extract_important_keywords(self, query: str) -> Set[str]:
+    def extract_important_keywords(self, query: str) -> set[str]:
         """
         Extract important keywords from a query.
 
@@ -334,7 +334,7 @@ class NLPExtractor:
 
         return keywords
 
-    def identify_query_type(self, query: str) -> Dict[str, float]:
+    def identify_query_type(self, query: str) -> dict[str, float]:
         """
         Identify the type of query.
 
@@ -396,7 +396,7 @@ class NLPExtractor:
 
         return scores
 
-    def extract_relationships(self, text: str) -> List[Dict[str, Any]]:
+    def extract_relationships(self, text: str) -> list[dict[str, Any]]:
         """Extract relationships between entities."""
         # Extract entities first
         entities = self.extract_entities(text)
@@ -427,7 +427,7 @@ class NLPExtractor:
 
         return relationships
 
-    def configure(self, config: Dict[str, Any]) -> None:
+    def configure(self, config: dict[str, Any]) -> None:
         """Configure the NLP extractor."""
         if "confidence_threshold" in config:
             self._config["confidence_threshold"] = config["confidence_threshold"]
@@ -436,8 +436,8 @@ class NLPExtractor:
             self._config["max_entities"] = config["max_entities"]
 
     def _remove_overlapping_entities(
-        self, entities: List[ExtractedEntity]
-    ) -> List[ExtractedEntity]:
+        self, entities: list[ExtractedEntity]
+    ) -> list[ExtractedEntity]:
         """Remove overlapping entities, keeping the longest ones."""
         if not entities:
             return []

@@ -453,7 +453,7 @@ class SemanticCoherenceProcessor(PostProcessor):
             labels = db.labels_
 
             # Count clusters
-            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+            len(set(labels)) - (1 if -1 in labels else 0)
 
             # Apply adjustments based on clustering
             for i, result in enumerate(results):
@@ -639,7 +639,7 @@ class PersonalAttributeProcessor(PostProcessor):
         if "personal_attributes" not in context:
             return results
 
-        personal_attributes = context.get("personal_attributes", {})
+        context.get("personal_attributes", {})
         relevant_attributes = context.get("relevant_attributes", {})
 
         if not relevant_attributes:
@@ -654,7 +654,7 @@ class PersonalAttributeProcessor(PostProcessor):
 
             # Check for attribute matches in content
             attribute_matches = 0
-            for attr_type, attr_value in relevant_attributes.items():
+            for _attr_type, attr_value in relevant_attributes.items():
                 if isinstance(attr_value, str) and attr_value.lower() in content:
                     attribute_matches += 1
                 elif isinstance(attr_value, list):

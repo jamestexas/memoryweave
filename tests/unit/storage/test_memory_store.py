@@ -5,7 +5,7 @@ Tests for the MemoryStore component.
 import numpy as np
 import pytest
 
-from memoryweave.storage.memory_store import MemoryStore
+from memoryweave.interfaces.memory import MemoryStore
 
 
 class TestMemoryStore:

@@ -2,12 +2,13 @@
 Tests for the SimilarityRetrievalStrategy.
 """
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
 
-from memoryweave.retrieval.similarity import SimilarityRetrievalStrategy
 from memoryweave.interfaces.memory import IMemoryStore, IVectorStore
+from memoryweave.retrieval.similarity import SimilarityRetrievalStrategy
 
 
 class TestSimilarityRetrievalStrategy:
@@ -67,7 +68,7 @@ class TestSimilarityRetrievalStrategy:
         mock_vector_store.search.assert_called_once()
 
         # Check call arguments more carefully
-        call_args = mock_vector_store.search.call_args
+        assert mock_vector_store.search.call_args, "Vector search not appropriately called"
         # Check that search was called with the right arguments
         mock_vector_store.search.assert_called_with(
             query_vector=query_embedding, k=10, threshold=0.6

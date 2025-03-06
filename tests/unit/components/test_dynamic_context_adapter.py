@@ -8,9 +8,10 @@ This module tests the DynamicContextAdapter component to ensure:
 4. Adaptation strength properly controls parameter changes
 """
 
-import pytest
+from unittest.mock import MagicMock
+
 import numpy as np
-from unittest.mock import MagicMock, patch
+import pytest
 
 from memoryweave.components.dynamic_context_adapter import DynamicContextAdapter
 
@@ -242,7 +243,6 @@ class TestDynamicContextAdapter:
 
         # Default values
         default_confidence = 0.1
-        default_similarity = 0.5
 
         # Check if strong adapter made larger changes than weak adapter
         # For parameters that should increase

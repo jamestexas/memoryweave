@@ -5,7 +5,8 @@ This module provides benchmarks for evaluating the performance of different
 memory retrieval approaches in MemoryWeave.
 """
 
+from memoryweave.benchmarks.base import BenchmarkConfig
 from memoryweave.benchmarks.contextual_fabric_benchmark import ContextualFabricBenchmark
-from memoryweave.benchmarks.memory_retrieval_benchmark import MemoryRetrievalBenchmark
+from memoryweave.benchmarks.performance.memory_retrieval_benchmark import MemoryRetrievalBenchmark
 
-__all__ = ["MemoryRetrievalBenchmark", "ContextualFabricBenchmark"]
+__all__ = ["MemoryRetrievalBenchmark", "ContextualFabricBenchmark", "BenchmarkConfig"]

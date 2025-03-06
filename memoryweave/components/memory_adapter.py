@@ -2,10 +2,14 @@
 Memory adapter for integrating core memory with the components architecture.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
+
+import numpy as np
 
 from memoryweave.components.base import MemoryComponent
-from memoryweave.core.contextual_memory import ContextualMemory
+
+# Remove the import from core
+# from memoryweave.core.contextual_memory import ContextualMemory
 
 
 class MemoryAdapter(MemoryComponent):
@@ -16,23 +20,31 @@ class MemoryAdapter(MemoryComponent):
     interface, allowing it to be used seamlessly within the pipeline architecture.
     """
 
-    def __init__(self, memory: Optional[ContextualMemory] = None, **memory_kwargs):
+    def __init__(self, memory: Optional[Any] = None, **memory_kwargs):
         """
         Initialize the memory adapter.
 
         Args:
-            memory: Existing ContextualMemory instance to adapt
-            **memory_kwargs: Arguments to pass to ContextualMemory constructor if creating a new instance
+            memory: Existing memory instance to adapt
+            **memory_kwargs: Arguments to pass to memory constructor if creating a new instance
         """
-        self.memory = memory or ContextualMemory(**memory_kwargs)
+        self.memory = memory
 
-    def initialize(self, config: Dict[str, Any]) -> None:
+        # If no memory provided, use the refactored memory store
+        if self.memory is None:
+            from memoryweave.storage.refactored.adapter import MemoryAdapter as RefactoredAdapter
+            from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+
+            memory_store = StandardMemoryStore()
+            self.memory = RefactoredAdapter(memory_store)
+
+    def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the component with configuration."""
         # Apply any configuration updates
         # For now, we don't change any settings after initialization
         pass
 
-    def process(self, data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """
         Process memory data with context.
 
@@ -89,6 +101,61 @@ class MemoryAdapter(MemoryComponent):
         # Default response if no operation matched
         return {}
 
-    def get_memory(self) -> ContextualMemory:
+    def get_memory(self) -> Any:
         """Get the underlying memory instance."""
         return self.memory
+
+    def search_hybrid(
+        self,
+        query_vector: np.ndarray,
+        limit: int = 10,
+        threshold: float = 0.0,
+        keywords: list[str] = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Perform hybrid search using vector similarity and keywords.
+
+        Args:
+            query_vector: Query embedding vector
+            limit: Maximum number of results to return
+            threshold: Minimum similarity threshold
+            keywords: Optional keywords to boost results with
+
+        Returns:
+            List of memory dicts with relevance scores
+        """
+        # First perform vector search
+        vector_results = self.search_by_vector(
+            query_vector=query_vector,
+            limit=limit * 2,  # Get more candidates
+            threshold=threshold,
+        )
+
+        # If no keywords, just return vector results
+        if not keywords:
+            return vector_results[:limit]
+
+        # Enhance scores for results containing keywords
+        for result in vector_results:
+            content = str(result.get("content", "")).lower()
+
+            # Count keyword matches
+            keyword_matches = sum(1 for kw in keywords if kw.lower() in content)
+
+            if keyword_matches > 0:
+                # Apply keyword boost proportional to matches
+                boost = min(0.3 * keyword_matches / len(keywords), 0.5)
+
+                # Update score
+                original_score = result.get("relevance_score", result.get("score", 0))
+                new_score = min(0.99, original_score + boost * (1.0 - original_score))
+
+                # Apply the boost
+                result["relevance_score"] = new_score
+                result["keyword_boost"] = boost
+                result["keyword_matches"] = keyword_matches
+
+        # Sort by boosted scores
+        vector_results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+
+        return vector_results[:limit]

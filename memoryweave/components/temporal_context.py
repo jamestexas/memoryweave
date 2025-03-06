@@ -20,7 +20,8 @@ from scipy.cluster.hierarchy import fcluster, linkage
 
 from memoryweave.components.base import Component, MemoryComponent
 from memoryweave.components.component_names import ComponentName
-from memoryweave.interfaces.memory import IMemoryStore, MemoryID
+from memoryweave.interfaces.memory import MemoryID
+from memoryweave.storage.refactored.base_store import BaseMemoryStore
 
 logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[RichHandler(markup=True)])
 logger = logging.getLogger(__name__)
@@ -222,7 +223,7 @@ class TemporalDecayComponent(MemoryComponent):
 
         return result
 
-    def apply_decay_to_store(self, memory_store: IMemoryStore, current_time: float) -> None:
+    def apply_decay_to_store(self, memory_store: BaseMemoryStore, current_time: float) -> None:
         """
         Apply decay to all memories in a store.
 
@@ -282,7 +283,7 @@ class TemporalContextBuilder(Component):
     and how they relate to each other in time.
     """
 
-    def __init__(self, memory_store: Optional[IMemoryStore] = None):
+    def __init__(self, memory_store: Optional[BaseMemoryStore] = None):
         """
         Initialize the temporal context builder.
 
@@ -414,9 +415,9 @@ class TemporalContextBuilder(Component):
             if matches:
                 result["has_temporal_reference"] = True
                 result["time_type"] = "relative"
-                result["time_expressions"].extend([
-                    m if isinstance(m, str) else " ".join(m) for m in matches
-                ])
+                result["time_expressions"].extend(
+                    [m if isinstance(m, str) else " ".join(m) for m in matches]
+                )
 
                 for match in result["time_expressions"]:
                     parsed_time = self._parse_relative_time(match)
@@ -611,7 +612,7 @@ class TemporalContextBuilder(Component):
         # Perform hierarchical clustering
         if len(timestamps_array) > 1:
             # Calculate linkage matrix
-            Z = linkage(timestamps_array, method="single")
+            Z = linkage(timestamps_array, method="single")  # noqa: N806
 
             # Form flat clusters with distance threshold based on temporal window
             # Use absolute time difference instead of scaled value to better match query time references  # noqa: W505
@@ -720,7 +721,7 @@ class TemporalContextBuilder(Component):
             return self._apply_recency_boost(results, context)
 
         # Get current time
-        current_time = context.get("current_time", time.time())
+        context.get("current_time", time.time())
 
         # If we have a specific time reference, use it
         target_time = None

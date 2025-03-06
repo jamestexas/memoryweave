@@ -5,6 +5,11 @@ This module provides modular components for memory retrieval, query analysis,
 and post-processing that can be combined into flexible retrieval pipelines.
 """
 
+from memoryweave.components.activation import ActivationManager
+from memoryweave.components.associative_linking import (
+    AssociativeMemoryLinker,
+    AssociativeNetworkVisualizer,
+)
 from memoryweave.components.base import (
     Component,
     MemoryComponent,
@@ -12,9 +17,16 @@ from memoryweave.components.base import (
     RetrievalComponent,
     RetrievalStrategy,
 )
+
+# Import contextual fabric components
+from memoryweave.components.context_enhancement import (
+    ContextSignalExtractor,
+    ContextualEmbeddingEnhancer,
+)
 from memoryweave.components.dynamic_threshold_adjuster import DynamicThresholdAdjuster
 from memoryweave.components.keyword_expander import KeywordExpander
 from memoryweave.components.memory_decay import MemoryDecayComponent
+from memoryweave.components.memory_encoding import MemoryEncoder
 from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.components.personal_attributes import PersonalAttributeManager
 from memoryweave.components.post_processors import (
@@ -30,31 +42,16 @@ from memoryweave.components.query_context_builder import QueryContextBuilder
 
 # Import retrieval strategies
 from memoryweave.components.retrieval_strategies import (
+    CategoryRetrievalStrategy,
+    ContextualFabricStrategy,
+    HybridBM25VectorStrategy,
+    HybridRetrievalStrategy,
     SimilarityRetrievalStrategy,
     TemporalRetrievalStrategy,
-    HybridRetrievalStrategy,
     TwoStageRetrievalStrategy,
-    CategoryRetrievalStrategy,
-    HybridBM25VectorStrategy,
-    ContextualFabricStrategy,
 )
-
-# Import contextual fabric components
-from memoryweave.components.context_enhancement import (
-    ContextualEmbeddingEnhancer,
-    ContextSignalExtractor,
-)
-from memoryweave.components.associative_linking import (
-    AssociativeMemoryLinker,
-    AssociativeNetworkVisualizer,
-)
-from memoryweave.components.temporal_context import (
-    TemporalContextBuilder,
-    TemporalDecayComponent,
-)
-from memoryweave.components.activation import ActivationManager
-
 from memoryweave.components.retriever import Retriever
+from memoryweave.components.temporal_context import TemporalContextBuilder, TemporalDecayComponent
 
 __all__ = [
     # Base classes
@@ -66,6 +63,7 @@ __all__ = [
     # Components
     "KeywordExpander",
     "MemoryDecayComponent",
+    "MemoryEncoder",
     "MemoryManager",
     "PersonalAttributeManager",
     "QueryAnalyzer",

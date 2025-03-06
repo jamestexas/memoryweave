@@ -5,17 +5,16 @@ These tests measure and compare the performance of different benchmark
 configurations to ensure they are efficient and behave as expected.
 """
 
-import pytest
-import time
 import json
-import os
-from pathlib import Path
 import statistics
-from typing import Dict, Any, List, Optional
+import time
+from pathlib import Path
+from typing import Any
+
 import numpy as np
+import pytest
 
 from memoryweave.evaluation.synthetic.benchmark import run_benchmark_with_config
-from tests.utils.test_fixtures import create_test_embedding
 
 
 @pytest.mark.integration
@@ -147,8 +146,8 @@ class TestBenchmarkPerformance:
         }
 
     def run_timed_benchmark(
-        self, dataset_path: str, config: Dict[str, Any], max_queries: int = 5, runs: int = 3
-    ) -> Dict[str, Any]:
+        self, dataset_path: str, config: dict[str, Any], max_queries: int = 5, runs: int = 3
+    ) -> dict[str, Any]:
         """
         Run a benchmark with timing measurements.
 
@@ -165,7 +164,7 @@ class TestBenchmarkPerformance:
         execution_times = []
         query_time_sets = []
 
-        for run in range(runs):
+        for _run in range(runs):
             # Configure run to track query times
             run_config = config.copy()
             run_config["track_query_performance"] = True
@@ -234,7 +233,7 @@ class TestBenchmarkPerformance:
         }
 
     def save_performance_data(
-        self, performance_data: Dict[str, Any], file_name: str = "benchmark_performance.json"
+        self, performance_data: dict[str, Any], file_name: str = "benchmark_performance.json"
     ):
         """Save performance data to a JSON file for future comparison."""
         # Create file path
@@ -242,7 +241,7 @@ class TestBenchmarkPerformance:
 
         # Load existing data if file exists
         if performance_file.exists():
-            with open(performance_file, "r") as f:
+            with open(performance_file) as f:
                 try:
                     all_performance_data = json.load(f)
                 except json.JSONDecodeError:
@@ -275,7 +274,7 @@ class TestBenchmarkPerformance:
         # even though execution time may vary
 
         # Log performance results
-        print(f"\nBasic config performance determinism:")
+        print("\nBasic config performance determinism:")
         print(f"First run time: {first_result['execution_times'][0]:.3f}s")
         print(f"Second run time: {second_result['execution_times'][0]:.3f}s")
 
@@ -352,12 +351,12 @@ class TestBenchmarkPerformance:
             min_query_time = min(times)
 
             # Log query performance
-            print(f"\nQuery performance profile:")
+            print("\nQuery performance profile:")
             print(f"Average query time: {avg_query_time:.3f}s")
             print(f"Min query time: {min_query_time:.3f}s")
             print(f"Max query time: {max_query_time:.3f}s")
             print(f"Total benchmark time: {result['avg_time']:.3f}s")
-            print(f"Per-query breakdown:")
+            print("Per-query breakdown:")
             for query_id, query_time in query_times.items():
                 print(f"  {query_id}: {query_time:.3f}s")
 

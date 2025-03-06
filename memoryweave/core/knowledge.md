@@ -1,20 +1,25 @@
 # Core Module Knowledge
 
 ## Module Purpose
+
 The core module contains the fundamental building blocks of the MemoryWeave memory management system, implementing the contextual fabric approach.
 
 ## Key Components
+
 - `ContextualMemory`: Main memory system that stores and manages memory traces
 - `MemoryEncoder`: Encodes different content types into context-rich memory representations
 - `ContextualRetriever`: Retrieves memories based on context using various strategies
 
 ## Architecture
+
 The core components work together in the following way:
+
 1. `MemoryEncoder` converts raw content into embeddings with rich contextual metadata
-2. `ContextualMemory` stores these embeddings and manages their activation levels
-3. `ContextualRetriever` uses sophisticated retrieval strategies to find relevant memories
+1. `ContextualMemory` stores these embeddings and manages their activation levels
+1. `ContextualRetriever` uses sophisticated retrieval strategies to find relevant memories
 
 ## Implementation Details
+
 - Memory is stored as embeddings with associated metadata
 - Activation levels track recency and relevance of memories
 - Retrieval uses a combination of similarity, recency, and keyword matching
@@ -22,6 +27,7 @@ The core components work together in the following way:
 - ART-inspired clustering organizes memories into dynamic categories
 
 ## ART-Inspired Clustering
+
 The `ContextualMemory` class includes an optional Adaptive Resonance Theory (ART) inspired clustering mechanism:
 
 - **Dynamic Category Formation**: Memories self-organize into categories based on similarity
@@ -30,16 +36,18 @@ The `ContextualMemory` class includes an optional Adaptive Resonance Theory (ART
 - **Prototype Learning**: Category prototypes adapt over time as new memories are added
 
 To enable ART clustering:
+
 ```python
 memory = ContextualMemory(
     embedding_dim=768,
     use_art_clustering=True,
     vigilance_threshold=0.85,  # Higher = more categories
-    learning_rate=0.2  # Higher = faster adaptation
+    learning_rate=0.2,  # Higher = faster adaptation
 )
 ```
 
 ## Dynamic Vigilance
+
 The ART-inspired clustering supports dynamic vigilance adjustment strategies:
 
 - **Decreasing Vigilance**: Starts high and gradually decreases, encouraging more merging over time
@@ -48,6 +56,7 @@ The ART-inspired clustering supports dynamic vigilance adjustment strategies:
 - **Density-Based**: Adjusts vigilance based on the density of memories in embedding space
 
 To enable dynamic vigilance:
+
 ```python
 memory = ContextualMemory(
     embedding_dim=768,
@@ -57,11 +66,12 @@ memory = ContextualMemory(
     vigilance_strategy="decreasing",  # "decreasing", "increasing", "category_based", or "density_based"
     min_vigilance=0.5,
     max_vigilance=0.9,
-    target_categories=5  # Target number for category_based strategy
+    target_categories=5,  # Target number for category_based strategy
 )
 ```
 
 ## Category Consolidation
+
 To address category fragmentation, the system supports hierarchical clustering-based category consolidation:
 
 - **Periodic Consolidation**: Automatically merges similar categories after a specified number of memories
@@ -70,6 +80,7 @@ To address category fragmentation, the system supports hierarchical clustering-b
 - **Manual Consolidation**: Can be triggered on demand with custom thresholds
 
 To enable category consolidation:
+
 ```python
 memory = ContextualMemory(
     embedding_dim=768,
@@ -79,11 +90,12 @@ memory = ContextualMemory(
     consolidation_threshold=0.7,  # Higher = less aggressive merging
     min_category_size=3,  # Categories smaller than this are prioritized for merging
     consolidation_frequency=50,  # Consolidate every 50 memories
-    hierarchical_method="average"  # "single", "complete", "average", or "weighted"
+    hierarchical_method="average",  # "single", "complete", "average", or "weighted"
 )
 ```
 
 ## Confidence Thresholding
+
 The system supports filtering out low-confidence retrievals to improve precision:
 
 - **Confidence Threshold**: Minimum similarity score for memory inclusion
@@ -91,24 +103,26 @@ The system supports filtering out low-confidence retrievals to improve precision
 - **Adaptive K Selection**: Dynamically determines how many memories to retrieve
 
 To enable confidence thresholding:
+
 ```python
 memory = ContextualMemory(
     embedding_dim=768,
     default_confidence_threshold=0.4,  # Minimum similarity score
     semantic_coherence_check=True,  # Check coherence between memories
     coherence_threshold=0.2,  # Minimum average similarity between memories
-    adaptive_retrieval=True  # Dynamically determine how many memories to retrieve
+    adaptive_retrieval=True,  # Dynamically determine how many memories to retrieve
 )
 
 # When retrieving, you can override the default threshold
 memories = memory.retrieve_memories(
     query_embedding,
     top_k=5,
-    confidence_threshold=0.5  # Override default threshold
+    confidence_threshold=0.5,  # Override default threshold
 )
 ```
 
 ## Advanced Retrieval Strategies
+
 The system supports several advanced retrieval strategies to balance precision and recall:
 
 - **Two-Stage Retrieval**: First retrieves a larger candidate set with lower threshold, then re-ranks
@@ -118,6 +132,7 @@ The system supports several advanced retrieval strategies to balance precision a
 - **Memory Decay**: Applies exponential decay to memory activations over time
 
 To enable advanced retrieval:
+
 ```python
 retriever = ContextualRetriever(
     memory=memory,
@@ -134,18 +149,21 @@ retriever = ContextualRetriever(
     threshold_adjustment_window=5,  # Window size for adjustment
     memory_decay_enabled=True,  # Enable memory decay
     memory_decay_rate=0.99,  # Rate of decay
-    memory_decay_interval=10  # Apply decay every N interactions
+    memory_decay_interval=10,  # Apply decay every N interactions
 )
 ```
 
 ### Two-Stage Retrieval
+
 The two-stage retrieval process works as follows:
 
 1. **First Stage**: Retrieve a larger set of candidate memories using a lower confidence threshold
+
    - This improves recall by considering more potential matches
    - Typically retrieves 20-30 candidates instead of just 5-10
 
-2. **Second Stage**: Re-rank and filter the candidates
+1. **Second Stage**: Re-rank and filter the candidates
+
    - Apply semantic coherence check to ensure retrieved memories form a coherent set
    - Use adaptive K selection to dynamically determine how many memories to return
    - Apply keyword boosting to prioritize memories that match important keywords
@@ -153,19 +171,23 @@ The two-stage retrieval process works as follows:
 This approach significantly improves recall for factual queries while maintaining precision for personal queries.
 
 ### Query Type Adaptation
+
 The system can automatically adapt retrieval parameters based on the type of query:
 
 - **Factual Queries**: Use lower thresholds and less conservative adaptive K selection
+
   - Examples: "What is the capital of France?", "Who wrote Hamlet?"
   - Detection: Pattern matching for question words, absence of personal pronouns
 
 - **Personal Queries**: Maintain higher thresholds for better precision
+
   - Examples: "What's my name?", "Where do I live?"
   - Detection: Presence of personal pronouns and possessives
 
 This adaptation helps balance precision and recall based on the query context.
 
 ### Dynamic Threshold Adjustment
+
 The system can automatically adjust confidence thresholds based on retrieval performance:
 
 - Monitors retrieval metrics over a sliding window of recent interactions
@@ -175,6 +197,7 @@ The system can automatically adjust confidence thresholds based on retrieval per
 This self-tuning mechanism helps the system adapt to different conversation contexts without manual intervention.
 
 ### Memory Decay
+
 To focus on more recent and contextually relevant memories:
 
 - Applies exponential decay to memory activations over time
@@ -182,6 +205,7 @@ To focus on more recent and contextually relevant memories:
 - Helps the system focus on recent context without manual consolidation
 
 ## Design Principles
+
 - Biologically-inspired memory management
 - Rich contextual signatures rather than isolated facts
 - Dynamic activation patterns for memory retrieval
@@ -190,6 +214,7 @@ To focus on more recent and contextually relevant memories:
 - Balance between precision and recall through adaptive strategies
 
 ## Testability and Modularity
+
 The component-based architecture is designed with testability and modularity in mind:
 
 - **Separation of Concerns**: Each component has a clear, single responsibility
@@ -206,22 +231,27 @@ The component-based architecture is designed with testability and modularity in 
 This approach ensures that the system is maintainable and testable, with strong modularity that allows components to be enhanced or replaced independently.
 
 ## Diagnostic Analysis
+
 The Diagnostic Analysis Phase has identified several key issues with memory retrieval:
 
 1. **Query Type Differences**: Personal queries and factual queries require different retrieval strategies and thresholds
+
    - Personal queries benefit from higher thresholds (0.4-0.6) for better precision
    - Factual queries need lower thresholds (0.2-0.3) for better recall
 
-2. **Embedding Quality**: The quality of embeddings affects retrieval performance
+1. **Embedding Quality**: The quality of embeddings affects retrieval performance
+
    - Related memories should have high intra-set similarity (>0.6)
-   - Unrelated memories should have low inter-set similarity (<0.3)
+   - Unrelated memories should have low inter-set similarity (\<0.3)
    - Current embedding models may not provide sufficient separation
 
-3. **Threshold Optimization**: Different thresholds are optimal for different query types
+1. **Threshold Optimization**: Different thresholds are optimal for different query types
+
    - Using a single threshold for all queries leads to poor overall performance
    - Dynamic threshold adjustment based on query type can significantly improve F1 scores
 
-4. **Retrieval Pipeline**: A two-stage retrieval pipeline can improve performance
+1. **Retrieval Pipeline**: A two-stage retrieval pipeline can improve performance
+
    - First stage: Retrieve a larger candidate set with lower threshold
    - Second stage: Re-rank and filter candidates based on relevance and coherence
 
