@@ -63,13 +63,15 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         self.debug = debug
         self.timer.start("init")
         self.text_chunker = TextChunker()
-        self.text_chunker.initialize({
-            "chunk_size": 300,  # Larger chunks than the full chunked version
-            "chunk_overlap": 30,  # Less overlap to save memory
-            "min_chunk_size": 50,
-            "respect_paragraphs": True,
-            "respect_sentences": True,
-        })
+        self.text_chunker.initialize(
+            {
+                "chunk_size": 300,  # Larger chunks than the full chunked version
+                "chunk_overlap": 30,  # Less overlap to save memory
+                "min_chunk_size": 50,
+                "respect_paragraphs": True,
+                "respect_sentences": True,
+            }
+        )
 
         # Initialize embedding model to get dimension
         self.device = _get_device(device)
@@ -317,15 +319,17 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
             # 6. Information density - prefer text with entities, numbers, etc.
             text = chunk["text"].lower()
-            info_markers = sum([
-                3 * text.count("@"),  # Emails, handles
-                2 * sum(c.isdigit() for c in text) / max(1, len(text)),  # Number density
-                2
-                * len(
-                    re.findall(r"\b[A-Z][a-z]*(?:\s+[A-Z][a-z]*)+\b", chunk["text"])
-                ),  # Proper nouns
-                1 * len(re.findall(r"https?://\S+|www\.\S+", text)),  # URLs
-            ])
+            info_markers = sum(
+                [
+                    3 * text.count("@"),  # Emails, handles
+                    2 * sum(c.isdigit() for c in text) / max(1, len(text)),  # Number density
+                    2
+                    * len(
+                        re.findall(r"\b[A-Z][a-z]*(?:\s+[A-Z][a-z]*)+\b", chunk["text"])
+                    ),  # Proper nouns
+                    1 * len(re.findall(r"https?://\S+|www\.\S+", text)),  # URLs
+                ]
+            )
             score += min(0.1, info_markers * 0.01)  # Up to 10% for information density
 
             chunk_scores.append((i, score, chunk))
@@ -434,11 +438,13 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                     chunk_text = f"{role}: {content}"
 
                     chunk_metadata = metadata.copy()
-                    chunk_metadata.update({
-                        "chunk_index": i,
-                        "is_conversation": True,
-                        "role": role,
-                    })
+                    chunk_metadata.update(
+                        {
+                            "chunk_index": i,
+                            "is_conversation": True,
+                            "role": role,
+                        }
+                    )
 
                     chunks.append({"text": chunk_text, "metadata": chunk_metadata})
 
@@ -511,11 +517,13 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 chunk_text = f"{role}: {content}"
 
                 chunk_metadata = metadata.copy()
-                chunk_metadata.update({
-                    "chunk_index": i,
-                    "is_conversation": True,
-                    "role": role,
-                })
+                chunk_metadata.update(
+                    {
+                        "chunk_index": i,
+                        "is_conversation": True,
+                        "role": role,
+                    }
+                )
 
                 chunks.append({"text": chunk_text, "metadata": chunk_metadata})
             return chunks
@@ -530,12 +538,14 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         first_text = f"{first_role}: {first_content}"
 
         first_metadata = metadata.copy()
-        first_metadata.update({
-            "chunk_index": 0,
-            "is_conversation": True,
-            "role": first_role,
-            "is_first": True,
-        })
+        first_metadata.update(
+            {
+                "chunk_index": 0,
+                "is_conversation": True,
+                "role": first_role,
+                "is_first": True,
+            }
+        )
 
         chunks.append({"text": first_text, "metadata": first_metadata})
 
@@ -556,11 +566,13 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 )
 
                 group_metadata = metadata.copy()
-                group_metadata.update({
-                    "chunk_index": len(chunks),
-                    "is_conversation": True,
-                    "turn_range": (i + 1, min(i + group_size, middle_count)),
-                })
+                group_metadata.update(
+                    {
+                        "chunk_index": len(chunks),
+                        "is_conversation": True,
+                        "turn_range": (i + 1, min(i + group_size, middle_count)),
+                    }
+                )
 
                 chunks.append({"text": group_text, "metadata": group_metadata})
 
@@ -571,12 +583,14 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         last_text = f"{last_role}: {last_content}"
 
         last_metadata = metadata.copy()
-        last_metadata.update({
-            "chunk_index": len(chunks),
-            "is_conversation": True,
-            "role": last_role,
-            "is_last": True,
-        })
+        last_metadata.update(
+            {
+                "chunk_index": len(chunks),
+                "is_conversation": True,
+                "role": last_role,
+                "is_last": True,
+            }
+        )
 
         chunks.append({"text": last_text, "metadata": last_metadata})
 

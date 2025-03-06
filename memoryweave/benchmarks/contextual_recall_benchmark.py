@@ -36,6 +36,17 @@ from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
+from memoryweave.api.memory_weave import MemoryWeaveAPI
+from memoryweave.benchmarks.utils.calc import (
+    RetrievalMetrics,
+    calculate_contextual_relevance,
+    calculate_mrr,
+    calculate_ndcg,
+    calculate_recall_at_k,
+    calculate_temporal_accuracy,
+)
+from memoryweave.benchmarks.utils.perf_timer import timer
+
 # Configure rich logging
 console = Console(highlight=True)
 logging.basicConfig(
@@ -45,316 +56,6 @@ logging.basicConfig(
     handlers=[RichHandler(show_path=False, rich_tracebacks=True)],
 )
 logger = logging.getLogger("contextual_recall")
-
-# -----------------------------------------------------------------------------
-# Timer Implementation
-# -----------------------------------------------------------------------------
-
-
-class PerformanceTimer:
-    """Track detailed performance metrics for benchmark operations."""
-
-    def __init__(self):
-        self.timings = {}
-        self._start_times = {}
-
-    def start(self, operation: str) -> None:
-        """Start timing an operation."""
-        self._start_times[operation] = time.time()
-
-    def stop(self, operation: str) -> float:
-        """Stop timing an operation and return elapsed time."""
-        if operation not in self._start_times:
-            return 0.0
-
-        elapsed = time.time() - self._start_times[operation]
-        self.timings.setdefault(operation, []).append(elapsed)
-        del self._start_times[operation]
-        return elapsed
-
-    def get_average(self, operation: str) -> float:
-        """Get average time for an operation."""
-        times = self.timings.get(operation, [])
-        return sum(times) / len(times) if times else 0.0
-
-    def get_summary(self) -> dict[str, Any]:
-        """Get summary statistics for all operations."""
-        summary = {}
-        for op, times in self.timings.items():
-            if times:
-                summary[op] = {
-                    "avg": sum(times) / len(times),
-                    "min": min(times),
-                    "max": max(times),
-                    "total": sum(times),
-                    "count": len(times),
-                }
-        return summary
-
-
-# Global timer for use with decorators
-_global_timer = PerformanceTimer()
-
-
-def get_global_timer() -> PerformanceTimer:
-    """Get the global timer instance for reporting."""
-    return _global_timer
-
-
-def timer(operation: str = None, timer_instance: PerformanceTimer = None):
-    """
-    Decorator to time operations. Can be used on methods or classes.
-
-    When used on a class, it adds a timer instance to the class.
-    When used on a method, it times the method execution.
-
-    Args:
-        operation: Name of the operation to time (only for method decoration)
-        timer_instance: Optional timer instance to use instead of the global one
-    """
-
-    def _get_timer_instance(instance=None):
-        """Get the timer instance to use based on context."""
-        # If a timer instance was explicitly provided, use it
-        if timer_instance is not None:
-            return timer_instance
-
-        # If decorating a method of a class that has a timer, use that
-        if (
-            instance is not None
-            and hasattr(instance, "timer")
-            and isinstance(instance.timer, PerformanceTimer)
-        ):
-            return instance.timer
-
-        # Otherwise use the global timer
-        return _global_timer
-
-    def class_decorator(cls):
-        """Add a timer instance to the class."""
-        original_init = cls.__init__
-
-        def init_with_timer(self, *args, **kwargs):
-            # Add timer instance to the class
-            self.timer = PerformanceTimer()
-            # Call the original __init__
-            original_init(self, *args, **kwargs)
-
-        # Replace __init__ with our version
-        cls.__init__ = init_with_timer
-        return cls
-
-    def method_decorator(func):
-        """Time a method execution."""
-
-        def wrapper(self, *args, **kwargs):
-            # Get the appropriate timer
-            timer = _get_timer_instance(self)
-
-            # Use the function name if no operation name provided
-            op_name = operation or func.__name__
-
-            # Start timing
-            timer.start(op_name)
-            try:
-                # Run the function
-                result = func(self, *args, **kwargs)
-                return result
-            finally:
-                # Stop timing even if an exception occurs
-                timer.stop(op_name)
-
-        return wrapper
-
-    # Handle both class and method decoration
-    def decorator(obj):
-        if isinstance(obj, type):
-            # It's a class - add a timer to it
-            return class_decorator(obj)
-        else:
-            # It's a function/method - time it
-            return method_decorator(obj)
-
-    # Handle when called with or without arguments
-    if callable(operation):
-        # Called as @timer without parentheses
-        return decorator(operation)
-    else:
-        # Called as @timer() or @timer("name")
-        return decorator
-
-
-# -----------------------------------------------------------------------------
-# Metrics
-# -----------------------------------------------------------------------------
-
-
-@dataclass
-class RetrievalMetrics:
-    """Holds metrics for retrieval evaluation."""
-
-    recall_at_1: float = 0.0
-    recall_at_3: float = 0.0
-    recall_at_5: float = 0.0
-    recall_at_10: float = 0.0
-    mrr: float = 0.0
-    ndcg: float = 0.0
-    temporal_accuracy: float = 0.0
-    contextual_relevance: float = 0.0
-
-    query_count: int = 0
-    avg_retrieval_time: float = 0.0
-    avg_inference_time: float = 0.0
-
-    # Additional data for detailed analysis
-    per_query_results: dict = field(default_factory=dict)
-
-    def to_dict(self) -> dict:
-        """Convert to dictionary for serialization."""
-        result = {k: v for k, v in self.__dict__.items() if k != "per_query_results"}
-        result["per_query_results"] = {
-            query_id: {k: v for k, v in query_data.items() if not callable(v)}
-            for query_id, query_data in self.per_query_results.items()
-        }
-        return result
-
-
-def calculate_recall_at_k(retrieved_ids: list[str], relevant_ids: set[str], k: int) -> float:
-    """Calculate recall@k - proportion of relevant items found in top-k results."""
-    if not relevant_ids:
-        return 0.0
-
-    # Get top-k retrieved IDs
-    top_k_ids = retrieved_ids[:k]
-
-    # Calculate intersection
-    found = set(top_k_ids).intersection(relevant_ids)
-
-    # Calculate recall
-    return len(found) / len(relevant_ids)
-
-
-def calculate_mrr(retrieved_ids: list[str], relevant_ids: set[str]) -> float:
-    """Calculate Mean Reciprocal Rank - position of first relevant result."""
-    if not relevant_ids:
-        return 0.0
-
-    # Find the first relevant ID in the retrieved list
-    for i, item_id in enumerate(retrieved_ids):
-        if item_id in relevant_ids:
-            return 1.0 / (i + 1)
-
-    # No relevant items found
-    return 0.0
-
-
-def calculate_ndcg(retrieved_ids: list[str], relevant_ids: set[str], k: int = 10) -> float:
-    """Calculate Normalized Discounted Cumulative Gain."""
-    if not relevant_ids:
-        return 0.0
-
-    # Get top-k retrieved IDs
-    top_k_ids = retrieved_ids[:k]
-
-    # Calculate DCG
-    dcg = 0.0
-    for i, item_id in enumerate(top_k_ids):
-        if item_id in relevant_ids:
-            # Use binary relevance (1 if relevant, 0 if not)
-            dcg += 1.0 / np.log2(i + 2)  # +2 because log_2(1) = 0
-
-    # Calculate ideal DCG
-    ideal_rankings = list(relevant_ids)[:k]
-    idcg = sum(1.0 / np.log2(i + 2) for i in range(len(ideal_rankings)))
-
-    # Prevent division by zero
-    if idcg == 0:
-        return 0.0
-
-    return dcg / idcg
-
-
-def calculate_temporal_accuracy(
-    retrieved_ids: list[str], relevant_ids: set[str], temporal_relevance: dict[str, float]
-) -> float:
-    """
-    Calculate how well the retrieval system handles temporal references.
-
-    Args:
-        retrieved_ids: list of retrieved memory IDs
-        relevant_ids: set of relevant memory IDs
-        temporal_relevance: dictionary mapping memory IDs to temporal relevance scores
-
-    Returns:
-        Temporal accuracy score (0.0-1.0)
-    """
-    if not relevant_ids or not temporal_relevance:
-        return 0.0
-
-    # Get temporal relevance scores for retrieved items
-    retrieved_scores = [temporal_relevance.get(item_id, 0.0) for item_id in retrieved_ids[:5]]
-
-    # Get ideal scores (for relevant items)
-    ideal_scores = sorted(
-        [temporal_relevance.get(item_id, 0.0) for item_id in relevant_ids], reverse=True
-    )[:5]
-
-    # Calculate normalized temporal score
-    retrieved_sum = sum(retrieved_scores)
-    ideal_sum = sum(ideal_scores)
-
-    if ideal_sum == 0:
-        return 0.0
-
-    return retrieved_sum / ideal_sum
-
-
-def calculate_contextual_relevance(
-    query: str, retrieved_texts: list[str], conversation_history: list[dict], embedding_model
-) -> float:
-    """
-    Calculate how well the retrieved texts fit the broader conversation context.
-
-    Args:
-        query: Current query
-        retrieved_texts: list of retrieved memory texts
-        conversation_history: Previous conversation turns
-        embedding_model: Model for computing embeddings
-
-    Returns:
-        Contextual relevance score (0.0-1.0)
-    """
-    if not retrieved_texts or not conversation_history:
-        return 0.0
-
-    # Combine conversation history into context
-    history_texts = [turn.get("text", "") for turn in conversation_history[-3:]]
-    context = " ".join(history_texts + [query])
-
-    # Generate embeddings
-    try:
-        context_embedding = embedding_model.encode(context)
-        retrieved_embeddings = [embedding_model.encode(text) for text in retrieved_texts[:5]]
-
-        # Calculate cosine similarities
-        scores = []
-        for emb in retrieved_embeddings:
-            # Normalize
-            context_norm = np.linalg.norm(context_embedding)
-            emb_norm = np.linalg.norm(emb)
-
-            if context_norm > 0 and emb_norm > 0:
-                similarity = np.dot(context_embedding, emb) / (context_norm * emb_norm)
-                scores.append(similarity)
-            else:
-                scores.append(0.0)
-
-        # Return average contextual relevance
-        return sum(scores) / len(scores) if scores else 0.0
-
-    except Exception as e:
-        logger.error(f"Error calculating contextual relevance: {e}")
-        return 0.0
 
 
 # -----------------------------------------------------------------------------
@@ -410,7 +111,7 @@ class ConversationalScenario:
         self.queries = []
 
     @timer("generate_scenario")
-    def generate(self) -> tuple[list[Memory], list[TestQuery]]:
+    def generate(self, memory_limit=None) -> tuple[list[Memory], list[TestQuery]]:
         """Generate conversational scenario memories and queries."""
         # Create a multi-turn conversation about travel
         conversation = [
@@ -595,7 +296,7 @@ class TemporalScenario:
         self.queries = []
 
     @timer("generate_scenario")
-    def generate(self) -> tuple[list[Memory], list[TestQuery]]:
+    def generate(self, memory_limit=None) -> tuple[list[Memory], list[TestQuery]]:
         """Generate temporal scenario memories and queries."""
         # Create memories with explicit timestamps spread across time
         memories = []
@@ -795,7 +496,7 @@ class AssociativeScenario:
         self.queries = []
 
     @timer("generate_scenario")
-    def generate(self) -> tuple[list[Memory], list[TestQuery]]:
+    def generate(self, memory_limit=None) -> tuple[list[Memory], list[TestQuery]]:
         """Generate associative scenario memories and queries."""
         memories = []
         now = time.time()
@@ -995,7 +696,9 @@ class LargeContextScenario:
         self.queries = []
 
     @timer("generate_scenario")
-    def generate(self, memory_count: int = 100) -> tuple[list[Memory], list[TestQuery]]:
+    def generate(
+        self, memory_count: int = 100, memory_limit: int | None = None
+    ) -> tuple[list[Memory], list[TestQuery]]:
         """
         Generate large context scenario memories and queries.
 
@@ -1239,6 +942,15 @@ class MemoryWeaveHybridAdapter(SystemAdapter):
     def __init__(self, model_name=None, embedding_model=None):
         super().__init__("MemoryWeave Hybrid", model_name, embedding_model)
 
+    # Add this method to both adapter classes
+    def _map_memory_id(self, original_id):
+        """Map original memory IDs to the ones used internally."""
+        # Extract just the base ID without any prefixes the system might have added
+        if isinstance(original_id, str):
+            # Handle IDs like "garden_1" or "conv_3"
+            return original_id.split("_")[-1] if "_" in original_id else original_id
+        return original_id
+
     @timer("initialize")
     def initialize(self):
         """Initialize the MemoryWeave system."""
@@ -1301,12 +1013,28 @@ class MemoryWeaveHybridAdapter(SystemAdapter):
             # Format results as list of dictionaries
             formatted_results = []
             for item in results:
-                formatted_results.append({
-                    "id": item.get("memory_id", ""),
-                    "text": item.get("content", ""),
-                    "score": item.get("relevance_score", 0.0),
-                    "metadata": item.get("metadata", {}),
-                })
+                # Get both the original ID and any mapped ID
+                item_id = item.get("memory_id", "")
+                # Create a list of possible ID variations to check
+                id_variations = [
+                    item_id,
+                    self._map_memory_id(item_id),
+                    f"conv_{item_id}" if not item_id.startswith("conv_") else item_id,
+                    f"garden_{item_id}" if not item_id.startswith("garden_") else item_id,
+                    f"code_{item_id}" if not item_id.startswith("code_") else item_id,
+                    f"japan_{item_id}" if not item_id.startswith("japan_") else item_id,
+                    f"yesterday_{item_id}" if not item_id.startswith("yesterday_") else item_id,
+                ]
+
+                formatted_results.append(
+                    {
+                        "id": item_id,
+                        "text": item.get("content", ""),
+                        "score": item.get("relevance_score", 0.5),
+                        "metadata": item.get("metadata", {}),
+                        "id_variations": id_variations,  # Store variations for comparison
+                    }
+                )
 
             return formatted_results
 
@@ -1384,12 +1112,14 @@ class MemoryWeaveStandardAdapter(SystemAdapter):
             # Format results as list of dictionaries
             formatted_results = []
             for item in results:
-                formatted_results.append({
-                    "id": item.get("memory_id", ""),
-                    "text": item.get("content", ""),
-                    "score": item.get("relevance_score", 0.0),
-                    "metadata": item.get("metadata", {}),
-                })
+                formatted_results.append(
+                    {
+                        "id": item.get("memory_id", ""),
+                        "text": item.get("content", ""),
+                        "score": item.get("relevance_score", 0.0),
+                        "metadata": item.get("metadata", {}),
+                    }
+                )
 
             return formatted_results
 
@@ -1467,12 +1197,14 @@ class MemoryWeaveChunkedAdapter(SystemAdapter):
             # Format results as list of dictionaries
             formatted_results = []
             for item in results:
-                formatted_results.append({
-                    "id": item.get("memory_id", ""),
-                    "text": item.get("content", ""),
-                    "score": item.get("relevance_score", 0.0),
-                    "metadata": item.get("metadata", {}),
-                })
+                formatted_results.append(
+                    {
+                        "id": item.get("memory_id", ""),
+                        "text": item.get("content", ""),
+                        "score": item.get("relevance_score", 0.0),
+                        "metadata": item.get("metadata", {}),
+                    }
+                )
 
             return formatted_results
 
@@ -1485,6 +1217,15 @@ class MemoryWeaveChunkedAdapter(SystemAdapter):
 class StandardRAGAdapter(SystemAdapter):
     """Adapter for standard RAG (retrieval augmented generation) system."""
 
+    # Add this method to both adapter classes
+    def _map_memory_id(self, original_id):
+        """Map original memory IDs to the ones used internally."""
+        # Extract just the base ID without any prefixes the system might have added
+        if isinstance(original_id, str):
+            # Handle IDs like "garden_1" or "conv_3"
+            return original_id.split("_")[-1] if "_" in original_id else original_id
+        return original_id
+
     def __init__(self, model_name=None, embedding_model=None):
         super().__init__("Standard RAG", model_name, embedding_model)
 
@@ -1492,8 +1233,6 @@ class StandardRAGAdapter(SystemAdapter):
     def initialize(self):
         """Initialize the standard RAG system."""
         try:
-            from memoryweave.api.memory_weave import MemoryWeaveAPI
-
             # Configure a MemoryWeave instance to behave like standard RAG
             # (similarity only, no advanced features)
             self.system = MemoryWeaveAPI(
@@ -1506,13 +1245,15 @@ class StandardRAGAdapter(SystemAdapter):
             )
 
             # Configure the system to use only similarity retrieval
-            self.system.strategy.initialize({
-                "confidence_threshold": 0.1,
-                "similarity_weight": 1.0,  # Only use similarity
-                "associative_weight": 0.0,  # Disable associative retrieval
-                "temporal_weight": 0.0,  # Disable temporal relevance
-                "activation_weight": 0.0,  # Disable activation boosting
-            })
+            self.system.strategy.initialize(
+                {
+                    "confidence_threshold": 0.1,
+                    "similarity_weight": 1.0,  # Only use similarity
+                    "associative_weight": 0.0,  # Disable associative retrieval
+                    "temporal_weight": 0.0,  # Disable temporal relevance
+                    "activation_weight": 0.0,  # Disable activation boosting
+                }
+            )
 
             # Replace embedding model with shared instance if provided
             if self.embedding_model:
@@ -1566,12 +1307,28 @@ class StandardRAGAdapter(SystemAdapter):
             # Format results as list of dictionaries
             formatted_results = []
             for item in results:
-                formatted_results.append({
-                    "id": item.get("memory_id", ""),
-                    "text": item.get("content", ""),
-                    "score": item.get("relevance_score", 0.0),
-                    "metadata": item.get("metadata", {}),
-                })
+                # Get both the original ID and any mapped ID
+                item_id = item.get("memory_id", "")
+                # Create a list of possible ID variations to check
+                id_variations = [
+                    item_id,
+                    self._map_memory_id(item_id),
+                    f"conv_{item_id}" if not item_id.startswith("conv_") else item_id,
+                    f"garden_{item_id}" if not item_id.startswith("garden_") else item_id,
+                    f"code_{item_id}" if not item_id.startswith("code_") else item_id,
+                    f"japan_{item_id}" if not item_id.startswith("japan_") else item_id,
+                    f"yesterday_{item_id}" if not item_id.startswith("yesterday_") else item_id,
+                ]
+
+                formatted_results.append(
+                    {
+                        "id": item_id,
+                        "text": item.get("content", ""),
+                        "score": item.get("relevance_score", 0.5),
+                        "metadata": item.get("metadata", {}),
+                        "id_variations": id_variations,  # Store variations for comparison
+                    }
+                )
 
             return formatted_results
 
@@ -1697,13 +1454,13 @@ class ContextualRecallBenchmark:
         # Create system adapters
         system_adapters = {}
 
+        # Initialize systems - use a separate progress bar
         with Progress(
             SpinnerColumn(),
             TextColumn("[bold blue]{task.description}"),
             BarColumn(),
             TimeElapsedColumn(),
         ) as progress:
-            # Initialize systems
             init_task = progress.add_task(
                 "Initializing systems...", total=len(self.systems_to_test)
             )
@@ -1739,207 +1496,191 @@ class ContextualRecallBenchmark:
 
                 progress.advance(init_task)
 
-            # Run benchmark for each scenario
-            for scenario_type in self.scenarios_to_run:
-                if scenario_type not in scenario_generators:
-                    logger.error(f"Unknown scenario type: {scenario_type}")
-                    continue
+        # Run benchmark for each scenario
+        for scenario_type in self.scenarios_to_run:
+            if scenario_type not in scenario_generators:
+                logger.error(f"Unknown scenario type: {scenario_type}")
+                continue
 
-                # Generate scenario data
-                scenario_generator = scenario_generators[scenario_type]
-                console.print(
-                    f"\n[bold cyan]Running {scenario_generator.name} benchmark[/bold cyan]"
+            # Generate scenario data
+            scenario_generator = scenario_generators[scenario_type]
+            console.print(f"\n[bold cyan]Running {scenario_generator.name} benchmark[/bold cyan]")
+            console.print(f"[dim]{scenario_generator.description}[/dim]\n")
+
+            # Generate memories and queries
+            memory_limit = self.max_memories if scenario_type == ScenarioType.LARGE_CONTEXT else 50
+
+            # Call generate with appropriate parameters depending on the scenario type
+            if scenario_type == ScenarioType.LARGE_CONTEXT:
+                memories, queries = scenario_generator.generate(memory_count=memory_limit)
+            else:
+                memories, queries = scenario_generator.generate(memory_limit=memory_limit)
+
+            console.print(
+                f"Generated [bold]{len(memories)}[/bold] memories and [bold]{len(queries)}[/bold] queries"
+            )
+
+            # Keep track of results for this scenario
+            scenario_result = {}
+
+            # For each system, run the benchmark
+            for system_type, adapter in system_adapters.items():
+                console.print(f"\n[bold]Testing {adapter.name}[/bold]")
+
+                # Add memories to the system (in a separate progress bar)
+                console.print(f"Adding {len(memories)} memories...")
+                for i, memory in enumerate(memories):
+                    adapter.add_memory(memory)
+                    if (i + 1) % 10 == 0 or i + 1 == len(memories):
+                        console.print(f"  Added {i + 1}/{len(memories)} memories")
+                check_count = (
+                    len(adapter.memory_store_adapter.get_all())
+                    if hasattr(adapter, "memory_store_adapter")
+                    else 0
                 )
-                console.print(f"[dim]{scenario_generator.description}[/dim]\n")
+                console.print(f"  Verified [green]{check_count}[/green] memories in store")
+                # Print the first memory ID for debugging
+                if check_count > 0:
+                    first_memory = adapter.memory_store_adapter.get_all()[0]
+                    console.print(
+                        f"  First memory ID: [cyan]{first_memory.id}[/cyan], expecting format like: [yellow]{list(queries[0].relevant_ids)[0] if queries[0].relevant_ids else 'unknown'}[/yellow]"
+                    )
 
-                # Generate memories and queries
-                memory_limit = (
-                    self.max_memories if scenario_type == ScenarioType.LARGE_CONTEXT else 50
-                )
-                memories, queries = scenario_generator.generate(memory_limit)
+                # For each query, retrieve memories and calculate metrics
+                system_scenario_metrics = RetrievalMetrics()
+                console.print(f"Running {len(queries)} queries...")
 
-                console.print(
-                    f"Generated [bold]{len(memories)}[/bold] memories and [bold]{len(queries)}[/bold] queries"
-                )
+                for query_idx, query in enumerate(queries):
+                    # Time retrieval operation
+                    adapter.timer.start("retrieval")
+                    results = adapter.retrieve(
+                        query=query.text,
+                        k=10,
+                        conversation_history=query.conversation_history,
+                        temporal_context=query.temporal_context,
+                    )
+                    retrieval_time = adapter.timer.stop("retrieval")
 
-                # Keep track of results for this scenario
-                scenario_result = {}
+                    # Extract memory IDs from results
+                    retrieved_ids = [result["id"] for result in results]
+                    id_variations = {
+                        result["id"]: result.get("id_variations", []) for result in results
+                    }
+                    # Calculate metrics with ID variations
+                    recall_at_1 = calculate_recall_at_k(
+                        retrieved_ids, query.relevant_ids, 1, id_variations
+                    )
+                    # Calculate metrics
+                    recall_at_1 = calculate_recall_at_k(retrieved_ids, query.relevant_ids, 1)
+                    recall_at_3 = calculate_recall_at_k(retrieved_ids, query.relevant_ids, 3)
+                    recall_at_5 = calculate_recall_at_k(retrieved_ids, query.relevant_ids, 5)
+                    recall_at_10 = calculate_recall_at_k(retrieved_ids, query.relevant_ids, 10)
+                    mrr = calculate_mrr(retrieved_ids, query.relevant_ids)
+                    ndcg = calculate_ndcg(retrieved_ids, query.relevant_ids)
 
-                # For each system, run the benchmark
-                for system_type, adapter in system_adapters.items():
-                    console.print(f"\n[bold]Testing {adapter.name}[/bold]")
-
-                    # Add memories to the system
-                    with Progress(
-                        SpinnerColumn(),
-                        TextColumn("[bold blue]{task.description}"),
-                        BarColumn(),
-                        TimeElapsedColumn(),
-                    ) as memory_progress:
-                        memory_task = memory_progress.add_task(
-                            f"Adding {len(memories)} memories to {adapter.name}...",
-                            total=len(memories),
-                        )
-
+                    # Calculate temporal accuracy if applicable
+                    temporal_accuracy = 0.0
+                    if query.temporal_context:
+                        # Create temporal relevance scores
+                        temporal_relevance = {}
                         for memory in memories:
-                            adapter.add_memory(memory)
-                            memory_progress.advance(memory_task)
-
-                    # For each query, retrieve memories and calculate metrics
-                    system_scenario_metrics = RetrievalMetrics()
-
-                    with Progress(
-                        SpinnerColumn(),
-                        TextColumn("[bold blue]{task.description}"),
-                        BarColumn(),
-                        TimeElapsedColumn(),
-                    ) as query_progress:
-                        query_task = query_progress.add_task(
-                            f"Running {len(queries)} queries on {adapter.name}...",
-                            total=len(queries),
-                        )
-
-                        for query in queries:
-                            # Time retrieval operation
-                            adapter.timer.start("retrieval")
-                            results = adapter.retrieve(
-                                query=query.text,
-                                k=10,
-                                conversation_history=query.conversation_history,
-                                temporal_context=query.temporal_context,
-                            )
-                            retrieval_time = adapter.timer.stop("retrieval")
-
-                            # Extract memory IDs from results
-                            retrieved_ids = [result["id"] for result in results]
-
-                            # Calculate metrics
-                            recall_at_1 = calculate_recall_at_k(
-                                retrieved_ids, query.relevant_ids, 1
-                            )
-                            recall_at_3 = calculate_recall_at_k(
-                                retrieved_ids, query.relevant_ids, 3
-                            )
-                            recall_at_5 = calculate_recall_at_k(
-                                retrieved_ids, query.relevant_ids, 5
-                            )
-                            recall_at_10 = calculate_recall_at_k(
-                                retrieved_ids, query.relevant_ids, 10
-                            )
-                            mrr = calculate_mrr(retrieved_ids, query.relevant_ids)
-                            ndcg = calculate_ndcg(retrieved_ids, query.relevant_ids)
-
-                            # Calculate temporal accuracy if applicable
-                            temporal_accuracy = 0.0
-                            if query.temporal_context:
-                                # Create temporal relevance scores
-                                temporal_relevance = {}
-                                for memory in memories:
-                                    if "timestamp" in memory.metadata:
-                                        # Higher score for memories closer to reference time
-                                        reference_time = query.temporal_context.get(
-                                            "reference_time", time.time()
-                                        )
-                                        time_diff = abs(
-                                            memory.metadata["timestamp"] - reference_time
-                                        )
-                                        # Exponential decay based on time difference
-                                        temporal_relevance[memory.id] = np.exp(
-                                            -time_diff / (7 * 86400)
-                                        )  # 7-day half-life
-
-                                temporal_accuracy = calculate_temporal_accuracy(
-                                    retrieved_ids, query.relevant_ids, temporal_relevance
+                            if "timestamp" in memory.metadata:
+                                # Higher score for memories closer to reference time
+                                reference_time = query.temporal_context.get(
+                                    "reference_time", time.time()
                                 )
+                                time_diff = abs(memory.metadata["timestamp"] - reference_time)
+                                # Exponential decay based on time difference
+                                temporal_relevance[memory.id] = np.exp(
+                                    -time_diff / (7 * 86400)
+                                )  # 7-day half-life
 
-                            # Calculate contextual relevance if applicable
-                            contextual_relevance = 0.0
-                            if query.conversation_history and self.embedding_model:
-                                retrieved_texts = [result["text"] for result in results]
-                                contextual_relevance = calculate_contextual_relevance(
-                                    query.text,
-                                    retrieved_texts,
-                                    query.conversation_history,
-                                    self.embedding_model,
-                                )
-
-                            # Store query results
-                            system_scenario_metrics.query_count += 1
-                            system_scenario_metrics.recall_at_1 += recall_at_1
-                            system_scenario_metrics.recall_at_3 += recall_at_3
-                            system_scenario_metrics.recall_at_5 += recall_at_5
-                            system_scenario_metrics.recall_at_10 += recall_at_10
-                            system_scenario_metrics.mrr += mrr
-                            system_scenario_metrics.ndcg += ndcg
-                            system_scenario_metrics.temporal_accuracy += temporal_accuracy
-                            system_scenario_metrics.contextual_relevance += contextual_relevance
-                            system_scenario_metrics.avg_retrieval_time += retrieval_time
-
-                            # Store per-query results
-                            system_scenario_metrics.per_query_results[query.id] = {
-                                "query": query.text,
-                                "recall_at_1": recall_at_1,
-                                "recall_at_3": recall_at_3,
-                                "recall_at_5": recall_at_5,
-                                "recall_at_10": recall_at_10,
-                                "mrr": mrr,
-                                "ndcg": ndcg,
-                                "temporal_accuracy": temporal_accuracy,
-                                "contextual_relevance": contextual_relevance,
-                                "retrieval_time": retrieval_time,
-                                "difficulty": query.difficulty,
-                                "retrieved_ids": retrieved_ids[:10],
-                                "relevant_ids": list(query.relevant_ids),
-                            }
-
-                            query_progress.advance(query_task)
-
-                    # Calculate averages
-                    if system_scenario_metrics.query_count > 0:
-                        system_scenario_metrics.recall_at_1 /= system_scenario_metrics.query_count
-                        system_scenario_metrics.recall_at_3 /= system_scenario_metrics.query_count
-                        system_scenario_metrics.recall_at_5 /= system_scenario_metrics.query_count
-                        system_scenario_metrics.recall_at_10 /= system_scenario_metrics.query_count
-                        system_scenario_metrics.mrr /= system_scenario_metrics.query_count
-                        system_scenario_metrics.ndcg /= system_scenario_metrics.query_count
-                        system_scenario_metrics.temporal_accuracy /= (
-                            system_scenario_metrics.query_count
-                        )
-                        system_scenario_metrics.contextual_relevance /= (
-                            system_scenario_metrics.query_count
-                        )
-                        system_scenario_metrics.avg_retrieval_time /= (
-                            system_scenario_metrics.query_count
+                        temporal_accuracy = calculate_temporal_accuracy(
+                            retrieved_ids, query.relevant_ids, temporal_relevance
                         )
 
-                    # Store scenario metrics for this system
-                    scenario_result[system_type.value] = system_scenario_metrics.to_dict()
+                    # Calculate contextual relevance if applicable
+                    contextual_relevance = 0.0
+                    if query.conversation_history and self.embedding_model:
+                        retrieved_texts = [result["text"] for result in results]
+                        contextual_relevance = calculate_contextual_relevance(
+                            query.text,
+                            retrieved_texts,
+                            query.conversation_history,
+                            self.embedding_model,
+                        )
 
-                    # Display scenario summary for this system
-                    console.print(
-                        f"\n[bold]Results for {adapter.name} on {scenario_generator.name}:[/bold]"
+                    # Store query results
+                    system_scenario_metrics.query_count += 1
+                    system_scenario_metrics.recall_at_1 += recall_at_1
+                    system_scenario_metrics.recall_at_3 += recall_at_3
+                    system_scenario_metrics.recall_at_5 += recall_at_5
+                    system_scenario_metrics.recall_at_10 += recall_at_10
+                    system_scenario_metrics.mrr += mrr
+                    system_scenario_metrics.ndcg += ndcg
+                    system_scenario_metrics.temporal_accuracy += temporal_accuracy
+                    system_scenario_metrics.contextual_relevance += contextual_relevance
+                    system_scenario_metrics.avg_retrieval_time += retrieval_time
+
+                    # Store per-query results
+                    system_scenario_metrics.per_query_results[query.id] = {
+                        "query": query.text,
+                        "recall_at_1": recall_at_1,
+                        "recall_at_3": recall_at_3,
+                        "recall_at_5": recall_at_5,
+                        "recall_at_10": recall_at_10,
+                        "mrr": mrr,
+                        "ndcg": ndcg,
+                        "temporal_accuracy": temporal_accuracy,
+                        "contextual_relevance": contextual_relevance,
+                        "retrieval_time": retrieval_time,
+                        "difficulty": query.difficulty,
+                        "retrieved_ids": retrieved_ids[:10],
+                        "relevant_ids": list(query.relevant_ids),
+                    }
+
+                    console.print(f"  Completed query {query_idx + 1}/{len(queries)}")
+
+                # Calculate averages
+                if system_scenario_metrics.query_count > 0:
+                    system_scenario_metrics.recall_at_1 /= system_scenario_metrics.query_count
+                    system_scenario_metrics.recall_at_3 /= system_scenario_metrics.query_count
+                    system_scenario_metrics.recall_at_5 /= system_scenario_metrics.query_count
+                    system_scenario_metrics.recall_at_10 /= system_scenario_metrics.query_count
+                    system_scenario_metrics.mrr /= system_scenario_metrics.query_count
+                    system_scenario_metrics.ndcg /= system_scenario_metrics.query_count
+                    system_scenario_metrics.temporal_accuracy /= system_scenario_metrics.query_count
+                    system_scenario_metrics.contextual_relevance /= (
+                        system_scenario_metrics.query_count
                     )
-                    console.print(
-                        f"  Recall@1: [cyan]{system_scenario_metrics.recall_at_1:.3f}[/cyan]"
-                    )
-                    console.print(
-                        f"  Recall@5: [cyan]{system_scenario_metrics.recall_at_5:.3f}[/cyan]"
-                    )
-                    console.print(f"  MRR: [cyan]{system_scenario_metrics.mrr:.3f}[/cyan]")
-                    if scenario_type == ScenarioType.TEMPORAL:
-                        console.print(
-                            f"  Temporal Accuracy: [cyan]{system_scenario_metrics.temporal_accuracy:.3f}[/cyan]"
-                        )
-                    if scenario_type == ScenarioType.CONVERSATIONAL:
-                        console.print(
-                            f"  Contextual Relevance: [cyan]{system_scenario_metrics.contextual_relevance:.3f}[/cyan]"
-                        )
-                    console.print(
-                        f"  Avg Retrieval Time: [cyan]{system_scenario_metrics.avg_retrieval_time:.3f}s[/cyan]"
+                    system_scenario_metrics.avg_retrieval_time /= (
+                        system_scenario_metrics.query_count
                     )
 
-                # Store results for this scenario
-                scenario_results[scenario_type.value] = scenario_result
+                # Store scenario metrics for this system
+                scenario_result[system_type.value] = system_scenario_metrics.to_dict()
+
+                # Display scenario summary for this system
+                console.print(
+                    f"\n[bold]Results for {adapter.name} on {scenario_generator.name}:[/bold]"
+                )
+                console.print(f"  Recall@1: [cyan]{system_scenario_metrics.recall_at_1:.3f}[/cyan]")
+                console.print(f"  Recall@5: [cyan]{system_scenario_metrics.recall_at_5:.3f}[/cyan]")
+                console.print(f"  MRR: [cyan]{system_scenario_metrics.mrr:.3f}[/cyan]")
+                if scenario_type == ScenarioType.TEMPORAL:
+                    console.print(
+                        f"  Temporal Accuracy: [cyan]{system_scenario_metrics.temporal_accuracy:.3f}[/cyan]"
+                    )
+                if scenario_type == ScenarioType.CONVERSATIONAL:
+                    console.print(
+                        f"  Contextual Relevance: [cyan]{system_scenario_metrics.contextual_relevance:.3f}[/cyan]"
+                    )
+                console.print(
+                    f"  Avg Retrieval Time: [cyan]{system_scenario_metrics.avg_retrieval_time:.3f}s[/cyan]"
+                )
+
+            # Store results for this scenario
+            scenario_results[scenario_type.value] = scenario_result
 
         # Calculate overall metrics for each system
         for system_type in self.systems_to_test:
@@ -2094,21 +1835,66 @@ class ContextualRecallBenchmark:
 
             console.print(scenario_table)
 
+    def _convert_numpy_types(self, obj):
+        """Recursively convert NumPy types to Python native types."""
+        import numpy as np
+
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if isinstance(value, (np.integer, np.floating)):
+                    obj[key] = float(value) if isinstance(value, np.floating) else int(value)
+                elif isinstance(value, np.ndarray):
+                    obj[key] = value.tolist()
+                elif isinstance(value, (dict, list)):
+                    self._convert_numpy_types(value)
+        elif isinstance(obj, list):
+            for i, value in enumerate(obj):
+                if isinstance(value, (np.integer, np.floating)):
+                    obj[i] = float(value) if isinstance(value, np.floating) else int(value)
+                elif isinstance(value, np.ndarray):
+                    obj[i] = value.tolist()
+                elif isinstance(value, (dict, list)):
+                    self._convert_numpy_types(value)
+
     def _save_results(self):
-        """Save benchmark results to a JSON file."""
-        # Create result filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = os.path.join(self.output_dir, f"contextual_recall_benchmark_{timestamp}.json")
+        """Save benchmark results to a JSON file with NumPy type handling."""
+
+        # Create a custom JSON encoder that handles NumPy types
+        class NumpyEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, np.integer):
+                    return int(obj)
+                if isinstance(obj, np.floating):
+                    return float(obj)
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                return super().default(obj)
+
+        # Add version information and execution details
+        filename = os.path.join(
+            self.output_dir,
+            f"contextual_recall_benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+        )
+
+        # Convert any NumPy values in the results dictionary
+        self._convert_numpy_types(self.results)
 
         try:
-            # Write results to file
             with open(filename, "w") as f:
-                json.dump(self.results, f, indent=2)
-
+                json.dump(self.results, f, indent=2, cls=NumpyEncoder)
             console.print(f"\n[bold green]Results saved to:[/bold green] {filename}")
-
         except Exception as e:
-            console.print(f"[yellow]Failed to save results: {str(e)}[/yellow]")
+            console.print(f"[yellow]Failed to save results: {e}[/yellow]")
+            if self.debug:
+                import traceback
+
+                console.print(traceback.format_exc())
+
+        # Also create visualizations where possible
+        try:
+            self._create_visualizations()
+        except Exception as e:
+            console.print(f"[yellow]Failed to create visualizations: {e}[/yellow]")
             if self.debug:
                 import traceback
 

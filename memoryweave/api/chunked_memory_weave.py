@@ -62,13 +62,15 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         """Initialize the ChunkedMemoryWeaveAPI."""
         # Initialize chunking components first
         self.text_chunker = TextChunker()
-        self.text_chunker.initialize({
-            "chunk_size": 500,  # Larger chunks (was 200)
-            "chunk_overlap": 150,  # More overlap (was 50)
-            "min_chunk_size": 100,  # Larger minimum (was 50)
-            "respect_paragraphs": True,
-            "respect_sentences": True,
-        })
+        self.text_chunker.initialize(
+            {
+                "chunk_size": 500,  # Larger chunks (was 200)
+                "chunk_overlap": 150,  # More overlap (was 50)
+                "min_chunk_size": 100,  # Larger minimum (was 50)
+                "respect_paragraphs": True,
+                "respect_sentences": True,
+            }
+        )
 
         # Initialize embedding model to get dimension
         self.device = _get_device(device)
@@ -501,11 +503,13 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             result = []
 
             for chunk in chunks:
-                result.append({
-                    "text": chunk.text,
-                    "metadata": chunk.metadata,
-                    "chunk_index": chunk.chunk_index,
-                })
+                result.append(
+                    {
+                        "text": chunk.text,
+                        "metadata": chunk.metadata,
+                        "chunk_index": chunk.chunk_index,
+                    }
+                )
 
             return result
         except Exception as e:

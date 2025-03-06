@@ -696,7 +696,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
 
             # Adjust other weights proportionally
             remaining_weight = 1.0 - (similarity_weight + activation_weight)
-            proportion = associative_weight / (associative_weight + temporal_weight)
+            proportion = associative_weight / max(0.0001, (associative_weight + temporal_weight))
             associative_weight = remaining_weight * proportion
             temporal_weight = remaining_weight * (1 - proportion)
 

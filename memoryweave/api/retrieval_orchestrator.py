@@ -260,14 +260,16 @@ class RetrievalOrchestrator:
             emb_hash = hash(str(query))
 
         # Create composite key from query features
-        return hash((
-            emb_hash,
-            query,
-            query_type,
-            tuple(keywords) if keywords else None,
-            tuple(entities) if entities else None,
-            top_k,
-        ))
+        return hash(
+            (
+                emb_hash,
+                query,
+                query_type,
+                tuple(keywords) if keywords else None,
+                tuple(entities) if entities else None,
+                top_k,
+            )
+        )
 
     def _prepare_activations(self, top_k):
         """Pre-fetch activations to speed up post-processing."""

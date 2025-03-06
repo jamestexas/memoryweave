@@ -89,14 +89,16 @@ class TextChunker(Component):
 
             # Add position metadata if requested
             if self.include_metadata:
-                chunk_metadata.update({
-                    "chunk_index": i,
-                    "chunk_count": len(chunks),
-                    "is_first_chunk": i == 0,
-                    "is_last_chunk": i == len(chunks) - 1,
-                    "text_start_position": text.find(chunk[:50]),  # Approximate position
-                    "chunk_size": len(chunk),
-                })
+                chunk_metadata.update(
+                    {
+                        "chunk_index": i,
+                        "chunk_count": len(chunks),
+                        "is_first_chunk": i == 0,
+                        "is_last_chunk": i == len(chunks) - 1,
+                        "text_start_position": text.find(chunk[:50]),  # Approximate position
+                        "chunk_size": len(chunk),
+                    }
+                )
 
             result.append({"text": chunk, "metadata": chunk_metadata})
 
@@ -128,14 +130,16 @@ class TextChunker(Component):
             # If this turn would make the chunk too large, finalize current chunk
             if current_length > 0 and current_length + len(turn_text) > self.chunk_size:
                 chunk_text = "\n".join(current_chunk)
-                chunks.append({
-                    "text": chunk_text,
-                    "metadata": {
-                        "chunk_index": len(chunks),
-                        "is_conversation": True,
-                        "turn_range": (i - len(current_chunk), i - 1),
-                    },
-                })
+                chunks.append(
+                    {
+                        "text": chunk_text,
+                        "metadata": {
+                            "chunk_index": len(chunks),
+                            "is_conversation": True,
+                            "turn_range": (i - len(current_chunk), i - 1),
+                        },
+                    }
+                )
                 current_chunk = []
                 current_length = 0
 
@@ -146,14 +150,16 @@ class TextChunker(Component):
         # Add the final chunk if there's anything left
         if current_chunk:
             chunk_text = "\n".join(current_chunk)
-            chunks.append({
-                "text": chunk_text,
-                "metadata": {
-                    "chunk_index": len(chunks),
-                    "is_conversation": True,
-                    "turn_range": (len(turns) - len(current_chunk), len(turns) - 1),
-                },
-            })
+            chunks.append(
+                {
+                    "text": chunk_text,
+                    "metadata": {
+                        "chunk_index": len(chunks),
+                        "is_conversation": True,
+                        "turn_range": (len(turns) - len(current_chunk), len(turns) - 1),
+                    },
+                }
+            )
 
         return chunks
 

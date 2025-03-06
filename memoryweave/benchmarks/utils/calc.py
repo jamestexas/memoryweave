@@ -55,7 +55,7 @@ class RetrievalMetrics:
         return result
 
 
-def calculate_recall_at_k(retrieved_ids: list[str], relevant_ids: set[str], k: int) -> float:
+def calculate_recall_at_k(retrieved_ids, relevant_ids, k, id_variations=None):
     """Calculate recall@k - proportion of relevant items found in top-k results."""
     if not relevant_ids:
         return 0.0
@@ -63,8 +63,21 @@ def calculate_recall_at_k(retrieved_ids: list[str], relevant_ids: set[str], k: i
     # Get top-k retrieved IDs
     top_k_ids = retrieved_ids[:k]
 
-    # Calculate intersection
-    found = set(top_k_ids).intersection(relevant_ids)
+    # Check for ID variations if provided
+    found = set()
+    for item_id in top_k_ids:
+        # Direct match
+        if item_id in relevant_ids:
+            found.add(item_id)
+            continue
+
+        # Check variations if available
+        if id_variations and item_id in id_variations:
+            variations = id_variations[item_id]
+            for var_id in variations:
+                if var_id in relevant_ids:
+                    found.add(var_id)
+                    break
 
     # Calculate recall
     return len(found) / len(relevant_ids)
