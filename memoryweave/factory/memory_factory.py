@@ -3,9 +3,10 @@ Factory for creating memory stores and adapters.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
-from memoryweave.interfaces.memory import IMemoryStore
+from memoryweave.components.memory_encoding import MemoryEncoder
+from memoryweave.interfaces.memory import IMemoryEncoder, IMemoryStore
 from memoryweave.storage.refactored.adapter import MemoryAdapter
 from memoryweave.storage.refactored.chunked_store import ChunkedMemoryStore
 from memoryweave.storage.refactored.hybrid_store import HybridMemoryStore
@@ -76,3 +77,24 @@ def create_memory_store_and_adapter(
     memory_adapter = MemoryAdapter(memory_store, vector_search)
 
     return memory_store, memory_adapter
+
+
+def create_memory_encoder(embedding_model: Any, config: dict[str, Any] = None) -> IMemoryEncoder:
+    """
+    Create a memory encoder from configuration.
+
+    Args:
+        embedding_model: Model to use for creating embeddings
+        config: Configuration for the memory encoder
+
+    Returns:
+        Memory encoder
+    """
+    if config is None:
+        config = {}
+
+    # Create memory encoder
+    memory_encoder = MemoryEncoder(embedding_model)
+    memory_encoder.initialize(config)
+
+    return memory_encoder

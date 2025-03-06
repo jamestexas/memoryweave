@@ -26,6 +26,7 @@ from memoryweave.components.context_enhancement import (
 from memoryweave.components.dynamic_threshold_adjuster import DynamicThresholdAdjuster
 from memoryweave.components.keyword_expander import KeywordExpander
 from memoryweave.components.memory_decay import MemoryDecayComponent
+from memoryweave.components.memory_encoding import MemoryEncoder
 from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.components.personal_attributes import PersonalAttributeManager
 from memoryweave.components.post_processors import (
@@ -62,6 +63,7 @@ __all__ = [
     # Components
     "KeywordExpander",
     "MemoryDecayComponent",
+    "MemoryEncoder",
     "MemoryManager",
     "PersonalAttributeManager",
     "QueryAnalyzer",
