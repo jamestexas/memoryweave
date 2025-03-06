@@ -6,7 +6,7 @@ including data models, protocols, and base classes for memory components.
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Optional, Protocol, TypedDict, Union
+from typing import Any, Protocol, TypedDict, Union
 
 import numpy as np
 
@@ -46,7 +46,10 @@ class IMemoryStore(Protocol):
     """Interface for memory storage component."""
 
     def add(
-        self, embedding: EmbeddingVector, content: str, metadata: Optional[dict[str, Any]] = None
+        self,
+        embedding: EmbeddingVector,
+        content: str,
+        metadata: dict[str, Any] | None = None,
     ) -> MemoryID:
         """Add a memory and return its ID."""
         ...
@@ -100,7 +103,7 @@ class IVectorStore(Protocol):
         ...
 
     def search(
-        self, query_vector: EmbeddingVector, k: int, threshold: Optional[float] = None
+        self, query_vector: EmbeddingVector, k: int, threshold: float | None = None
     ) -> list[tuple[MemoryID, float]]:
         """Search for similar vectors.
 
@@ -179,13 +182,19 @@ class IMemoryEncoder(Protocol):
         ...
 
     def encode_interaction(
-        self, query: str, response: str, metadata: Optional[dict[str, Any]] = None
+        self,
+        query: str,
+        response: str,
+        metadata: dict[str, Any] = None,  # noqa: F841
     ) -> EmbeddingVector:
         """Encode a query-response interaction into an embedding vector."""
         ...
 
     def encode_concept(
-        self, concept: str, definition: str, examples: Optional[list[str]] = None
+        self,
+        concept: str,
+        definition: str,  # noqa: F841
+        examples: list[str] | None = None,  # noqa: F841
     ) -> EmbeddingVector:
         """Encode a concept into an embedding vector."""
         ...
