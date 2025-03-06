@@ -157,7 +157,6 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
 
         # Replace the strategy
         self.strategy = self.chunked_strategy
-
         # Update retrieval orchestrator to use the new strategy
         if hasattr(self, "retrieval_orchestrator"):
             self.retrieval_orchestrator.strategy = self.strategy
@@ -305,10 +304,9 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
 
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
         """
-        Process user message and generate a response using memory retrieval.
+        Process user message and generate a response using chunked memory retrieval.
 
-        This method is enhanced to handle chunking of both the query and
-        the retrievable memories.
+        This method ensures proper use of the retrieval orchestrator with the chunked strategy.
 
         Args:
             user_message: User's message
@@ -352,8 +350,8 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             if query_embedding is None:
                 return "Sorry, an error occurred while processing your request."
 
-        # Step 4: Retrieve memories
-        # The chunked strategy handles both chunked and non-chunked queries
+        # Step 4: Use retrieval orchestrator for memory retrieval
+        # IMPORTANT: Use the orchestrator instead of direct strategy calls
         relevant_memories = self.retrieval_orchestrator.retrieve(
             query_embedding=query_embedding,
             query=user_message,
@@ -378,6 +376,7 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
             print("===== Prompt Start =====")
             print(prompt)
             print("===== Prompt End =====")
+
         # Step 7: Generate response
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
 

@@ -590,7 +590,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         """
         Process user message and generate a response using hybrid memory retrieval.
 
-        This method leverages the hybrid approach for more efficient memory usage.
+        This method leverages the retrieval orchestrator with the hybrid strategy.
 
         Args:
             user_message: User's message
@@ -618,7 +618,8 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                     adapted_params = {}
                 adapted_params["important_keywords"] = keywords
 
-        # Step 4: Retrieve memories
+        # Step 4: Use retrieval orchestrator for consistent memory retrieval
+        # IMPORTANT: Use the orchestrator instead of direct strategy calls
         relevant_memories = self.retrieval_orchestrator.retrieve(
             query_embedding=query_embedding,
             query=user_message,

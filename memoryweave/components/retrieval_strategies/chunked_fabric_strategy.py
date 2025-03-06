@@ -6,7 +6,6 @@ enabling more accurate retrieval from large text contexts.
 """
 
 import logging
-import time
 from typing import Any, Optional
 
 import numpy as np
@@ -114,104 +113,80 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
 
     def retrieve(
         self,
-        query_embedding: np.ndarray,
-        top_k: int,
-        context: dict[str, Any],
+        query: str,
+        query_embedding=None,
+        top_k: int = 10,
+        confidence_threshold: float = None,
+        **kwargs,
     ) -> list[dict[str, Any]]:
         """
-        Retrieve memories using the chunked contextual fabric strategy.
-
-        This method extends the base ContextualFabricStrategy to leverage
-        chunked representation for more accurate retrieval.
+        Direct access to the chunked retrieval system.
 
         Args:
-            query_embedding: Query embedding for similarity matching
-            top_k: Number of results to return
-            context: Context containing query, memory, etc.
+            query: Query text
+            query_embedding: Optional pre-computed embedding (will compute if not provided)
+            top_k: Maximum number of results to return
+            confidence_threshold: Optional confidence threshold for filtering results
+            **kwargs: Additional parameters for the retrieval strategy
 
         Returns:
-            List of retrieved memory dicts with relevance scores
+            List of retrieved memories with relevance scores
         """
-        # If chunking is not supported, fall back to base implementation
-        if not self.supports_chunks:
-            if self.debug:
-                self.logger.debug("Chunking not supported, using base implementation")
-            return super().retrieve(query_embedding, top_k, context)
+        # Determine if query needs chunking
+        should_chunk_query = len(query) > self.auto_chunk_threshold
 
-        # Get memory store from context or instance
-        memory_store = context.get("memory_store", self.memory_store)
+        # Handle query embedding differently based on size
+        if should_chunk_query and query_embedding is None:
+            # Create query chunks
+            query_chunks = self.text_chunker.create_chunks(query)
 
-        # Get query from context
-        query = context.get("query", "")
-
-        # Get current time from context or use current time
-        context.get("current_time", time.time())
-
-        # Apply parameter adaptation if available
-        adapted_params = context.get("adapted_retrieval_params", {})
-        confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
-        self._apply_adapted_params(adapted_params)
-
-        # Log retrieval details if debug enabled
-        if self.debug:
-            self.logger.debug(f"ChunkedFabricStrategy: Retrieving for query: '{query}'")
-            self.logger.debug(
-                f"ChunkedFabricStrategy: Using confidence threshold: {confidence_threshold}"
-            )
-
-        # Step 1: Get direct chunk similarity matches
-        chunk_results = self._retrieve_similar_chunks(
-            query_embedding=query_embedding,
-            max_results=self.max_candidates,
-            memory_store=memory_store,
-        )
-
-        # Step 2: Group results by memory ID and calculate memory-level scores
-        memory_results = self._aggregate_chunks_by_memory(chunk_results)
-
-        # Step 3: Get associative matches (if linker available)
-        associative_results = self._retrieve_associative_results(memory_results)
-
-        # Step 4: Get temporal context (if available)
-        temporal_results = self._retrieve_temporal_results(query, context, memory_store)
-
-        # Step 5: Get activation scores (if available)
-        activation_results = {}
-        if self.activation_manager is not None:
-            activations = self.activation_manager.get_activated_memories(threshold=0.1)
-            activation_results = dict(activations)
-
-        # Step 6: Combine all sources
-        combined_results = self._combine_results(
-            similarity_results=memory_results,
-            associative_results=associative_results,
-            temporal_results=temporal_results,
-            activation_results=activation_results,
-            memory_store=memory_store,
-        )
-
-        # Step 7: Enhance results with chunk context
-        enhanced_results = self._enhance_with_chunk_context(combined_results, chunk_results)
-
-        # Step 8: Apply threshold and sort
-        filtered_results = [
-            r for r in enhanced_results if r["relevance_score"] >= confidence_threshold
-        ]
-        if len(filtered_results) < self.min_results:
-            filtered_results = enhanced_results[: self.min_results]
-
-        top_k = min(top_k, len(filtered_results))
-        results = filtered_results[:top_k]
-
-        # Debug logging
-        if self.debug:
-            self.logger.debug(f"ChunkedFabricStrategy: Retrieved {len(results)} results")
-            if results:
-                self.logger.debug(
-                    f"ChunkedFabricStrategy: Top 3 scores: {[r['relevance_score'] for r in results[:3]]}"
+            # Create embeddings for each chunk
+            query_embeddings = []
+            for chunk in query_chunks:
+                chunk_text = chunk["text"]
+                embedding = self.embedding_model.encode(
+                    chunk_text, show_progress_bar=self.show_progress_bar
                 )
+                query_embeddings.append(embedding)
 
-        return results
+            # Use the first chunk as primary embedding, but store chunk info for context
+            query_embedding = query_embeddings[0]
+            kwargs["query_chunks"] = query_chunks
+            kwargs["query_embeddings"] = query_embeddings
+        elif query_embedding is None:
+            # Compute standard embedding if not provided
+            query_embedding = self._compute_embedding(query)
+            if query_embedding is None:
+                return []
+
+        # Analyze query to get type and keywords
+        query_info = self._analyze_query(query)
+        _, adapted_params, expanded_keywords, query_type, entities = query_info
+
+        # Override with any provided parameters
+        if confidence_threshold is not None:
+            if adapted_params is None:
+                adapted_params = {}
+            adapted_params["confidence_threshold"] = confidence_threshold
+
+        # Add any custom parameters from kwargs
+        for key, value in kwargs.items():
+            if adapted_params is None:
+                adapted_params = {}
+            adapted_params[key] = value
+
+        # Use retrieval orchestrator for consistent handling
+        memories = self.retrieval_orchestrator.retrieve(
+            query_embedding=query_embedding,
+            query=query,
+            query_type=query_type,
+            expanded_keywords=expanded_keywords,
+            entities=entities,
+            adapted_params=adapted_params,
+            top_k=top_k,
+        )
+
+        return memories
 
     def _retrieve_similar_chunks(
         self,
@@ -220,13 +195,10 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
         memory_store,
     ) -> list[dict[str, Any]]:
         """
-        Retrieve chunks by similarity to the query embedding.
-
-        This method performs chunk-level similarity search, which provides
-        more precise matching for parts of large text memories.
+        Enhanced chunk retrieval with semantic weighting.
 
         Args:
-            query_embedding: Query embedding
+            query_embedding: Query embedding for similarity matching
             max_results: Maximum number of chunk results
             memory_store: Memory store to search
 
@@ -234,8 +206,49 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
             List of chunk results with scores
         """
         if hasattr(memory_store, "search_chunks"):
-            # Use direct search_chunks method if available
-            return memory_store.search_chunks(query_embedding, limit=max_results, threshold=None)
+            # Use direct search_chunks method but with higher limit to ensure good coverage
+            # Get 3x more chunks than needed to ensure we have enough context
+            initial_results = memory_store.search_chunks(
+                query_embedding, limit=max_results * 3, threshold=None
+            )
+
+            # Group chunks by memory_id to establish document context
+            memory_chunks = {}
+            for result in initial_results:
+                memory_id = result.get("memory_id")
+                if memory_id not in memory_chunks:
+                    memory_chunks[memory_id] = []
+                memory_chunks[memory_id].append(result)
+
+            # Select chunks considering document context
+            enhanced_results = []
+            for _memory_id, chunks in memory_chunks.items():
+                # Sort chunks by similarity
+                chunks.sort(key=lambda x: x.get("chunk_similarity", 0.0), reverse=True)
+
+                # Take best chunk plus adjacent chunks for context (if available)
+                best_chunk = chunks[0]
+                best_idx = best_chunk.get("chunk_index", 0)
+
+                # Find adjacent chunks to maintain coherence
+                adjacent_chunks = [
+                    c for c in chunks if abs(c.get("chunk_index", 0) - best_idx) <= 1
+                ]
+
+                # Add best chunk with enhanced score
+                best_chunk_copy = dict(best_chunk)
+                enhanced_results.append(best_chunk_copy)
+
+                # Add adjacent chunks with slightly reduced scores
+                for adj_chunk in adjacent_chunks[1:]:  # Skip the best chunk which is already added
+                    adj_copy = dict(adj_chunk)
+                    # Slightly reduce score but keep it high enough to be relevant
+                    adj_copy["chunk_similarity"] = adj_copy.get("chunk_similarity", 0.0) * 0.9
+                    enhanced_results.append(adj_copy)
+
+            # Sort by similarity and limit results
+            enhanced_results.sort(key=lambda x: x.get("chunk_similarity", 0.0), reverse=True)
+            return enhanced_results[:max_results]
 
         # Fallback: Manual search using chunk_embeddings property
         if not hasattr(memory_store, "chunk_embeddings"):
@@ -258,10 +271,12 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
         similarities = np.dot(chunk_embeddings, normalized_query)
 
         # Get top indices
-        top_indices = np.argsort(-similarities)[:max_results]
+        top_indices = np.argsort(-similarities)[: max_results * 3]  # Get extra for grouping
+
+        # Group by memory_id to establish document context
+        memory_chunks = {}
 
         # Create result objects
-        results = []
         for idx in top_indices:
             # Get chunk info
             chunk_metadata = memory_store.chunk_metadata[idx]
@@ -280,9 +295,36 @@ class ChunkedFabricStrategy(ContextualFabricStrategy):
             if "chunk_text" in chunk_metadata:
                 result["content"] = chunk_metadata["chunk_text"]
 
-            results.append(result)
+            # Group by memory_id
+            if memory_id not in memory_chunks:
+                memory_chunks[memory_id] = []
+            memory_chunks[memory_id].append(result)
 
-        return results
+        # Process each memory's chunks to enhance coherence
+        enhanced_results = []
+        for _memory_id, chunks in memory_chunks.items():
+            # Sort chunks by similarity
+            chunks.sort(key=lambda x: x.get("chunk_similarity", 0.0), reverse=True)
+
+            # Take best chunk plus adjacent chunks for context
+            best_chunk = chunks[0]
+            best_idx = best_chunk.get("chunk_index", 0)
+
+            # Find adjacent chunks to maintain coherence
+            adjacent_chunks = [c for c in chunks if abs(c.get("chunk_index", 0) - best_idx) <= 1]
+
+            # Add best chunk as-is
+            enhanced_results.append(best_chunk)
+
+            # Add adjacent chunks with slightly reduced scores
+            for adj_chunk in adjacent_chunks[1:]:  # Skip the best chunk already added
+                # Slightly reduce score but keep it relevant
+                adj_chunk["chunk_similarity"] = adj_chunk.get("chunk_similarity", 0.0) * 0.9
+                enhanced_results.append(adj_chunk)
+
+        # Sort by similarity and limit final results
+        enhanced_results.sort(key=lambda x: x.get("chunk_similarity", 0.0), reverse=True)
+        return enhanced_results[:max_results]
 
     def _aggregate_chunks_by_memory(
         self,
