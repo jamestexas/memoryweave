@@ -1,3 +1,4 @@
+# memoryweave/api/hybrid_memory_weave.py
 """
 Hybrid MemoryWeave API with adaptive chunking for memory efficiency.
 
@@ -9,9 +10,10 @@ retrieval quality.
 import logging
 import re
 import time
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
+from rank_bm25 import BM25Okapi  # Add this import
 
 from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
 from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
@@ -39,6 +41,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
     - Creates strategic, sparse chunks for longer texts
     - Implements importance-based chunking with keyword enhancement
     - Maintains low memory footprint while preserving context awareness
+    - Integrates BM25 for keyword-based retrieval to complement vector similarity
     """
 
     @timer("init")
@@ -58,10 +61,63 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         llm_provider: LLMProvider | None = None,
         **model_kwargs,
     ):
-        """Initialize the HybridMemoryWeaveAPI."""
-        # Initialize chunking components first
+        """Initialize the HybridMemoryWeaveAPI with optimized loading."""
+        # Initialize core attributes first
         self.debug = debug
-        self.timer.start("init")
+        self.device = _get_device(device)
+        self.show_progress_bar = show_progress_bar
+
+        # Start with a much lighter initialization
+        self._initialize_core_components(
+            model_name,
+            embedding_model_name,
+            max_memories,
+            consolidation_interval,
+            llm_provider,
+            **model_kwargs,
+        )
+
+        # Store configuration for deferred initialization
+        self._deferred_config = {
+            "enable_category_management": enable_category_management,
+            "enable_personal_attributes": enable_personal_attributes,
+            "enable_semantic_coherence": enable_semantic_coherence,
+            "enable_dynamic_thresholds": enable_dynamic_thresholds,
+        }
+
+        # Initialize chunking parameters
+        self.adaptive_chunk_threshold = 800  # Character count that triggers chunking
+        self.max_chunks_per_memory = 3  # Maximum number of chunks per memory
+        self.importance_threshold = 0.6  # Threshold for keeping chunks
+        self.enable_auto_chunking = True  # Whether to automatically chunk large texts
+        self.chunked_memory_ids = set()  # Track which memories are chunked
+
+        # Initialize BM25 components
+        self._init_bm25_indexing()
+
+        # Initialize retrieval strategy
+        self._setup_hybrid_strategy()
+
+        logger.info(
+            f"HybridMemoryWeaveAPI initialized in {self.timer.timings.get('init', [0])[-1]:.3f}s"
+        )
+
+    def _initialize_core_components(
+        self,
+        model_name: str,
+        embedding_model_name: str,
+        max_memories: int,
+        consolidation_interval: int,
+        llm_provider: Optional[LLMProvider] = None,
+        **model_kwargs,
+    ):
+        """Initialize only the core components needed for basic functionality."""
+        # Initialize embedding model
+        logger.info(f"Loading embedding model: {embedding_model_name}")
+        self.embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
+        embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
+
+        # Initialize text chunker (essential for hybrid approach)
         self.text_chunker = TextChunker()
         self.text_chunker.initialize(
             {
@@ -73,12 +129,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             }
         )
 
-        # Initialize embedding model to get dimension
-        self.device = _get_device(device)
-        embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
-        embedding_dim = embedding_model.get_sentence_embedding_dimension()
-
-        # Configure and create memory store and adapter using factory pattern
+        # Configure and create memory store with optimized settings
         store_config = MemoryStoreConfig(
             type="hybrid",
             vector_search=VectorSearchConfig(
@@ -103,38 +154,192 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # Create LLM provider
         self.llm_provider = llm_provider or LLMProvider(model_name, self.device, **model_kwargs)
 
+        # Basic history tracking
+        self.conversation_history = []
+        self.max_memories = max_memories
+        self.consolidation_interval = consolidation_interval
+        self.memories_since_consolidation = 0
+
         # Override for parent's constructor
         self._memory_store_override = self.hybrid_memory_store
         self._memory_adapter_override = self.hybrid_memory_adapter
 
-        # Call parent constructor with overrides
-        super().__init__(
-            model_name=model_name,
-            embedding_model_name=embedding_model_name,
-            device=device,
-            max_memories=max_memories,
-            enable_category_management=enable_category_management,
-            enable_personal_attributes=enable_personal_attributes,
-            enable_semantic_coherence=enable_semantic_coherence,
-            enable_dynamic_thresholds=enable_dynamic_thresholds,
-            consolidation_interval=consolidation_interval,
-            show_progress_bar=show_progress_bar,
-            debug=debug,
-            llm_provider=self.llm_provider,
-            **model_kwargs,
+        # Initialize components dictionary for lazy loading
+        self._components = {}
+        self._component_initialized = {
+            "category_manager": False,
+            "personal_attribute_manager": False,
+            "semantic_coherence_processor": False,
+            "query_analyzer": False,
+            "query_adapter": False,
+            "associative_linker": False,
+            "temporal_context": False,
+            "activation_manager": False,
+        }
+
+    def _init_bm25_indexing(self):
+        """Initialize BM25 indexing for keyword-based retrieval."""
+        self.bm25_index = None
+        self.bm25_documents = []
+        self.bm25_doc_ids = []
+        self.tokenizer = lambda x: x.lower().split()
+
+    def _update_bm25_index(self, text: str, memory_id: str):
+        """Update BM25 index with new document."""
+        # Add document to BM25 corpus
+        self.bm25_documents.append(text)
+        self.bm25_doc_ids.append(memory_id)
+
+        # Rebuild index efficiently
+        # Only tokenize the new document, not the entire corpus
+        if len(self.bm25_documents) == 1:
+            tokenized_corpus = [self.tokenizer(text)]
+            self.bm25_index = BM25Okapi(tokenized_corpus)
+        else:
+            # Save existing scores for efficiency
+            if hasattr(self.bm25_index, "doc_freqs"):
+                doc_freqs = self.bm25_index.doc_freqs.copy()
+                avg_doc_len = self.bm25_index.avgdl
+
+                # Tokenize just the new document
+                last_doc_tokens = self.tokenizer(text)
+
+                # Create updated tokenized corpus
+                tokenized_corpus = self.bm25_index.corpus.copy()
+                tokenized_corpus.append(last_doc_tokens)
+
+                # Recreate BM25 index with updated corpus
+                self.bm25_index = BM25Okapi(tokenized_corpus)
+            else:
+                # Fallback: tokenize entire corpus
+                tokenized_corpus = [self.tokenizer(doc) for doc in self.bm25_documents]
+                self.bm25_index = BM25Okapi(tokenized_corpus)
+
+    def _get_component(self, name: str) -> Any:
+        """Lazy-load a component only when it's actually needed."""
+        if name not in self._components or not self._component_initialized[name]:
+            if name == "category_manager" and self._deferred_config.get(
+                "enable_category_management", True
+            ):
+                from memoryweave.components.category_manager import CategoryManager
+
+                self._components[name] = CategoryManager()
+                self._components[name].initialize(
+                    {
+                        "vigilance_threshold": 0.85,
+                        "embedding_dim": self.embedding_model.get_sentence_embedding_dimension(),
+                    }
+                )
+
+            elif name == "personal_attribute_manager" and self._deferred_config.get(
+                "enable_personal_attributes", True
+            ):
+                from memoryweave.components.personal_attributes import PersonalAttributeManager
+
+                self._components[name] = PersonalAttributeManager()
+                self._components[name].initialize()
+
+            elif name == "semantic_coherence_processor" and self._deferred_config.get(
+                "enable_semantic_coherence", True
+            ):
+                from memoryweave.components.post_processors import SemanticCoherenceProcessor
+
+                self._components[name] = SemanticCoherenceProcessor()
+                self._components[name].initialize()
+
+            elif name == "query_analyzer":
+                from memoryweave.query.analyzer import SimpleQueryAnalyzer
+
+                self._components[name] = SimpleQueryAnalyzer()
+                self._components[name].initialize(
+                    {
+                        "min_keyword_length": 3,
+                        "max_keywords": 10,
+                    }
+                )
+
+            elif name == "query_adapter":
+                from memoryweave.components.query_adapter import QueryTypeAdapter
+
+                self._components[name] = QueryTypeAdapter()
+                self._components[name].initialize(
+                    {
+                        "apply_keyword_boost": True,
+                        "scale_params_by_length": True,
+                    }
+                )
+
+            elif name == "associative_linker":
+                from memoryweave.components.associative_linking import AssociativeMemoryLinker
+
+                self._components[name] = AssociativeMemoryLinker(self.hybrid_memory_store)
+                self._components[name].initialize({})
+
+            elif name == "temporal_context":
+                from memoryweave.components.temporal_context import TemporalContextBuilder
+
+                self._components[name] = TemporalContextBuilder(self.hybrid_memory_store)
+                self._components[name].initialize({})
+
+            elif name == "activation_manager":
+                from memoryweave.components.activation import ActivationManager
+
+                self._components[name] = ActivationManager()
+                assoc_linker = self._get_component("associative_linker")
+                self._components[name].initialize(
+                    {
+                        "memory_store": self.hybrid_memory_store,
+                        "associative_linker": assoc_linker,
+                    }
+                )
+
+            self._component_initialized[name] = True
+
+        return self._components.get(name)
+
+    @property
+    def category_manager(self):
+        return (
+            self._get_component("category_manager")
+            if self._deferred_config.get("enable_category_management")
+            else None
         )
 
-        # Set hybrid-specific parameters
-        self.adaptive_chunk_threshold = 800  # Character count that triggers chunking
-        self.max_chunks_per_memory = 3  # Maximum number of chunks per memory
-        self.importance_threshold = 0.6  # Threshold for keeping chunks
-        self.enable_auto_chunking = True  # Whether to automatically chunk large texts
+    @property
+    def personal_attribute_manager(self):
+        return (
+            self._get_component("personal_attribute_manager")
+            if self._deferred_config.get("enable_personal_attributes")
+            else None
+        )
 
-        # Track which memories are chunked
-        self.chunked_memory_ids = set()
+    @property
+    def semantic_coherence_processor(self):
+        return (
+            self._get_component("semantic_coherence_processor")
+            if self._deferred_config.get("enable_semantic_coherence")
+            else None
+        )
 
-        # Setup hybrid strategy
-        self._setup_hybrid_strategy()
+    @property
+    def query_analyzer(self):
+        return self._get_component("query_analyzer")
+
+    @property
+    def query_adapter(self):
+        return self._get_component("query_adapter")
+
+    @property
+    def associative_linker(self):
+        return self._get_component("associative_linker")
+
+    @property
+    def temporal_context(self):
+        return self._get_component("temporal_context")
+
+    @property
+    def activation_manager(self):
+        return self._get_component("activation_manager")
 
     @timer()
     def _setup_hybrid_strategy(self):
@@ -142,31 +347,63 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # Create hybrid strategy
         self.hybrid_strategy = HybridFabricStrategy(
             memory_store=self.hybrid_memory_adapter,
-            associative_linker=self.associative_linker,
-            temporal_context=self.temporal_context,
-            activation_manager=self.activation_manager,
+            associative_linker=self.associative_linker
+            if hasattr(self, "associative_linker")
+            else None,
+            temporal_context=self.temporal_context if hasattr(self, "temporal_context") else None,
+            activation_manager=self.activation_manager
+            if hasattr(self, "activation_manager")
+            else None,
         )
 
         # Initialize with optimized parameters
         params = {
-            "confidence_threshold": self.strategy.confidence_threshold,
-            "similarity_weight": 0.5,
-            "associative_weight": 0.2,
-            "temporal_weight": 0.2,
-            "activation_weight": 0.1,
-            "use_keyword_filtering": True,
-            "keyword_boost_factor": 0.3,
+            "confidence_threshold": 0.1,  # Lower threshold for better recall
+            "similarity_weight": 0.5,  # Strong emphasis on semantic similarity
+            "associative_weight": 0.2,  # Moderate weight for associative links
+            "temporal_weight": 0.2,  # Improved weight for temporal context
+            "activation_weight": 0.1,  # Moderate weight for activation
+            "use_keyword_filtering": True,  # Enable keyword filtering
+            "keyword_boost_factor": 0.3,  # Strong boost for keyword matches
             "max_chunks_per_memory": self.max_chunks_per_memory,
-            "prioritize_full_embeddings": True,
+            "prioritize_full_embeddings": True,  # Prioritize full embeddings over chunks
+            "min_results": 3,  # Ensure reasonable number of results
+            "max_candidates": 50,  # Consider more candidates for better selection
             "debug": self.debug,
+            # Advanced optimization parameters
+            "use_batched_computation": True,  # Process large matrices in batches
+            "batch_size": 200,  # Reasonable batch size for most systems
+            "max_associative_hops": 2,  # Limit associative traversal depth
         }
         self.hybrid_strategy.initialize(params)
 
         # Replace the strategy
         self.strategy = self.hybrid_strategy
 
-        # Update retrieval orchestrator
-        if hasattr(self, "retrieval_orchestrator"):
+        # Initialize retrieval orchestrator if needed
+        if not hasattr(self, "retrieval_orchestrator"):
+            from memoryweave.api.retrieval_orchestrator import RetrievalOrchestrator
+
+            # Create retrieval orchestrator with optimized settings
+            self.retrieval_orchestrator = RetrievalOrchestrator(
+                strategy=self.strategy,
+                activation_manager=self.activation_manager
+                if hasattr(self, "activation_manager")
+                else None,
+                temporal_context=self.temporal_context
+                if hasattr(self, "temporal_context")
+                else None,
+                semantic_coherence_processor=self.semantic_coherence_processor
+                if hasattr(self, "semantic_coherence_processor")
+                else None,
+                memory_store_adapter=self.hybrid_memory_adapter,
+                debug=self.debug,
+                max_workers=4,  # Reasonable parallelism for most systems
+                enable_cache=True,  # Enable caching for faster repeat queries
+                max_cache_size=50,  # Moderate cache size
+            )
+        else:
+            # Update existing orchestrator
             self.retrieval_orchestrator.strategy = self.strategy
 
     @timer()
@@ -192,8 +429,8 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         elif "created_at" not in metadata:
             metadata["created_at"] = time.time()
 
-        # Determine if we should chunk this text
-        should_chunk = self.enable_auto_chunking and len(text) > self.adaptive_chunk_threshold
+        # Analyze content to determine chunking strategy
+        should_chunk, chunk_threshold = self._analyze_chunking_needs(text)
 
         # For small texts, use standard storage
         if not should_chunk:
@@ -202,6 +439,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
             # Add to memory store
             mem_id = self.hybrid_memory_adapter.add(embedding, text, metadata)
+
+            # Add to BM25 index
+            self._update_bm25_index(text, mem_id)
 
             # Add to category if enabled
             if self.category_manager:
@@ -223,6 +463,8 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # If there are no important chunks, just use the full embedding
         if not selected_chunks:
             mem_id = self.hybrid_memory_adapter.add(full_embedding, text, metadata)
+            # Add to BM25 index
+            self._update_bm25_index(text, mem_id)
             return mem_id
 
         # 4. Add to hybrid memory store
@@ -233,6 +475,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             original_content=text,
             metadata=metadata,
         )
+
+        # Add to BM25 index
+        self._update_bm25_index(text, mem_id)
 
         # Track as chunked memory
         self.chunked_memory_ids.add(mem_id)
@@ -251,6 +496,66 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         logger.debug(f"Added hybrid memory {mem_id} with {len(selected_chunks)} selected chunks")
         return mem_id
 
+    def _analyze_chunking_needs(self, text: str) -> tuple[bool, int]:
+        """
+        Analyze text to determine if and how it should be chunked.
+
+        Args:
+            text: The text to analyze
+
+        Returns:
+            tuple of (should_chunk, chunk_threshold)
+        """
+        # If auto chunking is disabled, use the fixed threshold
+        if not self.enable_auto_chunking:
+            return len(text) > self.adaptive_chunk_threshold, self.adaptive_chunk_threshold
+
+        # Base decision on text length
+        if len(text) < 500:  # Short texts never need chunking
+            return False, self.adaptive_chunk_threshold
+
+        # For longer texts, analyze structure and content
+        sentences = re.split(r"[.!?]\s+", text)
+        paragraph_splits = text.split("\n\n")
+
+        # Analyze sentence length
+        avg_sentence_length = sum(len(s) for s in sentences) / max(1, len(sentences))
+
+        # Analyze content complexity
+        has_entities = bool(re.search(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b", text))
+        has_code_blocks = bool(re.search(r"```|    def |class |function", text))
+        has_lists = bool(re.search(r"\n\s*[-*]\s+|\n\s*\d+\.\s+", text))
+
+        # Calculate adaptive threshold based on content characteristics
+        base_threshold = self.adaptive_chunk_threshold
+
+        # Adjust based on content type
+        if has_code_blocks:
+            # Code needs more careful chunking to preserve function blocks
+            base_threshold = min(500, base_threshold)  # Lower threshold to chunk more aggressively
+            return True, base_threshold  # Always chunk code
+
+        if has_lists:
+            # lists benefit from chunking to preserve item groupings
+            base_threshold = min(700, base_threshold)
+
+        if has_entities:
+            # Entity-rich text might benefit from more chunking
+            base_threshold = min(800, base_threshold)
+
+        # Very long sentences suggest complex content that benefits from chunking
+        if avg_sentence_length > 100:
+            base_threshold = min(700, base_threshold)
+
+        # Multiple paragraphs suggest natural chunk boundaries
+        if len(paragraph_splits) > 5:
+            # Benefit from chunking at paragraph boundaries
+            return True, base_threshold
+
+        # Make final decision
+        should_chunk = len(text) > base_threshold
+        return should_chunk, base_threshold
+
     @timer()
     def _select_important_chunks(
         self,
@@ -260,6 +565,12 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
     ) -> tuple[list[dict[str, Any]], list[np.ndarray]]:
         """
         Enhanced chunk selection using semantic importance and query relevance.
+
+        This implementation focuses on:
+        1. Finding truly information-dense chunks
+        2. Preserving document structure and coherence
+        3. Optimizing for memory usage
+        4. Balancing semantic importance with entity coverage
 
         Args:
             chunks: List of chunk dictionaries
@@ -276,19 +587,25 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         use_query_relevance = query_embedding is not None
 
         # Calculate chunk scores based on multiple factors
-        chunk_scores = []
+        chunk_data = []
         chunk_embeddings = []
 
         for i, chunk in enumerate(chunks):
-            # Score based on multiple factors
-            score = 0.0
+            # Get chunk text
+            chunk_text = chunk["text"]
+
+            # Skip very short chunks
+            if len(chunk_text) < 30:
+                continue
 
             # 1. Create embedding for this chunk
-            chunk_text = chunk["text"]
             chunk_embedding = self.embedding_model.encode(
                 chunk_text, show_progress_bar=self.show_progress_bar
             )
             chunk_embeddings.append(chunk_embedding)
+
+            # Initialize score components
+            score_components = {}
 
             # 2. Calculate semantic importance (cosine similarity to full embedding)
             # This measures how representative this chunk is of the full text
@@ -299,85 +616,146 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 semantic_importance = np.dot(full_embedding, chunk_embedding) / (
                     full_norm * chunk_norm
                 )
-                score += semantic_importance * 0.4  # 40% weight to semantic importance
+                score_components["semantic_importance"] = semantic_importance
+            else:
+                score_components["semantic_importance"] = 0.0
 
-            # 3. Query relevance (if available)
+            # 3. Calculate query relevance if available
             if use_query_relevance:
                 query_norm = np.linalg.norm(query_embedding)
                 if query_norm > 0 and chunk_norm > 0:
                     query_relevance = np.dot(query_embedding, chunk_embedding) / (
                         query_norm * chunk_norm
                     )
-                    score += query_relevance * 0.4  # 40% weight to query relevance
+                    score_components["query_relevance"] = query_relevance
+                else:
+                    score_components["query_relevance"] = 0.0
 
-            # 4. Position importance - first and last chunks often have key information
-            if i == 0 or i == len(chunks) - 1:
-                score += 0.1  # 10% boost for position
+            # 4. Calculate information density
+            # Count named entities (capitalized terms that aren't at start of sentences)
+            text = chunk_text
+            entity_matches = re.findall(r"(?<!^)(?<!\. )[A-Z][a-zA-Z]+", text)
+            entity_density = len(entity_matches) / (len(text) / 100)  # Entities per 100 chars
+            score_components["entity_density"] = min(1.0, entity_density / 3)
 
-            # 5. Length score - longer chunks may have more information
-            score += min(0.1, len(chunk["text"]) / 1000)  # Up to 10% for length
-
-            # 6. Information density - prefer text with entities, numbers, etc.
-            text = chunk["text"].lower()
-            info_markers = sum(
-                [
-                    3 * text.count("@"),  # Emails, handles
-                    2 * sum(c.isdigit() for c in text) / max(1, len(text)),  # Number density
-                    2
-                    * len(
-                        re.findall(r"\b[A-Z][a-z]*(?:\s+[A-Z][a-z]*)+\b", chunk["text"])
-                    ),  # Proper nouns
-                    1 * len(re.findall(r"https?://\S+|www\.\S+", text)),  # URLs
-                ]
+            # 5. Check for structural indicators
+            # Lists and enumerations often contain important information
+            has_list = bool(re.search(r"\n\s*[-*]\s+|\n\s*\d+\.\s+", text))
+            # Headers often mark important sections
+            has_header = bool(re.search(r"\n#+\s+|\n[A-Z][A-Z\s]+\n", text))
+            # Key phrases often indicate important information
+            has_key_phrase = bool(
+                re.search(r"important|key|significant|crucial|essential", text.lower())
             )
-            score += min(0.1, info_markers * 0.01)  # Up to 10% for information density
 
-            chunk_scores.append((i, score, chunk))
+            structure_score = 0.0
+            if has_list:
+                structure_score += 0.2
+            if has_header:
+                structure_score += 0.3
+            if has_key_phrase:
+                structure_score += 0.1
+            score_components["structure_score"] = structure_score
+
+            # 6. Position importance - first and last chunks often have key information
+            position_score = 0.0
+            if i == 0:  # First chunk
+                position_score = 0.3
+            elif i == len(chunks) - 1:  # Last chunk
+                position_score = 0.2
+            score_components["position_score"] = position_score
+
+            # 7. Consider chunk length - neither too short nor too long
+            length = len(chunk_text)
+            ideal_length = 300  # Target length
+            length_score = 1.0 - min(1.0, abs(length - ideal_length) / ideal_length)
+            score_components["length_score"] = length_score
+
+            # 8. Check for numeric content (often important in data-focused text)
+            numeric_matches = len(re.findall(r"\d+\.\d+|\d+", text))
+            numeric_density = numeric_matches / (len(text) / 100)  # Numbers per 100 chars
+            score_components["numeric_density"] = min(0.8, numeric_density / 2)  # Cap at 0.8
+
+            # Calculate final score with appropriate weights
+            weights = {
+                "semantic_importance": 0.4,
+                "entity_density": 0.2,
+                "structure_score": 0.15,
+                "position_score": 0.1,
+                "length_score": 0.05,
+                "numeric_density": 0.1,
+            }
+
+            # Add query relevance if available
+            if use_query_relevance:
+                # Reduce other weights to accommodate query relevance
+                for k in weights:
+                    weights[k] *= 0.6  # Reduce all weights by 40%
+                weights["query_relevance"] = 0.4  # Add 40% weight for query relevance
+
+            # Calculate weighted score
+            final_score = sum(score_components.get(k, 0) * weights[k] for k in weights)
+
+            # Store chunk data
+            chunk_data.append(
+                {
+                    "index": i,
+                    "chunk": chunk,
+                    "embedding": chunk_embedding,
+                    "score": final_score,
+                    "components": score_components,
+                }
+            )
 
         # Sort chunks by score
-        chunk_scores.sort(key=lambda x: x[1], reverse=True)
+        chunk_data.sort(key=lambda x: x["score"], reverse=True)
 
-        # Select top N chunks, but ensure we also maintain sequence when useful
-        max_chunks = min(self.max_chunks_per_memory, len(chunks))
-        selected_indices = [item[0] for item in chunk_scores[:max_chunks]]
+        # Select top N chunks but ensure coherence
+        max_chunks = min(self.max_chunks_per_memory, len(chunk_data))
 
-        # Check if selected chunks are sequential
-        selected_indices.sort()  # Sort to check sequence
-        is_sequential = all(
-            selected_indices[i + 1] == selected_indices[i] + 1
-            for i in range(len(selected_indices) - 1)
+        # Initially select top chunks by score
+        top_chunks_data = chunk_data[:max_chunks]
+
+        # Check if we have sequential chunks among the top scorers
+        top_indices = [item["index"] for item in top_chunks_data]
+        are_sequential = all(
+            top_indices[i + 1] == top_indices[i] + 1 for i in range(len(top_indices) - 1)
         )
 
-        # If not sequential and we have high-scoring chunks that are close to each other,
-        # try to select a sequential segment instead
-        if not is_sequential and len(selected_indices) > 1:
-            # Find the longest sequential segment
-            best_segment = []
-            for start_idx in range(len(chunks)):
-                # Try segments of length max_chunks starting at start_idx
-                segment = list(range(start_idx, min(start_idx + max_chunks, len(chunks))))
+        # If top chunks aren't sequential, check if we can find a coherent segment
+        if not are_sequential and len(chunk_data) > max_chunks:
+            # Look for sequential chunks with good scores
+            best_sequential_score = 0
+            best_sequential_group = []
 
-                # Calculate segment score (sum of chunk scores)
-                segment_score = sum(chunk_scores[i][1] for i in segment)
+            # Try different starting positions
+            for start_idx in range(len(chunks) - max_chunks + 1):
+                # Get sequential chunk group
+                sequential_indices = list(range(start_idx, start_idx + max_chunks))
+                sequential_chunks = [c for c in chunk_data if c["index"] in sequential_indices]
 
-                # If this segment is better than current best, update
-                if len(segment) > len(best_segment) or (
-                    len(segment) == len(best_segment)
-                    and segment_score > sum(chunk_scores[i][1] for i in best_segment)
-                ):
-                    best_segment = segment
+                # Only consider if we found all chunks
+                if len(sequential_chunks) == max_chunks:
+                    group_score = sum(c["score"] for c in sequential_chunks)
 
-            # If we found a good segment and it's not too much worse than original selection
-            best_segment_score = sum(chunk_scores[i][1] for i in best_segment)
-            selected_score = sum(chunk_scores[i][1] for i in selected_indices)
+                    # If this sequential group has better score than previous best
+                    if group_score > best_sequential_score:
+                        best_sequential_score = group_score
+                        best_sequential_group = sequential_chunks
 
-            if len(best_segment) >= max_chunks * 0.7 and best_segment_score >= selected_score * 0.8:
-                # Use the sequential segment instead
-                selected_indices = best_segment
+            # Compare best sequential group score with top individual chunks score
+            top_individual_score = sum(c["score"] for c in top_chunks_data)
 
-        # Get the selected chunks and embeddings
-        selected_chunks = [chunks[i] for i in selected_indices]
-        selected_embeddings = [chunk_embeddings[i] for i in selected_indices]
+            # If sequential group is at least 80% as good as individual top chunks, use it
+            if best_sequential_group and best_sequential_score >= 0.8 * top_individual_score:
+                top_chunks_data = best_sequential_group
+
+        # Sort the selected chunks by index to maintain document order
+        top_chunks_data.sort(key=lambda x: x["index"])
+
+        # Extract the final selected chunks and their embeddings
+        selected_chunks = [item["chunk"] for item in top_chunks_data]
+        selected_embeddings = [item["embedding"] for item in top_chunks_data]
 
         return selected_chunks, selected_embeddings
 
@@ -597,20 +975,216 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         return chunks
 
     @timer()
+    def retrieve(self, query: str, top_k: int = 10, **kwargs) -> list[dict[str, Any]]:
+        """
+        Enhanced retrieval combining BM25 and vector similarity.
+
+        This method improves over the base implementation by:
+        1. Using BM25 for keyword matching
+        2. Using vector similarity for semantic matching
+        3. Combining results with rank fusion
+        4. Optimizing for performance with caching
+
+        Args:
+            query: The query string
+            top_k: Number of results to return
+            **kwargs: Additional parameters
+
+        Returns:
+            List of retrieved memories with relevance scores
+        """
+
+        # Check cache first (simple LRU cache implementation)
+        cache_key = f"{query}:{top_k}"
+        if hasattr(self, "_result_cache") and cache_key in self._result_cache:
+            cached_result = self._result_cache[cache_key]
+            return cached_result
+
+        # Create query embedding
+        query_embedding = self.embedding_model.encode(
+            query, show_progress_bar=self.show_progress_bar
+        )
+
+        # Get BM25 results if available
+        bm25_results = []
+        if self.bm25_index is not None:
+            self.timer.start("bm25_search")
+            tokenized_query = self.tokenizer(query)
+            doc_scores = self.bm25_index.get_scores(tokenized_query)
+
+            # Get top BM25 results
+            top_bm25_limit = min(top_k * 2, len(self.bm25_documents))
+            top_indices = np.argsort(doc_scores)[::-1][:top_bm25_limit]
+
+            for i, idx in enumerate(top_indices):
+                if doc_scores[idx] > 0:
+                    doc_id = self.bm25_doc_ids[idx]
+                    try:
+                        # Get the memory to retrieve its content
+                        memory = self.hybrid_memory_adapter.get(doc_id)
+
+                        # Format result similar to vector results
+                        result = {
+                            "memory_id": doc_id,
+                            "content": memory.content,
+                            "bm25_score": float(doc_scores[idx]),
+                            "bm25_rank": i,
+                            "retrieval_method": "bm25",
+                            "metadata": memory.metadata,
+                        }
+                        bm25_results.append(result)
+                    except Exception as e:
+                        logger.warning(f"Error retrieving BM25 result {doc_id}: {e}")
+            self.timer.stop("bm25_search")
+
+        # Get vector similarity results
+        self.timer.start("vector_search")
+        # Use the retrieval orchestrator for this
+        vector_results = super().retrieve(query, top_k=top_k * 2, **kwargs)
+        self.timer.stop("vector_search")
+
+        # Mark vector results source
+        for result in vector_results:
+            result["retrieval_method"] = "vector"
+
+        # If we have both result types, combine them
+        if bm25_results and vector_results:
+            self.timer.start("combine_results")
+            combined_results = self._combine_with_reciprocal_rank_fusion(
+                bm25_results, vector_results, k1=60, k2=40, top_k=top_k
+            )
+            self.timer.stop("combine_results")
+        elif bm25_results:
+            # Only BM25 results available
+            combined_results = bm25_results[:top_k]
+        else:
+            # Only vector results (or no results)
+            combined_results = vector_results[:top_k]
+
+        # Cache results
+        if not hasattr(self, "_result_cache"):
+            # Initialize cache
+            self._result_cache = {}
+            self._result_cache_keys = []
+            self._max_cache_size = 100
+
+        # Store in cache
+        if len(self._result_cache) >= self._max_cache_size:
+            # Remove oldest entry
+            oldest_key = self._result_cache_keys.pop(0)
+            if oldest_key in self._result_cache:
+                del self._result_cache[oldest_key]
+
+        self._result_cache[cache_key] = combined_results
+        self._result_cache_keys.append(cache_key)
+
+        self.timer.stop("retrieve")
+        return combined_results
+
+    def _combine_with_reciprocal_rank_fusion(
+        self,
+        results1: list[dict[str, Any]],
+        results2: list[dict[str, Any]],
+        k1: float = 60.0,
+        k2: float = 40.0,
+        top_k: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        Combine results using reciprocal rank fusion.
+
+        Args:
+            results1: First set of results (BM25)
+            results2: Second set of results (Vector)
+            k1: Weight parameter for first result set
+            k2: Weight parameter for second result set
+            top_k: Number of results to return
+
+        Returns:
+            Combined results
+        """
+        # Create dictionary of memory_id -> result object with score
+        result_map = {}
+
+        # Add scores from first result set (BM25)
+        for rank, result in enumerate(results1):
+            memory_id = result["memory_id"]
+            # RRF formula: 1/(k + rank)
+            score = 1.0 / (k1 + rank)
+
+            if memory_id not in result_map:
+                # Create new entry
+                result_map[memory_id] = {"result": result, "score": score, "sources": ["bm25"]}
+            else:
+                # Update existing entry
+                result_map[memory_id]["score"] += score
+                if "bm25" not in result_map[memory_id]["sources"]:
+                    result_map[memory_id]["sources"].append("bm25")
+
+        # Add scores from second result set (Vector)
+        for rank, result in enumerate(results2):
+            memory_id = result["memory_id"]
+            # RRF formula: 1/(k + rank)
+            score = 1.0 / (k2 + rank)
+
+            if memory_id not in result_map:
+                # Create new entry
+                result_map[memory_id] = {"result": result, "score": score, "sources": ["vector"]}
+            else:
+                # Update existing entry
+                result_map[memory_id]["score"] += score
+                if "vector" not in result_map[memory_id]["sources"]:
+                    result_map[memory_id]["sources"].append("vector")
+                    # Keep vector metadata which is more complete
+                    result_map[memory_id]["result"] = result
+
+        # Build final results
+        combined = []
+        for memory_id, data in result_map.items():
+            result_obj = data["result"].copy()
+            result_obj["rrf_score"] = data["score"]
+            result_obj["retrieval_sources"] = data["sources"]
+
+            # Normalize relevance score
+            if "bm25_score" in result_obj and "relevance_score" in result_obj:
+                # Combine BM25 and vector scores
+                bm25_weight = 0.4
+                vector_weight = 0.6
+                combined_score = bm25_weight * min(
+                    1.0, result_obj["bm25_score"] / 5.0
+                ) + vector_weight * result_obj.get("relevance_score", 0.0)
+                result_obj["relevance_score"] = combined_score
+            elif "bm25_score" in result_obj:
+                # Only BM25 score available - normalize it
+                result_obj["relevance_score"] = min(1.0, result_obj["bm25_score"] / 5.0)
+
+            combined.append(result_obj)
+
+        # Sort by RRF score and return top K
+        return sorted(combined, key=lambda x: x["rrf_score"], reverse=True)[:top_k]
+
+    @timer()
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
         """
-        Process user message and generate a response using hybrid memory retrieval.
+        Enhanced chat method with query type-specific optimizations.
 
-        This method leverages the retrieval orchestrator with the hybrid strategy.
+        This method:
+        1. Analyzes query to determine optimal retrieval approach
+        2. Uses different strategies for different query types
+        3. Optimizes memory usage during retrieval
+        4. Caches responses for frequent queries
 
         Args:
             user_message: User's message
-            max_new_tokens: Maximum number of tokens to generate
+            max_new_tokens: Maximum new tokens for response
 
         Returns:
             Assistant's response
         """
         start_time = time.time()
+
+        # Check response cache
+        if hasattr(self, "_response_cache") and user_message in self._response_cache:
+            return self._response_cache[user_message]
 
         # Step 1: Query analysis
         query_info = self._analyze_query(user_message)
@@ -623,54 +1197,83 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         if query_embedding is None:
             return "Sorry, an error occurred while processing your request."
 
-        # Step 3: Add keyword filtering if available
-        if hasattr(self, "query_analyzer") and self.query_analyzer:
-            keywords = self.query_analyzer.extract_keywords(user_message)
-            if keywords and len(keywords) > 0:
-                if adapted_params is None:
-                    adapted_params = {}
-                adapted_params["important_keywords"] = keywords
+        # Step 3: Optimize retrieval based on query type
+        # Default to standard parameters
+        retrieval_params = {"top_k": adapted_params.get("max_results", 10)}
 
-        # Step 4: Use retrieval orchestrator for consistent memory retrieval
-        # IMPORTANT: Use the orchestrator instead of direct strategy calls
-        relevant_memories = self.retrieval_orchestrator.retrieve(
-            query_embedding=query_embedding,
-            query=user_message,
-            query_type=query_type,
-            expanded_keywords=expanded_keywords,
-            entities=entities,
-            adapted_params=adapted_params,
-            top_k=adapted_params.get("max_results", 10),
-        )
+        # Adjust based on query type
+        if query_type == "factual":
+            # For factual queries, prioritize precision and use more results
+            retrieval_params["top_k"] = min(15, retrieval_params["top_k"] + 5)
+            # BM25 works well for factual queries, so it's weighted more in retrieve()
+        elif query_type == "personal":
+            # For personal queries, we want focused, relevant results
+            retrieval_params["top_k"] = max(5, retrieval_params["top_k"] - 2)
+        elif query_type == "temporal":
+            # For temporal queries, we rely more on temporal context
+            adapted_params["temporal_weight"] = 0.4  # Boost temporal weight
+        elif query_type == "conceptual" or query_type == "opinion":
+            # For conceptual/opinion queries, we need more diverse results
+            retrieval_params["top_k"] = min(15, retrieval_params["top_k"] + 5)
 
-        # Step 5: Extract personal attributes if enabled
-        self._extract_personal_attributes(user_message, time.time())
+        # Step 4: Add keywords to params if available
+        if expanded_keywords:
+            retrieval_params["keywords"] = expanded_keywords
 
-        # Step 6: Construct prompt
+        # Step 5: Retrieve memories
+        relevant_memories = self.retrieve(query=user_message, **retrieval_params)
+
+        # Step 6: Extract personal attributes if enabled
+        if self.personal_attribute_manager:
+            self._extract_personal_attributes(user_message, time.time())
+
+        # Step 7: Construct prompt
+        self.timer.start("prompt_construction")
         prompt = self.prompt_builder.build_chat_prompt(
             user_message=user_message,
             memories=relevant_memories,
             conversation_history=self.conversation_history,
             query_type=query_type,
         )
+        self.timer.stop("prompt_construction")
 
-        logger.debug("[bold cyan]===== Prompt Start =====[/]")
-        logging.debug(f"[bold]{prompt}[/]")
-        logger.debug("[bold cyan]===== Prompt End =====[/]")
+        if self.debug:
+            logger.debug("[bold cyan]===== Prompt Start =====[/]")
+            logger.debug(f"[bold]{prompt}[/]")
+            logger.debug("[bold cyan]===== Prompt End =====[/]")
 
-        # Step 7: Generate response
+        # Step 8: Generate response
+        self.timer.start("response_generation")
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
+        self.timer.stop("response_generation")
 
-        # Step 8: Store interaction
+        # Step 9: Store interaction
+        self.timer.start("store_interaction")
         self._store_hybrid_interaction(user_message, assistant_reply, time.time())
+        self.timer.stop("store_interaction")
 
-        # Step 9: Update history and statistics
+        # Step 10: Update history and statistics
         self.timer.start("update_history")
         self._update_conversation_history(user_message, assistant_reply)
         self.timer.stop("update_history")
-        self.timer.start("update_retrieval_stats")
+
         self._update_retrieval_stats(start_time, len(relevant_memories))
-        self.timer.start("update_retrieval_stats")
+
+        # Cache the response
+        if not hasattr(self, "_response_cache"):
+            self._response_cache = {}
+            self._response_cache_keys = []
+            self._max_response_cache = 20
+
+        # Add to cache with LRU eviction
+        if len(self._response_cache) >= self._max_response_cache:
+            # Remove oldest entry
+            oldest_key = self._response_cache_keys.pop(0)
+            if oldest_key in self._response_cache:
+                del self._response_cache[oldest_key]
+
+        self._response_cache[user_message] = assistant_reply
+        self._response_cache_keys.append(user_message)
 
         return assistant_reply
 
@@ -854,3 +1457,74 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         except Exception as e:
             logger.error(f"Error getting chunking statistics: {e}")
             return {}
+
+    def get_performance_stats(self) -> dict[str, Any]:
+        """
+        Get detailed performance statistics for the HybridMemoryWeaveAPI.
+
+        Returns:
+            Dictionary with performance metrics
+        """
+        stats = {
+            "memory_usage": {},
+            "timing": {},
+            "counts": {},
+            "retrieval": {},
+        }
+
+        # Memory usage stats
+        if hasattr(self, "hybrid_memory_store"):
+            stats["memory_usage"]["total_memories"] = len(self.hybrid_memory_adapter.get_all())
+            stats["memory_usage"]["chunked_memories"] = len(self.chunked_memory_ids)
+            stats["memory_usage"]["total_chunks"] = self.hybrid_memory_adapter.get_chunk_count()
+            if stats["memory_usage"]["chunked_memories"] > 0:
+                stats["memory_usage"]["avg_chunks_per_memory"] = (
+                    stats["memory_usage"]["total_chunks"]
+                    / stats["memory_usage"]["chunked_memories"]
+                )
+            else:
+                stats["memory_usage"]["avg_chunks_per_memory"] = 0
+
+        # Timing stats
+        if hasattr(self, "timer") and hasattr(self.timer, "timings"):
+            for operation, times in self.timer.timings.items():
+                if times:
+                    stats["timing"][operation] = {
+                        "avg": sum(times) / len(times),
+                        "min": min(times),
+                        "max": max(times),
+                        "total": sum(times),
+                        "count": len(times),
+                    }
+
+        # Component initialization stats
+        if hasattr(self, "_component_initialized"):
+            stats["counts"]["components_initialized"] = sum(
+                1 for v in self._component_initialized.values() if v
+            )
+            stats["counts"]["components_total"] = len(self._component_initialized)
+            stats["counts"]["lazy_loading_savings"] = len(self._component_initialized) - sum(
+                1 for v in self._component_initialized.values() if v
+            )
+
+        # Retrieval stats
+        if hasattr(self, "retrieval_stats"):
+            stats["retrieval"] = self.retrieval_stats.copy()
+
+        # Cache stats
+        stats["cache"] = {}
+        if hasattr(self, "_result_cache"):
+            stats["cache"]["result_cache_size"] = len(self._result_cache)
+            stats["cache"]["result_cache_limit"] = self._max_cache_size
+        if hasattr(self, "_response_cache"):
+            stats["cache"]["response_cache_size"] = len(self._response_cache)
+            stats["cache"]["response_cache_limit"] = self._max_response_cache
+
+        # BM25 stats
+        if hasattr(self, "bm25_documents"):
+            stats["bm25"] = {
+                "document_count": len(self.bm25_documents),
+                "enabled": self.bm25_index is not None,
+            }
+
+        return stats
