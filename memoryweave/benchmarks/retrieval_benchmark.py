@@ -21,6 +21,7 @@ import logging
 import os
 import time
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 from rich.console import Console
@@ -31,6 +32,7 @@ from rich.table import Table
 from memoryweave.api.hybrid_memory_weave import HybridMemoryWeaveAPI
 
 # Import MemoryWeave components
+from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.memory_weave import MemoryWeaveAPI
 from memoryweave.benchmarks.utils.perf_timer import PerformanceTimer, timer
 from memoryweave.components.retriever import _get_embedder
@@ -172,7 +174,14 @@ class VectorSimilarityRetriever:
 class MemoryWeaveRAM:
     """Wrapper for MemoryWeave's RAM retrieval."""
 
-    def __init__(self, embedding_model, use_hybrid=True, device="auto"):
+    def __init__(
+        self,
+        embedding_model,
+        llm_provider: LLMProvider | None = None,
+        use_hybrid=True,
+        device="auto",
+        two_stage_retrieval: bool = True,
+    ):
         """Initialize MemoryWeave RAM retriever."""
         if use_hybrid:
             self.system = HybridMemoryWeaveAPI(
@@ -180,7 +189,20 @@ class MemoryWeaveRAM:
                 embedding_model_name=EMBEDDING_MODEL,  # Will set manually
                 debug=False,
                 device=device,
+                llm_provider=llm_provider,
+                two_stage_retrieval=two_stage_retrieval,
             )
+
+            # Configure for benchmark performance
+            self.system.configure_chunking(
+                adaptive_chunk_threshold=1000,  # Higher threshold to reduce chunking
+                max_chunks_per_memory=2,  # Fewer chunks for benchmarking
+                importance_threshold=0.7,  # Higher threshold for importance
+            )
+
+            # Set lower thresholds for better recall
+            self.system.strategy.confidence_threshold = 0.05
+
         else:
             self.system = MemoryWeaveAPI(
                 model_name=DEFAULT_MODEL,  # No LLM needed
@@ -196,31 +218,42 @@ class MemoryWeaveRAM:
         self.documents = []
         self.document_ids = []
 
-    def add_memory(self, text, metadata=None):
+    def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """Add a document to MemoryWeave."""
         if metadata is None:
             metadata = {"type": "benchmark", "created_at": time.time()}
 
-        doc_id = self.system.add_memory(text, metadata)
+        # Use integer index as document ID for easier comparison
+        doc_id = len(self.documents)
+        metadata["doc_index"] = doc_id  # Store original index for retrieval comparison
+
+        memory_id = self.system.add_memory(text, metadata)
         self.documents.append(text)
-        self.document_ids.append(doc_id)
+        self.document_ids.append(memory_id)
 
-        return doc_id
+        return doc_id  # Return the document index, not the memory ID
 
-    def retrieve(self, query, top_k=10):
+    def retrieve(self, query: str, top_k: int = 10) -> list[dict[str, Any]]:
         """Retrieve documents using MemoryWeave RAM."""
         results = self.system.retrieve(query, top_k=top_k)
 
-        # Format results
+        # Format results - IMPORTANT: Map to benchmark doc_index
         formatted_results = []
         for item in results:
+            metadata = item.get("metadata", {})
+            doc_index = metadata.get("doc_index")
+
             formatted_results.append(
                 {
-                    "id": item.get("memory_id", ""),
+                    "id": doc_index if doc_index is not None else -1,
+                    "memory_id": item.get("memory_id", ""),
                     "text": item.get("content", ""),
                     "score": item.get("relevance_score", 0.0),
                 }
             )
+        console.print(
+            f"[dim]Retrieved IDs and metadata:[/dim] {formatted_results[:3]}"
+        )  # Check first few results
 
         return formatted_results
 
@@ -360,6 +393,7 @@ def load_test_data(test_type="general"):
 
 
 @timer
+@timer
 def benchmark_retrieval_system(system_name, system, documents, queries, top_k=10, iterations=3):
     """Benchmark a retrieval system's performance."""
     timer = PerformanceTimer()
@@ -418,10 +452,30 @@ def benchmark_retrieval_system(system_name, system, documents, queries, top_k=10
 
             # Use the last iteration's results for metrics
             results = iteration_results[-1]
-            retrieved_doc_ids = [
-                int(r["id"]) if isinstance(r["id"], str) and r["id"].isdigit() else r["id"]
-                for r in results
-            ]
+
+            # Debug results - add this to see what's being returned
+            if system_name == "MemoryWeave Hybrid":
+                console.print(f"[dim]Query: '{query_text}'[/dim]")
+                console.print(f"[dim]Expected relevant indices: {relevant_indices}[/dim]")
+                console.print(f"[dim]Results count: {len(results)}[/dim]")
+                if results:
+                    console.print(f"[dim]First result sample: {results[0]}[/dim]")
+
+            # Extract document IDs - handle different ID formats
+            retrieved_doc_ids = []
+            for r in results:
+                if "memory_id" in r:
+                    id_val = r["memory_id"]
+                elif "id" in r:
+                    id_val = r["id"]
+                else:
+                    continue
+
+                # Convert to int if possible
+                if isinstance(id_val, str) and id_val.isdigit():
+                    retrieved_doc_ids.append(int(id_val))
+                elif isinstance(id_val, int):
+                    retrieved_doc_ids.append(id_val)
 
             # Calculate metrics
             retrieved_set = set(retrieved_doc_ids[:top_k])

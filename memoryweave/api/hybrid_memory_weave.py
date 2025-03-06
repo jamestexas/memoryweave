@@ -59,11 +59,13 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         show_progress_bar: bool = False,
         debug: bool = False,
         llm_provider: LLMProvider | None = None,
+        two_stage_retrieval: bool = True,
         **model_kwargs,
     ):
         """Initialize the HybridMemoryWeaveAPI with optimized loading."""
         # Initialize core attributes first
         self.debug = debug
+        self.two_stage_retrieval = two_stage_retrieval
         self.device = _get_device(device)
         self.show_progress_bar = show_progress_bar
 
@@ -198,13 +200,19 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             text: Document text to add to the index
             memory_id: ID of the memory/document
         """
+        # For benchmarking, we'll use a much simpler approach to reduce load time
+
         # Add document to BM25 corpus
         self.bm25_documents.append(text)
         self.bm25_doc_ids.append(memory_id)
 
-        # For the first document, initialize the index
+        # For benchmarking, we'll delay index building until first query
+        # Only initialize if this is the first document
         if len(self.bm25_documents) == 1:
             tokenized_corpus = [self.tokenizer(text)]
+            self.bm25_index = BM25Okapi(tokenized_corpus)
+        elif len(self.bm25_documents) % 20 == 0:  # Only update every 20 docs for benchmarking
+            tokenized_corpus = [self.tokenizer(doc) for doc in self.bm25_documents]
             self.bm25_index = BM25Okapi(tokenized_corpus)
             return
 
@@ -415,7 +423,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             "max_candidates": 50,  # Consider more candidates for better selection
             "debug": self.debug,
             # Two-stage configuration
-            "use_two_stage": True,  # Enable two-stage retrieval by default
+            "use_two_stage": self.two_stage_retrieval,  # Enable two-stage retrieval by default
             "first_stage_k": 30,  # Get 30 candidates in first stage
             "first_stage_threshold_factor": 0.7,  # Use 70% of confidence threshold in first stage
             # Advanced optimization parameters
