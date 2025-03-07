@@ -1063,7 +1063,7 @@ class UnifiedRetrievalBenchmark:
             accuracies = [summary[sys].get("avg_accuracy", 0) for sys in systems]
 
             # Create a comprehensive figure for multiple metrics
-            fig = plt.figure(figsize=(16, 10))
+            plt.figure(figsize=(16, 10))
 
             # Add title
             plt.suptitle("MemoryWeave Unified Retrieval Benchmark", fontsize=16, fontweight="bold")
@@ -1071,7 +1071,7 @@ class UnifiedRetrievalBenchmark:
 
             # Accuracy subplot
             ax1 = plt.subplot(2, 2, 1)
-            bars1 = ax1.bar(systems, accuracies, color="#5DA5DA")
+            ax1.bar(systems, accuracies, color="#5DA5DA")
             ax1.set_title("Average Accuracy", fontsize=12)
             ax1.set_ylabel("Accuracy Score")
             ax1.set_ylim(0, 1.0)
@@ -1091,11 +1091,11 @@ class UnifiedRetrievalBenchmark:
             r3 = [x + bar_width for x in r2]
 
             # Create grouped bars
-            bars2 = ax2.bar(r1, times, width=bar_width, label="Total", color="#5DA5DA")
-            bars3 = ax2.bar(
+            ax2.bar(r1, times, width=bar_width, label="Total", color="#5DA5DA")
+            ax2.bar(
                 r2, retrieval_times, width=bar_width, label="Retrieval", color="#FAA43A"
             )
-            bars4 = ax2.bar(
+            ax2.bar(
                 r3, inference_times, width=bar_width, label="Inference", color="#60BD68"
             )
 
@@ -1252,12 +1252,11 @@ class UnifiedRetrievalBenchmark:
             # Preparation phase (embedding computation, etc.)
             timer.start("preparation")
             # This varies by system, but generally involves:
-            query_info = None
             query_embedding = None
 
             if hasattr(system, "_analyze_query") and hasattr(system, "_compute_embedding"):
                 # Start with query analysis if available
-                query_info = system._analyze_query(query)
+                system._analyze_query(query)
                 query_embedding = system._compute_embedding(query)
             timer.stop("preparation")
 
