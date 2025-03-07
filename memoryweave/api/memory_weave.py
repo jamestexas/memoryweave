@@ -65,7 +65,6 @@ class MemoryWeaveAPI:
     ):
         """Initialize MemoryWeave with an LLM, embeddings, and memory components."""
         self.debug = debug
-        self.timer.start("init")
         self.device = _get_device(device)
         self.show_progress_bar = show_progress_bar
 
@@ -103,8 +102,7 @@ class MemoryWeaveAPI:
             )
 
             # Create adapter (which includes the store)
-            self.memory_adapter = create_memory_store_and_adapter(store_config)
-            self.memory_store = self.memory_adapter.memory_store
+            self.memory_adapter, self.memory_store = create_memory_store_and_adapter(store_config)
 
         # For backward compatibility
         self.memory_store_adapter = self.memory_adapter
@@ -201,7 +199,6 @@ class MemoryWeaveAPI:
             "avg_query_time": 0,
             "avg_results_count": 0,
         }
-        self.timer.stop("init")
 
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """Store a memory with consistent handling of metadata."""
@@ -263,9 +260,7 @@ class MemoryWeaveAPI:
         _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
 
         # Step 2: Compute query embedding
-        self.timer.start("embedding_computation")
         query_embedding = self._compute_embedding(user_message)
-        self.timer.stop("embedding_computation")
 
         if query_embedding is None:
             return "Sorry, an error occurred while processing your request."
@@ -300,7 +295,6 @@ class MemoryWeaveAPI:
 
         # Step 7: Update history and statistics
         self._store_interaction(user_message, assistant_reply, time.time())
-        self.timer.start("update_history")
         self._update_conversation_history(user_message, assistant_reply)
 
         self._update_retrieval_stats(start_time, len(relevant_memories))

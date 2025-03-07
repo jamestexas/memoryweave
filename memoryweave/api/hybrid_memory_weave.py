@@ -97,10 +97,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # Initialize retrieval strategy
         self._setup_hybrid_strategy()
 
-        logger.info(
-            f"HybridMemoryWeaveAPI initialized in {self.timer.timings.get('init', [0])[-1]:.3f}s"
-        )
-
     def _initialize_core_components(
         self,
         model_name: str,
@@ -144,11 +140,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         )
 
         # Create adapter (which includes the store)
-        hybrid_adapter = create_memory_store_and_adapter(store_config)
 
         # Store for direct access
-        self.hybrid_memory_store = hybrid_adapter.memory_store
-        self.hybrid_memory_adapter = hybrid_adapter
+        self.hybrid_memory_store, self.hybrid_memory_adapter = create_memory_store_and_adapter(
+            store_config
+        )
 
         # Create LLM provider
         self.llm_provider = llm_provider or LLMProvider(model_name, self.device, **model_kwargs)
@@ -1057,7 +1053,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # Get BM25 results if available
         bm25_results = []
         if self.bm25_index is not None:
-            self.timer.start("bm25_search")
             tokenized_query = self.tokenizer(query)
             doc_scores = self.bm25_index.get_scores(tokenized_query)
 
@@ -1084,13 +1079,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                         bm25_results.append(result)
                     except Exception as e:
                         logger.warning(f"Error retrieving BM25 result {doc_id}: {e}")
-            self.timer.stop("bm25_search")
 
-        # Get vector similarity results
-        self.timer.start("vector_search")
         # Use the retrieval orchestrator for this
         vector_results = super().retrieve(query, top_k=top_k * 2, **kwargs)
-        self.timer.stop("vector_search")
 
         # Mark vector results source
         for result in vector_results:
@@ -1098,11 +1089,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         # If we have both result types, combine them
         if bm25_results and vector_results:
-            self.timer.start("combine_results")
             combined_results = self._combine_with_reciprocal_rank_fusion(
                 bm25_results, vector_results, k1=60, k2=40, top_k=top_k
             )
-            self.timer.stop("combine_results")
         elif bm25_results:
             # Only BM25 results available
             combined_results = bm25_results[:top_k]
@@ -1127,7 +1116,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         self._result_cache[cache_key] = combined_results
         self._result_cache_keys.append(cache_key)
 
-        self.timer.stop("retrieve")
         return combined_results
 
     def _combine_with_reciprocal_rank_fusion(
@@ -1239,9 +1227,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
 
         # Step 2: Compute query embedding
-        self.timer.start("embedding_computation")
+
         query_embedding = self._compute_embedding(user_message)
-        self.timer.stop("embedding_computation")
+
         if query_embedding is None:
             return "Sorry, an error occurred while processing your request."
 
@@ -1276,14 +1264,13 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             self._extract_personal_attributes(user_message, time.time())
 
         # Step 7: Construct prompt
-        self.timer.start("prompt_construction")
+
         prompt = self.prompt_builder.build_chat_prompt(
             user_message=user_message,
             memories=relevant_memories,
             conversation_history=self.conversation_history,
             query_type=query_type,
         )
-        self.timer.stop("prompt_construction")
 
         if self.debug:
             logger.debug("[bold cyan]===== Prompt Start =====[/]")
@@ -1291,19 +1278,16 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             logger.debug("[bold cyan]===== Prompt End =====[/]")
 
         # Step 8: Generate response
-        self.timer.start("response_generation")
+
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
-        self.timer.stop("response_generation")
 
         # Step 9: Store interaction
-        self.timer.start("store_interaction")
+
         self._store_hybrid_interaction(user_message, assistant_reply, time.time())
-        self.timer.stop("store_interaction")
 
         # Step 10: Update history and statistics
-        self.timer.start("update_history")
+
         self._update_conversation_history(user_message, assistant_reply)
-        self.timer.stop("update_history")
 
         self._update_retrieval_stats(start_time, len(relevant_memories))
 
@@ -1533,16 +1517,17 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 stats["memory_usage"]["avg_chunks_per_memory"] = 0
 
         # Timing stats
-        if hasattr(self, "timer") and hasattr(self.timer, "timings"):
-            for operation, times in self.timer.timings.items():
-                if times:
-                    stats["timing"][operation] = {
-                        "avg": sum(times) / len(times),
-                        "min": min(times),
-                        "max": max(times),
-                        "total": sum(times),
-                        "count": len(times),
-                    }
+        # TODO: This will be useful later but not important rn
+        # if hasattr(self, "timer") and hasattr(self.timer, "timings"):
+        #     for operation, times in self.timer.timings.items():
+        #         if times:
+        #             stats["timing"][operation] = {
+        #                 "avg": sum(times) / len(times),
+        #                 "min": min(times),
+        #                 "max": max(times),
+        #                 "total": sum(times),
+        #                 "count": len(times),
+        #             }
 
         # Component initialization stats
         if hasattr(self, "_component_initialized"):
