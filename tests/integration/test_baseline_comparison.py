@@ -8,7 +8,6 @@ works correctly with real retrievers and memory managers.
 import json
 import os
 import tempfile
-from typing import list
 
 import numpy as np
 import pytest

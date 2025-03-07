@@ -9,7 +9,6 @@ from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.prompt_builder import PromptBuilder
 from memoryweave.api.retrieval_orchestrator import RetrievalOrchestrator
 from memoryweave.api.streaming import StreamingHandler
-from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.components.activation import ActivationManager
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
 from memoryweave.components.category_manager import CategoryManager
@@ -43,7 +42,6 @@ DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
-@timer
 class MemoryWeaveAPI:
     """
     A unified API for MemoryWeave, managing memory and retrieval in a simple interface.
@@ -67,7 +65,6 @@ class MemoryWeaveAPI:
     ):
         """Initialize MemoryWeave with an LLM, embeddings, and memory components."""
         self.debug = debug
-        self.timer.start("init")
         self.device = _get_device(device)
         self.show_progress_bar = show_progress_bar
 
@@ -105,8 +102,7 @@ class MemoryWeaveAPI:
             )
 
             # Create adapter (which includes the store)
-            self.memory_adapter = create_memory_store_and_adapter(store_config)
-            self.memory_store = self.memory_adapter.memory_store
+            self.memory_adapter, self.memory_store = create_memory_store_and_adapter(store_config)
 
         # For backward compatibility
         self.memory_store_adapter = self.memory_adapter
@@ -203,7 +199,6 @@ class MemoryWeaveAPI:
             "avg_query_time": 0,
             "avg_results_count": 0,
         }
-        self.timer.stop("init")
 
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """Store a memory with consistent handling of metadata."""
@@ -256,7 +251,6 @@ class MemoryWeaveAPI:
 
         return memory_ids
 
-    @timer()
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
         """Process user message and generate a response using memory retrieval."""
         start_time = time.time()
@@ -266,9 +260,7 @@ class MemoryWeaveAPI:
         _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
 
         # Step 2: Compute query embedding
-        self.timer.start("embedding_computation")
         query_embedding = self._compute_embedding(user_message)
-        self.timer.stop("embedding_computation")
 
         if query_embedding is None:
             return "Sorry, an error occurred while processing your request."
@@ -303,7 +295,6 @@ class MemoryWeaveAPI:
 
         # Step 7: Update history and statistics
         self._store_interaction(user_message, assistant_reply, time.time())
-        self.timer.start("update_history")
         self._update_conversation_history(user_message, assistant_reply)
 
         self._update_retrieval_stats(start_time, len(relevant_memories))
@@ -406,7 +397,7 @@ class MemoryWeaveAPI:
         return memories
 
     # Helper methods
-    @timer()
+
     def _analyze_query(self, user_message: str):
         """Analyze query to extract type, keywords, and parameters."""
         try:
@@ -447,7 +438,6 @@ class MemoryWeaveAPI:
 
         return query_obj, adapted_params, expanded_keywords, query_type, entities
 
-    @timer()
     def _compute_embedding(self, text: str):
         """Compute embedding for text."""
         try:
@@ -459,7 +449,6 @@ class MemoryWeaveAPI:
             traceback.print_exc()
             return None
 
-    @timer()
     def _extract_personal_attributes(self, user_message: str, timestamp: float):
         """Extract and store personal attributes."""
         if self.personal_attribute_manager:
@@ -483,7 +472,6 @@ class MemoryWeaveAPI:
             except Exception as e:
                 logger.error(f"Error extracting personal attributes: {e}")
 
-    @timer()
     def _store_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
         """Store conversation messages as memories."""
         try:
@@ -526,13 +514,11 @@ class MemoryWeaveAPI:
         except Exception as e:
             logger.error(f"Error storing conversation in memory: {e}")
 
-    @timer()
     def _update_conversation_history(self, user_message: str, assistant_reply: str):
         """Add messages to conversation history."""
         self.conversation_history.append({"role": "user", "content": user_message})
         self.conversation_history.append({"role": "assistant", "content": assistant_reply})
 
-    @timer()
     def _update_retrieval_stats(self, start_time: float, results_count: int):
         """Update retrieval performance statistics."""
         query_time = time.time() - start_time

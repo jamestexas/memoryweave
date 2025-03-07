@@ -20,8 +20,8 @@ from typing import Any, Optional, Union
 import matplotlib.pyplot as plt
 import numpy as np
 
+from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.components.retriever import Retriever
-from memoryweave.core.contextual_memory import ContextualMemory
 from memoryweave.evaluation.synthetic.generators import (
     SyntheticMemoryGenerator,
     SyntheticQueryGenerator,
@@ -205,7 +205,7 @@ class SyntheticBenchmark:
         )
         return self.dataset
 
-    def prepare_memory(self, config: BenchmarkConfig) -> tuple[ContextualMemory, Retriever]:
+    def prepare_memory(self, config: BenchmarkConfig) -> tuple[MemoryManager, Retriever]:
         """
         Prepare memory and retriever based on the configuration.
 
@@ -233,7 +233,7 @@ class SyntheticBenchmark:
         logger.info(f"Using embedding dimension: {embedding_dim}")
 
         # Create memory
-        memory = ContextualMemory(
+        memory = MemoryManager(
             embedding_dim=embedding_dim,
             max_memories=len(self.dataset["memories"]),
             use_art_clustering=config.use_art_clustering,
@@ -349,7 +349,6 @@ class SyntheticBenchmark:
                 context = {"in_evaluation": config.evaluation_mode}
 
                 # Set logging level to INFO during evaluation to capture details
-                import logging
 
                 evaluation_logger = logging.getLogger()
                 original_level = evaluation_logger.level

@@ -34,7 +34,6 @@ from memoryweave.api.hybrid_memory_weave import HybridMemoryWeaveAPI
 # Import MemoryWeave components
 from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.memory_weave import MemoryWeaveAPI
-from memoryweave.benchmarks.utils.perf_timer import PerformanceTimer, timer
 from memoryweave.components.retriever import _get_embedder
 
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
@@ -392,11 +391,8 @@ def load_test_data(test_type="general"):
     return general_documents, general_queries
 
 
-@timer
-@timer
 def benchmark_retrieval_system(system_name, system, documents, queries, top_k=10, iterations=3):
     """Benchmark a retrieval system's performance."""
-    timer = PerformanceTimer()
 
     # Results storage
     recall_scores = []
@@ -442,12 +438,7 @@ def benchmark_retrieval_system(system_name, system, documents, queries, top_k=10
 
             for _ in range(iterations):
                 # Measure retrieval time
-                timer.start("retrieval")
                 results = system.retrieve(query_text, top_k=top_k)
-                retrieval_time = timer.stop("retrieval")
-
-                iteration_times.append(retrieval_time)
-                iteration_results.append(results)
                 progress.advance(benchmark_task)
 
             # Use the last iteration's results for metrics

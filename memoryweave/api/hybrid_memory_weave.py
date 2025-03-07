@@ -17,7 +17,6 @@ from rank_bm25 import BM25Okapi  # Add this import
 
 from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
 from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
-from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.components.retrieval_strategies.hybrid_fabric_strategy import HybridFabricStrategy
 from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.text_chunker import TextChunker
@@ -31,7 +30,6 @@ from memoryweave.utils import _get_device
 logger = logging.getLogger(__name__)
 
 
-@timer
 class HybridMemoryWeaveAPI(MemoryWeaveAPI):
     """
     Memory-efficient MemoryWeave API with adaptive chunking and hierarchical embeddings.
@@ -44,7 +42,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
     - Integrates BM25 for keyword-based retrieval to complement vector similarity
     """
 
-    @timer("init")
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
@@ -100,10 +97,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # Initialize retrieval strategy
         self._setup_hybrid_strategy()
 
-        logger.info(
-            f"HybridMemoryWeaveAPI initialized in {self.timer.timings.get('init', [0])[-1]:.3f}s"
-        )
-
     def _initialize_core_components(
         self,
         model_name: str,
@@ -147,11 +140,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         )
 
         # Create adapter (which includes the store)
-        hybrid_adapter = create_memory_store_and_adapter(store_config)
 
         # Store for direct access
-        self.hybrid_memory_store = hybrid_adapter.memory_store
-        self.hybrid_memory_adapter = hybrid_adapter
+        self.hybrid_memory_store, self.hybrid_memory_adapter = create_memory_store_and_adapter(
+            store_config
+        )
 
         # Create LLM provider
         self.llm_provider = llm_provider or LLMProvider(model_name, self.device, **model_kwargs)
@@ -393,7 +386,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 f"first_stage_threshold_factor={first_stage_threshold_factor}"
             )
 
-    @timer()
     def _setup_hybrid_strategy(self):
         """Set up the hybrid fabric strategy to replace the standard strategy."""
         # Create hybrid strategy
@@ -462,7 +454,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             # Update existing orchestrator
             self.retrieval_orchestrator.strategy = self.strategy
 
-    @timer()
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """
         Store a memory with adaptive chunking for efficient memory usage.
@@ -552,7 +543,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         logger.debug(f"Added hybrid memory {mem_id} with {len(selected_chunks)} selected chunks")
         return mem_id
 
-    @timer()
     def _analyze_chunking_needs(self, text: str) -> tuple[bool, int]:
         """
         Analyze text to determine if and how it should be chunked.
@@ -615,7 +605,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         should_chunk = len(text) > threshold_value
         return should_chunk, threshold_value
 
-    @timer()
     def _select_important_chunks(
         self,
         chunks: list[dict[str, Any]],
@@ -820,7 +809,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         return selected_chunks, selected_embeddings
 
-    @timer()
     def add_conversation_memory(
         self, turns: list[dict[str, str]], metadata: dict[str, Any] = None
     ) -> str:
@@ -926,7 +914,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         logger.debug(f"Added conversation memory {mem_id}")
         return mem_id
 
-    @timer()
     def _adaptive_conversation_chunking(
         self, turns: list[dict[str, str]], metadata: dict[str, Any]
     ) -> list[dict[str, Any]]:
@@ -1035,7 +1022,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         return chunks
 
-    @timer()
     def retrieve(self, query: str, top_k: int = 10, **kwargs) -> list[dict[str, Any]]:
         """
         Enhanced retrieval combining BM25 and vector similarity.
@@ -1062,14 +1048,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             return cached_result
 
         # Create query embedding
-        self.embedding_model.encode(
-            query, show_progress_bar=self.show_progress_bar
-        )
+        self.embedding_model.encode(query, show_progress_bar=self.show_progress_bar)
 
         # Get BM25 results if available
         bm25_results = []
         if self.bm25_index is not None:
-            self.timer.start("bm25_search")
             tokenized_query = self.tokenizer(query)
             doc_scores = self.bm25_index.get_scores(tokenized_query)
 
@@ -1096,13 +1079,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                         bm25_results.append(result)
                     except Exception as e:
                         logger.warning(f"Error retrieving BM25 result {doc_id}: {e}")
-            self.timer.stop("bm25_search")
 
-        # Get vector similarity results
-        self.timer.start("vector_search")
         # Use the retrieval orchestrator for this
         vector_results = super().retrieve(query, top_k=top_k * 2, **kwargs)
-        self.timer.stop("vector_search")
 
         # Mark vector results source
         for result in vector_results:
@@ -1110,11 +1089,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         # If we have both result types, combine them
         if bm25_results and vector_results:
-            self.timer.start("combine_results")
             combined_results = self._combine_with_reciprocal_rank_fusion(
                 bm25_results, vector_results, k1=60, k2=40, top_k=top_k
             )
-            self.timer.stop("combine_results")
         elif bm25_results:
             # Only BM25 results available
             combined_results = bm25_results[:top_k]
@@ -1139,7 +1116,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         self._result_cache[cache_key] = combined_results
         self._result_cache_keys.append(cache_key)
 
-        self.timer.stop("retrieve")
         return combined_results
 
     def _combine_with_reciprocal_rank_fusion(
@@ -1200,7 +1176,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         # Build final results
         combined = []
-        for memory_id, data in result_map.items():
+        for _memory_id, data in result_map.items():
             result_obj = data["result"].copy()
             result_obj["rrf_score"] = data["score"]
             result_obj["retrieval_sources"] = data["sources"]
@@ -1223,7 +1199,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # Sort by RRF score and return top K
         return sorted(combined, key=lambda x: x["rrf_score"], reverse=True)[:top_k]
 
-    @timer()
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
         """
         Enhanced chat method with query type-specific optimizations.
@@ -1252,9 +1227,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         _query_obj, adapted_params, expanded_keywords, query_type, entities = query_info
 
         # Step 2: Compute query embedding
-        self.timer.start("embedding_computation")
+
         query_embedding = self._compute_embedding(user_message)
-        self.timer.stop("embedding_computation")
+
         if query_embedding is None:
             return "Sorry, an error occurred while processing your request."
 
@@ -1289,14 +1264,13 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             self._extract_personal_attributes(user_message, time.time())
 
         # Step 7: Construct prompt
-        self.timer.start("prompt_construction")
+
         prompt = self.prompt_builder.build_chat_prompt(
             user_message=user_message,
             memories=relevant_memories,
             conversation_history=self.conversation_history,
             query_type=query_type,
         )
-        self.timer.stop("prompt_construction")
 
         if self.debug:
             logger.debug("[bold cyan]===== Prompt Start =====[/]")
@@ -1304,19 +1278,16 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             logger.debug("[bold cyan]===== Prompt End =====[/]")
 
         # Step 8: Generate response
-        self.timer.start("response_generation")
+
         assistant_reply = self.llm_provider.generate(prompt=prompt, max_new_tokens=max_new_tokens)
-        self.timer.stop("response_generation")
 
         # Step 9: Store interaction
-        self.timer.start("store_interaction")
+
         self._store_hybrid_interaction(user_message, assistant_reply, time.time())
-        self.timer.stop("store_interaction")
 
         # Step 10: Update history and statistics
-        self.timer.start("update_history")
+
         self._update_conversation_history(user_message, assistant_reply)
-        self.timer.stop("update_history")
 
         self._update_retrieval_stats(start_time, len(relevant_memories))
 
@@ -1338,7 +1309,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         return assistant_reply
 
-    @timer()
     def _store_hybrid_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
         """
         Store conversation messages efficiently with hybrid approach.
@@ -1547,16 +1517,17 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 stats["memory_usage"]["avg_chunks_per_memory"] = 0
 
         # Timing stats
-        if hasattr(self, "timer") and hasattr(self.timer, "timings"):
-            for operation, times in self.timer.timings.items():
-                if times:
-                    stats["timing"][operation] = {
-                        "avg": sum(times) / len(times),
-                        "min": min(times),
-                        "max": max(times),
-                        "total": sum(times),
-                        "count": len(times),
-                    }
+        # TODO: This will be useful later but not important rn
+        # if hasattr(self, "timer") and hasattr(self.timer, "timings"):
+        #     for operation, times in self.timer.timings.items():
+        #         if times:
+        #             stats["timing"][operation] = {
+        #                 "avg": sum(times) / len(times),
+        #                 "min": min(times),
+        #                 "max": max(times),
+        #                 "total": sum(times),
+        #                 "count": len(times),
+        #             }
 
         # Component initialization stats
         if hasattr(self, "_component_initialized"):

@@ -1,221 +1,267 @@
-"""
-Tests for the MemoryStore component.
-"""
+import unittest
 
 import numpy as np
-import pytest
 
-from memoryweave.interfaces.memory import MemoryStore
+from memoryweave.interfaces.memory import Memory
+from memoryweave.storage.memory_store import StandardMemoryStore
 
 
-class TestMemoryStore:
-    """Test suite for the MemoryStore class."""
+class TestStandardMemoryStore(unittest.TestCase):
+    def setUp(self):
+        self.store = StandardMemoryStore()
+        self.test_embedding = np.array([0.1, 0.2, 0.3])
+        self.test_content = "Test memory content"
+        self.test_metadata = {"type": "test", "importance": 0.7}
 
-    def test_init(self):
-        """Test initialization of memory store."""
-        store = MemoryStore()
-        assert len(store.get_ids()) == 0
-        assert store.get_embeddings().shape == (0, 0)
+    def test_add_and_get(self):
+        # Test basic add and get functionality
+        memory_id = self.store.add(self.test_embedding, self.test_content, self.test_metadata)
 
-    def test_add_memory(self):
-        """Test adding a memory to the store."""
-        store = MemoryStore()
-        embedding = np.array([0.1, 0.2, 0.3])
-        content = "Test memory content"
-        metadata = {"source": "test", "importance": 0.8}
+        # Test that ID is returned
+        self.assertIsNotNone(memory_id)
+        self.assertTrue(isinstance(memory_id, str))
 
-        # Add memory
-        memory_id = store.add(embedding, content, metadata)
+        # Test retrieval
+        memory = self.store.get(memory_id)
 
-        # Verify memory was added
-        assert memory_id in store.get_ids()
-        assert len(store.get_ids()) == 1
-        assert store.get_embeddings().shape == (1, 3)
+        # Test memory properties
+        self.assertEqual(memory.id, memory_id)
+        self.assertTrue(np.array_equal(memory.embedding, self.test_embedding))
+        self.assertEqual(memory.content["text"], self.test_content)
+        self.assertEqual(memory.metadata, self.test_metadata)
 
-        # Retrieve and verify memory
-        memory = store.get(memory_id)
-        assert memory.id == memory_id
-        assert np.array_equal(memory.embedding, embedding)
-        assert memory.content["text"] == content
-        assert memory.metadata["source"] == "test"
-        assert memory.metadata["importance"] == 0.8
+    def test_add_with_id(self):
+        # Test adding with a specific ID
+        custom_id = "custom_memory_id"
+        memory_id = self.store.add_with_id(
+            custom_id, self.test_embedding, self.test_content, self.test_metadata
+        )
 
-    def test_get_memory(self):
-        """Test retrieving a memory by ID."""
-        store = MemoryStore()
-        embedding = np.array([0.1, 0.2, 0.3])
-        content = "Test memory content"
+        # Test that the custom ID is used
+        self.assertEqual(memory_id, custom_id)
 
-        # Add memory
-        memory_id = store.add(embedding, content)
+        # Test retrieval with the custom ID
+        memory = self.store.get(custom_id)
+        self.assertEqual(memory.id, custom_id)
 
-        # Get memory
-        memory = store.get(memory_id)
+    @staticmethod
+    def _get_memory_content(memory):
+        # Check if content is a dict with 'text' field
+        print(f"MEMORY IS: {memory}")
+        if isinstance(memory.content, dict) and "text" in memory.content:
+            return memory.content["text"]
+        return memory.content
 
-        # Verify memory
-        assert memory.id == memory_id
-        assert np.array_equal(memory.embedding, embedding)
-        assert memory.content["text"] == content
-
-        # Test non-existent memory
-        with pytest.raises(KeyError):
-            store.get("non_existent_id")
-
-    def test_get_all_memories(self):
-        """Test retrieving all memories."""
-        store = MemoryStore()
-
-        # Add memories
-        ids = []
-        for i in range(5):
-            embedding = np.array([0.1 * i, 0.2 * i, 0.3 * i])
-            content = f"Memory {i}"
-            memory_id = store.add(embedding, content)
-            ids.append(memory_id)
+    def test_get_all(self):
+        # Add multiple memories
+        _id1 = self.store.add(self.test_embedding, "Content 1", {"index": 1})
+        _id2 = self.store.add(self.test_embedding, "Content 2", {"index": 2})
+        _id3 = self.store.add(self.test_embedding, "Content 3", {"index": 3})
 
         # Get all memories
-        memories = store.get_all()
+        memories = self.store.get_all()
 
-        # Verify memories
-        assert len(memories) == 5
-        memory_ids = [memory.id for memory in memories]
-        for memory_id in ids:
-            assert memory_id in memory_ids
+        # Test that all memories are returned
+        self.assertEqual(len(memories), 3)
 
-    def test_get_embeddings(self):
-        """Test retrieving all embeddings as a matrix."""
-        store = MemoryStore()
+        # Test that the memories have the correct content
 
-        # Add memories
-        for i in range(3):
-            embedding = np.array([0.1 * i, 0.2 * i, 0.3 * i])
-            content = f"Memory {i}"
-            store.add(embedding, content)
+        memory_contents = [self._get_memory_content(m) for m in memories]
 
-        # Get embeddings
-        embeddings = store.get_embeddings()
+        self.assertIn("Content 1", memory_contents)
+        self.assertIn("Content 2", memory_contents)
+        self.assertIn("Content 3", memory_contents)
 
-        # Verify embeddings
-        assert embeddings.shape == (3, 3)
-        # Check first memory embedding
-        assert np.array_equal(embeddings[0], np.array([0.0, 0.0, 0.0]))
-        # Check second memory embedding
-        assert np.array_equal(embeddings[1], np.array([0.1, 0.2, 0.3]))
-
-    def test_update_activation(self):
-        """Test updating activation level of a memory."""
-        store = MemoryStore()
-        embedding = np.array([0.1, 0.2, 0.3])
-        content = "Test memory"
-
-        # Add memory
-        memory_id = store.add(embedding, content)
-
-        # Update activation
-        store.update_activation(memory_id, 0.5)
-
-        # Verify activation was updated
-        memory_meta = store._metadata[memory_id]
-        assert memory_meta.activation == 0.5
-
-        # Update again
-        store.update_activation(memory_id, 0.3)
-        assert memory_meta.activation == 0.8
-
-        # Test non-existent memory
-        with pytest.raises(KeyError):
-            store.update_activation("non_existent_id", 0.5)
+        # Test that the memories have the correct metadata
+        memory_indices = [m.metadata.get("index") for m in memories]
+        self.assertIn(1, memory_indices)
+        self.assertIn(2, memory_indices)
+        self.assertIn(3, memory_indices)
 
     def test_update_metadata(self):
-        """Test updating metadata of a memory."""
-        store = MemoryStore()
-        embedding = np.array([0.1, 0.2, 0.3])
-        content = "Test memory"
-
-        # Add memory
-        memory_id = store.add(embedding, content, {"initial": "value"})
+        # Add a memory
+        memory_id = self.store.add(self.test_embedding, self.test_content, self.test_metadata)
 
         # Update metadata
-        store.update_metadata(memory_id, {"new_key": "new_value"})
+        new_metadata = {"type": "updated", "importance": 0.9, "new_field": "new_value"}
+        self.store.update_metadata(memory_id, new_metadata)
 
-        # Verify metadata was updated
-        memory = store.get(memory_id)
-        assert memory.metadata["initial"] == "value"
-        assert memory.metadata["new_key"] == "new_value"
+        # Get the memory and check the metadata
+        memory = self.store.get(memory_id)
 
-        # Test non-existent memory
-        with pytest.raises(KeyError):
-            store.update_metadata("non_existent_id", {"key": "value"})
+        # The metadata should be updated
+        self.assertEqual(memory.metadata["type"], "updated")
+        self.assertEqual(memory.metadata["importance"], 0.9)
+        self.assertEqual(memory.metadata["new_field"], "new_value")
 
-    def test_remove_memory(self):
-        """Test removing a memory from the store."""
-        store = MemoryStore()
-        embedding = np.array([0.1, 0.2, 0.3])
-        content = "Test memory"
+    def test_remove(self):
+        # Add a memory
+        memory_id = self.store.add(self.test_embedding, self.test_content, self.test_metadata)
 
-        # Add memory
-        memory_id = store.add(embedding, content)
+        # Verify it was added
+        memory = self.store.get(memory_id)
+        self.assertEqual(memory.content["text"], self.test_content)
 
-        # Verify memory exists
-        assert memory_id in store.get_ids()
+        # Remove the memory
+        self.store.remove(memory_id)
 
-        # Remove memory
-        store.remove(memory_id)
-
-        # Verify memory was removed
-        assert memory_id not in store.get_ids()
-
-        # Test removing non-existent memory
-        with pytest.raises(KeyError):
-            store.remove("non_existent_id")
+        # Verify it was removed
+        with self.assertRaises(KeyError):
+            self.store.get(memory_id)
 
     def test_clear(self):
-        """Test clearing all memories from the store."""
-        store = MemoryStore()
+        # Add multiple memories
+        self.store.add(self.test_embedding, "Content 1", {"index": 1})
+        self.store.add(self.test_embedding, "Content 2", {"index": 2})
 
-        # Add memories
-        for i in range(5):
-            embedding = np.array([0.1 * i, 0.2 * i, 0.3 * i])
-            content = f"Memory {i}"
-            store.add(embedding, content)
+        # Verify they were added
+        memories = self.store.get_all()
+        self.assertEqual(len(memories), 2)
 
-        # Verify memories were added
-        assert len(store.get_ids()) == 5
+        # Clear the store
+        self.store.clear()
 
-        # Clear store
-        store.clear()
-
-        # Verify store is empty
-        assert len(store.get_ids()) == 0
-        assert store.get_embeddings().shape == (0, 0)
+        # Verify it's empty
+        memories = self.store.get_all()
+        self.assertEqual(len(memories), 0)
 
     def test_consolidate(self):
-        """Test consolidating memories to stay within capacity."""
-        store = MemoryStore()
+        # Add multiple memories with different activation levels
+        self.store.add(self.test_embedding, "Content 1", {"importance": 0.1})
+        self.store.add(self.test_embedding, "Content 2", {"importance": 0.5})
+        self.store.add(self.test_embedding, "Content 3", {"importance": 0.9})
+
+        # Set different activation levels
+        memories = self.store.get_all()
+        for memory in memories:
+            # Update activation based on importance
+            self.store._metadata[memory.id].activation = memory.metadata.get("importance", 0)
+
+        # Consolidate to keep only 2 memories
+        removed_ids = self.store.consolidate(2)
+
+        # Should have removed 1 memory (the one with lowest activation)
+        self.assertEqual(len(removed_ids), 1)
+
+        # Verify we have 2 memories left
+        memories = self.store.get_all()
+        self.assertEqual(len(memories), 2)
+
+        # The remaining memories should be the ones with higher activation
+        importances = [m.metadata.get("importance") for m in memories]
+        self.assertIn(0.5, importances)
+        self.assertIn(0.9, importances)
+
+    def test_get_nonexistent_memory(self):
+        # Try to get a memory that doesn't exist
+        with self.assertRaises(KeyError):
+            self.store.get("nonexistent_id")
+
+    def test_remove_nonexistent_memory(self):
+        # Try to remove a memory that doesn't exist
+        with self.assertRaises(KeyError):
+            self.store.remove("nonexistent_id")
+
+    def test_id_generation(self):
+        # Test that unique IDs are generated
+        id1 = self.store.add(self.test_embedding, "Content 1")
+        id2 = self.store.add(self.test_embedding, "Content 2")
+        id3 = self.store.add(self.test_embedding, "Content 3")
+
+        # IDs should be unique
+        self.assertNotEqual(id1, id2)
+        self.assertNotEqual(id1, id3)
+        self.assertNotEqual(id2, id3)
+
+    def test_content_types(self):
+        # Test with string content
+        memory_id = self.store.add(self.test_embedding, "String content")
+        memory = self.store.get(memory_id)
+        self.assertEqual(memory.content["text"], "String content")
+
+        # Test with dictionary content
+        dict_content = {"text": "Dictionary content", "metadata": {"source": "test"}}
+        memory_id = self.store.add(self.test_embedding, dict_content)
+        memory = self.store.get(memory_id)
+        self.assertEqual(memory.content["text"], "Dictionary content")
+
+        # Test with list content
+        list_content = ["Item 1", "Item 2"]
+        memory_id = self.store.add(self.test_embedding, list_content)
+        memory = self.store.get(memory_id)
+        self.assertEqual(memory.content["text"], str(list_content))
+
+    def test_metadata_none(self):
+        # Test adding memory with no metadata
+        memory_id = self.store.add(self.test_embedding, self.test_content)
+        memory = self.store.get(memory_id)
+
+        # Metadata should be empty but not None
+        self.assertIsNotNone(memory.metadata)
+        self.assertEqual(memory.metadata, {})
+
+    def test_update_activation(self):
+        # Add a memory
+        memory_id = self.store.add(self.test_embedding, self.test_content)
+
+        # Update activation
+        self.store.update_activation(memory_id, 0.5)
+
+        # Verify activation was updated
+        self.assertEqual(self.store._metadata[memory_id].activation, 0.5)
+
+        # Update again
+        self.store.update_activation(memory_id, 0.3)
+
+        # Verify activation is cumulative
+        self.assertEqual(self.store._metadata[memory_id].activation, 0.8)
+
+    def test_update_activation_nonexistent(self):
+        # Try to update activation for a memory that doesn't exist
+        with self.assertRaises(KeyError):
+            self.store.update_activation("nonexistent_id", 0.5)
+
+    def test_add_multiple(self):
+        # Create test memories
+        memories = [
+            Memory(None, np.array([0.1, 0.2, 0.3]), "Content 1", {"type": "test"}),
+            Memory(None, np.array([0.4, 0.5, 0.6]), "Content 2", {"type": "test"}),
+            Memory(None, np.array([0.7, 0.8, 0.9]), "Content 3", {"type": "test"}),
+        ]
 
         # Add memories
-        ids = []
-        for i in range(10):
-            embedding = np.array([0.1 * i, 0.2 * i, 0.3 * i])
-            content = f"Memory {i}"
-            memory_id = store.add(embedding, content)
-            # Set different activation levels
-            store.update_activation(memory_id, 0.1 * i)
-            ids.append(memory_id)
+        memory_ids = self.store.add_multiple(memories)
 
-        # Consolidate to 5 memories
-        removed_ids = store.consolidate(5)
+        # Get all memories
+        memory_list = self.store.get_all()
 
-        # Verify consolidation
-        assert len(store.get_ids()) == 5
-        assert len(removed_ids) == 5
+        # Check each content is present
+        contents = [m.content["text"] for m in memory_list]
+        self.assertIn("Content 1", contents)
+        self.assertIn("Content 2", contents)
+        self.assertIn("Content 3", contents)
 
-        # Lower activation memories should be removed first
-        for memory_id in removed_ids:
-            # These should be the lower activation ones (0.0-0.4)
-            assert memory_id in ids[:5]
+        # Check IDs were returned
+        self.assertEqual(len(memory_ids), 3)
 
-        # Higher activation memories should remain
-        remaining_ids = store.get_ids()
-        for memory_id in ids[5:]:
-            assert memory_id in remaining_ids
+    def test_resolve_id(self):
+        # Test resolving different ID types
+
+        # Integer ID
+        int_id = 42
+        resolved_int_id = self.store._resolve_id(int_id)
+        self.assertEqual(resolved_int_id, "42")
+
+        # String ID
+        str_id = "memory_id"
+        resolved_str_id = self.store._resolve_id(str_id)
+        self.assertEqual(resolved_str_id, "memory_id")
+
+        # String of integer ID
+        str_int_id = "123"
+        resolved_str_int_id = self.store._resolve_id(str_int_id)
+        self.assertEqual(resolved_str_int_id, "123")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -19,7 +19,7 @@ from memoryweave.components.retrieval_strategies.contextual_fabric_strategy impo
     ContextualFabricStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.storage.refactored import HybridMemoryStore
+from memoryweave.storage import HybridMemoryStore
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -30,6 +30,7 @@ logging.basicConfig(
         RichHandler(markup=True),  # allow colors in terminal
     ],
 )
+logger = logging.getLogger("memoryweave")
 
 
 class HybridFabricStrategy(ContextualFabricStrategy):
@@ -221,7 +222,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
 
         # Format combined results
         combined_results = []
-        for memory_id, data in result_map.items():
+        for _memory_id, data in result_map.items():
             result_obj = data["result"].copy()
             result_obj["rrf_score"] = data["score"]
             result_obj["retrieval_sources"] = data["sources"]
@@ -863,7 +864,8 @@ class HybridFabricStrategy(ContextualFabricStrategy):
 
                             enhanced_results.append(associative_result)
                             associative_memories.add(linked_id)
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Error retrieving associative memory {linked_id}: {e}")
                         # Skip if memory can't be retrieved
                         pass
 

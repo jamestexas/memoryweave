@@ -138,6 +138,7 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
 
         # Create category manager
         self.category_manager = CategoryManager(embedding_dim=self.embedding_dim)
+        self.category_manager.initialize({})  # Important: call initialize
 
         # Add category manager to memory
         self.memory.category_manager = self.category_manager

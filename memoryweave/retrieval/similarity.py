@@ -14,7 +14,7 @@ from memoryweave.interfaces.retrieval import (
     RetrievalParameters,
     RetrievalResult,
 )
-from memoryweave.storage.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import StandardMemoryStore
 from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
 
@@ -55,7 +55,7 @@ class SimilarityRetrievalStrategy(IRetrievalStrategy):
         # Pass through for unsupported input types
         return input_data
 
-    def __init__(self, memory_store: BaseMemoryStore, vector_store: IVectorSearchProvider):
+    def __init__(self, memory_store: StandardMemoryStore, vector_store: IVectorSearchProvider):
         """Initialize the similarity retrieval strategy.
 
         Args:

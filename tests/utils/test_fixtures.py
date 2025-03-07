@@ -5,13 +5,11 @@ and setting up test environments in a consistent way.
 """
 
 import hashlib
-from typing import Any, Union, dict, list, tuple
+from typing import Any, Union
 
 import numpy as np
 
-from memoryweave.components.contextual_memory_adapter import (
-    ContextualMemory,  # Adjust this import based on your new architecture
-)
+from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.components.retrieval_strategies import (
     HybridRetrievalStrategy,
     SimilarityRetrievalStrategy,
@@ -188,20 +186,20 @@ def create_test_memories(
     return embeddings, texts, metadata
 
 
-def create_test_memory(embedding_dim: int = 768) -> ContextualMemory:
+def create_test_memory(embedding_dim: int = 768) -> MemoryManager:
     """Create a test memory with predictable patterns.
 
-    Creates a ContextualMemory instance with test memories that have
+    Creates a MemoryManager instance with test memories that have
     predictable patterns for cat-related content, colors, weather, etc.
 
     Args:
         embedding_dim: Dimension for memory embeddings
 
     Returns:
-        Populated ContextualMemory instance
+        Populated MemoryManager instance
     """
     # Create memory instance
-    memory = ContextualMemory(embedding_dim=embedding_dim)
+    memory = MemoryManager(embedding_dim=embedding_dim)
 
     # Add cat-related memories
     cat_embedding = np.zeros(embedding_dim)
@@ -287,11 +285,11 @@ def create_test_memory(embedding_dim: int = 768) -> ContextualMemory:
     return memory
 
 
-def create_retrieval_components(memory: ContextualMemory) -> dict[str, Any]:
+def create_retrieval_components(memory: MemoryManager) -> dict[str, Any]:
     """Create a suite of retrieval components for testing.
 
     Args:
-        memory: ContextualMemory instance to use for retrieval
+        memory: MemoryManager instance to use for retrieval
 
     Returns:
         dictionary of retrieval components

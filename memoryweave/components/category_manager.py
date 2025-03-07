@@ -8,13 +8,13 @@ into categories based on similarity patterns.
 
 import logging
 import time
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
 from memoryweave.components.base import MemoryComponent
 from memoryweave.interfaces.memory import EmbeddingVector, MemoryID
-from memoryweave.storage.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import StandardMemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,16 @@ class CategoryManager(MemoryComponent):
     4. Category consolidation to merge similar categories
     """
 
-    def __init__(self, memory_store: BaseMemoryStore | None = None):
+    def __init__(
+        self,
+        memory_store: Optional[StandardMemoryStore] = None,
+        core_manager: Optional["CategoryManager"] = None,
+        embedding_dim: int = 768,
+        vigilance_threshold: float = 0.8,
+        learning_rate: float = 0.2,
+        enable_category_consolidation: bool = True,
+        consolidation_threshold: float = 0.8,
+    ):
         """Initialize the category manager."""
         self.memory_store = memory_store
         self.categories: dict[int, dict[str, Any]] = {}
@@ -38,11 +47,17 @@ class CategoryManager(MemoryComponent):
         self.next_category_id = 0
 
         # Default parameters
-        self.vigilance_threshold = 0.85  # Higher = more categories (more specific)
-        self.consolidation_threshold = 0.8  # Threshold for merging similar categories
-        self.embedding_dim = 768  # Default embedding dimension
-        self.min_category_size = 3  # Minimum size for a category to be considered stable
+        self.vigilance_threshold = vigilance_threshold
+        self.learning_rate = learning_rate
+        self.consolidation_threshold = consolidation_threshold
+        self.embedding_dim = embedding_dim
+        self.min_category_size = 3
         self.component_id = "category_manager"
+        self.enable_category_consolidation = enable_category_consolidation
+
+        # For new instances, set core_manager to self
+        # For instances created with a core_manager parameter, use that
+        self.core_manager = core_manager or self
 
         # Statistics tracking
         self.stats = {
@@ -51,6 +66,7 @@ class CategoryManager(MemoryComponent):
             "memories_reassigned": 0,
             "categories_consolidated": 0,
             "last_consolidation": 0,
+            "num_categories": 0,  # Add explicitly for test compatibility
         }
 
     def initialize(self, config: dict[str, Any]) -> None:
@@ -58,20 +74,24 @@ class CategoryManager(MemoryComponent):
         Initialize the component with configuration.
 
         Args:
-            config: Configuration dictionary with parameters:
-                - vigilance_threshold: Threshold for creating new categories (default: 0.85)
-                - consolidation_threshold: Threshold for merging similar categories (default: 0.8)
-                - embedding_dim: Dimension of memory embeddings (default: 768)
-                - min_category_size: Minimum size for a category to be consolidated (default: 3)
-                - memory_store: Optional memory store for retrieving embeddings
+            config: Configuration dictionary with parameters
         """
-        self.vigilance_threshold = config.get("vigilance_threshold", 0.85)
-        self.consolidation_threshold = config.get("consolidation_threshold", 0.8)
-        self.embedding_dim = config.get("embedding_dim", 768)
-        self.min_category_size = config.get("min_category_size", 3)
+        self.vigilance_threshold = config.get("vigilance_threshold", self.vigilance_threshold)
+        self.consolidation_threshold = config.get(
+            "consolidation_threshold", self.consolidation_threshold
+        )
+        self.embedding_dim = config.get("embedding_dim", self.embedding_dim)
+        self.min_category_size = config.get("min_category_size", self.min_category_size)
+        self.learning_rate = config.get("learning_rate", self.learning_rate)
+        self.enable_category_consolidation = config.get(
+            "enable_category_consolidation", self.enable_category_consolidation
+        )
 
         if "memory_store" in config:
             self.memory_store = config["memory_store"]
+
+        # Set core_manager to self after initialization
+        self.core_manager = self
 
     def add_to_category(self, memory_id: MemoryID, embedding: EmbeddingVector) -> int:
         """
@@ -119,7 +139,48 @@ class CategoryManager(MemoryComponent):
             self.stats["total_categorized"] += 1
             return new_id
 
-    def get_category(self, memory_id: MemoryID) -> int:
+    # Alias for compatibility with tests
+    def assign_to_category(self, embedding: EmbeddingVector) -> int:
+        """
+        Assign an embedding to a category, creating a new one if needed.
+
+        This is an alias for backward compatibility.
+
+        Args:
+            embedding: Embedding vector to categorize
+
+        Returns:
+            Category ID that the embedding was assigned to
+        """
+        # Generate a temporary memory ID if not provided
+        memory_id = f"temp_{time.time()}_{hash(str(embedding))}"
+        return self.add_to_category(memory_id, embedding)
+
+    def add_memory_category_mapping(self, memory_id: MemoryID, category_id: int) -> None:
+        """
+        Add a mapping between memory and category.
+
+        Args:
+            memory_id: ID of the memory
+            category_id: ID of the category
+        """
+        # Ensure the category exists
+        if category_id not in self.categories:
+            # Create an empty category with this ID
+            self.categories[category_id] = {
+                "prototype": np.zeros(self.embedding_dim),
+                "members": set(),
+                "created_at": time.time(),
+                "updated_at": time.time(),
+            }
+
+        # Add memory to the category's members
+        self.categories[category_id]["members"].add(memory_id)
+
+        # Update the memory-to-category mapping
+        self.memory_to_category[memory_id] = category_id
+
+    def get_category_for_memory(self, memory_id: MemoryID) -> int:
         """
         Get the category ID for a memory.
 
@@ -129,9 +190,11 @@ class CategoryManager(MemoryComponent):
         Returns:
             Category ID or -1 if not categorized
         """
+        if memory_id not in self.memory_to_category:
+            raise IndexError(f"Memory ID {memory_id} not found in any category")
         return self.memory_to_category.get(memory_id, -1)
 
-    def get_category_members(self, category_id: int) -> list[MemoryID]:
+    def get_memories_for_category(self, category_id: int) -> list[MemoryID]:
         """
         Get all memories in a category.
 
@@ -146,38 +209,62 @@ class CategoryManager(MemoryComponent):
 
         return list(self.categories[category_id]["members"])
 
-    def get_category_prototype(self, category_id: int) -> EmbeddingVector:
+    def get_category_similarities(self, embedding: EmbeddingVector) -> np.ndarray:
         """
-        Get the prototype vector for a category.
+        Get similarities between an embedding and all category prototypes.
 
         Args:
-            category_id: Category ID
+            embedding: Query embedding
 
         Returns:
-            Prototype embedding vector
+            Array of similarity scores for each category
         """
-        if category_id not in self.categories:
-            # Return zero vector of proper dimension
-            return np.zeros(self.embedding_dim)
+        if not self.categories:
+            return np.array([])
 
-        return self.categories[category_id]["prototype"]
+        similarities = np.zeros(len(self.categories))
 
-    def consolidate_categories(self, similarity_threshold: float | None = None) -> list[int]:
+        for i, (_category_id, category) in enumerate(self.categories.items()):
+            prototype = category["prototype"]
+            similarity = self._calculate_similarity(embedding, prototype)
+            similarities[i] = similarity
+
+        return similarities
+
+    def update_category_activation(self, category_id: int, activation_delta: float = 0.1) -> None:
+        """
+        Update the activation level of a category.
+
+        Args:
+            category_id: ID of the category
+            activation_delta: Amount to increase activation by
+        """
+        if category_id in self.categories:
+            current_activation = self.categories[category_id].get("activation", 0.0)
+            self.categories[category_id]["activation"] = min(
+                1.0, current_activation + activation_delta
+            )
+            self.categories[category_id]["last_activated"] = time.time()
+
+    def consolidate_categories(self, threshold: Optional[float] = None) -> int:
         """
         Merge similar categories to keep the number manageable.
 
         Args:
-            similarity_threshold: Override default threshold for merging
+            threshold: Override default threshold for merging
 
         Returns:
-            list of category IDs that were consolidated
+            Number of categories after consolidation
         """
-        if similarity_threshold is None:
-            similarity_threshold = self.consolidation_threshold
+        if not self.enable_category_consolidation:
+            return len(self.categories)
+
+        if threshold is None:
+            threshold = self.consolidation_threshold
 
         # Only proceed if we have enough categories
         if len(self.categories) < 2:
-            return []
+            return len(self.categories)
 
         # Build similarity matrix between all category prototypes
         category_ids = list(self.categories.keys())
@@ -197,12 +284,12 @@ class CategoryManager(MemoryComponent):
                 similarity_matrix[j, i] = similarity
 
         # Find pairs of categories to merge
-        consolidated_categories = []
+        merged_categories = []
         to_merge = []
 
         for i in range(num_categories):
             for j in range(i + 1, num_categories):
-                if similarity_matrix[i, j] >= similarity_threshold:
+                if similarity_matrix[i, j] >= threshold:
                     # Check if both categories are large enough
                     cat_i_size = len(self.categories[category_ids[i]]["members"])
                     cat_j_size = len(self.categories[category_ids[j]]["members"])
@@ -212,7 +299,7 @@ class CategoryManager(MemoryComponent):
                         and cat_j_size >= self.min_category_size
                     ):
                         to_merge.append((category_ids[i], category_ids[j]))
-                        consolidated_categories.extend([category_ids[i], category_ids[j]])
+                        merged_categories.extend([category_ids[i], category_ids[j]])
 
         # Merge the identified categories
         for cat_i_id, cat_j_id in to_merge:
@@ -221,7 +308,9 @@ class CategoryManager(MemoryComponent):
                 self.stats["categories_consolidated"] += 1
 
         self.stats["last_consolidation"] = time.time()
-        return consolidated_categories
+        # Update num_categories for stats
+        self.stats["num_categories"] = len(self.categories)
+        return len(self.categories)
 
     def recategorize(self, memory_id: MemoryID, embedding: EmbeddingVector) -> int:
         """
@@ -259,7 +348,7 @@ class CategoryManager(MemoryComponent):
         """
         return self.categories
 
-    def get_statistics(self) -> dict[str, Any]:
+    def get_category_statistics(self) -> dict[str, Any]:
         """
         Get statistics about categorization.
 
@@ -267,18 +356,23 @@ class CategoryManager(MemoryComponent):
             dictionary of statistics
         """
         stats = self.stats.copy()
-        stats.update(
-            {
-                "total_categories": len(self.categories),
-                "average_category_size": sum(
-                    len(cat["members"]) for cat in self.categories.values()
-                )
-                / max(1, len(self.categories)),
-                "largest_category_size": max(
-                    (len(cat["members"]) for cat in self.categories.values()), default=0
-                ),
-            }
-        )
+
+        # Add dynamic statistics
+        stats.update({
+            "num_categories": len(self.categories),
+            "average_category_size": sum(len(cat["members"]) for cat in self.categories.values())
+            / max(1, len(self.categories)),
+            "largest_category_size": max(
+                (len(cat["members"]) for cat in self.categories.values()), default=0
+            ),
+            "category_activations": {
+                cat_id: cat.get("activation", 0.0) for cat_id, cat in self.categories.items()
+            },
+            "memories_per_category": {
+                cat_id: len(cat["members"]) for cat_id, cat in self.categories.items()
+            },
+        })
+
         return stats
 
     def _create_new_category(self, memory_id: MemoryID, embedding: EmbeddingVector) -> int:
@@ -294,10 +388,12 @@ class CategoryManager(MemoryComponent):
         }
 
         self.memory_to_category[memory_id] = category_id
+        # Update num_categories for stats
+        self.stats["num_categories"] = len(self.categories)
         return category_id
 
     def _update_category_prototype(
-        self, category_id: int, new_embedding: EmbeddingVector | None = None
+        self, category_id: int, new_embedding: Optional[EmbeddingVector] = None
     ) -> None:
         """Update a category's prototype vector."""
         category = self.categories[category_id]
@@ -324,8 +420,10 @@ class CategoryManager(MemoryComponent):
 
         # If no memory store or no embeddings retrieved, use new embedding if provided
         elif new_embedding is not None:
-            # Simple weighted average: 0.9 * old + 0.1 * new
-            category["prototype"] = 0.9 * category["prototype"] + 0.1 * new_embedding
+            # Use learning rate for weighted average
+            category["prototype"] = (1 - self.learning_rate) * category[
+                "prototype"
+            ] + self.learning_rate * new_embedding
             # Normalize
             norm = np.linalg.norm(category["prototype"])
             if norm > 0:
@@ -367,6 +465,8 @@ class CategoryManager(MemoryComponent):
         # Remove secondary category
         del self.categories[secondary_id]
 
+        # Update num_categories for stats
+        self.stats["num_categories"] = len(self.categories)
         return primary_id
 
     def _calculate_similarity(
@@ -458,45 +558,21 @@ class CategoryManager(MemoryComponent):
 
         return result
 
-    def get_or_create_category_for_query(self, query_embedding: EmbeddingVector) -> int:
+    def get_category_prototype(self, category_id: int) -> EmbeddingVector:
         """
-        Find the best category for a query or create a temporary one.
-
-        This is useful for query-time categorization without storing the query.
+        Get the prototype vector for a category.
 
         Args:
-            query_embedding: Query embedding vector
+            category_id: Category ID
 
         Returns:
-            Category ID of best matching category
+            Prototype embedding vector
         """
-        # Find best matching category
-        best_category_id = -1
-        best_similarity = -1.0
+        if category_id not in self.categories:
+            # Return zero vector of proper dimension
+            return np.zeros(self.embedding_dim)
 
-        for category_id, category in self.categories.items():
-            prototype = category["prototype"]
-            similarity = self._calculate_similarity(query_embedding, prototype)
-
-            if similarity > best_similarity:
-                best_similarity = similarity
-                best_category_id = category_id
-
-        # Return best category if good enough match
-        if best_similarity >= self.vigilance_threshold * 0.8 and best_category_id >= 0:
-            return best_category_id
-
-        # Otherwise create a temporary category (negative ID to indicate temporary)
-        temp_id = -1 * (len(self.categories) + 1)
-        self.categories[temp_id] = {
-            "prototype": query_embedding.copy(),
-            "members": set(),  # Empty members since it's temporary
-            "created_at": time.time(),
-            "updated_at": time.time(),
-            "temporary": True,  # Mark as temporary
-        }
-
-        return temp_id
+        return self.categories[category_id]["prototype"]
 
     def filter_by_category(
         self,
@@ -508,10 +584,8 @@ class CategoryManager(MemoryComponent):
         """
         Filter and boost results based on category membership.
 
-        This helps group semantically related memories in results.
-
         Args:
-            results: List of retrieval results
+            results: list of retrieval results
             query_embedding: Query embedding vector
             similarity_boost: How much to boost results in similar categories
             min_similarity: Minimum similarity for category matching
@@ -523,16 +597,25 @@ class CategoryManager(MemoryComponent):
             return results
 
         # Find most relevant category for the query
-        category_id = self.get_or_create_category_for_query(query_embedding)
+        best_category_id = -1
+        best_similarity = -1.0
+
+        for category_id, category in self.categories.items():
+            prototype = category["prototype"]
+            similarity = self._calculate_similarity(query_embedding, prototype)
+
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_category_id = category_id
 
         # Get category members
-        if category_id in self.categories:
-            category_members = self.categories[category_id]["members"]
+        if best_category_id in self.categories and best_similarity >= min_similarity:
+            category_members = self.categories[best_category_id]["members"]
         else:
             category_members = set()
 
-        # No filtering if no members or temporary category
-        if not category_members and category_id < 0:
+        # No filtering if no members or low similarity
+        if not category_members or best_similarity < min_similarity:
             return results
 
         # Boost results in the same category
@@ -542,7 +625,7 @@ class CategoryManager(MemoryComponent):
             if memory_id is not None:
                 # Check if memory belongs to the same category
                 memory_category = self.memory_to_category.get(memory_id, -1)
-                is_same_category = memory_category == category_id
+                is_same_category = memory_category == best_category_id
 
                 # Apply boosting if in same category
                 if is_same_category:
@@ -562,12 +645,3 @@ class CategoryManager(MemoryComponent):
         # Sort by relevance score
         boosted_results.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
         return boosted_results
-
-    def cleanup_temporary_categories(self) -> None:
-        """Remove any temporary categories created for queries."""
-        to_remove = [
-            cid for cid, cat in self.categories.items() if cid < 0 or cat.get("temporary", False)
-        ]
-        for cid in to_remove:
-            if cid in self.categories:
-                del self.categories[cid]

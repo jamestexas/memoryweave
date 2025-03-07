@@ -24,6 +24,7 @@ class VectorSearchConfig:
     use_quantization: bool = False
     index_type: str | None = None
     nprobe: int = 10
+    type: str = "faiss"
 
 
 @dataclass
@@ -31,9 +32,21 @@ class MemoryStoreConfig:
     """Configuration for memory store."""
 
     store_type: str = "standard"
-    vector_search: VectorSearchConfig | None = None
-    max_memories: int = 1000
-    embedding_dim: int = 768
+    vector_search: VectorSearchConfig | None = None  # Vector search configuration
+    max_memories: int = 1000  # Maximum number of memories to store
+    embedding_dim: int = 768  # Dimension of the memory embeddings
+    type: str = "memory_store"  # hybrid / chunked / standard etc.
+
+    # NOTE: Below is only for Chunked memory store configurations
+    chunk_size: int = 1000  # Chunk size for chunked memory store
+    chunk_overlap: int = 100  # Overlap size for chunked memory store
+    min_chunk_size: int = 100  # Minimum chunk size for chunked memory store
+    max_chunks_per_memory: int = 10  # Maximum number of chunks per memory
+
+    # NOTE: Adaptive chunking configurations
+    adaptive_threshold: float = 0.5  # Threshold for adaptive chunking
+    adaptive_chunk_size: int = 1000  # Chunk size for adaptive chunking
+    importance_threshold: float = 0.5  # Threshold for importance-based chunking
 
 
 def create_memory_store_and_adapter(
@@ -71,6 +84,7 @@ def create_memory_store_and_adapter(
             use_quantization=config.vector_search.use_quantization,
             index_type=config.vector_search.index_type,
             nprobe=config.vector_search.nprobe,
+            provider_type=config.vector_search.type,  # numpy / faiss / hybrid_bm25
         )
 
     # Create memory adapter

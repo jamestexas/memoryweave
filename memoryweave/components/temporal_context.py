@@ -21,7 +21,7 @@ from scipy.cluster.hierarchy import fcluster, linkage
 from memoryweave.components.base import Component, MemoryComponent
 from memoryweave.components.component_names import ComponentName
 from memoryweave.interfaces.memory import MemoryID
-from memoryweave.storage.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import StandardMemoryStore
 
 logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[RichHandler(markup=True)])
 logger = logging.getLogger(__name__)
@@ -223,7 +223,7 @@ class TemporalDecayComponent(MemoryComponent):
 
         return result
 
-    def apply_decay_to_store(self, memory_store: BaseMemoryStore, current_time: float) -> None:
+    def apply_decay_to_store(self, memory_store: StandardMemoryStore, current_time: float) -> None:
         """
         Apply decay to all memories in a store.
 
@@ -283,7 +283,7 @@ class TemporalContextBuilder(Component):
     and how they relate to each other in time.
     """
 
-    def __init__(self, memory_store: Optional[BaseMemoryStore] = None):
+    def __init__(self, memory_store: Optional[StandardMemoryStore] = None):
         """
         Initialize the temporal context builder.
 
