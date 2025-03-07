@@ -7,7 +7,6 @@ authors = [
     { name = "jamestexas", email = "18285880+jamestexas@users.noreply.github.com" },
 ]
 license-files = ["LICENSE"]
-license = "custom"
 keywords = ["memory", "transformers", "nlp", "memoryweave"]
 requires-python = ">=3.12"
 dependencies = [
@@ -41,8 +40,9 @@ memoryweave = "memoryweave:main"
 
 
 [tool.setuptools]
-py-modules = ['memoryweave']
+package-data = { "memoryweave" = ["LICENSE"] }
 
+py-modules = ['memoryweave']
 [[tool.uv.index]]
 name = "pytorch-xpu"
 url = "https://download.pytorch.org/whl/xpu"
