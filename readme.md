@@ -321,7 +321,7 @@ The most important benchmark compares the contextual fabric architecture with tr
 
 ```bash
 # Run the complete benchmark suite with multiple memory sizes
-./run_contextual_fabric_benchmark.sh
+./benchmarks/run_contextual_fabric_benchmark.sh
 
 # Run with a specific memory size
 uv run python -m benchmarks.contextual_fabric_benchmark --memories 100
@@ -339,13 +339,13 @@ This benchmark tests how well the contextual fabric architecture handles:
 
 ```bash
 # Run baseline comparison (compare against BM25 and vector search)
-uv run python run_baseline_comparison.py
+uv run python benchmarks/run_baseline_comparison.py
 
 # Run synthetic benchmark (evaluates different configurations)
-uv run python run_synthetic_benchmark.py
+uv run python benchmarks/run_synthetic_benchmark.py
 
 # Run semantic benchmark (tests performance on real-world queries)
-uv run python run_semantic_benchmark.py
+uv run python benchmarks/run_semantic_benchmark.py
 
 # Run custom benchmark script
 uv run python -m benchmarks.memory_retrieval_benchmark
