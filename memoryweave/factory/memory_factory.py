@@ -3,10 +3,10 @@ Factory for creating memory stores and adapters.
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
 from memoryweave.components.memory_encoding import MemoryEncoder
-from memoryweave.interfaces.memory import IMemoryEncoder, IMemoryStore
+from memoryweave.interfaces.memory import IMemoryStore
 from memoryweave.storage.refactored.adapter import MemoryAdapter
 from memoryweave.storage.refactored.chunked_store import ChunkedMemoryStore
 from memoryweave.storage.refactored.hybrid_store import HybridMemoryStore
@@ -79,22 +79,35 @@ def create_memory_store_and_adapter(
     return memory_store, memory_adapter
 
 
-def create_memory_encoder(embedding_model: Any, config: dict[str, Any] = None) -> IMemoryEncoder:
+def create_memory_encoder(embedding_model_name: str, **kwargs) -> MemoryEncoder:
     """
-    Create a memory encoder from configuration.
+    Create a memory encoder component with the specified embedding model.
 
     Args:
-        embedding_model: Model to use for creating embeddings
-        config: Configuration for the memory encoder
+        embedding_model_name: Name of the embedding model to use
+        **kwargs: Additional arguments for the embedding model
 
     Returns:
-        Memory encoder
+        Configured MemoryEncoder component
     """
-    if config is None:
-        config = {}
+    from sentence_transformers import SentenceTransformer
 
-    # Create memory encoder
-    memory_encoder = MemoryEncoder(embedding_model)
-    memory_encoder.initialize(config)
+    from memoryweave.components.memory_encoding import MemoryEncoder
+    from memoryweave.utils import _get_device
 
-    return memory_encoder
+    device = _get_device(kwargs.pop("device", "auto"))
+
+    # Initialize the embedding model
+    embedding_model = SentenceTransformer(embedding_model_name, device=device, **kwargs)
+
+    # Create and initialize the memory encoder
+    encoder = MemoryEncoder(embedding_model)
+    encoder.initialize(
+        {
+            "context_window_size": kwargs.get("context_window_size", 3),
+            "use_episodic_markers": kwargs.get("use_episodic_markers", True),
+            "context_enhancer": kwargs.get("context_enhancer_config", {}),
+        }
+    )
+
+    return encoder

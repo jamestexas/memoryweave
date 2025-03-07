@@ -224,3 +224,45 @@ class MemoryEncoder(Component, IMemoryEncoder):
             }
 
         return result
+
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
+        """
+        Process a query for embedding in the retrieval pipeline.
+
+        Args:
+            query: Query string to process
+            context: Context information including working context
+
+        Returns:
+            Updated context with query embedding
+        """
+        # Create basic embedding for the query text
+        query_embedding = self.encode_text(query)
+
+        # Include query parameters from context if available
+        working_context = context.get("working_context", {})
+
+        # Update context with query embedding for downstream components
+        result = {"query_embedding": query_embedding, "query_processed": True}
+
+        # Apply context enhancement if available
+        if hasattr(self.context_enhancer, "process") and "conversation_history" in working_context:
+            # Prepare enhancement context
+            enhancement_context = {
+                "conversation_history": working_context.get("conversation_history", []),
+                "current_time": working_context.get("current_time", 0),
+                "topics": working_context.get("topics", set()),
+            }
+
+            # Process with contextual enhancement
+            enhanced_data = self.context_enhancer.process(
+                {"embedding": query_embedding, "content": query},
+                enhancement_context,
+            )
+
+            # Use enhanced embedding if available
+            if "embedding" in enhanced_data:
+                result["query_embedding"] = enhanced_data["embedding"]
+                result["query_enhanced"] = True
+
+        return result

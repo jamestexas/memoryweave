@@ -72,9 +72,20 @@ def _get_retriever(
 ):
     global _RETRIEVER
     if _RETRIEVER is None:
+        # Get embedder if not provided
+        if embedding_model is None:
+            embedding_model = _get_embedder(embedding_model_name)
+
+        # Create memory encoder if needed
+        from memoryweave.components.memory_encoding import MemoryEncoder
+
+        memory_encoder = MemoryEncoder(embedding_model)
+        memory_encoder.initialize({})
+
         _RETRIEVER = Retriever(
-            memory=_get_memory_store(),
-            embedding_model=_get_embedder(),
+            memory=_get_memory_store() if memory_store is None else memory_store,
+            embedding_model=embedding_model,
+            memory_encoder=memory_encoder,
         )
         _RETRIEVER.initialize_components()
         # Configure it all once:
@@ -89,13 +100,16 @@ class Retriever:
     components for query analysis, retrieval strategies, and post-processing.
     """
 
-    def __init__(self, memory: StandardMemoryStore | None = None, embedding_model=None) -> None:
+    def __init__(
+        self, memory: StandardMemoryStore | None = None, embedding_model=None, memory_encoder=None
+    ) -> None:
         """
         Initialize the retriever.
 
         Args:
             memory: Memory instance to use for retrieval
             embedding_model: Model for generating embeddings from queries
+            memory_encoder: Component for encoding memory content
         """
         # If memory is not provided, create a new memory manager
         self.memory_manager = MemoryManager(memory)  # Pass along if you have one
@@ -106,6 +120,7 @@ class Retriever:
         else:
             self.memory = memory
         self.embedding_model = embedding_model
+        self.memory_encoder = memory_encoder
 
         # Default pipeline components
         self.query_analyzer = None
@@ -154,6 +169,10 @@ class Retriever:
         # Create and initialize query analyzer
         self.query_analyzer = QueryAnalyzer()
         self.memory_manager.register_component("query_analyzer", self.query_analyzer)
+
+        # Register memory encoder if available
+        if self.memory_encoder:
+            self.memory_manager.register_component("memory_encoder", self.memory_encoder)
 
         # Create and initialize personal attribute manager
         self.personal_attribute_manager = PersonalAttributeManager()

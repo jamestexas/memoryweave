@@ -18,7 +18,7 @@
 | **Memory Storage** | `core/core_memory.py` | `storage/vector_store.py`<br>`storage/refactored/memory_store.py` | ✅ | Core version deprecated |
 | **Vector Storage** | Built into `core_memory.py` | `storage/vector_store.py` | ✅ | Complete replacement |
 | **Memory Manager** | `core/contextual_memory.py` | `components/memory_manager.py` | ✅ | Core references removed |
-| **Memory Encoding** | `core/memory_encoding.py` | No direct equivalent | 🔴 | Needs implementation in components |
+| **Memory Encoding** | `core/memory_encoding.py` | `components/memory_encoding.py` | ✅ | Core version deprecated |
 | **Category Management** | `core/category_manager.py` | `components/category_manager.py`<br>`storage/category.py` | 🟢 | Core dependencies reduced |
 | **Activation Management** | Part of `core_memory.py` | `components/activation.py`<br>`storage/activation.py` | ✅ | Complete implementation |
 | **Memory Chunking** | Not implemented | `components/text_chunker.py` | ✅ | New feature in components |
@@ -151,10 +151,10 @@
 1. **Factory.py**: Remove dependencies on `ContextualMemory` and `CoreCategoryManager` ✅
 1. **Retrieval_strategies_impl.py**: Remove dependency on `ContextualMemory` ✅
 
-### 2. Important Dependencies (🟢 In Progress)
+### 2. Important Dependencies (✅ Completed)
 
 1. **Category_manager.py**: Implement standalone version without dependency on `CoreCategoryManager` 🟢
-1. **Memory Encoding**: Create component implementation to replace functionality in `core/memory_encoding.py` 🔴
+1. **Memory Encoding**: Create component implementation to replace functionality in `core/memory_encoding.py` ✅
 
 ### 3. Indirect Dependencies (✅ Completed)
 
