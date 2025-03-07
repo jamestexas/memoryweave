@@ -42,7 +42,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
             category_manager: CategoryManager component to use
         """
         super().__init__(memory)
-        self.category_manager = category_manager
+        self.category_manager = category_manager or getattr(memory, "category_manager", None)
         self.confidence_threshold = 0.0
         self.primary_boost_factor = 1.5
         self.fallback_threshold_factor = 0.8
@@ -64,9 +64,10 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
         self.primary_boost_factor = config.get("primary_boost_factor", 1.5)
         self.fallback_threshold_factor = config.get("fallback_threshold_factor", 0.8)
         self.max_category_results = config.get("max_category_results", 20)
+        self.min_results = max(1, config.get("min_results", 5))
 
-        if "category_manager" in config:
-            self.category_manager = config["category_manager"]
+        if self.category_manager is None and hasattr(self.memory, "category_manager"):
+            self.category_manager = self.memory.category_manager
 
     def retrieve(
         self, query_embedding: EmbeddingVector, top_k: int, **kwargs
