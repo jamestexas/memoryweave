@@ -24,22 +24,6 @@ logger = logging.getLogger("memoryweave")
 
 # TODO: This is hacky but for now here we are:
 # Patch the SimilarityRetrievalStrategy to add category_id to results
-original_similarity_retrieve = SimilarityRetrievalStrategy.retrieve
-
-
-def patched_similarity_retrieve(self, query_embedding, top_k, context):
-    results = original_similarity_retrieve(self, query_embedding, top_k, context)
-    # Add category_id to all results
-    for result in results:
-        if "category_id" not in result:
-            result["category_id"] = -1
-        if "category_similarity" not in result:
-            result["category_similarity"] = 0.0
-    return results
-
-
-# Apply the patch
-SimilarityRetrievalStrategy.retrieve = patched_similarity_retrieve
 
 
 class CategoryRetrievalStrategy(RetrievalStrategy):
@@ -289,3 +273,14 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
                     result["category_id"] = -1  # Default category ID for fallback results
 
             return fallback_results
+
+
+# Create a subclass of SimilarityRetrievalStrategy that adds category fields
+class CategoryAwareSimilarityStrategy(SimilarityRetrievalStrategy):
+    def retrieve(self, query_embedding, top_k, context):
+        results = super().retrieve(query_embedding, top_k, context)
+        # Add category fields to results
+        for result in results:
+            result["category_id"] = -1
+            result["category_similarity"] = 0.0
+        return results

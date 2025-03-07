@@ -55,8 +55,9 @@ class CategoryManager(MemoryComponent):
         self.component_id = "category_manager"
         self.enable_category_consolidation = enable_category_consolidation
 
-        # Important: core_manager must be None initially to match test expectations
-        self.core_manager = None
+        # For new instances, set core_manager to self
+        # For instances created with a core_manager parameter, use that
+        self.core_manager = core_manager or self
 
         # Statistics tracking
         self.stats = {
