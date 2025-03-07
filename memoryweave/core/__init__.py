@@ -1,30 +1,16 @@
 """
-DEPRECATED: Core module for MemoryWeave.
+The core module has been deprecated and replaced with the component-based architecture.
 
-This module is completely deprecated. Please use the component-based architecture instead.
+Please use the following modules instead:
+- memoryweave.components: Base components and implementations
+- memoryweave.storage: Memory storage implementations
+- memoryweave.factory: Factory methods for creating components
 
-Migration guide:
-- Use memoryweave.components.memory_manager.MemoryManager instead of ContextualMemory
-- Use memoryweave.components.retriever.Retriever instead of ContextualRetriever
-- Use memoryweave.adapters for bridge components during migration
-
-See MIGRATION_GUIDE.md for detailed migration instructions.
+This directory will be removed in a future release.
 """
 
-import warnings
-
-# Re-export the core classes for backward compatibility
-# These imports will trigger their own deprecation warnings
-from memoryweave.core.contextual_memory import ContextualMemory
-from memoryweave.core.memory_encoding import MemoryEncoder
-
-# Emit deprecation warning
-warnings.warn(
-    "The memoryweave.core module is deprecated. "
-    "Use memoryweave.components module instead for the new architecture. "
-    "This module will be removed in a future version.",
-    DeprecationWarning,
-    stacklevel=2,
+# Raise an ImportError when someone tries to import from core
+raise ImportError(
+    "The memoryweave.core module has been replaced with the component-based architecture. "
+    "Please use memoryweave.components, memoryweave.storage, etc. instead."
 )
-
-__all__ = ["ContextualMemory", "MemoryEncoder"]
