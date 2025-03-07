@@ -8,12 +8,10 @@ meaningful chunks to improve embedding quality and retrieval accuracy.
 import re
 from typing import Any
 
-from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.components.base import Component
 from memoryweave.components.component_names import ComponentName
 
 
-@timer
 class TextChunker(Component):
     """
     Component for chunking text into smaller segments for better embedding representation.
@@ -56,7 +54,6 @@ class TextChunker(Component):
         self.respect_sentences = config.get("respect_sentences", self.respect_sentences)
         self.include_metadata = config.get("include_metadata", self.include_metadata)
 
-    @timer()
     def create_chunks(self, text: str, metadata: dict[str, Any] = None) -> list[dict[str, Any]]:
         """
         Create chunks from the input text.

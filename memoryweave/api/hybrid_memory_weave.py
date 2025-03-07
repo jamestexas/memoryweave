@@ -17,7 +17,6 @@ from rank_bm25 import BM25Okapi  # Add this import
 
 from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
 from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
-from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.components.retrieval_strategies.hybrid_fabric_strategy import HybridFabricStrategy
 from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.text_chunker import TextChunker
@@ -31,7 +30,6 @@ from memoryweave.utils import _get_device
 logger = logging.getLogger(__name__)
 
 
-@timer
 class HybridMemoryWeaveAPI(MemoryWeaveAPI):
     """
     Memory-efficient MemoryWeave API with adaptive chunking and hierarchical embeddings.
@@ -44,7 +42,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
     - Integrates BM25 for keyword-based retrieval to complement vector similarity
     """
 
-    @timer("init")
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
@@ -393,7 +390,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 f"first_stage_threshold_factor={first_stage_threshold_factor}"
             )
 
-    @timer()
     def _setup_hybrid_strategy(self):
         """Set up the hybrid fabric strategy to replace the standard strategy."""
         # Create hybrid strategy
@@ -462,7 +458,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             # Update existing orchestrator
             self.retrieval_orchestrator.strategy = self.strategy
 
-    @timer()
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """
         Store a memory with adaptive chunking for efficient memory usage.
@@ -552,7 +547,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         logger.debug(f"Added hybrid memory {mem_id} with {len(selected_chunks)} selected chunks")
         return mem_id
 
-    @timer()
     def _analyze_chunking_needs(self, text: str) -> tuple[bool, int]:
         """
         Analyze text to determine if and how it should be chunked.
@@ -615,7 +609,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         should_chunk = len(text) > threshold_value
         return should_chunk, threshold_value
 
-    @timer()
     def _select_important_chunks(
         self,
         chunks: list[dict[str, Any]],
@@ -820,7 +813,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         return selected_chunks, selected_embeddings
 
-    @timer()
     def add_conversation_memory(
         self, turns: list[dict[str, str]], metadata: dict[str, Any] = None
     ) -> str:
@@ -926,7 +918,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         logger.debug(f"Added conversation memory {mem_id}")
         return mem_id
 
-    @timer()
     def _adaptive_conversation_chunking(
         self, turns: list[dict[str, str]], metadata: dict[str, Any]
     ) -> list[dict[str, Any]]:
@@ -1035,7 +1026,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         return chunks
 
-    @timer()
     def retrieve(self, query: str, top_k: int = 10, **kwargs) -> list[dict[str, Any]]:
         """
         Enhanced retrieval combining BM25 and vector similarity.
@@ -1062,9 +1052,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             return cached_result
 
         # Create query embedding
-        self.embedding_model.encode(
-            query, show_progress_bar=self.show_progress_bar
-        )
+        self.embedding_model.encode(query, show_progress_bar=self.show_progress_bar)
 
         # Get BM25 results if available
         bm25_results = []
@@ -1200,7 +1188,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         # Build final results
         combined = []
-        for memory_id, data in result_map.items():
+        for _memory_id, data in result_map.items():
             result_obj = data["result"].copy()
             result_obj["rrf_score"] = data["score"]
             result_obj["retrieval_sources"] = data["sources"]
@@ -1223,7 +1211,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         # Sort by RRF score and return top K
         return sorted(combined, key=lambda x: x["rrf_score"], reverse=True)[:top_k]
 
-    @timer()
     def chat(self, user_message: str, max_new_tokens: int = 512) -> str:
         """
         Enhanced chat method with query type-specific optimizations.
@@ -1338,7 +1325,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         return assistant_reply
 
-    @timer()
     def _store_hybrid_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
         """
         Store conversation messages efficiently with hybrid approach.
