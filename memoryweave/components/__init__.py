@@ -17,6 +17,7 @@ from memoryweave.components.base import (
     RetrievalComponent,
     RetrievalStrategy,
 )
+from memoryweave.components.category_manager import CategoryManager  # Add this import
 
 # Import contextual fabric components
 from memoryweave.components.context_enhancement import (
@@ -61,6 +62,7 @@ __all__ = [
     "RetrievalStrategy",
     "PostProcessor",
     # Components
+    "CategoryManager",  # Add this line
     "KeywordExpander",
     "MemoryDecayComponent",
     "MemoryEncoder",

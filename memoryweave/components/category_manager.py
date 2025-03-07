@@ -457,3 +457,117 @@ class CategoryManager(MemoryComponent):
             result["use_category_filter"] = False
 
         return result
+
+    def get_or_create_category_for_query(self, query_embedding: EmbeddingVector) -> int:
+        """
+        Find the best category for a query or create a temporary one.
+
+        This is useful for query-time categorization without storing the query.
+
+        Args:
+            query_embedding: Query embedding vector
+
+        Returns:
+            Category ID of best matching category
+        """
+        # Find best matching category
+        best_category_id = -1
+        best_similarity = -1.0
+
+        for category_id, category in self.categories.items():
+            prototype = category["prototype"]
+            similarity = self._calculate_similarity(query_embedding, prototype)
+
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_category_id = category_id
+
+        # Return best category if good enough match
+        if best_similarity >= self.vigilance_threshold * 0.8 and best_category_id >= 0:
+            return best_category_id
+
+        # Otherwise create a temporary category (negative ID to indicate temporary)
+        temp_id = -1 * (len(self.categories) + 1)
+        self.categories[temp_id] = {
+            "prototype": query_embedding.copy(),
+            "members": set(),  # Empty members since it's temporary
+            "created_at": time.time(),
+            "updated_at": time.time(),
+            "temporary": True,  # Mark as temporary
+        }
+
+        return temp_id
+
+    def filter_by_category(
+        self,
+        results: list[dict[str, Any]],
+        query_embedding: EmbeddingVector,
+        similarity_boost: float = 0.2,
+        min_similarity: float = 0.5,
+    ) -> list[dict[str, Any]]:
+        """
+        Filter and boost results based on category membership.
+
+        This helps group semantically related memories in results.
+
+        Args:
+            results: List of retrieval results
+            query_embedding: Query embedding vector
+            similarity_boost: How much to boost results in similar categories
+            min_similarity: Minimum similarity for category matching
+
+        Returns:
+            Filtered and boosted results
+        """
+        if not results or not self.categories:
+            return results
+
+        # Find most relevant category for the query
+        category_id = self.get_or_create_category_for_query(query_embedding)
+
+        # Get category members
+        if category_id in self.categories:
+            category_members = self.categories[category_id]["members"]
+        else:
+            category_members = set()
+
+        # No filtering if no members or temporary category
+        if not category_members and category_id < 0:
+            return results
+
+        # Boost results in the same category
+        boosted_results = []
+        for result in results:
+            memory_id = result.get("memory_id")
+            if memory_id is not None:
+                # Check if memory belongs to the same category
+                memory_category = self.memory_to_category.get(memory_id, -1)
+                is_same_category = memory_category == category_id
+
+                # Apply boosting if in same category
+                if is_same_category:
+                    # Deep copy the result to avoid modifying the original
+                    boosted_result = dict(result)
+                    # Boost the relevance score
+                    base_score = boosted_result.get("relevance_score", 0.0)
+                    boosted_score = min(1.0, base_score * (1.0 + similarity_boost))
+                    boosted_result["relevance_score"] = boosted_score
+                    boosted_result["category_boosted"] = True
+                    boosted_results.append(boosted_result)
+                else:
+                    boosted_results.append(result)
+            else:
+                boosted_results.append(result)
+
+        # Sort by relevance score
+        boosted_results.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
+        return boosted_results
+
+    def cleanup_temporary_categories(self) -> None:
+        """Remove any temporary categories created for queries."""
+        to_remove = [
+            cid for cid, cat in self.categories.items() if cid < 0 or cat.get("temporary", False)
+        ]
+        for cid in to_remove:
+            if cid in self.categories:
+                del self.categories[cid]
