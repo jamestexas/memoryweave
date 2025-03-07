@@ -65,20 +65,20 @@ class TestMemoryAdapter(unittest.TestCase):
         self.assertEqual(memory.metadata, self.test_metadata)
 
     def test_get_all(self):
-        # Add some memories
-        self.adapter.add(self.test_embedding, "Content 1", {"index": 1})
-        self.adapter.add(self.test_embedding, "Content 2", {"index": 2})
+        # Add test memories
+        self.adapter.add(np.array([0.1, 0.2, 0.3]), "Content 1")
+        self.adapter.add(np.array([0.4, 0.5, 0.6]), "Content 2")
 
         # Get all memories
-        memories = self.adapter.get_all()
+        memory_list = self.adapter.get_all()
 
-        # Should have 2 memories
-        self.assertEqual(len(memories), 2)
+        # Check contents
+        contents = [m.content["text"] for m in memory_list]
+        self.assertIn("Content 1", contents)
+        self.assertIn("Content 2", contents)
 
-        # Verify contents
-        memory_contents = [m.content for m in memories]
-        self.assertIn("Content 1", memory_contents)
-        self.assertIn("Content 2", memory_contents)
+        # Check length
+        self.assertEqual(len(memory_list), 2)
 
     def test_memory_embeddings_property(self):
         # Add some memories
