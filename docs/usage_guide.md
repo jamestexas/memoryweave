@@ -16,7 +16,7 @@ MemoryWeave is built around these core components:
 ```python
 from sentence_transformers import SentenceTransformer
 from memoryweave.components import MemoryEncoder, Retriever
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.memory_store import StandardMemoryStore
 
 # Create embedding model
 embedding_model = SentenceTransformer("sentence-transformers/paraphrase-MiniLM-L6-v2")
@@ -58,18 +58,6 @@ metadata = {"importance": 0.8, "topic": "retrieval"}
 
 interaction_embedding = encoder.encode_interaction(query, response, metadata)
 memory_store.add(interaction_embedding, response, metadata=metadata)
-
-# Add a concept memory
-concept = "Contextual Fabric"
-definition = "A retrieval approach that weaves multiple signals together"
-examples = ["Semantic similarity", "Temporal recency", "Associative links"]
-
-concept_embedding = encoder.encode_concept(concept, definition, examples)
-memory_store.add(
-    concept_embedding,
-    definition,
-    metadata={"type": "concept", "concept": concept, "examples": examples},
-)
 ```
 
 ## Example: Retrieving Memories
@@ -85,7 +73,7 @@ for i, result in enumerate(results):
 # Retrieval with different strategies
 strategy_results = retriever.retrieve(
     query,
-    strategy="contextual_fabric",  # Other options: similarity, category, temporal, hybrid_bm25
+    strategy="contextual_fabric",  # Other options: similarity, category, temporal, hybrid
     top_k=3,
 )
 
@@ -106,7 +94,7 @@ retriever.configure_semantic_coherence(enable=True)
 pipeline_config = [
     {"component": "query_analyzer", "config": {}},
     {"component": "keyword_expander", "config": {"enable_expansion": True}},
-    {"component": "category_retrieval", "config": {"confidence_threshold": 0.1}},
+    {"component": "retrieval_strategy", "config": {"confidence_threshold": 0.1}},
     {"component": "semantic_coherence", "config": {"coherence_threshold": 0.2}},
 ]
 
@@ -116,35 +104,40 @@ retriever.configure_pipeline(pipeline_config)
 results = retriever.retrieve(query, top_k=5)
 ```
 
-## Advanced: Category Management
+## Integration with LLMs
 
 ```python
-from memoryweave.components import CategoryManager
+from memoryweave.api import MemoryWeave
+from transformers import pipeline
 
-# Create category manager
-category_manager = CategoryManager(memory_store)
+# Initialize memory system
+memory_weave = MemoryWeave()
 
-# Use it for categorization and retrieval enhancement
-for memory_id in range(memory_store.count()):
-    memory = memory_store.get(memory_id)
-    category_id = category_manager.add_to_category(memory_id, memory.embedding)
+# Initialize LLM
+llm = pipeline("text-generation", model="gpt2")
 
-# Consolidate similar categories
-consolidated = category_manager.consolidate_categories(similarity_threshold=0.8)
-print(f"Consolidated {len(consolidated)} categories")
+# Add conversation history to memory
+memory_weave.add_memory("User asked about Python. I explained it's a programming language.")
 
-# Get category statistics
-stats = category_manager.get_statistics()
-print(f"Total categories: {stats['total_categories']}")
-print(f"Average category size: {stats['average_category_size']}")
+# Retrieve relevant memories for a new query
+query = "Tell me more about Python's features"
+memories = memory_weave.retrieve_memories(query, limit=3)
+
+# Construct prompt with memories
+prompt = f"Context:\n"
+for memory in memories:
+    prompt += f"- {memory['content']}\n"
+prompt += f"\nUser: {query}\nAssistant:"
+
+# Generate response with LLM
+response = llm(prompt, max_length=100)[0]["generated_text"]
+print(response)
 ```
 
-## Further Resources
+## Best Practices
 
-For more detailed examples:
-
-- [Memory Encoding Example](examples/memory_encoding_example.py)
-- [Retrieval Strategies Example](examples/retrieval_strategies_example.py)
-- [Category Management Example](examples/category_management_example.py)
-
-For API details, see the [API Reference](api_reference.md).
+1. **Tune confidence thresholds** for your specific use case to balance precision and recall
+1. **Use metadata** to enrich memories with additional context
+1. **Configure two-stage retrieval** for better results with large memory stores
+1. **Enable query type adaptation** to optimize retrieval for different query types
+1. **Use semantic coherence checking** to ensure retrieved memories form a coherent set

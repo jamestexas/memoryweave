@@ -4,319 +4,123 @@
 
 MemoryWeave is a memory management system for language models that uses a "contextual fabric" approach inspired by biological memory systems. Rather than traditional knowledge graph approaches with discrete nodes and edges, MemoryWeave focuses on capturing rich contextual signatures of information for improved long-context coherence in LLM conversations.
 
-This document describes the architecture of MemoryWeave, including its components, their relationships, and the flow of data through the system.
-
-> **UPDATED March 2025**: This architecture document reflects both the current state and the ongoing refactoring efforts. We're transitioning from the original monolithic design to a more modular, component-based architecture as described in the [Architecture Decision Record](#architecture-decision-record) below.
-
 ## Component Architecture
 
-MemoryWeave is organized into several key components that work together to provide memory management capabilities. The architecture has evolved from a monolithic design to a more modular, component-based approach.
+MemoryWeave uses a modular component-based architecture organized into several layers:
 
-### Core Components (Original System)
+### Memory Storage Layer
 
-The core components form the foundation of MemoryWeave's memory management capabilities:
+- **StandardMemoryStore**: Basic storage for memory embeddings and content
+- **HybridMemoryStore**: Combines vector search with keyword-based retrieval
+- **ChunkedMemoryStore**: Manages large contexts by breaking them into chunks
+- **VectorStore**: Handles vector similarity search with different implementations:
+  - `SimpleVectorStore`: Basic vector similarity search
+  - `ActivationVectorStore`: Incorporates activation levels into search
+  - `ANNVectorStore`: Approximate nearest neighbor search for large datasets
 
-1. **CoreMemory**: Provides basic storage for memory embeddings, metadata, and activation levels.
+### Retrieval Layer
 
-   - Handles memory addition, retrieval, and activation updates
-   - Manages memory capacity through consolidation
+- **Retriever**: Main component coordinating the retrieval process
+- **Retrieval Strategies**:
+  - `SimilarityRetrievalStrategy`: Pure vector similarity-based retrieval
+  - `HybridRetrievalStrategy`: Combines similarity with other signals
+  - `ContextualFabricStrategy`: Advanced strategy using the contextual fabric approach
+  - `HybridBM25VectorStrategy`: Combines BM25 keyword search with vector similarity
+  - `TwoStageRetrievalStrategy`: Multi-stage retrieval with candidates and re-ranking
 
-1. **CategoryManager**: Implements ART-inspired clustering for organizing memories.
+### Query Processing Layer
 
-   - Dynamically forms categories based on memory similarity
-   - Updates category prototypes as new memories are added
-   - Supports category consolidation to prevent fragmentation
+- **QueryAnalyzer**: Analyzes and classifies query types (factual, personal, etc.)
+- **QueryAdapter**: Adapts retrieval parameters based on query type
+- **KeywordExpander**: Expands queries with related keywords
+- **QueryContextBuilder**: Builds context information for queries
+- **DynamicContextAdapter**: Dynamically adapts context based on query
 
-1. **MemoryRetriever**: Implements memory retrieval strategies.
+### Post-Processing Layer
 
-   - Supports similarity-based, category-based, and hybrid retrieval
-   - Applies confidence thresholding and semantic coherence checks
-   - Implements adaptive k selection for optimal result counts
+- **SemanticCoherenceProcessor**: Ensures retrieved memories form a coherent set
+- **KeywordBoostProcessor**: Boosts memories matching important keywords
+- **AdaptiveKProcessor**: Dynamically adjusts number of results
+- **PersonalAttributeProcessor**: Enhances retrieval with personal attributes
 
-1. **ContextualMemory**: Provides a unified interface to the core components.
+### Pipeline System
 
-   - Combines CoreMemory, CategoryManager, and MemoryRetriever
-   - Exposes a simple API for memory operations
-   - Maintains backward compatibility with the original API
-
-1. **MemoryEncoder**: Converts different content types into memory representations.
-
-   - Encodes text, interactions, and concepts into embeddings
-   - Adds contextual information to enhance retrieval
-
-1. **ContextualRetriever (Deprecated)**: Original retriever implementation.
-
-   - Being phased out in favor of the component-based approach
-   - Maintained for backward compatibility
-
-### Component-Based System (New Architecture)
-
-The new component-based architecture provides more modularity and testability:
-
-1. **MemoryManager**: Orchestrates memory components and pipelines.
-
-   - Registers components and builds retrieval pipelines
-   - Executes pipelines to process queries
-   - Manages component configuration
-
-1. **MemoryAdapter**: Adapts core memory to the component interface.
-
-   - Wraps ContextualMemory for use in the pipeline
-   - Translates between different data formats
-
-1. **CoreRetrieverAdapter**: Adapts core retriever to the component interface.
-
-   - Wraps MemoryRetriever for use in the pipeline
-   - Handles parameter adaptation based on query type
-
-1. **Retriever**: New component-based retriever implementation.
-
-   - Uses the MemoryManager to orchestrate retrieval
-   - Configures and executes retrieval pipelines
-   - Supports advanced features like two-stage retrieval and query type adaptation
-
-### Bridge Components
-
-Bridge components facilitate the transition between the original and new architectures:
-
-1. **RefactoredRetriever**: Provides compatibility between old and new systems.
-   - Implements the same interface as ContextualRetriever
-   - Uses both the original and new components internally
-   - Allows gradual migration to the new architecture
+- **PipelineBuilder**: Constructs configurable processing pipelines
+- **PipelineManager**: Manages pipeline execution
+- **ComponentRegistry**: Registers and provides access to components
 
 ## Data Flow
 
 ### Memory Addition Flow
 
-1. Application calls `add_memory` on ContextualMemory
-1. CoreMemory stores the embedding and metadata
-1. If ART clustering is enabled, CategoryManager assigns the memory to a category
-1. Activation levels and temporal markers are updated
+1. Application calls `add_memory` on the MemoryManager
+1. Memory is encoded (if needed) using MemoryEncoder
+1. Memory is stored in the appropriate MemoryStore
+1. Vector representation is added to VectorStore
+1. Optional: Memory is categorized (if CategoryManager is used)
+1. Optional: Activation levels are initialized
 
 ### Memory Retrieval Flow
 
-#### Legacy Flow
-
-1. Application calls `retrieve_for_context` on ContextualRetriever
-1. Query is encoded and analyzed
-1. Retrieval strategy is selected based on query type
-1. Memories are retrieved using similarity, recency, or hybrid approach
-1. Post-processing is applied (keyword boosting, coherence check, etc.)
+1. Application calls `retrieve` on the Retriever
+1. Query is encoded into a vector representation
+1. Query is analyzed to determine query type and extract keywords
+1. Query parameters are adapted based on query type
+1. Pipeline is executed with appropriate retrieval strategy
+1. Post-processors refine and re-rank results
 1. Results are returned to the application
-
-#### New Component-Based Flow
-
-1. Application calls `retrieve` on Retriever
-1. MemoryManager executes the retrieval pipeline:
-   - Query analyzer identifies query type and extracts keywords
-   - Query adapter adjusts parameters based on query type
-   - Retrieval strategy retrieves candidate memories
-   - Post-processors refine and re-rank results
-1. Results are returned to the application
-
-#### Transition Flow (Using RefactoredRetriever)
-
-1. Application calls `retrieve_for_context` on RefactoredRetriever
-1. RefactoredRetriever delegates to either:
-   - The new Retriever for component-based retrieval
-   - The original MemoryRetriever for direct retrieval
-1. Results are formatted consistently and returned to the application
 
 ## Key Features
 
-### ART-Inspired Clustering
+### Contextual Fabric Approach
 
-MemoryWeave uses an Adaptive Resonance Theory (ART) inspired approach to organize memories into categories:
+MemoryWeave's contextual fabric approach is inspired by biological memory systems:
 
-- **Dynamic Category Formation**: Memories self-organize into categories based on similarity
-- **Vigilance Parameter**: Controls the threshold for creating new categories vs. modifying existing ones
-- **Prototype Learning**: Category prototypes adapt over time as new memories are added
-- **Category Consolidation**: Similar categories can be merged to prevent fragmentation
+- **Rich Context Encoding**: Memories include surrounding context and metadata
+- **Activation Dynamics**: Recently or frequently accessed memories have higher activation levels
+- **Temporal Organization**: Memories maintain their relationship to other events in time
+- **Associative Retrieval**: Memories are retrieved through multiple pathways, not just similarity
 
 ### Advanced Retrieval Strategies
 
-MemoryWeave supports several advanced retrieval strategies:
-
-- **Two-Stage Retrieval**: First retrieves a larger set of candidates with lower threshold, then re-ranks
-- **Query Type Adaptation**: Adjusts retrieval parameters based on query type (factual vs. personal)
+- **Two-Stage Retrieval**: First retrieves a larger set of candidates, then re-ranks
+- **Query Type Adaptation**: Adjusts retrieval parameters based on query type
 - **Dynamic Threshold Adjustment**: Automatically adjusts thresholds based on retrieval performance
 - **Semantic Coherence Check**: Ensures retrieved memories form a coherent set
-- **Adaptive K Selection**: Dynamically determines how many memories to retrieve
+- **Hybrid Retrieval**: Combines vector similarity, BM25, and other signals
 
-## Migration Path
+## Directory Structure
 
-MemoryWeave is transitioning from the original monolithic architecture to the new component-based architecture:
+```
+memoryweave/
+├── api/               # API layer for application integration
+├── components/        # Core components and implementations
+│   ├── retrieval_strategies/  # Retrieval strategy implementations
+├── factory/           # Factory methods for creating components
+├── interfaces/        # Interface definitions
+├── nlp/               # NLP utilities
+├── pipeline/          # Pipeline orchestration components
+├── query/             # Query processing components
+├── retrieval/         # Retrieval components
+├── storage/           # Memory and vector storage
+│   ├── vector_search/  # Vector search implementations
+└── utils/             # Utility functions
+```
 
-1. **Current State**: Both architectures coexist, with RefactoredRetriever providing compatibility
-1. **Transition**: Applications gradually migrate from ContextualRetriever to Retriever
-1. **Future State**: The original ContextualRetriever will be fully deprecated, and all applications will use the new component-based architecture
+## Current Implementation Status
 
-## Architecture Decision Record
+The current focus is on:
 
-### Title: Modular Retrieval Architecture Refactoring
+- Completing the component-based architecture
+- Optimizing retrieval precision and recall
+- Enhancing query analysis and adaptation
+- Expanding support for different retrieval strategies
+- Improving performance with large memory sets
 
-#### Status
+## Future Directions
 
-Accepted (March 2025)
-
-#### Context
-
-The MemoryWeave system has grown organically, leading to several architectural challenges:
-
-1. **Monolithic components**: Core retrieval functionality in large, tightly-coupled modules
-1. **Code duplication**: Similar functionality duplicated across files
-1. **Poor separation of concerns**: Memory storage, retrieval logic, and query processing mixed
-1. **Testing difficulties**: Complex components are difficult to test in isolation
-1. **Limited extensibility**: Adding new features requires modifying core classes
-
-The current architecture centers around a monolithic `ContextualRetriever` with many responsibilities and a similarly large `nlp_extraction.py` utility. As we add features like advanced retrieval strategies, personal attribute tracking, and pipeline configurations, the codebase has become increasingly difficult to maintain.
-
-#### Decision
-
-We will refactor the architecture to a modular, component-based system with clear interfaces and separation of concerns. The new architecture will follow these principles:
-
-1. **Interface-first design**: Define clear interfaces for all components
-1. **Single responsibility**: Each component should do one thing well
-1. **Composition over inheritance**: Build complex behavior through composition
-1. **Progressive enhancement**: Start with simple implementations and add features incrementally
-1. **Backward compatibility**: Maintain adapter layers for smooth transition
-
-#### Implementation Plan
-
-##### Phase 1: Interface Definition & Core Boundaries (1-2 days)
-
-1. Create `/interfaces/` module with core protocol definitions
-
-   - `memory.py`: Memory storage and retrieval interfaces
-   - `retrieval.py`: Retrieval strategy interfaces
-   - `query.py`: Query processing interfaces
-   - `pipeline.py`: Pipeline configuration interfaces
-
-1. Define clear data models for all components
-
-   - Memory representation
-   - Query representation
-   - Retrieval results
-   - Configuration options
-
-##### Phase 2: Core Components Implementation (2-3 days)
-
-1. Create `/storage/` module for memory management
-
-   - `memory_store.py`: Basic memory storage
-   - `vector_store.py`: Vector search optimizations
-   - `activation.py`: Memory activation tracking
-   - `category.py`: Category management
-
-1. Create `/retrieval/` module for retrieval strategies
-
-   - `similarity.py`: Pure similarity-based retrieval
-   - `temporal.py`: Recency-based retrieval
-   - `hybrid.py`: Combined similarity and temporal
-   - `two_stage.py`: Two-stage retrieval process
-
-1. Create `/query/` module for query processing
-
-   - `analyzer.py`: Query type analysis
-   - `keyword.py`: Keyword extraction
-   - `adaptation.py`: Parameter adaptation
-
-1. Create `/nlp/` module for NLP utilities
-
-   - `extraction.py`: Core extraction logic
-   - `matchers.py`: Pattern matching
-   - `patterns.py`: Regular expression patterns
-   - `keywords.py`: Keyword utilities
-
-##### Phase 3: Pipeline Architecture (1-2 days)
-
-1. Create `/pipeline/` module for orchestration
-
-   - `manager.py`: Pipeline orchestration
-   - `registry.py`: Component registry
-   - `builder.py`: Pipeline construction
-   - `executor.py`: Pipeline execution
-
-1. Create `/config/` module for configuration
-
-   - `options.py`: Configuration options
-   - `validation.py`: Config validation
-   - `loaders.py`: Config loading utilities
-
-1. Create `/factory/` module for component creation
-
-   - `memory.py`: Memory component factories
-   - `retrieval.py`: Retrieval component factories
-   - `pipeline.py`: Pipeline component factories
-
-##### Phase 4: Implementation Migration (2-3 days)
-
-1. Create adapter implementations for all components
-1. Incrementally migrate features from the old to new architecture
-1. Update tests to work with new architecture
-
-##### Phase 5: Cleanup & Documentation (1 day)
-
-1. Remove deprecated code
-1. Create comprehensive documentation
-1. Update examples and tests
-
-#### Advantages
-
-1. **Improved maintainability**: Smaller, focused components are easier to understand and maintain
-1. **Better testability**: Isolated components can be tested independently
-1. **Increased extensibility**: New components can be added without modifying existing code
-1. **Clearer dependencies**: More explicit component dependencies
-1. **Easier collaboration**: Team members can work on different components simultaneously
-1. **Performance optimization**: Components can be optimized independently
-
-#### Implementation Priorities
-
-##### Highest Priority
-
-1. Break up monolithic retrieval.py into modular components
-1. Create clear interfaces for all components
-1. Separate memory storage from retrieval logic
-
-##### Secondary Priority
-
-1. Refactor NLP extraction into focused components
-1. Create pipeline architecture for flexible component arrangement
-1. Implement adapter layer for backward compatibility
-
-##### Third Priority
-
-1. Improve test organization and coverage
-1. Create comprehensive documentation
-1. Optimize performance-critical paths
-
-#### Migration Strategy
-
-1. **Adapter pattern**: Create adapters implementing new interfaces that delegate to existing code
-1. **Parallel implementations**: Maintain both implementations during transition
-1. **Feature parity tracking**: Use feature matrix to track migration progress
-1. **Test-driven migration**: Ensure all features have tests before migration
-
-#### Metrics for Success
-
-1. **Code quality**: Reduced complexity metrics for individual components
-1. **Test coverage**: Maintain or improve test coverage
-1. **Performance**: No regression in benchmark performance
-1. **Feature parity**: All features from original implementation available
-1. **Documentation**: Comprehensive documentation for all components
-
-#### Implementation Timeline
-
-- Phase 1 (Interface Definition): Days 1-2
-- Phase 2 (Core Components): Days 3-5
-- Phase 3 (Pipeline Architecture): Days 6-7
-- Phase 4 (Implementation Migration): Days 8-10
-- Phase 5 (Cleanup & Documentation): Day 11
-
-## Conclusion
-
-MemoryWeave's architecture provides a flexible and powerful approach to memory management for language models. The transition to a component-based architecture improves modularity, testability, and extensibility while maintaining backward compatibility through bridge components.
-
-The system's biologically-inspired approach to memory management, with features like ART-inspired clustering and advanced retrieval strategies, enables more natural and coherent conversations with language models.
-
-The new modular architecture will allow us to more easily implement the features described in our roadmap while maintaining the quality and performance of the system.
+- Memory persistence for long-term storage
+- Enhanced category management with dynamic category formation
+- Hierarchical memory organization
+- Integration with more LLM frameworks
+- Advanced temporal and episodic memory features
