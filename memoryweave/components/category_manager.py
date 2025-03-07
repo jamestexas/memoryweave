@@ -358,20 +358,24 @@ class CategoryManager(MemoryComponent):
         stats = self.stats.copy()
 
         # Add dynamic statistics
-        stats.update({
-            "num_categories": len(self.categories),
-            "average_category_size": sum(len(cat["members"]) for cat in self.categories.values())
-            / max(1, len(self.categories)),
-            "largest_category_size": max(
-                (len(cat["members"]) for cat in self.categories.values()), default=0
-            ),
-            "category_activations": {
-                cat_id: cat.get("activation", 0.0) for cat_id, cat in self.categories.items()
-            },
-            "memories_per_category": {
-                cat_id: len(cat["members"]) for cat_id, cat in self.categories.items()
-            },
-        })
+        stats.update(
+            {
+                "num_categories": len(self.categories),
+                "average_category_size": sum(
+                    len(cat["members"]) for cat in self.categories.values()
+                )
+                / max(1, len(self.categories)),
+                "largest_category_size": max(
+                    (len(cat["members"]) for cat in self.categories.values()), default=0
+                ),
+                "category_activations": {
+                    cat_id: cat.get("activation", 0.0) for cat_id, cat in self.categories.items()
+                },
+                "memories_per_category": {
+                    cat_id: len(cat["members"]) for cat_id, cat in self.categories.items()
+                },
+            }
+        )
 
         return stats
 
