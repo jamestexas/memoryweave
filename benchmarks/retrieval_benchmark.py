@@ -25,6 +25,7 @@ from typing import Any
 
 import numpy as np
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
@@ -38,6 +39,14 @@ from memoryweave.components.retriever import _get_embedder
 
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+console = Console()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True, markup=True, console=console)],
+)
+logger = logging.getLogger("retrieval_benchmark")
 # Try to import optional dependencies
 try:
     from rank_bm25 import BM25Okapi
@@ -56,9 +65,7 @@ except ImportError:
     print("psutil not available - install with: pip install psutil")
 
 # Setup logging and console
-console = Console()
-logger = logging.getLogger("retrieval_benchmark")
-logging.basicConfig(level=logging.INFO, format="%(message)s")
+
 
 # Number of test iterations for reliable timing
 DEFAULT_ITERATIONS = 5
@@ -442,7 +449,11 @@ def benchmark_retrieval_system(system_name, system, documents, queries, top_k=10
                 progress.advance(benchmark_task)
 
             # Use the last iteration's results for metrics
-            results = iteration_results[-1]
+            if iteration_results:
+                results = iteration_results[-1]
+            else:
+                logger.debug(f"[bold yellow]No results found for query: {query_text}[/]")
+                results = []
 
             # Debug results - add this to see what's being returned
             if system_name == "MemoryWeave Hybrid":
