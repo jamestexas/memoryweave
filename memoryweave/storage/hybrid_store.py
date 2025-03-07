@@ -6,7 +6,6 @@ from typing import Any
 import numpy as np
 
 from memoryweave.interfaces.memory import EmbeddingVector, Memory, MemoryID
-from memoryweave.storage.base_store import BaseMemoryStore
 from memoryweave.storage.memory_store import StandardMemoryStore
 
 
@@ -29,7 +28,7 @@ class HybridMemoryInfo:
     is_hybrid: bool = True
 
 
-class HybridMemoryStore(BaseMemoryStore):
+class HybridMemoryStore(StandardMemoryStore):
     """
     Memory-efficient hybrid memory store.
 

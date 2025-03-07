@@ -17,7 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class BaseMemoryStore(ABC):
+class StandardMemoryStore(ABC):
     """Base class for all memory stores with consistent ID handling."""
 
     def __init__(self):

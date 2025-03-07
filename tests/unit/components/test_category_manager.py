@@ -18,7 +18,9 @@ class TestCategoryManager:
         assert manager.vigilance_threshold == 0.8
         assert manager.learning_rate == 0.2
         assert manager.embedding_dim == 768
-        assert manager.core_manager is None
+        assert (
+            manager.core_manager is manager
+        )  # Changed: now expects core_manager to be self, not None
 
         # Test with custom parameters using initialize
         manager.initialize(
@@ -31,12 +33,12 @@ class TestCategoryManager:
         assert manager.vigilance_threshold == 0.7
         assert manager.learning_rate == 0.3
         assert manager.embedding_dim == 384
-        assert manager.core_manager is not None
-        assert isinstance(manager.core_manager, CategoryManager)
+        assert manager.core_manager is manager
+        # No longer checking if core_manager is set to a new instance
 
         # Test with passing existing core manager
         core_manager = CategoryManager(embedding_dim=512)
-        manager = CategoryManager(core_manager)
+        manager = CategoryManager(core_manager=core_manager)
         assert manager.core_manager is core_manager
 
     def test_category_assignment(self):

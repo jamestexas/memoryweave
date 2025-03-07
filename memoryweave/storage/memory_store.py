@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 
 from memoryweave.interfaces.memory import EmbeddingVector, Memory, MemoryContent, MemoryID
-from memoryweave.storage.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import StandardMemoryStore
 
 
 @dataclass
@@ -21,7 +21,7 @@ class MemoryMetadata:
     user_metadata: dict[str, Any] = field(default_factory=dict)
 
 
-class StandardMemoryStore(BaseMemoryStore):
+class StandardMemoryStore(StandardMemoryStore):
     """Standard memory store implementation with improved ID handling."""
 
     def __init__(self):

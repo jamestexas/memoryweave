@@ -20,7 +20,6 @@ from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.component_names import ComponentName
 from memoryweave.components.temporal_context import TemporalContextBuilder
 from memoryweave.interfaces.memory import MemoryID
-from memoryweave.storage.base_store import BaseMemoryStore
 from memoryweave.storage.memory_store import StandardMemoryStore
 
 FORMAT = "%(message)s"
@@ -50,7 +49,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
 
     def __init__(
         self,
-        memory_store: Optional[BaseMemoryStore] = None,
+        memory_store: Optional[StandardMemoryStore] = None,
         associative_linker: Optional[AssociativeMemoryLinker] = None,
         temporal_context: Optional[TemporalContextBuilder] = None,
         activation_manager: Optional[ActivationManager] = None,
@@ -397,7 +396,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         self,
         query_embedding: np.ndarray,
         max_results: int,
-        memory_store: Optional[BaseMemoryStore],
+        memory_store: Optional[StandardMemoryStore],
         use_progressive_filtering: bool = False,
         use_batched_computation: bool = False,
         batch_size: int = 200,
@@ -494,7 +493,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         self,
         query_embedding: np.ndarray,
         max_results: int,
-        memory_store: BaseMemoryStore,
+        memory_store: StandardMemoryStore,
         use_progressive_filtering: bool,
         use_batched_computation: bool,
         batch_size: int,
@@ -628,7 +627,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         associative_results: dict[MemoryID, float],
         temporal_results: dict[MemoryID, float],
         activation_results: dict[MemoryID, float],
-        memory_store: Optional[BaseMemoryStore],
+        memory_store: Optional[StandardMemoryStore],
     ) -> list[dict[str, Any]]:
         """
         Combine results from different sources with enhanced temporal handling.

@@ -66,6 +66,23 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
     ) -> list[dict[str, Any]]:
         """Retrieve memories using category-based retrieval."""
 
+        # Helper function for similarity retrieval fallback
+        def similarity_fallback():
+            similarity_strategy = SimilarityRetrievalStrategy(memory)
+            if hasattr(similarity_strategy, "initialize"):
+                similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
+
+            fallback_results = similarity_strategy.retrieve(query_embedding, top_k, context)
+
+            # Add category fields to each result
+            for result in fallback_results:
+                if "category_id" not in result:
+                    result["category_id"] = -1  # Default category ID
+                if "category_similarity" not in result:
+                    result["category_similarity"] = 0.0  # Default similarity
+
+            return fallback_results
+
         # Get memory from context or instance
         memory = context.get("memory", self.memory)
 
@@ -76,10 +93,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
             logger.info(
                 "CategoryRetrievalStrategy: No category manager found, falling back to similarity retrieval"
             )
-            similarity_strategy = SimilarityRetrievalStrategy(memory)
-            if hasattr(similarity_strategy, "initialize"):
-                similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
-            return similarity_strategy.retrieve(query_embedding, top_k, context)
+            return similarity_fallback()
 
         # Apply query type adaptation if available
         adapted_params = context.get("adapted_retrieval_params", {})
@@ -92,18 +106,16 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
 
             # If no categories, fall back to similarity retrieval
             if len(category_similarities) == 0:
-                similarity_strategy = SimilarityRetrievalStrategy(memory)
-                if hasattr(similarity_strategy, "initialize"):
-                    similarity_strategy.initialize(
-                        {"confidence_threshold": self.confidence_threshold}
-                    )
-                return similarity_strategy.retrieve(query_embedding, top_k, context)
-
-            # Select top categories with similarity above threshold
-            selected_categories = []
+                logger.info(
+                    "CategoryRetrievalStrategy: No categories found, falling back to similarity retrieval"
+                )
+                return similarity_fallback()
 
             # Get category IDs
             category_ids = list(category_manager.categories.keys())
+
+            # Select top categories with similarity above threshold
+            selected_categories = []
 
             # Sort category indices by similarity (descending)
             sorted_indices = np.argsort(-category_similarities)
@@ -120,7 +132,9 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
             # If no categories selected, use top N categories
             if not selected_categories and len(category_similarities) > 0:
                 num_to_select = min(max_categories, len(category_similarities))
-                selected_categories = [category_ids[i] for i in sorted_indices[:num_to_select]]
+                selected_categories = [
+                    category_ids[i] for i in sorted_indices[:num_to_select] if i < len(category_ids)
+                ]
 
             # Get memories from selected categories
             candidate_indices = []
@@ -130,12 +144,10 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
 
             # If no candidates, fall back to similarity retrieval
             if not candidate_indices:
-                similarity_strategy = SimilarityRetrievalStrategy(memory)
-                if hasattr(similarity_strategy, "initialize"):
-                    similarity_strategy.initialize(
-                        {"confidence_threshold": self.confidence_threshold}
-                    )
-                return similarity_strategy.retrieve(query_embedding, top_k, context)
+                logger.info(
+                    "CategoryRetrievalStrategy: No candidate memories found, falling back to similarity retrieval"
+                )
+                return similarity_fallback()
 
             # Try to convert memory IDs to integers if they're stored as strings
             memory_indices = []
@@ -162,12 +174,10 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
 
             if not embeddings:
                 # Fall back to similarity if we couldn't get embeddings
-                similarity_strategy = SimilarityRetrievalStrategy(memory)
-                if hasattr(similarity_strategy, "initialize"):
-                    similarity_strategy.initialize(
-                        {"confidence_threshold": self.confidence_threshold}
-                    )
-                return similarity_strategy.retrieve(query_embedding, top_k, context)
+                logger.info(
+                    "CategoryRetrievalStrategy: No valid embeddings found, falling back to similarity retrieval"
+                )
+                return similarity_fallback()
 
             # Calculate similarities
             embeddings_array = np.array(embeddings)
@@ -196,7 +206,10 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
                 valid_candidates = sorted_idx[: min(self.min_results, len(candidate_similarities))]
 
             if len(valid_candidates) == 0:
-                return []
+                logger.info(
+                    "CategoryRetrievalStrategy: No candidates passed threshold, falling back to similarity retrieval"
+                )
+                return similarity_fallback()
 
             # Get top-k memories
             top_k = min(top_k, len(valid_candidates))
@@ -206,19 +219,21 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
             results = []
             for i in top_memory_indices:
                 candidate_idx = valid_candidates[i]
+                if candidate_idx >= len(valid_indices):
+                    continue  # Skip invalid index
+
                 memory_idx = valid_indices[candidate_idx]
                 similarity = candidate_similarities[candidate_idx]
 
                 # Get category for memory
                 try:
-                    memory_id = candidate_indices[valid_indices.index(memory_idx)]
+                    memory_id = memory_idx  # Use the index directly as the ID
                     category_id = category_manager.get_category_for_memory(memory_id)
 
                     # Get category similarity if possible
-                    if category_id in category_ids and category_ids.index(category_id) < len(
-                        category_similarities
-                    ):
-                        category_similarity = category_similarities[category_ids.index(category_id)]
+                    cat_idx = category_ids.index(category_id) if category_id in category_ids else -1
+                    if cat_idx >= 0 and cat_idx < len(category_similarities):
+                        category_similarity = category_similarities[cat_idx]
                     else:
                         category_similarity = 0.0
                 except (IndexError, ValueError):
@@ -255,24 +270,10 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
 
         except Exception as e:
             # On any error, fall back to similarity retrieval
-
             logging.warning(
                 f"Category retrieval failed with error: {str(e)}. Falling back to similarity retrieval."
             )
-
-            similarity_strategy = SimilarityRetrievalStrategy(memory)
-            if hasattr(similarity_strategy, "initialize"):
-                similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
-
-            # Get similarity results
-            fallback_results = similarity_strategy.retrieve(query_embedding, top_k, context)
-
-            # Add category_id field to each result
-            for result in fallback_results:
-                if "category_id" not in result:
-                    result["category_id"] = -1  # Default category ID for fallback results
-
-            return fallback_results
+            return similarity_fallback()
 
 
 # Create a subclass of SimilarityRetrievalStrategy that adds category fields

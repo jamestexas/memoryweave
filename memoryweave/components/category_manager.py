@@ -14,7 +14,7 @@ import numpy as np
 
 from memoryweave.components.base import MemoryComponent
 from memoryweave.interfaces.memory import EmbeddingVector, MemoryID
-from memoryweave.storage.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import StandardMemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class CategoryManager(MemoryComponent):
 
     def __init__(
         self,
-        memory_store: Optional[BaseMemoryStore] = None,
+        memory_store: Optional[StandardMemoryStore] = None,
         core_manager: Optional["CategoryManager"] = None,
         embedding_dim: int = 768,
         vigilance_threshold: float = 0.8,
