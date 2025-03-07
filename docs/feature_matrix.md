@@ -15,14 +15,14 @@
 
 | Feature | Core Implementation | Component Implementation | Status | Migration Notes |
 |---------|---------------------|--------------------------|:------:|-----------------|
-| **Memory Storage** | `core/core_memory.py` | `storage/vector_store.py`<br>`storage/refactored/memory_store.py` | ✅ | Core version deprecated |
+| **Memory Storage** | `core/core_memory.py` | `storage/vector_store.py`<br>`storage/memory_store.py` | ✅ | Core version deprecated |
 | **Vector Storage** | Built into `core_memory.py` | `storage/vector_store.py` | ✅ | Complete replacement |
 | **Memory Manager** | `core/contextual_memory.py` | `components/memory_manager.py` | ✅ | Core references removed |
 | **Memory Encoding** | `core/memory_encoding.py` | `components/memory_encoding.py` | ✅ | Core version deprecated |
-| **Category Management** | `core/category_manager.py` | `components/category_manager.py`<br>`storage/category.py` | 🟢 | Core dependencies reduced |
+| **Category Management** | `core/category_manager.py` | `components/category_manager.py`<br>`storage/category.py` | ✅ | Core version forwards to component |
 | **Activation Management** | Part of `core_memory.py` | `components/activation.py`<br>`storage/activation.py` | ✅ | Complete implementation |
 | **Memory Chunking** | Not implemented | `components/text_chunker.py` | ✅ | New feature in components |
-| **Hybrid Storage** | Not implemented | `storage/refactored/hybrid_store.py` | ✅ | New feature in components |
+| **Hybrid Storage** | Not implemented | `storage/hybrid_store.py` | ✅ | New feature in components |
 
 </details>
 
@@ -153,7 +153,7 @@
 
 ### 2. Important Dependencies (✅ Completed)
 
-1. **Category_manager.py**: Implement standalone version without dependency on `CoreCategoryManager` 🟢
+1. **Category_manager.py**: Implement standalone version without dependency on `CoreCategoryManager` ✅
 1. **Memory Encoding**: Create component implementation to replace functionality in `core/memory_encoding.py` ✅
 
 ### 3. Indirect Dependencies (✅ Completed)

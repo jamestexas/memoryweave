@@ -7,7 +7,7 @@ import numpy as np
 from rich.logging import RichHandler
 
 from memoryweave.interfaces.memory import EmbeddingVector, Memory, MemoryID
-from memoryweave.storage.refactored.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import BaseMemoryStore
 from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
 logging.basicConfig(

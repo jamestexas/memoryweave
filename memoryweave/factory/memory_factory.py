@@ -3,14 +3,14 @@ Factory for creating memory stores and adapters.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any
 
 from memoryweave.components.memory_encoding import MemoryEncoder
 from memoryweave.interfaces.memory import IMemoryStore
-from memoryweave.storage.refactored.adapter import MemoryAdapter
-from memoryweave.storage.refactored.chunked_store import ChunkedMemoryStore
-from memoryweave.storage.refactored.hybrid_store import HybridMemoryStore
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.adapter import MemoryAdapter
+from memoryweave.storage.chunked_store import ChunkedMemoryStore
+from memoryweave.storage.hybrid_store import HybridMemoryStore
+from memoryweave.storage.memory_store import StandardMemoryStore
 from memoryweave.storage.vector_search import create_vector_search_provider
 
 
@@ -22,7 +22,7 @@ class VectorSearchConfig:
     dimension: int = 768
     metric: str = "cosine"
     use_quantization: bool = False
-    index_type: Optional[str] = None
+    index_type: str | None = None
     nprobe: int = 10
 
 
@@ -31,7 +31,7 @@ class MemoryStoreConfig:
     """Configuration for memory store."""
 
     store_type: str = "standard"
-    vector_search: Optional[VectorSearchConfig] = None
+    vector_search: VectorSearchConfig | None = None
     max_memories: int = 1000
     embedding_dim: int = 768
 
@@ -79,26 +79,32 @@ def create_memory_store_and_adapter(
     return memory_store, memory_adapter
 
 
-def create_memory_encoder(embedding_model_name: str, **kwargs) -> MemoryEncoder:
+def create_memory_encoder(
+    embedding_model_name: str = None, embedding_model: Any = None, **kwargs
+) -> MemoryEncoder:
     """
     Create a memory encoder component with the specified embedding model.
 
     Args:
-        embedding_model_name: Name of the embedding model to use
-        **kwargs: Additional arguments for the embedding model
+        embedding_model_name: Name of the embedding model to use (if model not provided directly)
+        embedding_model: Direct embedding model instance (higher priority than model_name)
+        **kwargs: Additional arguments for configuration or embedding model
 
     Returns:
         Configured MemoryEncoder component
     """
     from sentence_transformers import SentenceTransformer
 
-    from memoryweave.components.memory_encoding import MemoryEncoder
     from memoryweave.utils import _get_device
 
+    # Get device configuration
     device = _get_device(kwargs.pop("device", "auto"))
 
-    # Initialize the embedding model
-    embedding_model = SentenceTransformer(embedding_model_name, device=device, **kwargs)
+    # Initialize the embedding model if not provided
+    if embedding_model is None:
+        if embedding_model_name is None:
+            embedding_model_name = "sentence-transformers/paraphrase-MiniLM-L6-v2"
+        embedding_model = SentenceTransformer(embedding_model_name, device=device, **kwargs)
 
     # Create and initialize the memory encoder
     encoder = MemoryEncoder(embedding_model)

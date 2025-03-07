@@ -14,6 +14,7 @@ from sentence_transformers import SentenceTransformer
 from memoryweave.components.activation import ActivationManager
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
 from memoryweave.components.base import RetrievalStrategy
+from memoryweave.components.category_manager import CategoryManager
 from memoryweave.components.dynamic_threshold_adjuster import DynamicThresholdAdjuster
 from memoryweave.components.keyword_expander import KeywordExpander
 from memoryweave.components.memory_decay import MemoryDecayComponent
@@ -31,6 +32,7 @@ from memoryweave.components.query_analysis import QueryAnalyzer
 
 # Import and register Contextual Fabric Strategy
 from memoryweave.components.retrieval_strategies import (
+    CategoryRetrievalStrategy,  # Add this import
     ContextualFabricStrategy,
     HybridRetrievalStrategy,
     SimilarityRetrievalStrategy,
@@ -41,7 +43,7 @@ from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy imp
     HybridBM25VectorStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.memory_store import StandardMemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +176,10 @@ class Retriever:
         if self.memory_encoder:
             self.memory_manager.register_component("memory_encoder", self.memory_encoder)
 
+        # Create and initialize category manager
+        self.category_manager = CategoryManager(self.memory)
+        self.memory_manager.register_component("category_manager", self.category_manager)
+
         # Create and initialize personal attribute manager
         self.personal_attribute_manager = PersonalAttributeManager()
         self.memory_manager.register_component(
@@ -250,6 +256,12 @@ class Retriever:
         )
 
         self.memory_manager.register_component("contextual_fabric_strategy", contextual_fabric)
+
+        # Create category-based retrieval strategy
+        category_retrieval = CategoryRetrievalStrategy(
+            self.memory, category_manager=self.category_manager
+        )
+        self.memory_manager.register_component("category_retrieval", category_retrieval)
 
         #
         # Create and initialize post-processors

@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 
 from memoryweave.components.category_manager import CategoryManager
-from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
 
 
 class TestCategoryManager:
@@ -33,10 +32,10 @@ class TestCategoryManager:
         assert manager.learning_rate == 0.3
         assert manager.embedding_dim == 384
         assert manager.core_manager is not None
-        assert isinstance(manager.core_manager, CoreCategoryManager)
+        assert isinstance(manager.core_manager, CategoryManager)
 
         # Test with passing existing core manager
-        core_manager = CoreCategoryManager(embedding_dim=512)
+        core_manager = CategoryManager(embedding_dim=512)
         manager = CategoryManager(core_manager)
         assert manager.core_manager is core_manager
 
@@ -154,7 +153,7 @@ class TestCategoryManager:
     def test_category_consolidation(self):
         """Test consolidating similar categories."""
         # Create a core category manager directly for more control
-        core_manager = CoreCategoryManager(
+        core_manager = CategoryManager(
             embedding_dim=4,
             vigilance_threshold=0.999,  # Extremely high to force separate categories
             enable_category_consolidation=True,

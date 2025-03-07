@@ -24,7 +24,7 @@ Baseline Comparison:
 
 import argparse
 import json
-import random
+import secrets
 import time
 from datetime import datetime
 from typing import Any, Optional
@@ -42,8 +42,8 @@ from memoryweave.components.retrieval_strategies.hybrid_bm25_vector_strategy imp
     HybridBM25VectorStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.storage.refactored.adapter import MemoryAdapter
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.adapter import MemoryAdapter
+from memoryweave.storage.memory_store import StandardMemoryStore
 
 
 class ContextualFabricBenchmark:
@@ -180,15 +180,15 @@ class ContextualFabricBenchmark:
         # Create memories in different temporal clusters
         timestamps = [
             # Recent cluster (today)
-            *[now - random.randint(0, one_day // 2) for _ in range(num_memories // 5)],
+            *[now - secrets.randint(0, one_day // 2) for _ in range(num_memories // 5)],
             # Yesterday cluster
-            *[now - one_day - random.randint(0, one_day // 2) for _ in range(num_memories // 5)],
+            *[now - one_day - secrets.randint(0, one_day // 2) for _ in range(num_memories // 5)],
             # Last week cluster
-            *[now - one_week - random.randint(0, one_day) for _ in range(num_memories // 5)],
+            *[now - one_week - secrets.randint(0, one_day) for _ in range(num_memories // 5)],
             # Last month cluster
-            *[now - 4 * one_week - random.randint(0, one_week) for _ in range(num_memories // 5)],
+            *[now - 4 * one_week - secrets.randint(0, one_week) for _ in range(num_memories // 5)],
             # Old memories (random times)
-            *[now - random.randint(one_week, 12 * one_week) for _ in range(num_memories // 5)],
+            *[now - secrets.randint(one_week, 12 * one_week) for _ in range(num_memories // 5)],
         ]
 
         # Define topics
@@ -210,7 +210,7 @@ class ContextualFabricBenchmark:
         topic_centroids = {}
         for topic in topics:
             # Create a random but distinct centroid for each topic
-            centroid = np.random.randn(self.embedding_dim)
+            centroid = np.secrets.randn(self.embedding_dim)
             # Normalize
             centroid = centroid / np.linalg.norm(centroid)
             topic_centroids[topic] = centroid
@@ -222,7 +222,7 @@ class ContextualFabricBenchmark:
 
             # Generate topical content
             topic = topics[i % len(topics)]
-            subtopic = random.choice(topics)  # Create cross-topic relationships
+            subtopic = secrets.choice(topics)  # Create cross-topic relationships
 
             # Add some sequential memories that should be associated
             is_sequential = i > 0 and i % 5 == 0
@@ -360,8 +360,8 @@ class ContextualFabricBenchmark:
             sub_keywords = topic_keywords.get(subtopic, [])
 
             # Select random keywords to include in the text
-            selected_main = random.sample(main_keywords, min(3, len(main_keywords)))
-            selected_sub = random.sample(sub_keywords, min(2, len(sub_keywords)))
+            selected_main = secrets.sample(main_keywords, min(3, len(main_keywords)))
+            selected_sub = secrets.sample(sub_keywords, min(2, len(sub_keywords)))
 
             # Generate sentences with repeated keywords for better BM25 indexing
             sentences = []
@@ -372,36 +372,36 @@ class ContextualFabricBenchmark:
             # Add memory-specific content with keywords
             if topic == "food":
                 sentences.append(
-                    f"I found a great {random.choice(selected_main)} while looking for {random.choice(selected_main)}."
+                    f"I found a great {secrets.choice(selected_main)} while looking for {secrets.choice(selected_main)}."
                 )
                 sentences.append(
-                    f"The {random.choice(selected_main)} had amazing {random.choice(selected_main)} and {random.choice(selected_sub)}."
+                    f"The {secrets.choice(selected_main)} had amazing {secrets.choice(selected_main)} and {secrets.choice(selected_sub)}."
                 )
             elif topic == "travel":
                 sentences.append(
-                    f"I went on a {random.choice(selected_main)} to explore {random.choice(selected_main)}."
+                    f"I went on a {secrets.choice(selected_main)} to explore {secrets.choice(selected_main)}."
                 )
                 sentences.append(
-                    f"The {random.choice(selected_main)} was filled with {random.choice(selected_main)} and {random.choice(selected_sub)}."
+                    f"The {secrets.choice(selected_main)} was filled with {secrets.choice(selected_main)} and {secrets.choice(selected_sub)}."
                 )
             elif topic == "health":
                 sentences.append(
-                    f"I've been focusing on my {random.choice(selected_main)} by improving {random.choice(selected_main)}."
+                    f"I've been focusing on my {secrets.choice(selected_main)} by improving {secrets.choice(selected_main)}."
                 )
                 sentences.append(
-                    f"The {random.choice(selected_main)} routine includes {random.choice(selected_main)} and {random.choice(selected_sub)}."
+                    f"The {secrets.choice(selected_main)} routine includes {secrets.choice(selected_main)} and {secrets.choice(selected_sub)}."
                 )
             else:
                 sentences.append(
-                    f"I've been working on {random.choice(selected_main)} related to {random.choice(selected_main)}."
+                    f"I've been working on {secrets.choice(selected_main)} related to {secrets.choice(selected_main)}."
                 )
                 sentences.append(
-                    f"The {random.choice(selected_main)} involves aspects of {random.choice(selected_main)} and some {random.choice(selected_sub)}."
+                    f"The {secrets.choice(selected_main)} involves aspects of {secrets.choice(selected_main)} and some {secrets.choice(selected_sub)}."
                 )
 
             # Add a sentence with subtopic reference
             sentences.append(
-                f"It also relates to {subtopic} because of the {random.choice(selected_sub)}."
+                f"It also relates to {subtopic} because of the {secrets.choice(selected_sub)}."
             )
 
             # Add sequential reference if applicable
@@ -420,14 +420,14 @@ class ContextualFabricBenchmark:
                     "topics": [topic, subtopic],
                     "keywords": selected_main + selected_sub,
                     "created_at": timestamp,
-                    "importance": random.random(),
+                    "importance": secrets.random(),
                     "sequential_to": prev_id,
                 },
             }
 
             # Generate embedding based on topic centroid with some noise
             base_embedding = topic_centroids[topic] * 0.7 + topic_centroids[subtopic] * 0.3
-            noise = np.random.randn(self.embedding_dim) * 0.1
+            noise = np.secrets.randn(self.embedding_dim) * 0.1
             embedding = base_embedding + noise
             embedding = embedding / np.linalg.norm(embedding)
 
@@ -454,12 +454,12 @@ class ContextualFabricBenchmark:
 
         # Activate some memories to simulate usage patterns
         print("Setting activation patterns...")
-        for i in range(min(10, num_memories)):
+        for _i in range(min(10, num_memories)):
             # Activate a few random memories
-            memory_id = str(random.randint(0, num_memories - 1))
+            memory_id = str(secrets.randint(0, num_memories - 1))
             self.activation_manager.activate_memory(
                 memory_id=memory_id,
-                activation_level=random.random() * 0.7 + 0.3,  # Random activation 0.3-1.0
+                activation_level=secrets.random() * 0.7 + 0.3,  # Random activation 0.3-1.0
                 spread=True,
             )
 
@@ -477,7 +477,7 @@ class ContextualFabricBenchmark:
             Synthetic embedding for the query
         """
         # Very simple embedding generation for benchmark purposes
-        embedding = np.random.randn(self.embedding_dim)
+        embedding = np.secrets.randn(self.embedding_dim)
 
         # Add topic bias
         bias = np.zeros(self.embedding_dim)
@@ -597,7 +597,7 @@ class ContextualFabricBenchmark:
 
         # Get some random memory IDs for reference
         all_ids = self.memory_store.get_ids()
-        random_ids = random.sample(all_ids, min(10, len(all_ids)))
+        random_ids = secrets.sample(all_ids, min(10, len(all_ids)))
 
         # 1. Conversation context test case
         # This tests if the system can use conversation history to improve retrieval
@@ -817,7 +817,7 @@ class ContextualFabricBenchmark:
             # Create multiple episodic memory test cases for better testing
             # Pick a few episodes to test with
             episode_ids = list(self.temporal_context.episodes.keys())
-            test_episode_ids = random.sample(episode_ids, min(3, len(episode_ids)))
+            test_episode_ids = secrets.sample(episode_ids, min(3, len(episode_ids)))
 
             for idx, episode_id in enumerate(test_episode_ids):
                 episode_memories = list(self.temporal_context.get_memories_in_episode(episode_id))

@@ -16,8 +16,8 @@ from memoryweave.components.retrieval_strategies.contextual_fabric_strategy impo
     ContextualFabricStrategy,
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.storage.refactored.adapter import MemoryAdapter
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.adapter import MemoryAdapter
+from memoryweave.storage.memory_store import StandardMemoryStore
 
 
 class TestDynamicContextIntegration:

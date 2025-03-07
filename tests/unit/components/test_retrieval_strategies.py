@@ -6,13 +6,13 @@ import unittest
 
 import numpy as np
 
+from memoryweave.components.category_manager import CategoryManager
 from memoryweave.components.retrieval_strategies import (
     CategoryRetrievalStrategy,
     HybridRetrievalStrategy,
     SimilarityRetrievalStrategy,
     TemporalRetrievalStrategy,
 )
-from memoryweave.core.category_manager import CategoryManager as CoreCategoryManager
 from tests.utils.mock_models import MockMemory
 
 
@@ -38,7 +38,11 @@ class RetrievalStrategiesTest(unittest.TestCase):
         self.similarity_strategy.initialize({"confidence_threshold": 0.0})
         self.temporal_strategy.initialize({})
         self.hybrid_strategy.initialize(
-            {"relevance_weight": 0.7, "recency_weight": 0.3, "confidence_threshold": 0.0}
+            {
+                "relevance_weight": 0.7,
+                "recency_weight": 0.3,
+                "confidence_threshold": 0.0,
+            }
         )
 
     def _populate_test_memory(self):
@@ -133,7 +137,7 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
         self.memory = MockMemory(embedding_dim=self.embedding_dim)
 
         # Create category manager
-        self.category_manager = CoreCategoryManager(embedding_dim=self.embedding_dim)
+        self.category_manager = CategoryManager(embedding_dim=self.embedding_dim)
 
         # Add category manager to memory
         self.memory.category_manager = self.category_manager

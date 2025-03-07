@@ -6,8 +6,8 @@ from typing import Any
 import numpy as np
 
 from memoryweave.interfaces.memory import EmbeddingVector, Memory, MemoryID
-from memoryweave.storage.refactored.base_store import BaseMemoryStore
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.base_store import BaseMemoryStore
+from memoryweave.storage.memory_store import StandardMemoryStore
 
 
 @dataclass
@@ -237,13 +237,15 @@ class HybridMemoryStore(BaseMemoryStore):
 
             # Apply threshold
             if threshold is None or similarity >= threshold:
-                results.append({
-                    "memory_id": memory_id,
-                    "chunk_index": chunk.chunk_index,
-                    "chunk_similarity": similarity,
-                    "content": chunk.text,
-                    "metadata": chunk.metadata.copy(),
-                })
+                results.append(
+                    {
+                        "memory_id": memory_id,
+                        "chunk_index": chunk.chunk_index,
+                        "chunk_similarity": similarity,
+                        "content": chunk.text,
+                        "metadata": chunk.metadata.copy(),
+                    }
+                )
 
         # Sort by similarity (descending)
         results.sort(key=lambda x: x["chunk_similarity"], reverse=True)

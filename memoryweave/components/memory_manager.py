@@ -5,7 +5,7 @@ from typing import Any, Optional
 from memoryweave.components.base import Component
 from memoryweave.components.pipeline_config import PipelineConfig
 from memoryweave.interfaces.memory import Memory
-from memoryweave.storage.refactored.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import BaseMemoryStore
 
 logger = logging.getLogger(__name__)
 

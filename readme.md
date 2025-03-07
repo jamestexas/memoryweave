@@ -1,6 +1,6 @@
 # MemoryWeave
 
-MemoryWeave is an experimental approach to memory management for language models that uses a "contextual fabric" approach inspired by biological memory systems. Rather than traditional knowledge graph approaches with discrete nodes and edges, MemoryWeave focuses on capturing rich contextual signatures of information for improved long-context coherence in LLM conversations.
+MemoryWeave is a flexible memory management system for Large Language Models (LLMs), featuring a modular component-based architecture that enables rich contextual retrieval and adaptive memory processing.
 
 > **Note:** This project has undergone a major architectural refactoring to a component-based design. See the [Migration Guide](docs/MIGRATION_GUIDE.md) for details on transitioning from the legacy architecture.
 
@@ -46,7 +46,13 @@ This allows for more nuanced and effective memory retrieval during conversations
 
 <a id="architecture"></a>
 
-MemoryWeave uses a component-based architecture with several modular pieces that can be configured for different use cases:
+MemoryWeave uses a component-based architecture that enables flexible composition of memory management pipelines:
+
+- **Components**: Modular building blocks that can be combined into retrieval pipelines
+- **Memory Storage**: Flexible storage backends including vector stores and hybrid solutions
+- **Retrieval Strategies**: Various approaches for retrieving relevant memories
+- **Context Enhancement**: Rich contextual processing of embeddings and queries
+- **Post-Processing**: Fine-tuning of retrieval results based on various signals
 
 ### Core Components
 
@@ -275,40 +281,28 @@ uv pip install -g dev
 Here's a simple example of using MemoryWeave with the new component architecture:
 
 ```python
-from memoryweave.components import Retriever
-from memoryweave.components.memory_manager import MemoryManager
+from memoryweave.components import MemoryEncoder, Retriever
+from memoryweave.storage.refactored.memory_store import StandardMemoryStore
 from sentence_transformers import SentenceTransformer
 
-# Initialize embedding model
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-# Create memory manager
-memory_manager = MemoryManager()
-
-# Create retriever
-retriever = Retriever(memory=memory_manager, embedding_model=embedding_model)
-
-# Configure retriever (optional)
-retriever.configure_query_type_adaptation(enable=True)
-retriever.configure_two_stage_retrieval(enable=True)
+# Create components
+embedding_model = SentenceTransformer("sentence-transformers/paraphrase-MiniLM-L6-v2")
+store = StandardMemoryStore()
+encoder = MemoryEncoder(embedding_model)
+retriever = Retriever(memory=store, embedding_model=embedding_model)
 retriever.initialize_components()
 
-# Add some memories
-texts = [
-    "My favorite color is blue.",
-    "I visited Paris last summer.",
-    "Python is a programming language created by Guido van Rossum.",
-]
+# Add memories
+text1 = "MemoryWeave uses a component-based architecture for flexible memory management."
+text2 = "Components can be combined into retrieval pipelines with various strategies."
+embedding1 = encoder.encode_text(text1)
+embedding2 = encoder.encode_text(text2)
+memory_id1 = store.add(embedding1, text1)
+memory_id2 = store.add(embedding2, text2)
 
-for text in texts:
-    embedding = embedding_model.encode(text)
-    memory_manager.add_memory(embedding, text)
-
-# Retrieve memories based on a query
-query = "What programming languages do I know?"
+# Retrieve memories
+query = "How does MemoryWeave organize its code?"
 results = retriever.retrieve(query, top_k=3)
-
-# Process results
 for result in results:
     print(f"Score: {result['relevance_score']:.4f} - {result['content']}")
 ```
@@ -327,7 +321,7 @@ The most important benchmark compares the contextual fabric architecture with tr
 
 ```bash
 # Run the complete benchmark suite with multiple memory sizes
-./run_contextual_fabric_benchmark.sh
+./benchmarks/run_contextual_fabric_benchmark.sh
 
 # Run with a specific memory size
 uv run python -m benchmarks.contextual_fabric_benchmark --memories 100
@@ -345,13 +339,13 @@ This benchmark tests how well the contextual fabric architecture handles:
 
 ```bash
 # Run baseline comparison (compare against BM25 and vector search)
-uv run python run_baseline_comparison.py
+uv run python benchmarks/run_baseline_comparison.py
 
 # Run synthetic benchmark (evaluates different configurations)
-uv run python run_synthetic_benchmark.py
+uv run python benchmarks/run_synthetic_benchmark.py
 
 # Run semantic benchmark (tests performance on real-world queries)
-uv run python run_semantic_benchmark.py
+uv run python benchmarks/run_semantic_benchmark.py
 
 # Run custom benchmark script
 uv run python -m benchmarks.memory_retrieval_benchmark

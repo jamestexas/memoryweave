@@ -6,8 +6,8 @@ from typing import Any
 import numpy as np
 
 from memoryweave.interfaces.memory import EmbeddingVector, Memory, MemoryID
-from memoryweave.storage.refactored.base_store import BaseMemoryStore
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.base_store import BaseMemoryStore
+from memoryweave.storage.memory_store import StandardMemoryStore
 
 
 @dataclass

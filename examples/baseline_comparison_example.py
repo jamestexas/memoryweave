@@ -13,8 +13,8 @@ from memoryweave.components.memory_manager import MemoryManager
 from memoryweave.evaluation.baseline_comparison import BaselineComparison, BaselineConfig
 from memoryweave.interfaces.memory import Memory
 from memoryweave.interfaces.retrieval import Query, QueryType
-from memoryweave.storage.refactored.adapter import MemoryAdapter
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.adapter import MemoryAdapter
+from memoryweave.storage.memory_store import StandardMemoryStore
 
 
 class RetrievalStrategyAdapter:

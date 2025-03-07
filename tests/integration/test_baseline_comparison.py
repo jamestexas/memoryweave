@@ -23,8 +23,8 @@ from memoryweave.evaluation.baseline_comparison import (
 )
 from memoryweave.interfaces.memory import Memory
 from memoryweave.interfaces.retrieval import Query
-from memoryweave.storage.refactored.adapter import MemoryAdapter
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.adapter import MemoryAdapter
+from memoryweave.storage.memory_store import StandardMemoryStore
 
 
 @pytest.fixture

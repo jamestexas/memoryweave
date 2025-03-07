@@ -162,7 +162,7 @@ parameters:
 Then run it:
 
 ```bash
-uv run python run_benchmark.py --config configs/contextual_fabric_custom.yaml
+uv run python benchmarks/run_benchmark.py --config configs/contextual_fabric_custom.yaml
 ```
 
 ### Example: Customizing Memory Retrieval Configurations

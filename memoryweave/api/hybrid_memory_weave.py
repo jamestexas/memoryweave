@@ -1062,7 +1062,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             return cached_result
 
         # Create query embedding
-        query_embedding = self.embedding_model.encode(
+        self.embedding_model.encode(
             query, show_progress_bar=self.show_progress_bar
         )
 
