@@ -66,7 +66,7 @@ class CategoryManager(MemoryComponent):
             "memories_reassigned": 0,
             "categories_consolidated": 0,
             "last_consolidation": 0,
-            "num_categories": 0,
+            "num_categories": 0,  # Add explicitly for test compatibility
         }
 
     def initialize(self, config: dict[str, Any]) -> None:
