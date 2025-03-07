@@ -9,12 +9,14 @@ from typing import Any, Union, dict, list, tuple
 
 import numpy as np
 
+from memoryweave.components.contextual_memory_adapter import (
+    ContextualMemory,  # Adjust this import based on your new architecture
+)
 from memoryweave.components.retrieval_strategies import (
     HybridRetrievalStrategy,
     SimilarityRetrievalStrategy,
     TwoStageRetrievalStrategy,
 )
-from memoryweave.core.contextual_memory import ContextualMemory
 
 
 class PredictableTestEmbeddings:

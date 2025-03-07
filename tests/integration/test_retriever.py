@@ -4,7 +4,9 @@ Integration tests for the MemoryWeave retriever.
 
 import unittest
 
-from memoryweave.core.refactored_retrieval import RefactoredRetriever
+from memoryweave.components.retriever import (
+    Retriever,  # Adjust this import based on your new architecture
+)
 
 # ContextualRetriever has been migrated to components architecture
 from tests.utils.mock_models import MockEmbeddingModel, MockMemory
@@ -33,7 +35,7 @@ class RetrieverIntegrationTest(unittest.TestCase):
         # Original retriever is no longer needed as we've migrated to components
 
         # Create refactored retriever
-        self.refactored_retriever = RefactoredRetriever(
+        self.refactored_retriever = Retriever(
             memory=self.memory,
             embedding_model=self.embedding_model,
             retrieval_strategy="hybrid",
