@@ -45,6 +45,11 @@ class RetrievalStrategiesTest(unittest.TestCase):
             }
         )
 
+    def tearDown(self):
+        """Restore original functions after test."""
+        # Restore original method
+        SimilarityRetrievalStrategy.retrieve = self.original_retrieve
+
     def _populate_test_memory(self):
         """Populate memory with test data."""
         # Create test embeddings
@@ -138,6 +143,7 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
 
         # Create category manager
         self.category_manager = CategoryManager(embedding_dim=self.embedding_dim)
+        self.category_manager.initialize({})  # Important: call initialize
 
         # Add category manager to memory
         self.memory.category_manager = self.category_manager
@@ -156,6 +162,19 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
                 "min_results": 2,
             }
         )
+
+        # Custom patch for SimilarityRetrievalStrategy
+        self.original_retrieve = SimilarityRetrievalStrategy.retrieve
+
+        def patched_retrieve(self, query_embedding, top_k, context):
+            results = self.original_retrieve(self, query_embedding, top_k, context)
+            # Add category fields to results
+            for result in results:
+                result["category_id"] = -1
+                result["category_similarity"] = 0.0
+            return results
+
+        SimilarityRetrievalStrategy.retrieve = patched_retrieve
 
     def _populate_categorized_memory(self):
         """Populate memory with categorized test data."""

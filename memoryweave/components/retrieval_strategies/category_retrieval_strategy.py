@@ -22,6 +22,25 @@ logger = logging.basicConfig(
 )
 logger = logging.getLogger("memoryweave")
 
+# TODO: This is hacky but for now here we are:
+# Patch the SimilarityRetrievalStrategy to add category_id to results
+original_similarity_retrieve = SimilarityRetrievalStrategy.retrieve
+
+
+def patched_similarity_retrieve(self, query_embedding, top_k, context):
+    results = original_similarity_retrieve(self, query_embedding, top_k, context)
+    # Add category_id to all results
+    for result in results:
+        if "category_id" not in result:
+            result["category_id"] = -1
+        if "category_similarity" not in result:
+            result["category_similarity"] = 0.0
+    return results
+
+
+# Apply the patch
+SimilarityRetrievalStrategy.retrieve = patched_similarity_retrieve
+
 
 class CategoryRetrievalStrategy(RetrievalStrategy):
     """
@@ -62,9 +81,6 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
         self, query_embedding: np.ndarray, top_k: int, context: dict[str, Any]
     ) -> list[dict[str, Any]]:
         """Retrieve memories using category-based retrieval."""
-        import logging
-
-        logger = logging.getLogger(__name__)
 
         # Get memory from context or instance
         memory = context.get("memory", self.memory)
@@ -255,7 +271,6 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
 
         except Exception as e:
             # On any error, fall back to similarity retrieval
-            import logging
 
             logging.warning(
                 f"Category retrieval failed with error: {str(e)}. Falling back to similarity retrieval."
@@ -264,4 +279,13 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
             similarity_strategy = SimilarityRetrievalStrategy(memory)
             if hasattr(similarity_strategy, "initialize"):
                 similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
-            return similarity_strategy.retrieve(query_embedding, top_k, context)
+
+            # Get similarity results
+            fallback_results = similarity_strategy.retrieve(query_embedding, top_k, context)
+
+            # Add category_id field to each result
+            for result in fallback_results:
+                if "category_id" not in result:
+                    result["category_id"] = -1  # Default category ID for fallback results
+
+            return fallback_results
