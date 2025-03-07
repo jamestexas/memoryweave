@@ -13,7 +13,7 @@ from rich.logging import RichHandler
 
 from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.category_manager import CategoryManager
-from memoryweave.interfaces.memory import EmbeddingVector
+from memoryweave.components.retrieval_strategies_impl import SimilarityRetrievalStrategy
 
 logger = logging.basicConfig(
     level="INFO",
@@ -25,231 +25,243 @@ logger = logging.getLogger("memoryweave")
 
 class CategoryRetrievalStrategy(RetrievalStrategy):
     """
-    Retrieval strategy that utilizes category information for better results.
+    Retrieves memories based on ART category clustering.
 
-    This strategy:
-    1. Identifies the most relevant category for a query
-    2. Prioritizes memories from that category
-    3. Boosts semantically related memories
+    This strategy uses the ART-inspired clustering to first identify
+    the most relevant categories, then retrieves memories from those
+    categories.
     """
 
-    def __init__(self, memory, category_manager: Optional[CategoryManager] = None):
+    def __init__(self, memory: Any, category_manager: Optional[CategoryManager] = None):
         """
-        Initialize the category retrieval strategy.
+        Initialize with memory and category manager.
 
         Args:
-            memory: Memory store to retrieve from
-            category_manager: CategoryManager component to use
+            memory: The memory to retrieve from
+            category_manager: Optional category manager to use
         """
-        super().__init__(memory)
+        self.memory = memory
+        # Use provided category_manager or get it from memory
         self.category_manager = category_manager or getattr(memory, "category_manager", None)
-        self.confidence_threshold = 0.0
-        self.primary_boost_factor = 1.5
-        self.fallback_threshold_factor = 0.8
-        self.max_category_results = 20
 
     def initialize(self, config: dict[str, Any]) -> None:
-        """
-        Initialize the strategy with configuration.
-
-        Args:
-            config: Configuration dictionary with parameters:
-                - confidence_threshold: Minimum relevance threshold (default: 0.0)
-                - primary_boost_factor: How much to boost primary category results (default: 1.5)
-                - fallback_threshold_factor: Factor for fallback threshold (default: 0.8)
-                - max_category_results: Maximum results to consider from primary category (default: 20)
-                - category_manager: CategoryManager instance
-        """
+        """Initialize with configuration."""
         self.confidence_threshold = config.get("confidence_threshold", 0.0)
-        self.primary_boost_factor = config.get("primary_boost_factor", 1.5)
-        self.fallback_threshold_factor = config.get("fallback_threshold_factor", 0.8)
-        self.max_category_results = config.get("max_category_results", 20)
+        self.max_categories = config.get("max_categories", 3)
+        self.activation_boost = config.get("activation_boost", True)
+        self.category_selection_threshold = config.get("category_selection_threshold", 0.5)
+
+        # For testing/benchmarking, set minimum results
         self.min_results = max(1, config.get("min_results", 5))
 
+        # Initialize category manager if not provided
         if self.category_manager is None and hasattr(self.memory, "category_manager"):
             self.category_manager = self.memory.category_manager
 
     def retrieve(
-        self, query_embedding: EmbeddingVector, top_k: int, **kwargs
+        self, query_embedding: np.ndarray, top_k: int, context: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        """
-        Retrieve memories based on category matching.
+        """Retrieve memories using category-based retrieval."""
+        import logging
 
-        Args:
-            query_embedding: Query embedding vector
-            top_k: Maximum number of results to return
-            **kwargs: Additional retrieval arguments
+        logger = logging.getLogger(__name__)
 
-        Returns:
-            list of retrieval results
-        """
-        # Handle case where category_manager is missing
-        if self.category_manager is None:
-            # Fall back to base similarity search
-            return super().retrieve(query_embedding, top_k, **kwargs)
+        # Get memory from context or instance
+        memory = context.get("memory", self.memory)
 
-        # Find the best category for this query
-        best_category_id = -1
-        best_similarity = -1.0
+        # Check if memory has category_manager
+        category_manager = self.category_manager or getattr(memory, "category_manager", None)
+        if category_manager is None:
+            # Fall back to similarity retrieval if no category manager
+            logger.info(
+                "CategoryRetrievalStrategy: No category manager found, falling back to similarity retrieval"
+            )
+            similarity_strategy = SimilarityRetrievalStrategy(memory)
+            if hasattr(similarity_strategy, "initialize"):
+                similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
+            return similarity_strategy.retrieve(query_embedding, top_k, context)
 
-        for category_id, category in self.category_manager.categories.items():
-            prototype = category.get("prototype")
-            if prototype is not None:
-                similarity = self._calculate_similarity(query_embedding, prototype)
+        # Apply query type adaptation if available
+        adapted_params = context.get("adapted_retrieval_params", {})
+        confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
+        max_categories = adapted_params.get("max_categories", self.max_categories)
 
-                if similarity > best_similarity:
-                    best_similarity = similarity
-                    best_category_id = category_id
+        try:
+            # Get category similarities
+            category_similarities = category_manager.get_category_similarities(query_embedding)
 
-        # Get results
-        results = []
+            # If no categories, fall back to similarity retrieval
+            if len(category_similarities) == 0:
+                similarity_strategy = SimilarityRetrievalStrategy(memory)
+                if hasattr(similarity_strategy, "initialize"):
+                    similarity_strategy.initialize(
+                        {"confidence_threshold": self.confidence_threshold}
+                    )
+                return similarity_strategy.retrieve(query_embedding, top_k, context)
 
-        # If we found a good category match
-        if best_category_id >= 0 and best_similarity >= self.confidence_threshold:
-            # Get category members
-            category_members = self.category_manager.get_category_members(best_category_id)
+            # Select top categories with similarity above threshold
+            selected_categories = []
 
-            # Retrieve memories from this category
-            category_results = []
+            # Get category IDs
+            category_ids = list(category_manager.categories.keys())
 
-            # For each member, calculate similarity to query
-            for memory_id in category_members:
-                try:
-                    memory = self.memory.get(memory_id)
-                    similarity = self._calculate_similarity(query_embedding, memory.embedding)
+            # Sort category indices by similarity (descending)
+            sorted_indices = np.argsort(-category_similarities)
 
-                    if similarity >= self.confidence_threshold:
-                        category_results.append(
-                            {
-                                "memory_id": memory_id,
-                                "content": memory.content,
-                                "metadata": memory.metadata,
-                                "relevance_score": similarity
-                                * self.primary_boost_factor,  # Boost score
-                                "category_id": best_category_id,
-                                "retrieval_type": "category",
-                            }
-                        )
-                except Exception as e:
-                    logger.debug(f"Error retrieving memory {memory_id}: {e}")
+            for i in sorted_indices:
+                if (
+                    i < len(category_ids)
+                    and category_similarities[i] >= self.category_selection_threshold
+                ):
+                    selected_categories.append(category_ids[i])
+                if len(selected_categories) >= max_categories:
+                    break
+
+            # If no categories selected, use top N categories
+            if not selected_categories and len(category_similarities) > 0:
+                num_to_select = min(max_categories, len(category_similarities))
+                selected_categories = [category_ids[i] for i in sorted_indices[:num_to_select]]
+
+            # Get memories from selected categories
+            candidate_indices = []
+            for cat_idx in selected_categories:
+                cat_memories = category_manager.get_memories_for_category(cat_idx)
+                candidate_indices.extend(cat_memories)
+
+            # If no candidates, fall back to similarity retrieval
+            if not candidate_indices:
+                similarity_strategy = SimilarityRetrievalStrategy(memory)
+                if hasattr(similarity_strategy, "initialize"):
+                    similarity_strategy.initialize(
+                        {"confidence_threshold": self.confidence_threshold}
+                    )
+                return similarity_strategy.retrieve(query_embedding, top_k, context)
+
+            # Try to convert memory IDs to integers if they're stored as strings
+            memory_indices = []
+            for memory_id in candidate_indices:
+                if isinstance(memory_id, str) and memory_id.isdigit():
+                    memory_indices.append(int(memory_id))
+                elif isinstance(memory_id, (int, np.integer)):
+                    memory_indices.append(int(memory_id))
+                else:
+                    # Skip non-numeric IDs
                     continue
 
-            # Sort by relevance
-            category_results = sorted(
-                category_results, key=lambda x: x["relevance_score"], reverse=True
-            )[: self.max_category_results]
+            # Calculate similarities for candidate memories
+            # Access memory embeddings using integer indices
+            embeddings = []
+            valid_indices = []
 
-            # Add to results
-            results.extend(category_results)
+            # Get embeddings for valid memory indices
+            if hasattr(memory, "memory_embeddings"):
+                for idx in memory_indices:
+                    if 0 <= idx < len(memory.memory_embeddings):
+                        embeddings.append(memory.memory_embeddings[idx])
+                        valid_indices.append(idx)
 
-        # If we didn't get enough results, add general similarity results
-        if len(results) < top_k:
-            # Lower threshold for fallback search
-            fallback_threshold = self.confidence_threshold * self.fallback_threshold_factor
+            if not embeddings:
+                # Fall back to similarity if we couldn't get embeddings
+                similarity_strategy = SimilarityRetrievalStrategy(memory)
+                if hasattr(similarity_strategy, "initialize"):
+                    similarity_strategy.initialize(
+                        {"confidence_threshold": self.confidence_threshold}
+                    )
+                return similarity_strategy.retrieve(query_embedding, top_k, context)
 
-            # Check which IDs we already have to avoid duplicates
-            existing_ids = {r["memory_id"] for r in results}
+            # Calculate similarities
+            embeddings_array = np.array(embeddings)
+            candidate_similarities = np.dot(embeddings_array, query_embedding)
 
-            # General search with memory adapter
-            general_results = self._retrieve_by_similarity(
-                query_embedding, top_k=top_k * 2, confidence_threshold=fallback_threshold, **kwargs
-            )
+            # Apply activation boost if enabled
+            if self.activation_boost and hasattr(memory, "activation_levels"):
+                activation_levels = []
+                for idx in valid_indices:
+                    if idx < len(memory.activation_levels):
+                        activation_levels.append(memory.activation_levels[idx])
+                    else:
+                        activation_levels.append(1.0)  # Default activation
 
-            # Filter out duplicates
-            for result in general_results:
-                if result["memory_id"] not in existing_ids:
-                    results.append(result)
-                    existing_ids.add(result["memory_id"])
+                activation_array = np.array(activation_levels)
+                candidate_similarities = candidate_similarities * activation_array
 
-                    # Stop when we have enough
-                    if len(results) >= top_k:
-                        break
+            # Filter by confidence threshold
+            valid_candidates = np.where(candidate_similarities >= confidence_threshold)[0]
 
-        # Sort by relevance and limit to top_k
-        results = sorted(results, key=lambda x: x["relevance_score"], reverse=True)[:top_k]
+            # Apply minimum results guarantee if needed
+            if len(valid_candidates) == 0 and hasattr(self, "min_results") and self.min_results > 0:
+                # Sort all candidates by similarity
+                sorted_idx = np.argsort(-candidate_similarities)
+                # Take top min_results candidates regardless of threshold
+                valid_candidates = sorted_idx[: min(self.min_results, len(candidate_similarities))]
 
-        return results
+            if len(valid_candidates) == 0:
+                return []
 
-    def _retrieve_by_similarity(
-        self,
-        query_embedding: EmbeddingVector,
-        top_k: int,
-        confidence_threshold: float = 0.0,
-        **kwargs,
-    ) -> list[dict[str, Any]]:
-        """
-        Retrieve by embedding similarity.
-
-        Args:
-            query_embedding: Query embedding vector
-            top_k: Maximum number of results to return
-            confidence_threshold: Minimum similarity threshold
-            **kwargs: Additional retrieval arguments
-
-        Returns:
-            list of retrieval results
-        """
-        # Use memory store's retrieve_memories method if available
-        if hasattr(self.memory, "retrieve_memories"):
-            # Retrieve memories with embedding
-            retrieval_results = self.memory.retrieve_memories(
-                query_embedding, top_k=top_k, confidence_threshold=confidence_threshold, **kwargs
-            )
+            # Get top-k memories
+            top_k = min(top_k, len(valid_candidates))
+            top_memory_indices = np.argsort(-candidate_similarities[valid_candidates])[:top_k]
 
             # Format results
             results = []
-            for memory_id, score, _content in retrieval_results:
-                if score >= confidence_threshold:
-                    try:
-                        memory = self.memory.get(memory_id)
-                        results.append(
-                            {
-                                "memory_id": memory_id,
-                                "content": memory.content,
-                                "metadata": memory.metadata,
-                                "relevance_score": score,
-                                "retrieval_type": "similarity",
-                            }
-                        )
-                    except Exception as e:
-                        logger.debug(f"Error retrieving memory {memory_id}: {e}")
-                        continue
+            for i in top_memory_indices:
+                candidate_idx = valid_candidates[i]
+                memory_idx = valid_indices[candidate_idx]
+                similarity = candidate_similarities[candidate_idx]
+
+                # Get category for memory
+                try:
+                    memory_id = candidate_indices[valid_indices.index(memory_idx)]
+                    category_id = category_manager.get_category_for_memory(memory_id)
+
+                    # Get category similarity if possible
+                    if category_id in category_ids and category_ids.index(category_id) < len(
+                        category_similarities
+                    ):
+                        category_similarity = category_similarities[category_ids.index(category_id)]
+                    else:
+                        category_similarity = 0.0
+                except (IndexError, ValueError):
+                    # If we can't get the category, use defaults
+                    category_id = -1
+                    category_similarity = 0.0
+
+                # Update memory activation
+                if hasattr(memory, "update_activation"):
+                    memory.update_activation(memory_idx)
+
+                # Extract metadata
+                metadata = {}
+                if hasattr(memory, "memory_metadata") and memory_idx < len(memory.memory_metadata):
+                    metadata = memory.memory_metadata[memory_idx]
+
+                # Create result
+                result = {
+                    "memory_id": memory_idx,
+                    "relevance_score": float(similarity),
+                    "category_id": int(category_id),
+                    "category_similarity": float(category_similarity),
+                    "below_threshold": similarity < confidence_threshold,
+                }
+
+                # Add metadata
+                if metadata:
+                    result.update(metadata)
+
+                # Add to results
+                results.append(result)
 
             return results
 
-        # Fallback: Direct similarity calculation
-        else:
-            # Get all memories
-            all_memories = self.memory.get_all()
+        except Exception as e:
+            # On any error, fall back to similarity retrieval
+            import logging
 
-            # Calculate similarities
-            results = []
-            for memory in all_memories:
-                similarity = self._calculate_similarity(query_embedding, memory.embedding)
+            logging.warning(
+                f"Category retrieval failed with error: {str(e)}. Falling back to similarity retrieval."
+            )
 
-                if similarity >= confidence_threshold:
-                    results.append(
-                        {
-                            "memory_id": memory.id,
-                            "content": memory.content,
-                            "metadata": memory.metadata,
-                            "relevance_score": similarity,
-                            "retrieval_type": "similarity",
-                        }
-                    )
-
-            # Sort by relevance and limit to top_k
-            results = sorted(results, key=lambda x: x["relevance_score"], reverse=True)[:top_k]
-
-            return results
-
-    def _calculate_similarity(self, vec1: EmbeddingVector, vec2: EmbeddingVector) -> float:
-        """Calculate cosine similarity between two vectors."""
-        dot_product = np.dot(vec1, vec2)
-        norm1 = np.linalg.norm(vec1)
-        norm2 = np.linalg.norm(vec2)
-
-        if norm1 == 0 or norm2 == 0:
-            return 0.0
-
-        return float(dot_product / (norm1 * norm2))
+            similarity_strategy = SimilarityRetrievalStrategy(memory)
+            if hasattr(similarity_strategy, "initialize"):
+                similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
+            return similarity_strategy.retrieve(query_embedding, top_k, context)

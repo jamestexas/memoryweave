@@ -32,7 +32,7 @@ class CategoryManager(MemoryComponent):
 
     def __init__(
         self,
-        memory_store: BaseMemoryStore | None = None,
+        memory_store: Optional[BaseMemoryStore] = None,
         core_manager: Optional["CategoryManager"] = None,
         embedding_dim: int = 768,
         vigilance_threshold: float = 0.8,
@@ -42,7 +42,6 @@ class CategoryManager(MemoryComponent):
     ):
         """Initialize the category manager."""
         self.memory_store = memory_store
-        self.core_manager = core_manager
         self.categories: dict[int, dict[str, Any]] = {}
         self.memory_to_category: dict[MemoryID, int] = {}
         self.next_category_id = 0
@@ -58,6 +57,12 @@ class CategoryManager(MemoryComponent):
         self.component_id = "category_manager"
         self.enable_category_consolidation = enable_category_consolidation
 
+        # For the core_manager attribute, if one is provided use it, otherwise set to self
+        if core_manager is not None:
+            self.core_manager = core_manager
+        else:
+            self.core_manager = self
+
         # Statistics tracking
         self.stats = {
             "total_categorized": 0,
@@ -65,6 +70,7 @@ class CategoryManager(MemoryComponent):
             "memories_reassigned": 0,
             "categories_consolidated": 0,
             "last_consolidation": 0,
+            "num_categories": 0,  # Add explicitly for test compatibility
         }
 
     def initialize(self, config: dict[str, Any]) -> None:
@@ -252,7 +258,7 @@ class CategoryManager(MemoryComponent):
             )
             self.categories[category_id]["last_activated"] = time.time()
 
-    def consolidate_categories(self, threshold: float | None = None) -> int:
+    def consolidate_categories(self, threshold: Optional[float] = None) -> int:
         """
         Merge similar categories to keep the number manageable.
 
@@ -314,6 +320,8 @@ class CategoryManager(MemoryComponent):
                 self.stats["categories_consolidated"] += 1
 
         self.stats["last_consolidation"] = time.time()
+        # Update num_categories for stats
+        self.stats["num_categories"] = len(self.categories)
         return len(self.categories)
 
     def recategorize(self, memory_id: MemoryID, embedding: EmbeddingVector) -> int:
@@ -364,7 +372,7 @@ class CategoryManager(MemoryComponent):
         # Add dynamic statistics
         stats.update(
             {
-                "total_categories": len(self.categories),
+                "num_categories": len(self.categories),
                 "average_category_size": sum(
                     len(cat["members"]) for cat in self.categories.values()
                 )
@@ -396,10 +404,12 @@ class CategoryManager(MemoryComponent):
         }
 
         self.memory_to_category[memory_id] = category_id
+        # Update num_categories for stats
+        self.stats["num_categories"] = len(self.categories)
         return category_id
 
     def _update_category_prototype(
-        self, category_id: int, new_embedding: EmbeddingVector | None = None
+        self, category_id: int, new_embedding: Optional[EmbeddingVector] = None
     ) -> None:
         """Update a category's prototype vector."""
         category = self.categories[category_id]
@@ -471,6 +481,8 @@ class CategoryManager(MemoryComponent):
         # Remove secondary category
         del self.categories[secondary_id]
 
+        # Update num_categories for stats
+        self.stats["num_categories"] = len(self.categories)
         return primary_id
 
     def _calculate_similarity(
