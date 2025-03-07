@@ -14,7 +14,7 @@ from memoryweave.interfaces.retrieval import (
     RetrievalParameters,
     RetrievalResult,
 )
-from memoryweave.storage.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import StandardMemoryStore
 from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
 
@@ -23,7 +23,7 @@ class TwoStageRetrievalStrategy(IRetrievalStrategy):
 
     def __init__(
         self,
-        memory_store: BaseMemoryStore,
+        memory_store: StandardMemoryStore,
         vector_store: IVectorSearchProvider,
         first_stage_strategy: Optional[IRetrievalStrategy] = None,
         second_stage_strategy: Optional[IRetrievalStrategy] = None,

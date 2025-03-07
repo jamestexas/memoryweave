@@ -7,8 +7,6 @@ from importlib.util import find_spec
 import numpy as np
 from rich.logging import RichHandler
 
-from memoryweave.benchmarks.utils.perf_timer import timer
-
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -43,11 +41,9 @@ def determine_optimal_workers() -> int:
         return 4
 
 
-@timer
 class RetrievalOrchestrator:
     """Orchestrates the memory retrieval process with parallel processing."""
 
-    @timer()
     def __init__(
         self,
         strategy,
@@ -86,7 +82,6 @@ class RetrievalOrchestrator:
         self.query_cache = {}
         self.cache_stats = {"hits": 0, "misses": 0, "last_query_time": 0}
 
-    @timer("memory_search")
     def retrieve(
         self,
         query_embedding,

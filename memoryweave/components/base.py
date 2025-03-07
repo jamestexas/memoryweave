@@ -63,7 +63,10 @@ class RetrievalStrategy(RetrievalComponent):
         if query_embedding is None:
             embedding_model = context.get("embedding_model")
             if embedding_model:
-                query_embedding = embedding_model.encode(query)
+                query_embedding = embedding_model.encode(
+                    query,
+                    show_progress_bar=context.get("show_progress_bar", False),
+                )
 
         # If still no query embedding, return empty results
         if query_embedding is None:

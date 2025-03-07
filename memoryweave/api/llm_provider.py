@@ -4,7 +4,6 @@ import torch
 from rich.logging import RichHandler
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.utils import _get_device
 
 logging.basicConfig(
@@ -53,7 +52,6 @@ class LLMProvider:
         )
         logging.debug("After instantiating LLM")
 
-    @timer("llm_inference")
     def generate(self, prompt, max_new_tokens=512, **kwargs):
         """Generate a response."""
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)

@@ -5,9 +5,6 @@ import numpy as np
 
 from memoryweave.components.base import RetrievalStrategy
 
-# Remove the import from core
-# from memoryweave.core import ContextualMemory
-
 
 class SimilarityRetrievalStrategy(RetrievalStrategy):
     """
@@ -94,14 +91,16 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         formatted_results = []
         for idx, score, metadata in results:
             # Add all results but mark if they're below threshold
-            formatted_results.append(
-                {
-                    "memory_id": idx,
-                    "relevance_score": score,
-                    "below_threshold": score < confidence_threshold,
-                    **metadata,
-                }
-            )
+            result = {
+                "memory_id": idx,
+                "relevance_score": score,
+                "below_threshold": score < confidence_threshold,
+                # Always add category fields for compatibility with CategoryRetrievalStrategy
+                "category_id": -1,
+                "category_similarity": 0.0,
+                **metadata,
+            }
+            formatted_results.append(result)
 
         return formatted_results
 

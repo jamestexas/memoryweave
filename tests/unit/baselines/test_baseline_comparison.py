@@ -8,14 +8,14 @@ import tempfile
 import numpy as np
 import pytest
 
-from memoryweave.baselines import BM25Retriever, VectorBaselineRetriever
+from memoryweave.baselines import BaselineRetriever, BM25Retriever, VectorBaselineRetriever
 from memoryweave.evaluation.baseline_comparison import (
     BaselineComparison,
     BaselineConfig,
     ComparisonResult,
 )
 from memoryweave.interfaces.memory import Memory
-from memoryweave.interfaces.retrieval import Query, QueryType, RetrievalParameters, RetrievalResult
+from memoryweave.interfaces.retrieval import Query, QueryType
 
 
 class MockMemoryManager:
@@ -30,51 +30,57 @@ class MockMemoryManager:
         return self.memories
 
 
-class MockRetriever:
-    """Mock retrieval strategy for testing."""
+# TODO: This is fragile and only works for simple retrieval logic
+class MockRetriever(BaselineRetriever):
+    """Mock retriever for testing."""
 
-    def __init__(self, memories: list[Memory], name: str = "mock_retriever"):
-        """Initialize with pre-defined memories and name."""
+    def __init__(self, memories, name="mock"):
+        """Initialize with memories."""
         self.memories = memories
         self.name = name
 
-    def retrieve(
-        self, query: Query, top_k: int = 10, threshold: float = 0.0, **kwargs
-    ) -> RetrievalResult:
-        """Mock retrieval that matches memories containing query terms."""
-        query_terms = set(query.text.lower().split())
+    def retrieve(self, query, top_k=5, threshold=0.0):
+        """Mock retrieval method."""
+        # Simple retrieval logic for testing
+        # Return memories sorted by query embedding similarity
+        query_embedding = query.embedding
 
-        matches = []
-        scores = []
+        if not query_embedding.any():
+            return {"memories": [], "scores": []}
 
+        similarities = []
         for memory in self.memories:
-            memory_text = memory.content["text"]
-            memory_terms = set(memory_text.lower().split())
+            # Calculate cosine similarity
+            similarity = np.dot(memory.embedding, query_embedding) / (
+                np.linalg.norm(memory.embedding) * np.linalg.norm(query_embedding)
+            )
+            similarities.append((memory, similarity))
 
-            # Simple term overlap scoring
-            overlap = query_terms.intersection(memory_terms)
-            if overlap:
-                score = len(overlap) / len(query_terms)
-                if score >= threshold:
-                    matches.append(memory)
-                    scores.append(score)
+        # Sort by similarity
+        similarities.sort(key=lambda x: x[1], reverse=True)
 
-        # Sort by score and take top_k
-        sorted_pairs = sorted(zip(matches, scores), key=lambda pair: pair[1], reverse=True)
-        sorted_pairs = sorted_pairs[:top_k]
+        # Apply threshold filtering
+        filtered_similarities = [(mem, sim) for mem, sim in similarities if sim >= threshold]
 
-        if sorted_pairs:
-            matches, scores = zip(*sorted_pairs)
-        else:
-            matches, scores = [], []
+        # Take top k
+        top_memories = [mem for mem, _ in filtered_similarities[:top_k]]
+        top_scores = [score for _, score in filtered_similarities[:top_k]]
 
-        return RetrievalResult(
-            memories=list(matches),
-            scores=list(scores),
-            strategy=self.name,
-            parameters=RetrievalParameters(max_results=top_k, threshold=threshold),
-            metadata={"query_time": 0.001},
-        )
+        # Return both memories and scores in the expected format
+        return {"memories": top_memories, "scores": top_scores}
+
+    def get_statistics(self):
+        """Mock implementation of get_statistics."""
+        return {
+            "name": self.name,
+            "memory_count": len(self.memories),
+            "retrieval_method": "mock_similarity",
+        }
+
+    def index_memories(self, memories):
+        """Mock implementation of index_memories."""
+        self.memories = memories
+        return len(memories)  # Return number of indexed memories
 
 
 @pytest.fixture

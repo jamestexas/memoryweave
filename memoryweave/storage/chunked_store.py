@@ -6,7 +6,6 @@ from typing import Any
 import numpy as np
 
 from memoryweave.interfaces.memory import EmbeddingVector, Memory, MemoryID
-from memoryweave.storage.base_store import BaseMemoryStore
 from memoryweave.storage.memory_store import StandardMemoryStore
 
 
@@ -25,7 +24,7 @@ class ChunkInfo:
             self.metadata = {}
 
 
-class ChunkedMemoryStore(BaseMemoryStore):
+class ChunkedMemoryStore(StandardMemoryStore):
     """
     Memory store that supports chunking of text content.
 

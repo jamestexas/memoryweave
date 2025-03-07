@@ -14,26 +14,26 @@ import argparse
 import json
 import logging
 import os
-import random
+import secrets
 import time
 from datetime import datetime, timedelta
 
 import numpy as np
-from rich.console import Console
-from rich.panel import Panel
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
-from rich.table import Table
-
-# Import MemoryWeave components
-from memoryweave.api.llm_provider import LLMProvider
-from memoryweave.benchmarks.retrieval_benchmark import (
+from retrieval_benchmark import (
     BM25Retriever,
     MemoryWeaveRAM,
     StandardRAG,
     VectorSimilarityRetriever,
     get_memory_usage,
 )
-from memoryweave.benchmarks.utils.perf_timer import PerformanceTimer, timer
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.table import Table
+from utils.perf_timer import PerformanceTimer, timer
+
+# Import MemoryWeave components
+from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.components.retriever import _get_embedder
 
 # Setup logging and console
@@ -250,7 +250,7 @@ def generate_large_collection(size=100):
     ]
 
     for i in range(5, size):
-        topic = random.choice(filler_topics)
+        topic = secrets.choice(filler_topics)
         doc = f"Document {i} about {topic}. This is a filler document with information about {topic}. It contains common terms and phrases related to {topic}."
         documents.append(doc)
 
