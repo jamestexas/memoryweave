@@ -17,7 +17,7 @@ import numpy as np
 from memoryweave.components.base import Component, MemoryComponent
 from memoryweave.components.component_names import ComponentName
 from memoryweave.interfaces.memory import MemoryID
-from memoryweave.storage.refactored.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import BaseMemoryStore
 
 
 class AssociativeMemoryLinker(MemoryComponent):

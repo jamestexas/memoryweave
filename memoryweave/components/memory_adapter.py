@@ -32,8 +32,8 @@ class MemoryAdapter(MemoryComponent):
 
         # If no memory provided, use the refactored memory store
         if self.memory is None:
-            from memoryweave.storage.refactored.adapter import MemoryAdapter as RefactoredAdapter
-            from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+            from memoryweave.storage.adapter import MemoryAdapter as RefactoredAdapter
+            from memoryweave.storage.memory_store import StandardMemoryStore
 
             memory_store = StandardMemoryStore()
             self.memory = RefactoredAdapter(memory_store)

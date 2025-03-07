@@ -7,10 +7,10 @@ from typing import Any
 
 from memoryweave.components.memory_encoding import MemoryEncoder
 from memoryweave.interfaces.memory import IMemoryStore
-from memoryweave.storage.refactored.adapter import MemoryAdapter
-from memoryweave.storage.refactored.chunked_store import ChunkedMemoryStore
-from memoryweave.storage.refactored.hybrid_store import HybridMemoryStore
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.adapter import MemoryAdapter
+from memoryweave.storage.chunked_store import ChunkedMemoryStore
+from memoryweave.storage.hybrid_store import HybridMemoryStore
+from memoryweave.storage.memory_store import StandardMemoryStore
 from memoryweave.storage.vector_search import create_vector_search_provider
 
 

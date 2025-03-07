@@ -14,7 +14,7 @@ import numpy as np
 
 from memoryweave.components.base import MemoryComponent
 from memoryweave.interfaces.memory import EmbeddingVector, MemoryID
-from memoryweave.storage.refactored.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import BaseMemoryStore
 
 logger = logging.getLogger(__name__)
 

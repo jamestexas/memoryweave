@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer
 
 from memoryweave.components.category_manager import CategoryManager
 from memoryweave.components.memory_encoding import MemoryEncoder
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.memory_store import StandardMemoryStore
 
 # Create components
 embedding_model = SentenceTransformer("sentence-transformers/paraphrase-MiniLM-L6-v2")

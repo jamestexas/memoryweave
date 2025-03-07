@@ -12,8 +12,8 @@ from typing import Optional
 import numpy as np
 
 from memoryweave.components.category_manager import CategoryManager
-from memoryweave.storage.refactored.adapter import MemoryAdapter
-from memoryweave.storage.refactored.memory_store import StandardMemoryStore
+from memoryweave.storage.adapter import MemoryAdapter
+from memoryweave.storage.memory_store import StandardMemoryStore
 from memoryweave.storage.vector_search import create_vector_search_provider
 
 logger = logging.getLogger(__name__)

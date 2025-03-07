@@ -6,8 +6,8 @@ from typing import Any
 import numpy as np
 
 from memoryweave.interfaces.memory import EmbeddingVector, MemoryID
-from memoryweave.storage.refactored.adapter import MemoryAdapter
-from memoryweave.storage.refactored.hybrid_store import HybridMemoryStore
+from memoryweave.storage.adapter import MemoryAdapter
+from memoryweave.storage.hybrid_store import HybridMemoryStore
 
 logger = logging.getLogger(__name__)
 

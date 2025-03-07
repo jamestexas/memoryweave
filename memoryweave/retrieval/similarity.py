@@ -14,7 +14,7 @@ from memoryweave.interfaces.retrieval import (
     RetrievalParameters,
     RetrievalResult,
 )
-from memoryweave.storage.refactored.base_store import BaseMemoryStore
+from memoryweave.storage.base_store import BaseMemoryStore
 from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
 
