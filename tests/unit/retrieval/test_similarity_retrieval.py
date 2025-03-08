@@ -1,3 +1,4 @@
+# ruff: noqa: S101
 """
 Tests for the SimilarityRetrievalStrategy.
 """
@@ -8,123 +9,121 @@ import numpy as np
 import pytest
 
 from memoryweave.components.retrieval_strategies_impl import SimilarityRetrievalStrategy
-from memoryweave.interfaces.memory import IMemoryStore, IVectorStore
+from memoryweave.interfaces.memory import IMemoryStore
 
 
-class TestSimilarityRetrievalStrategy:
-    """Test suite for the SimilarityRetrievalStrategy class."""
+@pytest.fixture
+def mock_memory_store():
+    """Fixture to create a mock memory store."""
+    mock_store = MagicMock(spec=IMemoryStore)
 
-    @pytest.fixture
-    def mock_memory_store(self):
-        """Create a mock memory store."""
-        mock_store = MagicMock(spec=IMemoryStore)
+    def mock_get(memory_id):
+        from memoryweave.interfaces.memory import Memory
 
-        # Configure the mock to return test data
-        def mock_get(memory_id):
-            from memoryweave.interfaces.memory import Memory
-
-            return Memory(
-                id=memory_id,
-                embedding=np.array([0.1, 0.2, 0.3]),
-                content={"text": f"Memory {memory_id}"},
-                metadata={"source": "test", "importance": 0.8},
-            )
-
-        mock_store.get.side_effect = mock_get
-        return mock_store
-
-    @pytest.fixture
-    def mock_vector_store(self):
-        """Create a mock vector store."""
-        mock_store = MagicMock(spec=IVectorStore)
-
-        # Configure the mock to return test search results
-        def mock_search(query_vector, k, threshold=None):
-            return [("memory1", 0.95), ("memory2", 0.85), ("memory3", 0.75)][:k]
-
-        mock_store.search.side_effect = mock_search
-        return mock_store
-
-    def test_init(self, mock_memory_store, mock_vector_store):
-        """Test initialization of strategy."""
-        strategy = SimilarityRetrievalStrategy(mock_memory_store, mock_vector_store)
-
-        assert strategy._memory_store == mock_memory_store
-        assert strategy._vector_store == mock_vector_store
-        assert strategy._default_params["similarity_threshold"] == 0.6
-        assert strategy._default_params["max_results"] == 10
-
-    def test_retrieve_basic(self, mock_memory_store, mock_vector_store):
-        """Test basic retrieval functionality."""
-        strategy = SimilarityRetrievalStrategy(mock_memory_store, mock_vector_store)
-
-        # Create query embedding
-        query_embedding = np.array([0.1, 0.2, 0.3])
-
-        # Retrieve memories
-        results = strategy.retrieve(query_embedding)
-
-        # Verify the correct methods were called
-        mock_vector_store.search.assert_called_once()
-
-        # Check call arguments more carefully
-        assert mock_vector_store.search.call_args, "Vector search not appropriately called"
-        # Check that search was called with the right arguments
-        mock_vector_store.search.assert_called_with(
-            query_vector=query_embedding, k=10, threshold=0.6
+        return Memory(
+            id=memory_id,
+            embedding=np.array([0.1, 0.2, 0.3]),
+            content={"text": f"Memory {memory_id}"},
+            metadata={"source": "test", "importance": 0.8},
         )
 
-        # Verify the correct memories were retrieved
-        assert len(results) == 3
-        assert results[0]["memory_id"] == "memory1"
-        assert results[0]["relevance_score"] == 0.95
-        assert results[0]["content"] == "Memory memory1"
+    def mock_retrieve_memories(
+        query_embedding,
+        top_k=10,
+        confidence_threshold=0.0,
+        activation_boost=True,
+    ):
+        # Return tuple of (memory_id, score, metadata)
+        return [
+            ("memory1", 0.95, {"content": "Memory memory1", "source": "test"}),
+            ("memory2", 0.85, {"content": "Memory memory2", "source": "test"}),
+            ("memory3", 0.75, {"content": "Memory memory3", "source": "test"}),
+        ][:top_k]
 
-        # Check all memories were retrieved via memory_store.get
-        assert mock_memory_store.get.call_count == 3
+    mock_store.get.side_effect = mock_get
+    mock_store.retrieve_memories.side_effect = mock_retrieve_memories
+    return mock_store
 
-    def test_retrieve_with_parameters(self, mock_memory_store, mock_vector_store):
-        """Test retrieval with custom parameters."""
-        strategy = SimilarityRetrievalStrategy(mock_memory_store, mock_vector_store)
 
-        # Create query embedding
-        query_embedding = np.array([0.1, 0.2, 0.3])
+def test_init(mock_memory_store):
+    """Test initialization of the strategy."""
+    strategy = SimilarityRetrievalStrategy(mock_memory_store)
+    assert strategy.memory is mock_memory_store, "Memory store should be assigned correctly"
+    for attr in ("confidence_threshold", "activation_boost", "min_results"):
+        assert hasattr(strategy, attr), f"Strategy missing attribute: {attr}"
 
-        # Custom parameters
-        parameters = {"similarity_threshold": 0.8, "max_results": 2}
 
-        # Retrieve memories
-        results = strategy.retrieve(query_embedding, parameters)
+def test_initialize(mock_memory_store):
+    """Test initializing the strategy with configuration."""
+    strategy = SimilarityRetrievalStrategy(mock_memory_store)
+    config = {
+        "confidence_threshold": 0.7,
+        "activation_boost": False,
+        "min_results": 5,
+    }
+    strategy.initialize(config=config)
+    assert strategy.confidence_threshold == 0.7, "Confidence threshold not set correctly"
+    assert strategy.activation_boost is False, "Activation boost not set correctly"
+    assert strategy.min_results == 5, "Min results not set correctly"
 
-        # Verify the correct parameters were used
-        mock_vector_store.search.assert_called_once()
 
-        # Check that search was called with the right arguments
-        mock_vector_store.search.assert_called_with(
-            query_vector=query_embedding, k=2, threshold=0.8
-        )
+def test_retrieve_basic(mock_memory_store):
+    """Test basic retrieval functionality."""
+    strategy = SimilarityRetrievalStrategy(mock_memory_store)
+    query_embedding = np.array([0.1, 0.2, 0.3])
+    context = {"memory": mock_memory_store}
+    results = strategy.retrieve(query_embedding, 3, context)
 
-        # Verify the correct number of results
-        assert len(results) == 2
+    mock_memory_store.retrieve_memories.assert_called_once_with(
+        query_embedding=query_embedding,
+        top_k=3,
+        confidence_threshold=0.0,
+        activation_boost=True,
+    )
 
-    def test_configure(self, mock_memory_store, mock_vector_store):
-        """Test configuring the strategy."""
-        strategy = SimilarityRetrievalStrategy(mock_memory_store, mock_vector_store)
+    assert len(results) == 3, "Expected 3 results"
+    first_result = results[0]
+    assert first_result["memory_id"] == "memory1", "First result memory_id mismatch"
+    assert first_result["relevance_score"] == 0.95, "First result relevance_score mismatch"
+    assert first_result["content"] == "Memory memory1", "First result content mismatch"
 
-        # Initial defaults
-        assert strategy._default_params["similarity_threshold"] == 0.6
-        assert strategy._default_params["max_results"] == 10
 
-        # Configure with new defaults
-        strategy.configure({"similarity_threshold": 0.7, "max_results": 5})
+def test_retrieve_with_parameters(mock_memory_store):
+    """Test retrieval with custom parameters."""
+    strategy = SimilarityRetrievalStrategy(mock_memory_store)
+    strategy.initialize({"confidence_threshold": 0.3})
+    query_embedding = np.array([0.1, 0.2, 0.3])
+    context = {
+        "memory": mock_memory_store,
+        "adapted_retrieval_params": {"confidence_threshold": 0.8},
+    }
+    results = strategy.retrieve(query_embedding, 2, context)
 
-        # Verify updated defaults
-        assert strategy._default_params["similarity_threshold"] == 0.7
-        assert strategy._default_params["max_results"] == 5
+    mock_memory_store.retrieve_memories.assert_called_once_with(
+        query_embedding=query_embedding,
+        top_k=2,
+        confidence_threshold=0.8,
+        activation_boost=True,
+    )
 
-        # Configure with partial update
-        strategy.configure({"similarity_threshold": 0.8})
+    assert len(results) == 2, "Expected 2 results"
 
-        # Verify partially updated defaults
-        assert strategy._default_params["similarity_threshold"] == 0.8
-        assert strategy._default_params["max_results"] == 5
+
+def test_process_query(mock_memory_store):
+    """Test the process_query method."""
+    strategy = SimilarityRetrievalStrategy(mock_memory_store)
+    query = "test query"
+    query_embedding = np.array([0.1, 0.2, 0.3])
+    context = {"query_embedding": query_embedding, "memory": mock_memory_store, "top_k": 3}
+    result = strategy.process_query(query, context)
+
+    assert "results" in result, "Result should contain 'results' key"
+    results = result["results"]
+    assert len(results) == 3, "Expected 3 results in processed query"
+    first_result = results[0]
+    assert first_result["memory_id"] == "memory1", (
+        "First result memory_id mismatch in processed query"
+    )
+    assert first_result["relevance_score"] == 0.95, (
+        "First result relevance_score mismatch in processed query"
+    )
