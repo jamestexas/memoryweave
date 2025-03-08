@@ -38,9 +38,10 @@ class TestAssociativeMemoryLinker:
     def linker(self, memory_store):
         """Create an associative memory linker for testing."""
         linker = AssociativeMemoryLinker(memory_store)
+        # Make sure this threshold isn't too high
         linker.initialize(
             {
-                "similarity_threshold": 0.5,
+                "similarity_threshold": 0.5,  # Maybe lower this to 0.4 for testing
                 "temporal_weight": 0.3,
                 "semantic_weight": 0.7,
             }
@@ -103,6 +104,11 @@ class TestAssociativeMemoryLinker:
         # Rebuild links
         linker._rebuild_all_links()
 
+        # Print the actual link structure for debugging
+        print("\nDEBUG - Associative Links:")
+        for key, value in linker.associative_links.items():
+            print(f"Memory {key} links: {value}")
+
         # Verify all memories have links
         for memory_id in range(4):  # 4 test memories
             assert memory_id in linker.associative_links
@@ -110,10 +116,12 @@ class TestAssociativeMemoryLinker:
         # Check specific linking patterns:
         # Memory 0 should link to memory 1 (similar)
         links_0 = linker.associative_links.get(0, [])
+        print(f"\nDEBUG - Memory 0 links: {links_0}")
         assert any(mem_id == 1 for mem_id, _ in links_0)
 
         # Memory 2 should link to memory 3 (similar)
         links_2 = linker.associative_links.get(2, [])
+        print(f"\nDEBUG - Memory 2 links: {links_2}")
         assert any(mem_id == 3 for mem_id, _ in links_2)
 
         # Memory 0 should not strongly link to memory 2 (very different)
