@@ -38,6 +38,31 @@ class QueryTypeAdapter(RetrievalComponent):
         self.default_first_stage_threshold_factor = config.get("first_stage_threshold_factor", 0.7)
         self.default_keyword_boost_weight = config.get("keyword_boost_weight", 0.5)
 
+    def process(self, input_data: Any) -> Any:
+        """
+        Process the input data as a pipeline stage.
+
+        This method provides backward compatibility with the IQueryAdapter interface.
+
+        Args:
+            input_data: Input data to process
+
+        Returns:
+            Processed data
+        """
+        # If input is a Query object, adapt it
+        if hasattr(input_data, "query_type"):
+            # Adapt parameters
+            params = self.adapt_parameters(input_data)
+
+            # Return the query with adapted parameters
+            result = dict(input_data)
+            result["parameters"] = params
+            return result
+
+        # Otherwise pass through
+        return input_data
+
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """
         Process a query to adapt retrieval parameters.
@@ -82,16 +107,16 @@ class QueryTypeAdapter(RetrievalComponent):
             logger.debug(
                 f"[QueryTypeAdapter.process_query] Skipping - query type adaptation not enabled for config '{config_name}'"
             )
-            default_params = {
-                "adapted_retrieval_params": {
-                    "confidence_threshold": self.default_confidence_threshold,
-                    "adaptive_k_factor": self.default_adaptive_k_factor,
-                    "first_stage_k": self.default_first_stage_k,
-                    "first_stage_threshold_factor": self.default_first_stage_threshold_factor,
-                    "keyword_boost_weight": self.default_keyword_boost_weight,
-                    "adapted_by_query_type": False,
-                }
-            }
+            default_params = dict(
+                adapter_retrieval_params=dict(
+                    confidence_threshold=self.default_confidence_threshold,
+                    adaptive_k_factor=self.default_adaptive_k_factor,
+                    first_stage_k=self.default_first_stage_k,
+                    first_stage_threshold_factor=self.default_first_stage_threshold_factor,
+                    keyword_boost_weight=self.default_keyword_boost_weight,
+                    adapted_by_query_type=False,
+                )
+            )
             logger.debug(
                 f"[QueryTypeAdapter.process_query] Returning default params: {default_params}"
             )

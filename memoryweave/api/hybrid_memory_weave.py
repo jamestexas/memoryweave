@@ -267,9 +267,9 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 self._components[name].initialize()
 
             elif name == "query_analyzer":
-                from memoryweave.query.analyzer import SimpleQueryAnalyzer
+                from memoryweave.components.query_analysis import QueryAnalyzer
 
-                self._components[name] = SimpleQueryAnalyzer()
+                self._components[name] = QueryAnalyzer()
                 self._components[name].initialize(
                     {
                         "min_keyword_length": 3,

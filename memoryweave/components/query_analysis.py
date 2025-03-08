@@ -2,6 +2,7 @@
 from typing import Any
 
 from memoryweave.components.base import RetrievalComponent
+from memoryweave.interfaces.retrieval import QueryType
 from memoryweave.nlp.extraction import NLPExtractor
 
 
@@ -211,3 +212,84 @@ class QueryAnalyzer(RetrievalComponent):
             recommendations["expand_keywords"] = False  # Don't expand keywords
 
         return recommendations
+
+    def analyze(self, query_text: str) -> QueryType:
+        """
+        Analyze a query to determine its type.
+
+        This method provides backward compatibility with SimpleQueryAnalyzer.
+
+        Args:
+            query_text: The query text to analyze
+
+        Returns:
+            Query type (PERSONAL, FACTUAL, etc.)
+        """
+        # Process query to get query types
+        result = self.process_query(query_text, {})
+
+        # Map the primary_query_type string to QueryType enum
+        primary_type = result.get("primary_query_type", "unknown")
+
+        # Map string type to QueryType enum
+        type_mapping = {
+            "personal": QueryType.PERSONAL,
+            "factual": QueryType.FACTUAL,
+            "temporal": QueryType.TEMPORAL,
+            "conceptual": QueryType.CONCEPTUAL,
+            "historical": QueryType.HISTORICAL,
+            "unknown": QueryType.UNKNOWN,
+        }
+
+        return type_mapping.get(primary_type, QueryType.UNKNOWN)
+
+    def extract_keywords(self, query_text: str) -> list[str]:
+        """
+        Extract keywords from a query.
+
+        This method provides backward compatibility with SimpleQueryAnalyzer.
+
+        Args:
+            query_text: The query text to extract keywords from
+
+        Returns:
+            List of extracted keywords
+        """
+        # Use NLP extractor to extract keywords
+        if hasattr(self, "nlp_extractor") and self.nlp_extractor:
+            keywords = self.nlp_extractor.extract_important_keywords(query_text)
+            return list(keywords)
+
+        # Return empty list if extraction fails
+        return []
+
+    def extract_entities(self, query_text: str) -> list[str]:
+        """
+        Extract entities from a query.
+
+        This method provides backward compatibility with SimpleQueryAnalyzer.
+
+        Args:
+            query_text: The query text to extract entities from
+
+        Returns:
+            List of extracted entities
+        """
+        # Use NLP extractor to extract entities
+        if hasattr(self, "nlp_extractor") and self.nlp_extractor:
+            return self.nlp_extractor.extract_entities(query_text)
+
+        # Return empty list if extraction fails
+        return []
+
+    def configure(self, config: dict[str, Any]) -> None:
+        """
+        Configure the query analyzer.
+
+        This method provides backward compatibility with SimpleQueryAnalyzer.
+
+        Args:
+            config: Configuration dictionary
+        """
+        # Delegate to initialize
+        self.initialize(config)
