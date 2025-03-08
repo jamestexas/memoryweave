@@ -1,7 +1,6 @@
 """Vector search implementations for MemoryWeave."""
 
 from importlib.util import find_spec
-from typing import Any, Optional
 
 from memoryweave.storage.vector_search.base import IVectorSearchProvider
 

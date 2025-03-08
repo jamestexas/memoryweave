@@ -4,9 +4,11 @@ This module provides implementations of retrieval strategies that combine
 multiple approaches such as similarity and temporal factors.
 """
 
+import logging
 from typing import Any, Optional
 
 import numpy as np
+from rich.logging import RichHandler
 
 from memoryweave.interfaces.memory import (
     EmbeddingVector,
@@ -19,6 +21,9 @@ from memoryweave.interfaces.retrieval import (
     RetrievalParameters,
     RetrievalResult,
 )
+
+logging.basicConfig(level="INFO", handlers=[RichHandler(markup=True)])
+logger = logging.getLogger("memoryweave")
 
 
 class HybridRetrievalStrategy(IRetrievalStrategy):
@@ -176,7 +181,8 @@ class HybridRetrievalStrategy(IRetrievalStrategy):
                     if query_norm > 0 and memory_norm > 0:
                         similarity = np.dot(query_embedding, embedding) / (query_norm * memory_norm)
                         similarity_scores[memory_id] = similarity
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Error calculating similarity for memory {memory_id}: {e}")
                     pass  # Skip memories with missing or invalid embeddings
 
             # Sort by similarity

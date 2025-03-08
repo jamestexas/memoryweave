@@ -912,7 +912,7 @@ class UnifiedRetrievalBenchmark:
                 summary[system]["accuracy"].append(stats.get("accuracy", 0))
 
         # Calculate averages
-        for system, metrics in summary.items():
+        for _system, metrics in summary.items():
             total_queries = metrics["total_queries"]
             if total_queries > 0:
                 metrics["avg_time"] = metrics["total_time"] / total_queries
@@ -1092,12 +1092,8 @@ class UnifiedRetrievalBenchmark:
 
             # Create grouped bars
             ax2.bar(r1, times, width=bar_width, label="Total", color="#5DA5DA")
-            ax2.bar(
-                r2, retrieval_times, width=bar_width, label="Retrieval", color="#FAA43A"
-            )
-            ax2.bar(
-                r3, inference_times, width=bar_width, label="Inference", color="#60BD68"
-            )
+            ax2.bar(r2, retrieval_times, width=bar_width, label="Retrieval", color="#FAA43A")
+            ax2.bar(r3, inference_times, width=bar_width, label="Inference", color="#60BD68")
 
             # Add labels and legend
             ax2.set_title("Performance Breakdown", fontsize=12)
@@ -1347,7 +1343,8 @@ class UnifiedRetrievalBenchmark:
                 info["memory_total"] = mem.total / (1024 * 1024 * 1024)  # GB
                 info["memory_available"] = mem.available / (1024 * 1024 * 1024)  # GB
                 info["cpu_count"] = psutil.cpu_count()
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error getting platform info: {e}")
             pass
 
         return info

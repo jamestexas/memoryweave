@@ -2,9 +2,9 @@ name: Python CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "*" ]
+    branches: ["*"]
 
 jobs:
   build:
@@ -15,28 +15,33 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "latest"
-          enable-cache: true
-          cache-dependency-glob: "pyproject.toml"
-
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: 'uv'
 
-      - name: Install dependencies with uv
-        run: uv pip install -e . --dev
+      - name: Install uv with caching
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+          prune-cache: false
 
-      - name: Run Ruff Formatting and Apply Fixes
+      - name: Create and activate virtual environment
+        run: uv venv
+
+      - name: Install project dependencies
+        run: uv pip install -e .
+
+      - name: Run Ruff formatting and apply fixes
         uses: astral-sh/ruff-action@v3
         with:
           args: "format ."
 
-      - name: Run Ruff Linting and Apply Fixes
+      - name: Run Ruff linting and apply fixes
         uses: astral-sh/ruff-action@v3
         with:
           args: "check --fix ."

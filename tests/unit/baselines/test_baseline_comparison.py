@@ -82,6 +82,10 @@ class MockRetriever(BaselineRetriever):
         self.memories = memories
         return len(memories)  # Return number of indexed memories
 
+    def clear(self, **kwargs):
+        """Mock implementation of clear."""
+        self.memories = []
+
 
 @pytest.fixture
 def sample_memories() -> list[Memory]:

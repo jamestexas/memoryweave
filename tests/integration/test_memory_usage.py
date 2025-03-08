@@ -179,7 +179,7 @@ class TestMemoryUsage:
 
         # Run benchmark multiple times
         memory_after_runs = []
-        for i in range(3):  # Run 3 times
+        for _ in range(3):  # Run 3 times
             run_benchmark_with_config(
                 dataset_path=small_dataset,
                 config=simple_config,

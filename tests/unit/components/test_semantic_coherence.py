@@ -100,9 +100,7 @@ class TestSemanticCoherenceProcessor:
 
         # Find a personal result about cats (should not be penalized)
         assert (  # noqa: S101
-            cat_result := next(
-                r for r in processed_results if "cat" in r["content"] and r["type"] == "personal"
-            )
+            next(r for r in processed_results if "cat" in r["content"] and r["type"] == "personal")
         ) is not None, ""
 
         # The factual result should have a lower score than original
