@@ -38,9 +38,9 @@ class TestQueryTypeAdapter:
         result = self.adapter.process_query("What is my favorite color?", context)
 
         # Verify default parameters are returned
-        assert "adapted_retrieval_params" in result
-        assert result["adapted_retrieval_params"]["confidence_threshold"] == 0.3
-        assert result["adapted_retrieval_params"]["adapted_by_query_type"] is False
+        assert "adapter_retrieval_params" in result
+        assert result["adapter_retrieval_params"]["confidence_threshold"] == 0.3
+        assert result["adapter_retrieval_params"]["adapted_by_query_type"] is False
 
     def test_enabled_adaptation_modifies_parameters(self):
         """Test that when adaptation is enabled, parameters are modified."""
