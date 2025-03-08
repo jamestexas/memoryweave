@@ -5,6 +5,7 @@ Unit tests for the KeywordExpander component.
 import unittest
 
 from memoryweave.components.keyword_expander import KeywordExpander
+from memoryweave.interfaces.retrieval import Query
 
 
 class KeywordExpanderTest(unittest.TestCase):
@@ -123,6 +124,66 @@ class KeywordExpanderTest(unittest.TestCase):
 
         # Check that nothing was expanded
         self.assertNotIn("expanded_keywords", result)
+
+    def test_expand_query(self):
+        """Test expanding a Query object."""
+        # Create a Query object with some keywords
+        query = Query(
+            text="books and computers",
+            extracted_keywords=["book", "computer", "person"],
+            embedding=None,  # Not needed for this test
+            query_type=None,  # Not needed for this test
+            extracted_entities=[],  # Required parameter
+        )
+
+        # Expand the query
+        expanded_query = self.expander.expand(query)
+
+        # Check that original keywords are preserved
+        for keyword in query.extracted_keywords:
+            self.assertIn(keyword, expanded_query.extracted_keywords)
+
+        # Check that expansions include expected forms
+        expected_expansions = ["books", "laptop", "people"]
+        for expected in expected_expansions:
+            self.assertIn(expected, expanded_query.extracted_keywords)
+
+    def test_word_embedding_expansion(self):
+        """Test expanding keywords using word embeddings."""
+        # Create a simple word embedding dictionary
+        word_embeddings = {
+            "book": [1.0, 0.0, 0.0],
+            "text": [0.9, 0.1, 0.0],  # Similar to "book"
+            "volume": [0.85, 0.1, 0.05],  # Similar to "book"
+            "computer": [0.0, 1.0, 0.0],
+            "laptop": [0.1, 0.9, 0.0],  # Similar to "computer"
+            "desktop": [0.05, 0.85, 0.1],  # Similar to "computer"
+        }
+
+        # Create expander with embeddings
+        expander_with_embeddings = KeywordExpander(word_embeddings)
+        expander_with_embeddings.initialize({"use_embeddings": True, "min_similarity": 0.7})
+
+        # Test expansion
+        expanded = expander_with_embeddings.expand_keywords({"book", "computer"})
+
+        # Check embedding-based expansions
+        self.assertIn("text", expanded)
+        self.assertIn("volume", expanded)
+        self.assertIn("laptop", expanded)
+        self.assertIn("desktop", expanded)
+
+    def test_configure_compat(self):
+        """Test the configure method (IQueryExpander compatibility)."""
+        # This tests the compatibility with IQueryExpander interface
+        config = {"max_expansions_per_keyword": 4, "min_similarity": 0.6}
+
+        # Use configure method (which should delegate to initialize)
+        self.expander.configure(config)
+
+        # Check that values were properly set
+        self.assertEqual(self.expander.max_expansions_per_keyword, 4)
+        self.assertEqual(self.expander.min_similarity, 0.6)
 
 
 if __name__ == "__main__":
