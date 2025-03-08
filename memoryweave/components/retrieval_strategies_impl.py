@@ -20,10 +20,14 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         memory: Any,
         vector_store: Any | None = None,
         confidence_threshold: float = 0.0,
+        activation_boost: bool = True,
+        min_results: int = 5,  # Add min_results parameter
     ):
         self.memory = memory
         self.vector_store = vector_store
         self.confidence_threshold = confidence_threshold
+        self.activation_boost = activation_boost
+        self.min_results = min_results  # Initialize min_results attribute
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
@@ -54,12 +58,12 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
 
         # Standard retrieval path - consistent behavior regardless of evaluation mode
         if hasattr(memory, "retrieve_memories"):
-            # Try with the specified threshold
+            # Try with the specified threshold - ensure parameter order matches test expectations
             results = memory.retrieve_memories(
-                query_embedding,
+                query_embedding=query_embedding,  # Use named parameter
                 top_k=top_k,
-                activation_boost=self.activation_boost,
                 confidence_threshold=confidence_threshold,
+                activation_boost=self.activation_boost,
             )
             logger.debug(
                 f"SimilarityRetrievalStrategy: Initial retrieval returned {len(results)} results with threshold {confidence_threshold}"
@@ -77,10 +81,10 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
                     f"SimilarityRetrievalStrategy: Applying minimum results guarantee with threshold {min_threshold}"
                 )
                 results = memory.retrieve_memories(
-                    query_embedding,
+                    query_embedding=query_embedding,  # Use named parameter
                     top_k=self.min_results,
-                    activation_boost=self.activation_boost,
                     confidence_threshold=min_threshold,
+                    activation_boost=self.activation_boost,
                 )
 
                 # Mark these as lower-confidence results with their actual scores
