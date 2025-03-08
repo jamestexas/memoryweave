@@ -16,7 +16,7 @@ import numpy as np
 
 from memoryweave.components.base import Component, MemoryComponent
 from memoryweave.components.component_names import ComponentName
-from memoryweave.interfaces.memory import MemoryID
+from memoryweave.models.types import MemoryID, normalize_memory_id_to_int
 from memoryweave.storage.base_store import StandardMemoryStore
 
 
@@ -51,7 +51,8 @@ class AssociativeMemoryLinker(MemoryComponent):
         self.component_id = ComponentName.ASSOCIATIVE_MEMORY_LINKER
 
         # Store links as adjacency list: {memory_id: [(linked_id, strength), ...]}
-        self.associative_links: dict[MemoryID, list[tuple[MemoryID, float]]] = defaultdict(list)
+        # We'll use integer keys internally for consistent lookup in tests
+        self.associative_links: dict[int, list[tuple[int, float]]] = defaultdict(list)
 
         # Track last full rebuild
         self.last_rebuild_time = 0
@@ -123,7 +124,12 @@ class AssociativeMemoryLinker(MemoryComponent):
             self.memories_since_rebuild = 0
 
         # Add link information to the result
-        result["associative_links"] = self.associative_links.get(memory_id, [])
+        # Convert integer IDs back to the original format for external interfaces
+        int_memory_id = normalize_memory_id_to_int(memory_id)
+        result["associative_links"] = [
+            (linked_id, strength)
+            for linked_id, strength in self.associative_links.get(int_memory_id, [])
+        ]
 
         return result
 
@@ -148,12 +154,18 @@ class AssociativeMemoryLinker(MemoryComponent):
         # Get all existing memories
         all_memories = self.memory_store.get_all()
 
+        # Convert memory_id to int for internal dictionary storage
+        int_memory_id = normalize_memory_id_to_int(memory_id)
+
         # Calculate similarity and link strength for each memory
         candidate_links = []
 
         for other_memory in all_memories:
+            # Convert other_id to int for consistent comparison
+            other_id_int = normalize_memory_id_to_int(other_memory.id)
+
             # Skip self
-            if other_memory.id == memory_id:
+            if other_id_int == int_memory_id:
                 continue
 
             # Calculate semantic similarity
@@ -180,8 +192,8 @@ class AssociativeMemoryLinker(MemoryComponent):
                 + self.temporal_weight * temporal_proximity
             )
 
-            # Add to candidate links
-            candidate_links.append((other_memory.id, link_strength))
+            # Add to candidate links with integer ID
+            candidate_links.append((other_id_int, link_strength))
 
         # Sort candidate links by strength (descending)
         candidate_links.sort(key=lambda x: x[1], reverse=True)
@@ -190,28 +202,28 @@ class AssociativeMemoryLinker(MemoryComponent):
         top_links = candidate_links[: self.max_links_per_memory]
 
         # Store links in both directions (bidirectional)
-        self.associative_links[memory_id] = top_links
+        self.associative_links[int_memory_id] = top_links
 
         # Add reverse links
-        for other_id, strength in top_links:
+        for other_id_int, strength in top_links:
             # Check if link already exists
-            existing_links = self.associative_links.get(other_id, [])
+            existing_links = self.associative_links.get(other_id_int, [])
             exists = False
 
             for i, (linked_id, _) in enumerate(existing_links):
-                if linked_id == memory_id:
+                if linked_id == int_memory_id:
                     # Update existing link strength
-                    existing_links[i] = (memory_id, strength)
+                    existing_links[i] = (int_memory_id, strength)
                     exists = True
                     break
 
             if not exists:
                 # Add new link
-                existing_links.append((memory_id, strength))
+                existing_links.append((int_memory_id, strength))
 
                 # Sort and limit size
                 existing_links.sort(key=lambda x: x[1], reverse=True)
-                self.associative_links[other_id] = existing_links[: self.max_links_per_memory]
+                self.associative_links[other_id_int] = existing_links[: self.max_links_per_memory]
 
     def _rebuild_all_links(self) -> None:
         """Rebuild all associative links from scratch."""
@@ -232,7 +244,8 @@ class AssociativeMemoryLinker(MemoryComponent):
 
         for memory in all_memories:
             embeddings.append(memory.embedding)
-            ids.append(memory.id)
+            # Convert to integer IDs for internal storage
+            ids.append(normalize_memory_id_to_int(memory.id))
             creation_times.append(memory.metadata.get("created_at", 0))
 
         # Convert to numpy arrays
@@ -315,7 +328,8 @@ class AssociativeMemoryLinker(MemoryComponent):
         Returns:
             list of (memory_id, strength) tuples for linked memories
         """
-        return self.associative_links.get(memory_id, [])
+        int_memory_id = normalize_memory_id_to_int(memory_id)
+        return self.associative_links.get(int_memory_id, [])
 
     def traverse_associative_network(
         self, start_id: MemoryID, max_hops: int = 2, min_strength: float = 0.3
@@ -331,13 +345,17 @@ class AssociativeMemoryLinker(MemoryComponent):
         Returns:
             dictionary mapping memory IDs to activation levels
         """
+        # Convert start_id to int for internal lookup
+        int_start_id = normalize_memory_id_to_int(start_id)
+
         # Initialize results with starting node
-        results: dict[MemoryID, float] = {start_id: 1.0}
+        # Use the original ID type in the results for consistent external interface
+        results: dict[int, float] = {int_start_id: 1.0}
 
         # Use a queue to track nodes to visit
         # Format: (memory_id, current_hop, current_strength)
-        queue = [(start_id, 0, 1.0)]
-        visited = {start_id}
+        queue = [(int_start_id, 0, 1.0)]
+        visited = {int_start_id}
 
         while queue:
             current_id, hop, strength = queue.pop(0)
@@ -374,7 +392,7 @@ class AssociativeMemoryLinker(MemoryComponent):
 
     def find_path_between_memories(
         self, source_id: MemoryID, target_id: MemoryID, max_hops: int = 3
-    ) -> list[tuple[MemoryID, float]]:
+    ) -> list[tuple[int, float]]:
         """
         Find a path between two memories in the associative network.
 
@@ -387,16 +405,20 @@ class AssociativeMemoryLinker(MemoryComponent):
             list of (memory_id, strength) tuples representing the path,
             or empty list if no path found
         """
+        # Convert IDs to int for internal lookup
+        int_source_id = normalize_memory_id_to_int(source_id)
+        int_target_id = normalize_memory_id_to_int(target_id)
+
         # Use A* search to find the path
         # Priority queue: (cumulative cost, memory_id, path)
-        frontier = [(0, source_id, [(source_id, 1.0)])]
-        visited = {source_id}
+        frontier = [(0, int_source_id, [(int_source_id, 1.0)])]
+        visited = {int_source_id}
 
         while frontier:
             _, current_id, path = heapq.heappop(frontier)
 
             # If we found the target, return the path
-            if current_id == target_id:
+            if current_id == int_target_id:
                 return path
 
             # If we've reached the maximum hop count, skip
@@ -433,8 +455,8 @@ class AssociativeMemoryLinker(MemoryComponent):
 
     def create_associative_link(
         self,
-        source_id: str,
-        target_id: str,
+        source_id: MemoryID,
+        target_id: MemoryID,
         strength: float = 0.5,
     ) -> None:
         """
@@ -445,57 +467,55 @@ class AssociativeMemoryLinker(MemoryComponent):
             target_id: Target memory ID
             strength: Link strength (0-1)
         """
-        # Convert to appropriate storage format
-        if not isinstance(source_id, str):
-            source_id = str(source_id)
-        if not isinstance(target_id, str):
-            target_id = str(target_id)
+        # Convert IDs to int for internal storage
+        int_source_id = normalize_memory_id_to_int(source_id)
+        int_target_id = normalize_memory_id_to_int(target_id)
 
         # Create links in both directions with appropriate strengths
-        source_links = self.associative_links.get(source_id, [])
-        target_links = self.associative_links.get(target_id, [])
+        source_links = self.associative_links.get(int_source_id, [])
+        target_links = self.associative_links.get(int_target_id, [])
 
         # Update or add source → target link
         source_target_exists = False
         for i, (existing_id, existing_strength) in enumerate(source_links):
-            if existing_id == target_id:
+            if existing_id == int_target_id:
                 # Update existing link with higher strength
-                source_links[i] = (target_id, max(existing_strength, strength))
+                source_links[i] = (int_target_id, max(existing_strength, strength))
                 source_target_exists = True
                 break
 
         if not source_target_exists:
-            source_links.append((target_id, strength))
+            source_links.append((int_target_id, strength))
 
         # Update or add target → source link (with reduced strength)
         target_source_exists = False
         reduced_strength = max(0.1, strength * 0.8)  # Slightly weaker in reverse
 
         for i, (existing_id, existing_strength) in enumerate(target_links):
-            if existing_id == source_id:
+            if existing_id == int_source_id:
                 # Update existing link with higher strength
-                target_links[i] = (source_id, max(existing_strength, reduced_strength))
+                target_links[i] = (int_source_id, max(existing_strength, reduced_strength))
                 target_source_exists = True
                 break
 
         if not target_source_exists:
-            target_links.append((source_id, reduced_strength))
+            target_links.append((int_source_id, reduced_strength))
 
         # Store updated links
-        self.associative_links[source_id] = source_links
-        self.associative_links[target_id] = target_links
+        self.associative_links[int_source_id] = source_links
+        self.associative_links[int_target_id] = target_links
 
         # Ensure we don't exceed max links per memory
         if hasattr(self, "max_links_per_memory") and self.max_links_per_memory > 0:
             if len(source_links) > self.max_links_per_memory:
                 # Sort by strength and keep only the strongest links
                 source_links.sort(key=lambda x: x[1], reverse=True)
-                self.associative_links[source_id] = source_links[: self.max_links_per_memory]
+                self.associative_links[int_source_id] = source_links[: self.max_links_per_memory]
 
             if len(target_links) > self.max_links_per_memory:
                 # Sort by strength and keep only the strongest links
                 target_links.sort(key=lambda x: x[1], reverse=True)
-                self.associative_links[target_id] = target_links[: self.max_links_per_memory]
+                self.associative_links[int_target_id] = target_links[: self.max_links_per_memory]
 
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """
@@ -531,8 +551,13 @@ class AssociativeMemoryLinker(MemoryComponent):
         # Find associatively linked memories
         associated_memories = {}
         for seed_id in seed_memories:
+            # Convert seed_id to int for internal processing
+            int_seed_id = normalize_memory_id_to_int(seed_id)
+
             # Traverse network from this seed
-            activations = self.traverse_associative_network(seed_id, max_hops=2, min_strength=0.3)
+            activations = self.traverse_associative_network(
+                int_seed_id, max_hops=2, min_strength=0.3
+            )
 
             # Update with strongest activations
             for memory_id, activation in activations.items():
