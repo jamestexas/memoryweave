@@ -1,9 +1,13 @@
 # memoryweave/components/retrieval_strategies.py
+# Get logging setup
+import logging
 from typing import Any
 
 import numpy as np
 
 from memoryweave.components.base import RetrievalStrategy
+
+logger = logging.getLogger(__name__)
 
 
 class SimilarityRetrievalStrategy(RetrievalStrategy):
@@ -11,8 +15,9 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
     Retrieves memories based purely on similarity to query embedding.
     """
 
-    def __init__(self, memory: Any):
+    def __init__(self, memory: Any, vector_store: Any | None = None):
         self.memory = memory
+        self.vector_store = vector_store
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
@@ -36,10 +41,6 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
         adapted_params = context.get("adapted_retrieval_params", {})
         confidence_threshold = adapted_params.get("confidence_threshold", self.confidence_threshold)
 
-        # Get logging setup
-        import logging
-
-        logger = logging.getLogger(__name__)
         logger.debug(f"SimilarityRetrievalStrategy: confidence_threshold={confidence_threshold}")
         logger.info(
             f"SimilarityRetrievalStrategy: Using confidence_threshold={confidence_threshold}"
@@ -203,7 +204,10 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
         pass
 
     def retrieve(
-        self, query_embedding: np.ndarray, top_k: int, context: dict[str, Any]
+        self,
+        query_embedding: np.ndarray,
+        top_k: int,
+        context: dict[str, Any],
     ) -> list[dict[str, Any]]:
         """Retrieve memories based on temporal factors."""
         # Get memory from context or instance

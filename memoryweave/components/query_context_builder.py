@@ -4,12 +4,24 @@ This module provides components for enriching query context with relevant inform
 to improve memory retrieval performance.
 """
 
+import logging
+import re
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import numpy as np
+from rich.logging import RichHandler
 
 from memoryweave.components.base import Component
 from memoryweave.nlp.extraction import NLPExtractor
+
+logging.basicConfig(
+    level="INFO",
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True, markup=True)],
+)
+logger = logging.getLogger("memoryweave")
 
 
 class QueryContextBuilder(Component):
@@ -27,8 +39,27 @@ class QueryContextBuilder(Component):
         """Initialize the query context builder."""
         self.nlp_extractor = NLPExtractor()
 
+        # Default configuration
+        self.max_history_turns = 3
+        self.max_history_tokens = 1000
+        self.include_entities = True
+        self.include_temporal_markers = True
+        self.include_conversation_history = True
+        self.extract_implied_timeframe = True
+
     def initialize(self, config: dict[str, Any]) -> None:
-        """Initialize with configuration."""
+        """
+        Initialize the component with configuration.
+
+        Args:
+            config: Configuration dictionary with parameters:
+                - max_history_turns: Maximum conversation turns to include (default: 3)
+                - max_history_tokens: Maximum tokens in history (default: 1000)
+                - include_entities: Whether to extract entities (default: True)
+                - include_temporal_markers: Whether to extract time references (default: True)
+                - include_conversation_history: Whether to use history (default: True)
+                - extract_implied_timeframe: Whether to infer timeframes (default: True)
+        """
         self.max_history_turns = config.get("max_history_turns", 3)
         self.max_history_tokens = config.get("max_history_tokens", 1000)
         self.include_entities = config.get("include_entities", True)
@@ -37,7 +68,16 @@ class QueryContextBuilder(Component):
         self.extract_implied_timeframe = config.get("extract_implied_timeframe", True)
 
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
-        """Process a query to build extended context."""
+        """
+        Process a query to build extended context.
+
+        Args:
+            query: The query string to process
+            context: The existing context dictionary
+
+        Returns:
+            Updated context with additional information
+        """
         # Start with existing context
         updated_context = context.copy()
 
@@ -70,24 +110,292 @@ class QueryContextBuilder(Component):
         return updated_context
 
     def _extract_temporal_information(self, query: str) -> dict[str, Any]:
-        """Extract temporal information from the query."""
-        # Extract explicit time references
-        time_references = self.nlp_extractor.extract_time_references(query)
+        """
+        Extract temporal information from the query.
 
-        result = {}
-        if time_references:
-            result["explicit_time_references"] = time_references
+        Args:
+            query: The query string
 
-        # Extract implied timeframe if enabled
-        if self.extract_implied_timeframe:
-            timeframe = self._extract_implied_timeframe(query)
-            if timeframe:
-                result["implied_timeframe"] = timeframe
+        Returns:
+            Dictionary of temporal information
+        """
+        # Initialize result with empty values
+        result = {
+            "has_temporal_reference": False,
+            "time_type": None,
+            "relative_time": None,
+            "absolute_time": None,
+            "time_expressions": [],
+            "time_keywords": [],
+        }
+
+        # Skip processing if query is empty
+        if not query:
+            return result
+
+        # Convert to lowercase for easier matching
+        query_lower = query.lower()
+
+        # Temporal keyword patterns
+        temporal_keywords = [
+            "yesterday",
+            "today",
+            "tomorrow",
+            "last week",
+            "next week",
+            "last month",
+            "next month",
+            "last year",
+            "next year",
+            "recent",
+            "recently",
+            "earlier",
+            "earlier today",
+            "later",
+            "ago",
+            "since",
+            "before",
+            "after",
+            "morning",
+            "afternoon",
+            "evening",
+            "night",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+            "january",
+            "february",
+            "march",
+            "april",
+            "may",
+            "june",
+            "july",
+            "august",
+            "september",
+            "october",
+            "november",
+            "december",
+        ]
+
+        # Check for explicit time keywords
+        found_keywords = []
+        for keyword in temporal_keywords:
+            if keyword in query_lower:
+                found_keywords.append(keyword)
+                result["has_temporal_reference"] = True
+
+        result["time_keywords"] = found_keywords
+
+        # Extract date patterns
+        date_patterns = [
+            r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",  # MM/DD/YYYY or DD/MM/YYYY
+            r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b",  # Month Day
+            r"\b\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(january|february|march|april|may|june|july|august|september|october|november|december)\b",  # Day Month
+        ]
+
+        for pattern in date_patterns:
+            matches = re.findall(pattern, query_lower)
+            if matches:
+                result["has_temporal_reference"] = True
+                result["time_type"] = "absolute"
+
+                # Convert matches to strings if they're not already
+                time_expressions = [m if isinstance(m, str) else m[0] for m in matches]
+                result["time_expressions"].extend(time_expressions)
+
+                # Try to parse an absolute time
+                parsed_time = self._parse_absolute_time(time_expressions[0])
+                if parsed_time:
+                    result["absolute_time"] = parsed_time
+                    result["relative_time"] = parsed_time  # Use as relative time too
+
+        # Extract relative time expressions
+        relative_patterns = [
+            r"\b(\d+|a|one|two|three|four|five)\s+(minute|hour|day|week|month|year)s?\s+ago\b",
+            r"\blast\s+(week|month|year)\b",
+            r"\bnext\s+(week|month|year)\b",
+            r"\byesterday\b",
+            r"\btoday\b",
+            r"\btomorrow\b",
+        ]
+
+        for pattern in relative_patterns:
+            matches = re.findall(pattern, query_lower)
+            if matches:
+                result["has_temporal_reference"] = True
+                result["time_type"] = "relative"
+
+                # Add matched expressions
+                time_expressions = [" ".join(m) if isinstance(m, tuple) else m for m in matches]
+                result["time_expressions"].extend(time_expressions)
+
+                # Parse the first match for a relative timestamp
+                parsed_time = self._parse_relative_time(time_expressions[0])
+                if parsed_time:
+                    result["relative_time"] = parsed_time
+
+        # Extract implied timeframe if enabled and no explicit time found
+        if (
+            self.extract_implied_timeframe
+            and not result["relative_time"]
+            and not result["absolute_time"]
+        ):
+            implied_timeframe = self._extract_implied_timeframe(query)
+            if implied_timeframe:
+                result["implied_timeframe"] = implied_timeframe
+                result["has_temporal_reference"] = True
 
         return result
 
+    def _parse_absolute_time(self, time_expression: str) -> Optional[float]:
+        """
+        Parse an absolute time expression into a timestamp.
+
+        Args:
+            time_expression: The time expression to parse
+
+        Returns:
+            Timestamp or None if parsing fails
+        """
+        try:
+            # Handle "Month Day" format
+            month_day_match = re.search(
+                r"(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})",
+                time_expression.lower(),
+            )
+
+            if month_day_match:
+                month_name, day = month_day_match.groups()
+                month_map = {
+                    "january": 1,
+                    "february": 2,
+                    "march": 3,
+                    "april": 4,
+                    "may": 5,
+                    "june": 6,
+                    "july": 7,
+                    "august": 8,
+                    "september": 9,
+                    "october": 10,
+                    "november": 11,
+                    "december": 12,
+                }
+                month_num = month_map.get(month_name.lower())
+
+                if month_num:
+                    current_year = datetime.now().year
+                    date_obj = datetime(current_year, month_num, int(day))
+                    return date_obj.timestamp()
+
+            # Handle "MM/DD/YYYY" format
+            date_match = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", time_expression)
+            if date_match:
+                month, day, year = date_match.groups()
+
+                # Handle 2-digit years
+                if len(year) == 2:
+                    year = "20" + year if int(year) < 50 else "19" + year
+
+                try:
+                    date_obj = datetime(int(year), int(month), int(day))
+                    return date_obj.timestamp()
+                except ValueError:
+                    # Try day/month/year format instead
+                    try:
+                        date_obj = datetime(int(year), int(day), int(month))
+                        return date_obj.timestamp()
+                    except ValueError:
+                        pass
+
+        except Exception as e:
+            logger.debug(f"Error parsing absolute time: {e}")
+            pass
+
+        return None
+
+    def _parse_relative_time(self, time_expression: str) -> Optional[float]:
+        """
+        Parse a relative time expression into a timestamp.
+
+        Args:
+            time_expression: The time expression to parse
+
+        Returns:
+            Timestamp or None if parsing fails
+        """
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        time_expression = time_expression.lower()
+
+        # Handle simple cases
+        if "yesterday" in time_expression:
+            return (today - timedelta(days=1)).timestamp()
+        elif "today" in time_expression:
+            return today.timestamp()
+        elif "tomorrow" in time_expression:
+            return (today + timedelta(days=1)).timestamp()
+        elif "last week" in time_expression:
+            return (today - timedelta(days=7)).timestamp()
+        elif "next week" in time_expression:
+            return (today + timedelta(days=7)).timestamp()
+        elif "last month" in time_expression:
+            # Simple approximation
+            return (today - timedelta(days=30)).timestamp()
+        elif "next month" in time_expression:
+            return (today + timedelta(days=30)).timestamp()
+        elif "last year" in time_expression:
+            return (today - timedelta(days=365)).timestamp()
+        elif "next year" in time_expression:
+            return (today + timedelta(days=365)).timestamp()
+
+        # Handle "X units ago" patterns
+        ago_match = re.search(
+            r"(\d+|a|one|two|three|four|five)\s+(minute|hour|day|week|month|year)s?\s+ago",
+            time_expression,
+        )
+        if ago_match:
+            amount, unit = ago_match.groups()
+
+            # Convert word numbers to digits
+            word_to_number = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+            if amount in word_to_number:
+                amount = word_to_number[amount]
+            else:
+                amount = int(amount)
+
+            # Calculate delta
+            if unit == "minute":
+                delta = timedelta(minutes=amount)
+            elif unit == "hour":
+                delta = timedelta(hours=amount)
+            elif unit == "day":
+                delta = timedelta(days=amount)
+            elif unit == "week":
+                delta = timedelta(weeks=amount)
+            elif unit == "month":
+                delta = timedelta(days=30 * amount)  # Approximation
+            elif unit == "year":
+                delta = timedelta(days=365 * amount)  # Approximation
+            else:
+                return None
+
+            return (datetime.now() - delta).timestamp()
+
+        return None
+
     def _extract_implied_timeframe(self, query: str) -> Optional[dict[str, Any]]:
-        """Extract implied timeframe from query patterns."""
+        """
+        Extract implied timeframe from query patterns.
+
+        Args:
+            query: The query string
+
+        Returns:
+            Dictionary with timeframe information or None
+        """
         query_lower = query.lower()
 
         # Look for patterns indicating temporal focus
@@ -121,7 +429,16 @@ class QueryContextBuilder(Component):
     def _build_conversation_context(
         self, query: str, context: dict[str, Any]
     ) -> Optional[dict[str, Any]]:
-        """Build context from conversation history if available."""
+        """
+        Build context from conversation history.
+
+        Args:
+            query: The current query
+            context: The context dictionary
+
+        Returns:
+            Dictionary with conversation context or None
+        """
         # Check if conversation history is available
         conversation_history = context.get("conversation_history", [])
         if not conversation_history:
@@ -158,10 +475,16 @@ class QueryContextBuilder(Component):
         return conversation_context
 
     def _enrich_embedding(self, query_embedding: np.ndarray, context: dict[str, Any]) -> np.ndarray:
-        """Enrich query embedding with contextual information."""
-        # This is a simplified implementation. In a real system,
-        # you would probably use a more sophisticated approach.
+        """
+        Enrich query embedding with contextual information.
 
+        Args:
+            query_embedding: Original embedding
+            context: Context with entities, topics, etc.
+
+        Returns:
+            Enhanced embedding
+        """
         # Get embedding model from context
         embedding_model = context.get("embedding_model")
         if not embedding_model:
@@ -204,6 +527,7 @@ class QueryContextBuilder(Component):
             enriched_embedding = enriched_embedding / np.linalg.norm(enriched_embedding)
 
             return enriched_embedding
-        except Exception:
+        except Exception as e:
             # On any error, return original embedding
+            logger.error(f"Error enriching query embedding: {e}")
             return query_embedding
