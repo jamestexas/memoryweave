@@ -246,7 +246,7 @@ def create_radar_chart(
     config_names = list(data.keys())
 
     # Number of variables
-    N = len(metrics)
+    N = len(metrics)  # noqa: N806
 
     # Create angles for each metric
     angles = [n / float(N) * 2 * np.pi for n in range(N)]

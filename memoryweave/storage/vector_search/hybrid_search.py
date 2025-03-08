@@ -131,7 +131,7 @@ class HybridBM25VectorSearch(IVectorSearchProvider):
             self._vocab = {term for term in self._vocab if self._df[term] >= self._min_df}
 
         # Calculate IDF
-        N = len(texts)
+        N = len(texts)  # noqa: N806
         self._idf = {}
         for term in self._vocab:
             # Add 1 to denominator to avoid division by zero
@@ -277,7 +277,7 @@ class HybridBM25VectorSearch(IVectorSearchProvider):
 
                 # Update vocabulary and IDF
                 self._vocab = {term for term in self._df if self._df[term] >= self._min_df}
-                N = len(self._docs)
+                N = len(self._docs)  # noqa: N806
 
                 for term in self._vocab:
                     self._idf[term] = math.log((N + 1) / (self._df[term] + 1)) + 1
@@ -321,7 +321,7 @@ class HybridBM25VectorSearch(IVectorSearchProvider):
 
                 # Update vocabulary and IDF
                 self._vocab = {term for term in self._df if self._df[term] >= self._min_df}
-                N = len(self._docs)
+                N = len(self._docs)  # noqa: N806
 
                 for term in self._vocab:
                     self._idf[term] = math.log((N + 1) / (self._df[term] + 1)) + 1

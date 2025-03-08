@@ -382,9 +382,10 @@ class SyntheticBenchmark:
                     # Temporarily set the embedding model to a mock one that returns our query embedding
                     original_embedding_model = retriever.embedding_model
 
+                    # TODO: This is a hack to set the query embedding directly
                     class MockEmbeddingModelForBenchmark:
                         def encode(self, query_text):
-                            return query_embedding
+                            return query_embedding  # noqa: B023
 
                     retriever.embedding_model = MockEmbeddingModelForBenchmark()
 

@@ -54,6 +54,7 @@ class BaselineRetriever(ABC):
         """
         pass
 
+    @abstractmethod
     def clear(self) -> None:
         """Clear the indexed memories."""
         pass

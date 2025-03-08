@@ -88,6 +88,8 @@ class StreamingHandler:
 
     async def _simulated_stream(self, inputs, max_new_tokens, **kwargs):
         """Simulate streaming for models without native support."""
+        import torch
+
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
