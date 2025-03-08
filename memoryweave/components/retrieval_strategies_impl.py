@@ -15,13 +15,19 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
     Retrieves memories based purely on similarity to query embedding.
     """
 
-    def __init__(self, memory: Any, vector_store: Any | None = None):
+    def __init__(
+        self,
+        memory: Any,
+        vector_store: Any | None = None,
+        confidence_threshold: float = 0.0,
+    ):
         self.memory = memory
         self.vector_store = vector_store
+        self.confidence_threshold = confidence_threshold
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
-        self.confidence_threshold = config.get("confidence_threshold", 0.0)
+        self.confidence_threshold = config.get("confidence_threshold", self.confidence_threshold)
         self.activation_boost = config.get("activation_boost", True)
 
         # Set minimum k for testing/benchmarking, but don't go below 1

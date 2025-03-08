@@ -94,6 +94,27 @@ class IMemoryStore(Protocol):
         """
         ...
 
+    def retrieve_memories(
+        self,
+        query_embedding: EmbeddingVector,
+        top_k: int = 5,
+        confidence_threshold: float = 0.0,
+        activation_boost: bool = True,
+    ) -> list[tuple[MemoryID, float, dict[str, Any]]]:
+        """
+        Retrieve memories similar to the query embedding.
+
+        Args:
+            query_embedding: The query embedding to match against
+            top_k: Maximum number of results to return
+            confidence_threshold: Minimum similarity threshold
+            activation_boost: Whether to boost results based on activation
+
+        Returns:
+            List of tuples containing (memory_id, score, metadata)
+        """
+        ...
+
 
 class IVectorStore(Protocol):
     """Interface for vector storage with similarity search capabilities."""
