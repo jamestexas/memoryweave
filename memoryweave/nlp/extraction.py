@@ -11,7 +11,7 @@ from typing import Any, Optional
 from memoryweave.nlp.patterns import PERSONAL_ATTRIBUTE_PATTERNS
 
 
-@dataclass
+@dataclass(frozen=True)
 class ExtractedEntity:
     """A named entity extracted from text."""
 

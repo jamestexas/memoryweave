@@ -15,6 +15,7 @@ from memoryweave.components.category_manager import CategoryManager
 from memoryweave.components.personal_attributes import PersonalAttributeManager
 from memoryweave.components.post_processors import SemanticCoherenceProcessor
 from memoryweave.components.query_adapter import QueryTypeAdapter
+from memoryweave.components.query_analysis import QueryAnalyzer
 from memoryweave.components.retrieval_strategies.contextual_fabric_strategy import (
     ContextualFabricStrategy,
 )
@@ -26,7 +27,6 @@ from memoryweave.factory.memory_factory import (
     create_memory_store_and_adapter,
 )
 from memoryweave.interfaces.retrieval import QueryType
-from memoryweave.query.analyzer import SimpleQueryAnalyzer
 from memoryweave.utils import _get_device
 
 logging.basicConfig(
@@ -117,7 +117,7 @@ class MemoryWeaveAPI:
         self.activation_manager = ActivationManager()
 
         # Initialize query components
-        self.query_analyzer: SimpleQueryAnalyzer = SimpleQueryAnalyzer()
+        self.query_analyzer: QueryAnalyzer = QueryAnalyzer()
         self.query_analyzer.initialize(
             config=dict(
                 min_keyword_length=3,

@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
+from memoryweave.components.retrieval_strategies_impl import SimilarityRetrievalStrategy
 from memoryweave.interfaces.memory import IMemoryStore, IVectorStore
-from memoryweave.retrieval.similarity import SimilarityRetrievalStrategy
 
 
 class TestSimilarityRetrievalStrategy:

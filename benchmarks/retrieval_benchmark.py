@@ -769,7 +769,7 @@ def create_charts(results_file, output_dir=OUTPUT_DIR):
 
     # Create query type chart
     query_types = sorted(list(query_types))
-    fig, axes = plt.subplots(1, len(query_types), figsize=(15, 6), sharey=True)
+    _fig, axes = plt.subplots(1, len(query_types), figsize=(15, 6), sharey=True)
 
     for i, query_type in enumerate(query_types):
         ax = axes[i] if len(query_types) > 1 else axes
