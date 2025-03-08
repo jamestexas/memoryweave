@@ -497,6 +497,55 @@ class AssociativeMemoryLinker(MemoryComponent):
                 target_links.sort(key=lambda x: x[1], reverse=True)
                 self.associative_links[target_id] = target_links[: self.max_links_per_memory]
 
+    def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
+        """
+        Process a query using associative links.
+
+        This method enhances retrieval by activating memories that are
+        associatively linked to the query's most relevant results.
+
+        Args:
+            query: Query string
+            context: Context information
+
+        Returns:
+            Updated context with associative information
+        """
+        # Check if we already have some results to use for associative expansion
+        initial_results = context.get("results", [])
+        updated_context = context.copy()
+
+        if not initial_results or self.memory_store is None:
+            return updated_context
+
+        # Get seed memory IDs from top results
+        seed_memories = []
+        for result in initial_results[:3]:  # Use top 3 results as seeds
+            memory_id = result.get("memory_id")
+            if memory_id is not None:
+                seed_memories.append(memory_id)
+
+        if not seed_memories:
+            return updated_context
+
+        # Find associatively linked memories
+        associated_memories = {}
+        for seed_id in seed_memories:
+            # Traverse network from this seed
+            activations = self.traverse_associative_network(seed_id, max_hops=2, min_strength=0.3)
+
+            # Update with strongest activations
+            for memory_id, activation in activations.items():
+                if memory_id in associated_memories:
+                    associated_memories[memory_id] = max(associated_memories[memory_id], activation)
+                else:
+                    associated_memories[memory_id] = activation
+
+        # Add to context
+        updated_context["associative_memories"] = associated_memories
+
+        return updated_context
+
 
 class AssociativeNetworkVisualizer(Component):
     """
