@@ -8,53 +8,28 @@ retrieval that goes beyond pure similarity matching.
 
 import heapq
 import time
-from collections import defaultdict
 from typing import Any, Optional
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from memoryweave.components.base import Component, MemoryComponent
 from memoryweave.components.component_names import ComponentName
 from memoryweave.interfaces.memory import MemoryID
-from memoryweave.storage.base_store import StandardMemoryStore
+from memoryweave.storage import StandardMemoryStore
 
 
 class AssociativeLink(BaseModel):
-    target_id: MemoryID
+    """Model for an associative link between memories."""
+
+    target_id: str
     strength: float = Field(ge=0.0, le=1.0)
 
 
-class AssociativeMemoryStore(BaseModel):
-    """Model for storing associative links between memories."""
+class AssociativeLinks(BaseModel):
+    """Model for storing all associative links for a memory."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    links: dict[MemoryID, list[AssociativeLink]] = Field(default_factory=dict)
-
-    def add_link(self, source_id: MemoryID, target_id: MemoryID, strength: float) -> None:
-        """Add or update a link between memories."""
-        if source_id not in self.links:
-            self.links[source_id] = []
-
-        # Check if link already exists
-        for i, link in enumerate(self.links[source_id]):
-            if link.target_id == target_id:
-                # Update existing link with higher strength
-                if strength > link.strength:
-                    self.links[source_id][i].strength = strength
-                return
-
-        # Add new link
-        self.links[source_id].append(AssociativeLink(target_id=target_id, strength=strength))
-
-    def get_links(self, source_id: MemoryID) -> list[AssociativeLink]:
-        """Get all links from a memory."""
-        return self.links.get(source_id, [])
-
-    def has_memory(self, memory_id: MemoryID) -> bool:
-        """Check if a memory has any links."""
-        return memory_id in self.links
+    links: dict[str, list[AssociativeLink]] = Field(default_factory=dict)
 
 
 class AssociativeMemoryLinker(MemoryComponent):
@@ -82,8 +57,8 @@ class AssociativeMemoryLinker(MemoryComponent):
         self.memory_count = 0
         self.component_id = ComponentName.ASSOCIATIVE_MEMORY_LINKER
 
-        # Initialize associative memory store with Pydantic model
-        self.associative_memory = AssociativeMemoryStore()
+        # Initialize associative links storage with Pydantic model
+        self.links_store = AssociativeLinks()
 
         # Track last full rebuild
         self.last_rebuild_time = 0
@@ -131,6 +106,9 @@ class AssociativeMemoryLinker(MemoryComponent):
         if memory_id is None:
             return data
 
+        # Convert memory_id to string for consistent key type
+        memory_id = str(memory_id)
+
         # Create a deep copy of the data to avoid modifying the original
         result = dict(data)
 
@@ -155,13 +133,13 @@ class AssociativeMemoryLinker(MemoryComponent):
             self.memories_since_rebuild = 0
 
         # Add link information to the result
-        result["associative_links"] = self.associative_links.get(memory_id, [])
+        result["associative_links"] = self.get_associative_links(memory_id)
 
         return result
 
     def _establish_links_for_memory(
         self,
-        memory_id: MemoryID,
+        memory_id: str,
         memory_data: dict[str, Any],
         context: dict[str, Any],
     ) -> None:
@@ -188,7 +166,7 @@ class AssociativeMemoryLinker(MemoryComponent):
 
         for other_memory in all_memories:
             # Skip self
-            if other_memory.id == memory_id:
+            if str(other_memory.id) == memory_id:
                 continue
 
             # Calculate semantic similarity
@@ -216,7 +194,7 @@ class AssociativeMemoryLinker(MemoryComponent):
             )
 
             # Add to candidate links
-            candidate_links.append((other_memory.id, link_strength))
+            candidate_links.append((str(other_memory.id), link_strength))
 
         # Sort candidate links by strength (descending)
         candidate_links.sort(key=lambda x: x[1], reverse=True)
@@ -227,11 +205,7 @@ class AssociativeMemoryLinker(MemoryComponent):
         # Store links in both directions (bidirectional)
         for other_id, strength in top_links:
             # Add forward link
-            self.associative_memory.add_link(memory_id, other_id, strength)
-
-            # Add reverse link with slightly reduced strength
-            reduced_strength = max(0.1, strength * 0.8)  # Slightly weaker in reverse
-            self.associative_memory.add_link(other_id, memory_id, reduced_strength)
+            self.create_associative_link(memory_id, other_id, strength)
 
     def _rebuild_all_links(self) -> None:
         """Rebuild all associative links from scratch."""
@@ -239,7 +213,7 @@ class AssociativeMemoryLinker(MemoryComponent):
             return
 
         # Clear existing links
-        self.associative_memory = AssociativeMemoryStore()
+        self.links_store.links.clear()
 
         # Get all memories
         all_memories = self.memory_store.get_all()
@@ -252,7 +226,7 @@ class AssociativeMemoryLinker(MemoryComponent):
 
         for memory in all_memories:
             embeddings.append(memory.embedding)
-            ids.append(memory.id)
+            ids.append(str(memory.id))  # Convert to string for consistent keys
             creation_times.append(memory.metadata.get("created_at", 0))
 
         # Convert to numpy arrays
@@ -301,7 +275,7 @@ class AssociativeMemoryLinker(MemoryComponent):
 
             # Add top links to memory store
             for other_id, strength in links[: self.max_links_per_memory]:
-                self.associative_memory.add_link(memory_id, other_id, strength)
+                self.create_associative_link(memory_id, other_id, strength)
 
         # Update rebuild time
         self.last_rebuild_time = time.time()
@@ -323,21 +297,13 @@ class AssociativeMemoryLinker(MemoryComponent):
         norm1 = np.linalg.norm(embedding1)
         norm2 = np.linalg.norm(embedding2)
 
-        # Add debug print
-        print("DEBUG - Similarity calculation:")
-        print(f"  embedding1: {embedding1}")
-        print(f"  embedding2: {embedding2}")
-        print(f"  dot_product: {dot_product}")
-        print(f"  norm1: {norm1}, norm2: {norm2}")
-
         if norm1 == 0 or norm2 == 0:
             return 0.0
 
         similarity = float(dot_product / (norm1 * norm2))
-        print(f"  similarity: {similarity}")
         return similarity
 
-    def get_associative_links(self, memory_id: MemoryID) -> list[tuple[MemoryID, float]]:
+    def get_associative_links(self, memory_id: MemoryID) -> list[tuple[str, float]]:
         """
         Get associative links for a memory.
 
@@ -347,27 +313,40 @@ class AssociativeMemoryLinker(MemoryComponent):
         Returns:
             list of (memory_id, strength) tuples for linked memories
         """
-        return self.associative_links.get(memory_id, [])
+        # Convert memory_id to string for consistent key type
+        memory_id_str = str(memory_id)
 
-    @property
-    def associative_links(self):
-        """Legacy property for backward compatibility."""
-        # Convert to the old format
-        result = defaultdict(list)
-        for memory_id, links in self.associative_memory.links.items():
-            result[memory_id] = [(link.target_id, link.strength) for link in links]
-        return result
+        # Get the links from the store
+        if memory_id_str in self.links_store.links:
+            # Convert from AssociativeLink model to tuple format
+            return [
+                (link.target_id, link.strength) for link in self.links_store.links[memory_id_str]
+            ]
+        return []
 
     def traverse_associative_network(
         self, start_id: MemoryID, max_hops: int = 2, min_strength: float = 0.3
-    ) -> dict[MemoryID, float]:
-        """Traverse the associative network from a starting memory."""
+    ) -> dict[str, float]:
+        """
+        Traverse the associative network from a starting memory.
+
+        Args:
+            start_id: Starting memory ID
+            max_hops: Maximum number of hops
+            min_strength: Minimum link strength
+
+        Returns:
+            dictionary mapping memory IDs (as strings) to activation strength
+        """
+        # Convert start_id to string
+        start_id_str = str(start_id)
+
         # Initialize results with starting node
-        results: dict[MemoryID, float] = {start_id: 1.0}
+        results = {start_id_str: 1.0}
 
         # Use a queue to track nodes to visit
-        queue = [(start_id, 0, 1.0)]
-        visited = {start_id}
+        queue = [(start_id_str, 0, 1.0)]
+        visited = {start_id_str}
 
         while queue:
             current_id, hop, strength = queue.pop(0)
@@ -377,28 +356,28 @@ class AssociativeMemoryLinker(MemoryComponent):
                 continue
 
             # Get links for current memory
-            links = self.associative_memory.get_links(current_id)
+            links = self.get_associative_links(current_id)
 
             # Process each link
-            for link in links:
+            for target_id, link_strength in links:
                 # Calculate cumulative strength (decays with distance)
-                cumulative_strength = strength * link.strength
+                cumulative_strength = strength * link_strength
 
                 # Skip if below minimum strength
                 if cumulative_strength < min_strength:
                     continue
 
                 # Add or update result
-                if link.target_id in results:
+                if target_id in results:
                     # Take the maximum strength path
-                    results[link.target_id] = max(results[link.target_id], cumulative_strength)
+                    results[target_id] = max(results[target_id], cumulative_strength)
                 else:
-                    results[link.target_id] = cumulative_strength
+                    results[target_id] = cumulative_strength
 
                 # Add to queue if not already visited
-                if link.target_id not in visited:
-                    visited.add(link.target_id)
-                    queue.append((link.target_id, hop + 1, cumulative_strength))
+                if target_id not in visited:
+                    visited.add(target_id)
+                    queue.append((target_id, hop + 1, cumulative_strength))
 
         return results
 
@@ -407,7 +386,7 @@ class AssociativeMemoryLinker(MemoryComponent):
         source_id: MemoryID,
         target_id: MemoryID,
         max_hops: int = 3,
-    ) -> list[tuple[MemoryID, float]]:
+    ) -> list[tuple[str, float]]:
         """
         Find a path between two memories in the associative network.
 
@@ -417,19 +396,23 @@ class AssociativeMemoryLinker(MemoryComponent):
             max_hops: Maximum number of hops to search
 
         Returns:
-            List of (memory_id, strength) tuples representing the path,
+            list of (memory_id, strength) tuples representing the path,
             or empty list if no path found
         """
+        # Convert IDs to strings
+        source_id_str = str(source_id)
+        target_id_str = str(target_id)
+
         # Use A* search to find the path
         # Priority queue: (cumulative cost, memory_id, path)
-        frontier = [(0, source_id, [(source_id, 1.0)])]
-        visited = {source_id}
+        frontier = [(0, source_id_str, [(source_id_str, 1.0)])]
+        visited = {source_id_str}
 
         while frontier:
             _, current_id, path = heapq.heappop(frontier)
 
             # If we found the target, return the path
-            if current_id == target_id:
+            if current_id == target_id_str:
                 return path
 
             # If we've reached the maximum hop count, skip
@@ -437,13 +420,10 @@ class AssociativeMemoryLinker(MemoryComponent):
                 continue
 
             # Get links for current memory
-            links = self.associative_memory.get_links(current_id)
+            links = self.get_associative_links(current_id)
 
             # Process each link
-            for link in links:
-                linked_id = link.target_id
-                link_strength = link.strength
-
+            for linked_id, link_strength in links:
                 # Skip if already visited
                 if linked_id in visited:
                     continue
@@ -481,25 +461,46 @@ class AssociativeMemoryLinker(MemoryComponent):
             target_id: Target memory ID
             strength: Link strength (0-1)
         """
+        # Convert IDs to strings for consistent keys
+        source_id_str = str(source_id)
+        target_id_str = str(target_id)
+
         # Add forward link
-        self.associative_memory.add_link(source_id, target_id, strength)
+        self._add_or_update_link(source_id_str, target_id_str, strength)
 
         # Add reverse link with slightly reduced strength
         reduced_strength = max(0.1, strength * 0.8)  # Slightly weaker in reverse
-        self.associative_memory.add_link(target_id, source_id, reduced_strength)
+        self._add_or_update_link(target_id_str, source_id_str, reduced_strength)
 
-        # Ensure we don't exceed max links per memory
-        source_links = self.associative_memory.get_links(source_id)
-        if len(source_links) > self.max_links_per_memory:
-            # Sort by strength and keep only the strongest links
-            sorted_links = sorted(source_links, key=lambda x: x.strength, reverse=True)
-            self.associative_memory.links[source_id] = sorted_links[: self.max_links_per_memory]
+    def _add_or_update_link(self, source_id: str, target_id: str, strength: float) -> None:
+        """Helper to add or update a link with pruning."""
+        # Initialize links list for source if it doesn't exist
+        if source_id not in self.links_store.links:
+            self.links_store.links[source_id] = []
 
-        target_links = self.associative_memory.get_links(target_id)
-        if len(target_links) > self.max_links_per_memory:
-            # Sort by strength and keep only the strongest links
-            sorted_links = sorted(target_links, key=lambda x: x.strength, reverse=True)
-            self.associative_memory.links[target_id] = sorted_links[: self.max_links_per_memory]
+        # Check if link already exists
+        link_updated = False
+        for i, link in enumerate(self.links_store.links[source_id]):
+            if link.target_id == target_id:
+                # Update strength if new one is higher
+                if strength > link.strength:
+                    self.links_store.links[source_id][i].strength = strength
+                link_updated = True
+                break
+
+        # Add new link if not updated
+        if not link_updated:
+            self.links_store.links[source_id].append(
+                AssociativeLink(target_id=target_id, strength=strength)
+            )
+
+        # Prune if exceeded max links
+        if len(self.links_store.links[source_id]) > self.max_links_per_memory:
+            # Sort by strength and keep top N
+            self.links_store.links[source_id].sort(key=lambda x: x.strength, reverse=True)
+            self.links_store.links[source_id] = self.links_store.links[source_id][
+                : self.max_links_per_memory
+            ]
 
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """
@@ -540,15 +541,48 @@ class AssociativeMemoryLinker(MemoryComponent):
 
             # Update with strongest activations
             for memory_id, activation in activations.items():
-                if memory_id in associated_memories:
-                    associated_memories[memory_id] = max(associated_memories[memory_id], activation)
+                # Try to convert back to original ID type for API consistency
+                try:
+                    # If the original seed was an int, try to convert back to int
+                    if isinstance(seed_id, int):
+                        memory_id_converted = int(memory_id)
+                    else:
+                        memory_id_converted = memory_id
+                except (ValueError, TypeError):
+                    memory_id_converted = memory_id
+
+                if memory_id_converted in associated_memories:
+                    associated_memories[memory_id_converted] = max(
+                        associated_memories[memory_id_converted], activation
+                    )
                 else:
-                    associated_memories[memory_id] = activation
+                    associated_memories[memory_id_converted] = activation
 
         # Add to context
         updated_context["associative_memories"] = associated_memories
 
         return updated_context
+
+    @property
+    def associative_links(self):
+        """Legacy property for backward compatibility."""
+        # Convert from Pydantic model to dictionary of tuples
+        links_dict = {}
+        for source_id, links in self.links_store.links.items():
+            # Convert links to tuple format
+            tuple_links = [(link.target_id, link.strength) for link in links]
+
+            # Add with both string and int keys for backward compatibility
+            links_dict[source_id] = tuple_links
+
+            # Also add with int key if possible
+            try:
+                int_id = int(source_id)
+                links_dict[int_id] = tuple_links
+            except (ValueError, TypeError):
+                pass
+
+        return links_dict
 
 
 class AssociativeNetworkVisualizer(Component):
@@ -598,9 +632,9 @@ class AssociativeNetworkVisualizer(Component):
         # Get all unique memory IDs
         memory_ids = set()
         for source_id, links in all_links.items():
-            memory_ids.add(source_id)
+            memory_ids.add(str(source_id))
             for target_id, _ in links:
-                memory_ids.add(target_id)
+                memory_ids.add(str(target_id))
 
         # Limit to max_nodes
         if len(memory_ids) > max_nodes:
@@ -614,11 +648,11 @@ class AssociativeNetworkVisualizer(Component):
         links = []
 
         for source_id, memory_links in all_links.items():
-            if source_id not in memory_ids:
+            if str(source_id) not in memory_ids:
                 continue
 
             for target_id, strength in memory_links:
-                if target_id not in memory_ids:
+                if str(target_id) not in memory_ids:
                     continue
 
                 links.append({"source": source_id, "target": target_id, "strength": strength})
@@ -659,7 +693,7 @@ class AssociativeNetworkVisualizer(Component):
         links = []
 
         for source_id in memory_ids:
-            memory_links = self.linker.associative_links.get(source_id, [])
+            memory_links = self.linker.get_associative_links(source_id)
 
             for target_id, strength in memory_links:
                 if target_id not in memory_ids:
