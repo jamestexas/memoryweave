@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
-from memoryweave.storage.base_store import StandardMemoryStore
+from memoryweave.storage import StandardMemoryStore
 
 
 class TestAssociativeMemoryLinker:
@@ -195,6 +195,37 @@ class TestAssociativeMemoryLinker:
         updated_strength = next(strength for mem_id, strength in links_0 if mem_id == "2")
         assert updated_strength == 0.9
 
+    def test_create_associative_link_type_conversion(self, linker):
+        """Test type conversion in create_associative_link using Pydantic."""
+        # Test with integer IDs
+        linker.create_associative_link(1, 3, 0.6)
+
+        # Check if conversion to string worked
+        links_1 = linker.associative_links.get("1", [])
+        assert any(mem_id == "3" for mem_id, _ in links_1)
+
+        # Check reverse link
+        links_3 = linker.associative_links.get("3", [])
+        assert any(mem_id == "1" for mem_id, _ in links_3)
+
+        # Test with non-standard types that should convert to string
+        class CustomID:
+            def __init__(self, id_value):
+                self.id_value = id_value
+
+            def __str__(self):
+                return f"custom-{self.id_value}"
+
+        custom_id_1 = CustomID("abc")
+        custom_id_2 = CustomID("xyz")
+
+        # This should work if Pydantic converts to string properly
+        linker.create_associative_link(custom_id_1, custom_id_2, 0.8)
+
+        # Check if conversion worked
+        links = linker.associative_links.get(str(custom_id_1), [])
+        assert any(mem_id == str(custom_id_2) for mem_id, _ in links)
+
     def test_process_query(self, linker):
         """Test processing a query through associative memory."""
         # Set up context with some initial results
@@ -228,3 +259,26 @@ class TestAssociativeMemoryLinker:
 
         # Memory 0 should have highest activation (seed memory)
         assert activations[0] == 1.0
+
+    def test_exceeding_max_links(self, linker):
+        """Test that links are limited to max_links_per_memory."""
+        # Set a low max_links value
+        linker.max_links_per_memory = 2
+
+        # Create several links
+        linker.create_associative_link("test1", "test2", 0.9)
+        linker.create_associative_link("test1", "test3", 0.8)
+        linker.create_associative_link("test1", "test4", 0.7)
+        linker.create_associative_link("test1", "test5", 0.6)
+
+        # Check that only the top 2 links were kept
+        links = linker.associative_links.get("test1", [])
+        assert len(links) == 2
+
+        # Should be the strongest links (test2 and test3)
+        assert any(mem_id == "test2" for mem_id, _ in links)
+        assert any(mem_id == "test3" for mem_id, _ in links)
+
+        # The weaker links should be pruned
+        assert not any(mem_id == "test4" for mem_id, _ in links)
+        assert not any(mem_id == "test5" for mem_id, _ in links)

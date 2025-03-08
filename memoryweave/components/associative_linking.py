@@ -12,7 +12,7 @@ from collections import defaultdict
 from typing import Any, Optional
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from memoryweave.components.base import Component, MemoryComponent
 from memoryweave.components.component_names import ComponentName
@@ -23,8 +23,10 @@ from memoryweave.storage.base_store import StandardMemoryStore
 class LinkParams(BaseModel):
     """Parameters for creating associative links."""
 
-    source_id: str
-    target_id: str
+    model_config = ConfigDict(coerce_numbers=True)  # Corrected config
+
+    source_id: MemoryID
+    target_id: MemoryID
     strength: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
@@ -140,11 +142,6 @@ class AssociativeMemoryLinker(MemoryComponent):
     ) -> None:
         """
         Establish associative links for a single memory.
-
-        Args:
-            memory_id: ID of the memory to establish links for
-            memory_data: Data for the memory
-            context: Context information
         """
         # Extract embedding and creation time
         embedding = memory_data.get("embedding")
@@ -160,7 +157,7 @@ class AssociativeMemoryLinker(MemoryComponent):
         candidate_links = []
 
         for other_memory in all_memories:
-            # Skip self
+            # Skip self - compare by value, not by type
             if other_memory.id == memory_id:
                 continue
 
@@ -188,7 +185,7 @@ class AssociativeMemoryLinker(MemoryComponent):
                 + self.temporal_weight * temporal_proximity
             )
 
-            # Add to candidate links
+            # IMPORTANT: Use the original ID type, not a string conversion
             candidate_links.append((other_memory.id, link_strength))
 
         # Sort candidate links by strength (descending)
@@ -282,10 +279,13 @@ class AssociativeMemoryLinker(MemoryComponent):
                     + self.temporal_weight * temporal_proximity
                 )
 
+                # IMPORTANT: Use the original ID type, not a string conversion
                 links.append((ids[j], link_strength))
 
             # Sort by strength and take top N
             links.sort(key=lambda x: x[1], reverse=True)
+
+            # IMPORTANT: Use the original ID type as the key
             self.associative_links[memory_id] = links[: self.max_links_per_memory]
 
         # Update rebuild time
@@ -441,65 +441,64 @@ class AssociativeMemoryLinker(MemoryComponent):
 
     def create_associative_link(
         self,
-        source_id: Any,
-        target_id: Any,
+        source_id: MemoryID,
+        target_id: MemoryID,
         strength: float = 0.5,
     ) -> None:
         """
         Create an associative link between two memories.
-
-        Args:
-            source_id: Source memory ID
-            target_id: Target memory ID
-            strength: Link strength (0-1)
         """
-        # Use Pydantic for type conversion
+        # Use Pydantic for type validation
         params = LinkParams(source_id=source_id, target_id=target_id, strength=strength)
 
+        # Important: Use the original ID types for dictionary access
+        source_id = params.source_id
+        target_id = params.target_id
+
         # Create links in both directions with appropriate strengths
-        source_links = self.associative_links.get(params.source_id, [])
-        target_links = self.associative_links.get(params.target_id, [])
+        source_links = self.associative_links.get(source_id, [])
+        target_links = self.associative_links.get(target_id, [])
 
         # Update or add source → target link
         source_target_exists = False
         for i, (existing_id, existing_strength) in enumerate(source_links):
-            if existing_id == params.target_id:
+            if existing_id == target_id:
                 # Update existing link with higher strength
-                source_links[i] = (params.target_id, max(existing_strength, params.strength))
+                source_links[i] = (target_id, max(existing_strength, params.strength))
                 source_target_exists = True
                 break
 
         if not source_target_exists:
-            source_links.append((params.target_id, params.strength))
+            source_links.append((target_id, params.strength))
 
         # Update or add target → source link (with reduced strength)
         target_source_exists = False
         reduced_strength = max(0.1, params.strength * 0.8)  # Slightly weaker in reverse
 
         for i, (existing_id, existing_strength) in enumerate(target_links):
-            if existing_id == params.source_id:
+            if existing_id == source_id:
                 # Update existing link with higher strength
-                target_links[i] = (params.source_id, max(existing_strength, reduced_strength))
+                target_links[i] = (source_id, max(existing_strength, reduced_strength))
                 target_source_exists = True
                 break
 
         if not target_source_exists:
-            target_links.append((params.source_id, reduced_strength))
+            target_links.append((source_id, reduced_strength))
 
         # Store updated links
-        self.associative_links[params.source_id] = source_links
-        self.associative_links[params.target_id] = target_links
+        self.associative_links[source_id] = source_links
+        self.associative_links[target_id] = target_links
 
         # Ensure we don't exceed max links per memory
         if len(source_links) > self.max_links_per_memory:
             # Sort by strength and keep only the strongest links
             source_links.sort(key=lambda x: x[1], reverse=True)
-            self.associative_links[params.source_id] = source_links[: self.max_links_per_memory]
+            self.associative_links[source_id] = source_links[: self.max_links_per_memory]
 
         if len(target_links) > self.max_links_per_memory:
             # Sort by strength and keep only the strongest links
             target_links.sort(key=lambda x: x[1], reverse=True)
-            self.associative_links[params.target_id] = target_links[: self.max_links_per_memory]
+            self.associative_links[target_id] = target_links[: self.max_links_per_memory]
 
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """
