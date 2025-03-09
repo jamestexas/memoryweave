@@ -16,7 +16,7 @@ from memoryweave.utils.similarity import (
 )
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("memoryweave")
+logger = logging.getLogger(__name__)
 
 
 def _load_module(module_name: str) -> bool:

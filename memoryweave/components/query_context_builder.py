@@ -21,7 +21,7 @@ logging.basicConfig(
     datefmt="[%X]",
     handlers=[RichHandler(rich_tracebacks=True, markup=True)],
 )
-logger = logging.getLogger("memoryweave")
+logger = logging.getLogger(__name__)
 
 
 class QueryContextBuilder(Component):

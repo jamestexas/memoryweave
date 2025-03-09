@@ -22,7 +22,7 @@ from memoryweave.components.temporal_context import TemporalContextBuilder
 from memoryweave.storage import HybridMemoryStore
 from memoryweave.utils import _load_module
 
-FORMAT = "%(message)s"
+FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(
     level="NOTSET",
     format=FORMAT,
@@ -31,7 +31,7 @@ logging.basicConfig(
         RichHandler(markup=True),  # allow colors in terminal
     ],
 )
-logger = logging.getLogger("memoryweave")
+logger = logging.getLogger(__name__)
 
 
 def _nltk_extract_keywords(text: str) -> list[str] | None:
@@ -92,7 +92,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         use_two_stage_by_default: bool = True,
         first_stage_k: int = 30,
         first_stage_threshold_factor: float = 0.7,
-        memory_store: Optional[Any] = None,
+        memory_store: Optional[HybridMemoryStore] = None,
         associative_linker: Optional[AssociativeMemoryLinker] = None,
         temporal_context: Optional[TemporalContextBuilder] = None,
         activation_manager: Optional[ActivationManager] = None,
@@ -107,13 +107,15 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             temporal_context: Temporal context builder for time-based relevance
             activation_manager: Activation manager for memory accessibility
         """
+        if memory_store is None:
+            logger.debug("[bold red] MISSING MEMORY STORE [/bold red]")
         super().__init__(
             memory_store=memory_store,
             associative_linker=associative_linker,
             temporal_context=temporal_context,
             activation_manager=activation_manager,
         )
-        self.component_id = ComponentName.CONTEXTUAL_FABRIC_STRATEGY
+        self.component_id = ComponentName.HYBRID_FABRIC_STRAETGY
         self._kwargs = kwargs
         # Hybrid specific parameters
         self.use_two_stage_by_default: bool = use_two_stage_by_default
@@ -125,9 +127,6 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         self.keyword_boost_factor = self._kwargs.get("keyword_boost_factor", 0.3)
         self.max_chunks_per_memory = self._kwargs.get("max_chunks_per_memory", 3)
         self.prioritize_full_embeddings = self._kwargs.get("prioritize_full_embeddings", True)
-
-        # Explicitly initialize supports_hybrid to False
-        self.supports_hybrid = False
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the strategy with configuration."""
@@ -149,13 +148,14 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             "first_stage_threshold_factor", self.first_stage_threshold_factor
         )
 
-        # Reset supports_hybrid to False before checking
-        self.supports_hybrid = False
+        # # Reset supports_hybrid to False before checking
+        # self.supports_hybrid = False
 
         # Check hybrid support
+        print(f"DEBUG: Memory store: {self.memory_store}")
         self._check_hybrid_support()
         print(f"DEBUG: Memory store: {self.memory_store}, supports_hybrid: {self.supports_hybrid}")
-        self.logger.debug(f"After initialize: supports_hybrid set to {self.supports_hybrid}")
+        logger.debug(f"After initialize: supports_hybrid set to {self.supports_hybrid}")
 
     def _check_hybrid_support(self) -> None:
         """Check if memory_store supports hybrid features."""
@@ -165,25 +165,25 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         if self.memory_store is None:
             # No memory store, no hybrid support
             self.supports_hybrid = False
-            self.logger.debug("No memory store, no hybrid support")
+            logger.debug("No memory store, no hybrid support")
             return
 
         # Check for specific attributes and ONLY set to True if found
         if hasattr(self.memory_store, "search_hybrid"):
             self.supports_hybrid = True
-            self.logger.debug("Hybrid search support detected in memory store")
+            logger.debug("Hybrid search support detected in memory store")
         elif hasattr(self.memory_store, "memory_store") and hasattr(
             self.memory_store.memory_store, "search_hybrid"
         ):
             self.supports_hybrid = True
-            self.logger.debug("Hybrid search support detected in nested memory store")
+            logger.debug("Hybrid search support detected in nested memory store")
         elif hasattr(self.memory_store, "search_chunks"):
             self.supports_hybrid = True
-            self.logger.debug("Chunk search support detected - will use for hybrid search")
+            logger.debug("Chunk search support detected - will use for hybrid search")
         else:
             # No hybrid capabilities found - EXPLICITLY set to False again
             self.supports_hybrid = False
-            self.logger.debug("No hybrid search capabilities detected")
+            logger.debug("No hybrid search capabilities detected")
 
     def retrieve(
         self,
@@ -475,9 +475,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
                         combined_dict[memory_id] = result
                     except Exception as e:
                         if self.debug:
-                            self.logger.debug(
-                                f"Error processing associative memory {memory_id}: {e}"
-                            )
+                            logger.debug(f"Error processing associative memory {memory_id}: {e}")
 
             processed_count += 1
 
@@ -524,7 +522,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
                         combined_dict[memory_id] = result
                     except Exception as e:
                         if self.debug:
-                            self.logger.debug(f"Error processing temporal memory {memory_id}: {e}")
+                            logger.debug(f"Error processing temporal memory {memory_id}: {e}")
 
             processed_count += 1
 
@@ -999,7 +997,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
                         enhanced_results.append(associative_result)
                         associative_memories.add(linked_id)
                     except Exception as e:
-                        self.logger.debug(f"Error retrieving associative memory {linked_id}: {e}")
+                        logger.debug(f"Error retrieving associative memory {linked_id}: {e}")
                         # Skip if memory can't be retrieved
                         pass
 
@@ -1025,7 +1023,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         self.first_stage_threshold_factor = first_stage_threshold_factor
 
         if self.debug:
-            self.logger.debug(
+            logger.debug(
                 f"Configured two-stage retrieval: enable={enable}, "
                 f"first_stage_k={first_stage_k}, "
                 f"first_stage_threshold_factor={first_stage_threshold_factor}"

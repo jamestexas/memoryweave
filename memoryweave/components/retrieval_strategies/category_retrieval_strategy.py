@@ -20,7 +20,7 @@ logger = logging.basicConfig(
     format="%(message)s",
     handlers=[RichHandler(rich_tracebacks=True, markup=True)],
 )
-logger = logging.getLogger("memoryweave")
+logger = logging.getLogger(__name__)
 
 # TODO: This is hacky but for now here we are:
 # Patch the SimilarityRetrievalStrategy to add category_id to results
