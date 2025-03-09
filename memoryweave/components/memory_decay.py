@@ -22,22 +22,22 @@ class MemoryDecayComponent(Component):
     over time.
     """
 
-    def __init__(self):
-        """Initialize the memory decay component."""
-        self.memory_decay_enabled = True
-        self.memory_decay_rate = 0.99  # Default: Retain 99% of activation per decay
-        self.memory_decay_interval = 10  # Default: Apply decay every 10 interactions
-        self.interaction_count = 0
-        self.art_clustering_enabled = False
-        self.memory = None
+    memory_decay_enabled: bool = True
+    memory_decay_rate: float = 0.99
+    memory_decay_interval: int = 10
+    interaction_count: int = 0
+    art_clustering_enabled: bool = False
+    memory: Any = None
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
-        self.memory_decay_enabled = config.get("memory_decay_enabled", True)
-        self.memory_decay_rate = config.get("memory_decay_rate", 0.99)
-        self.memory_decay_interval = config.get("memory_decay_interval", 10)
-        self.art_clustering_enabled = config.get("art_clustering_enabled", False)
-        self.memory = config.get("memory", None)
+        self.memory_decay_enabled = config.get("memory_decay_enabled", self.memory_decay_enabled)
+        self.memory_decay_rate = config.get("memory_decay_rate", self.memory_decay_rate)
+        self.memory_decay_interval = config.get("memory_decay_interval", self.memory_decay_interval)
+        self.art_clustering_enabled = config.get(
+            "art_clustering_enabled", self.art_clustering_enabled
+        )
+        self.memory = config.get("memory", self.memory)
 
     def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """
