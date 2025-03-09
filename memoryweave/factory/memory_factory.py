@@ -90,7 +90,8 @@ def create_memory_store_and_adapter(
         )
 
     elif config.store_type == "chunked":
-        return ChunkedMemoryAdapter(memory_store=ChunkedMemoryStore())
+        chunked_store = ChunkedMemoryStore()
+        return chunked_store, ChunkedMemoryAdapter(memory_store=chunked_store)
 
     memory_store = StandardMemoryStore()
     return memory_store, MemoryAdapter(

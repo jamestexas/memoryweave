@@ -3,8 +3,8 @@ import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from rich.logging import RichHandler
-
+from memoryweave.api.config import MemoryWeaveConfig, StrategyConfig
+from memoryweave.api.constants import DEFAULT_EMBEDDING_MODEL, DEFAULT_MODEL
 from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.prompt_builder import PromptBuilder
 from memoryweave.api.retrieval_orchestrator import RetrievalOrchestrator
@@ -27,19 +27,12 @@ from memoryweave.factory.memory_factory import (
     create_memory_store_and_adapter,
 )
 from memoryweave.interfaces.retrieval import QueryType
+from memoryweave.storage.adapter import MemoryAdapter
+from memoryweave.storage.memory_store import StandardMemoryStore
 from memoryweave.utils import _get_device
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(markup=True)],
-)
 logger = logging.getLogger(__name__)
 logging.getLogger("memoryweave.components.post_processors").setLevel(logging.WARNING)
-
-DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
-DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 class MemoryWeaveAPI:
@@ -49,6 +42,7 @@ class MemoryWeaveAPI:
 
     def __init__(
         self,
+        config: MemoryWeaveConfig | None = None,
         model_name: str = DEFAULT_MODEL,
         embedding_model_name: str = DEFAULT_EMBEDDING_MODEL,
         device: str = "auto",
@@ -61,52 +55,110 @@ class MemoryWeaveAPI:
         show_progress_bar: bool = False,
         debug: bool = False,
         llm_provider: LLMProvider | None = None,
+        prompt_builder: PromptBuilder | None = None,
         **model_kwargs,
     ):
         """Initialize MemoryWeave with an LLM, embeddings, and memory components."""
-        self.debug = debug
-        self.device = _get_device(device)
-        self.show_progress_bar = show_progress_bar
+        # Handle config-based or parameter-based initialization
+        if config is None:
+            # Create config from parameters
+            config = MemoryWeaveConfig(
+                model_name=model_name,
+                embedding_model_name=embedding_model_name,
+                device=device,
+                max_memories=max_memories,
+                enable_category_management=enable_category_management,
+                enable_personal_attributes=enable_personal_attributes,
+                enable_semantic_coherence=enable_semantic_coherence,
+                enable_dynamic_thresholds=enable_dynamic_thresholds,
+                consolidation_interval=consolidation_interval,
+                show_progress_bar=show_progress_bar,
+                debug=debug,
+                model_kwargs=model_kwargs,
+            )
+
+        # Store basic parameters
+        self.debug = config.debug
+        self.device = _get_device(config.device)
+        self.show_progress_bar = config.show_progress_bar
+        self.max_memories = config.max_memories
+        self.consolidation_interval = config.consolidation_interval
+        self.memories_since_consolidation = 0
 
         # Configure logging
-        if debug:
+        if self.debug:
             logging.basicConfig(level=logging.DEBUG)
             logger.setLevel(logging.DEBUG)
 
+        # Initialize prompt builder
+        self._prompt_builder = prompt_builder
+
         # Initialize LLM provider
-        self.llm_provider = llm_provider or LLMProvider(model_name, self.device, **model_kwargs)
+        self.llm_provider = llm_provider or LLMProvider(
+            config.model_name, self.device, **config.model_kwargs
+        )
 
         # Initialize streaming handler
         self.streaming_handler = StreamingHandler(self.llm_provider)
 
-        # Initialize prompt builder
-        self.prompt_builder = PromptBuilder()
-
         # Initialize embedding model
-        logger.info(f"Loading embedding model: {embedding_model_name}")
-        self.embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
+        logger.info(f"Loading embedding model: {config.embedding_model_name}")
+        self.embedding_model = _get_embedder(
+            model_name=config.embedding_model_name, device=self.device
+        )
         embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
 
-        # Check if memory components are provided by subclass
-        if hasattr(self, "_memory_store_override") and hasattr(self, "_memory_adapter_override"):
-            self.memory_store = self._memory_store_override
-            self.memory_adapter = self._memory_adapter_override
-        else:
-            # Configure and create memory store and adapter using factory pattern
-            store_config = MemoryStoreConfig(
-                type="standard",  # Use standard store for base API
-                vector_search=VectorSearchConfig(
-                    type="numpy",  # Default to numpy for simplicity
-                    dimension=embedding_dim,
-                ),
-            )
+        # Create memory store and adapter - EXTENSION POINT
+        self.memory_store, self.memory_adapter = self._create_memory_store(config.memory_store)
+        self.memory_store_adapter = self.memory_adapter  # For backward compatibility
 
-            # Create adapter (which includes the store)
-            self.memory_adapter, self.memory_store = create_memory_store_and_adapter(store_config)
+        # Initialize components with the memory store
+        self._initialize_components(
+            embedding_dim=embedding_dim,
+            enable_category_management=config.enable_category_management,
+            enable_personal_attributes=config.enable_personal_attributes,
+            enable_semantic_coherence=config.enable_semantic_coherence,
+            debug=config.debug,
+            strategy_config=config.strategy,
+        )
 
-        # For backward compatibility
-        self.memory_store_adapter = self.memory_adapter
+        # Conversation tracking
+        self.conversation_history = []
+        self.retrieval_stats = {
+            "total_queries": 0,
+            "successful_retrievals": 0,
+            "avg_query_time": 0,
+            "avg_results_count": 0,
+        }
 
+    def _create_memory_store(self, config: MemoryStoreConfig) -> tuple[Any, Any]:
+        """
+        Create the memory store and adapter.
+
+        This is the main extension point for subclasses. Override this method
+        to provide specialized memory store implementations.
+
+        Args:
+            config: Configuration for the memory store
+
+        Returns:
+            tuple of (memory_store, memory_adapter)
+        """
+        # Create store and adapter
+        memory_adapter, memory_store = create_memory_store_and_adapter(config)
+        print(f"DEBUG: Memory store: {memory_store}")
+        return memory_store, memory_adapter
+
+    def _initialize_components(
+        self,
+        embedding_dim: int,
+        enable_category_management: bool,
+        enable_personal_attributes: bool,
+        enable_semantic_coherence: bool,
+        debug: bool,
+        strategy_config: StrategyConfig,
+    ):
+        """Initialize all components that depend on the memory store."""
         # Initialize associative linker
         self.associative_linker = AssociativeMemoryLinker(self.memory_store)
 
@@ -117,21 +169,20 @@ class MemoryWeaveAPI:
         self.activation_manager = ActivationManager()
 
         # Initialize query components
-        self.query_analyzer: QueryAnalyzer = QueryAnalyzer()
+        self.query_analyzer = QueryAnalyzer()
         self.query_analyzer.initialize(
-            config=dict(
-                min_keyword_length=3,
-                max_keywords=10,
-            ),
+            {
+                "min_keyword_length": 3,
+                "max_keywords": 10,
+            }
         )
-        self.query_analyzer.initialize({"min_keyword_length": 3, "max_keywords": 10})
 
         self.query_adapter = QueryTypeAdapter()
         self.query_adapter.initialize(
-            config=dict(
-                apply_keyword_boost=True,
-                scale_params_by_length=True,
-            ),
+            {
+                "apply_keyword_boost": True,
+                "scale_params_by_length": True,
+            }
         )
 
         # Initialize optional components
@@ -139,10 +190,10 @@ class MemoryWeaveAPI:
         if enable_category_management:
             self.category_manager = CategoryManager()
             self.category_manager.initialize(
-                config=dict(
-                    vigilance_threshold=0.85,
-                    embedding_dim=embedding_dim,
-                ),
+                {
+                    "vigilance_threshold": 0.85,
+                    "embedding_dim": embedding_dim,
+                }
             )
 
         # Initialize personal attribute manager
@@ -159,19 +210,19 @@ class MemoryWeaveAPI:
 
         # Initialize retrieval strategy
         self.strategy = ContextualFabricStrategy(
-            memory_store=self.memory_store_adapter,
+            memory_store=self.memory_store,
             associative_linker=self.associative_linker,
             temporal_context=self.temporal_context,
             activation_manager=self.activation_manager,
         )
         self.strategy.initialize(
             {
-                "confidence_threshold": 0.1,
-                "similarity_weight": 0.4,
-                "associative_weight": 0.3,
-                "temporal_weight": 0.2,
-                "activation_weight": 0.1,
-                "max_associative_hops": 2,
+                "confidence_threshold": strategy_config.confidence_threshold,
+                "similarity_weight": strategy_config.similarity_weight,
+                "associative_weight": strategy_config.associative_weight,
+                "temporal_weight": strategy_config.temporal_weight,
+                "activation_weight": strategy_config.activation_weight,
+                "max_associative_hops": strategy_config.max_associative_hops,
                 "debug": debug,
             }
         )
@@ -182,23 +233,16 @@ class MemoryWeaveAPI:
             activation_manager=self.activation_manager,
             temporal_context=self.temporal_context,
             semantic_coherence_processor=self.semantic_coherence_processor,
-            memory_store_adapter=self.memory_store_adapter,
+            memory_store_adapter=self.memory_adapter,
             debug=debug,
         )
 
-        # Memory management settings
-        self.max_memories = max_memories
-        self.consolidation_interval = consolidation_interval
-        self.memories_since_consolidation = 0
-
-        # Conversation tracking
-        self.conversation_history = []
-        self.retrieval_stats = {
-            "total_queries": 0,
-            "successful_retrievals": 0,
-            "avg_query_time": 0,
-            "avg_results_count": 0,
-        }
+    @property
+    def prompt_builder(self) -> PromptBuilder:
+        """Lazy-loaded prompt builder property."""
+        if self._prompt_builder is None:
+            self._prompt_builder = PromptBuilder()
+        return self._prompt_builder
 
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """Store a memory with consistent handling of metadata."""
@@ -397,6 +441,35 @@ class MemoryWeaveAPI:
         return memories
 
     # Helper methods
+
+    def _create_memory_store(
+        self,
+        embedding_dim: int,
+    ) -> tuple[StandardMemoryStore, MemoryAdapter]:
+        """
+        Create the memory store and adapter.
+
+        This is the main extension point for subclasses. Override this method
+        to provide specialized memory store implementations.
+
+        Args:
+            embedding_dim: Dimension of the embedding vectors
+
+        Returns:
+            tuple of (memory_store, memory_adapter)
+        """
+        # Default implementation creates a standard memory store
+        store_config = MemoryStoreConfig(
+            type="standard",
+            vector_search=VectorSearchConfig(
+                type="numpy",
+                dimension=embedding_dim,
+            ),
+        )
+
+        # Create adapter (which includes the store)
+        memory_adapter, memory_store = create_memory_store_and_adapter(store_config)
+        return memory_store, memory_adapter
 
     def _analyze_query(self, user_message: str):
         """Analyze query to extract type, keywords, and parameters."""
@@ -631,7 +704,7 @@ class MemoryWeaveAPI:
             limit: Maximum number of results to return
 
         Returns:
-            List of matching memories with scores
+            list of matching memories with scores
         """
         logger.debug(f"Searching for memories with keyword: {keyword}")
         results = []
@@ -678,7 +751,7 @@ class MemoryWeaveAPI:
             limit: Maximum number of similar memories to return
 
         Returns:
-            List of similar memories with similarity scores
+            list of similar memories with similarity scores
         """
         logger.debug(f"Finding similar memories for memory ID: {memory_id}")
         try:

@@ -150,30 +150,8 @@ class HybridFabricStrategy(ContextualFabricStrategy):
     def _check_hybrid_support(self) -> None:
         """Check if memory_store supports hybrid features."""
         # Explicitly set to False by default - VERY IMPORTANT
-        self.supports_hybrid = False
-
-        if self.memory_store is None:
-            # No memory store, no hybrid support
-            self.supports_hybrid = False
-            logger.debug("No memory store, no hybrid support")
-            return
-
-        # Check for specific attributes and ONLY set to True if found
-        if hasattr(self.memory_store, "search_hybrid"):
-            self.supports_hybrid = True
-            logger.debug("Hybrid search support detected in memory store")
-        elif hasattr(self.memory_store, "memory_store") and hasattr(
-            self.memory_store.memory_store, "search_hybrid"
-        ):
-            self.supports_hybrid = True
-            logger.debug("Hybrid search support detected in nested memory store")
-        elif hasattr(self.memory_store, "search_chunks"):
-            self.supports_hybrid = True
-            logger.debug("Chunk search support detected - will use for hybrid search")
-        else:
-            # No hybrid capabilities found - EXPLICITLY set to False again
-            self.supports_hybrid = False
-            logger.debug("No hybrid search capabilities detected")
+        self.supports_hybrid = True
+        logger.debug("Using hybrid retrieval capabilities")
 
     def retrieve(
         self,

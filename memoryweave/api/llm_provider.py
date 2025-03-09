@@ -3,11 +3,10 @@ import logging
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from memoryweave.api.constants import DEFAULT_MODEL
 from memoryweave.utils import _get_device
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"
 
 
 class LLMProvider:

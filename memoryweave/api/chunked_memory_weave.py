@@ -12,8 +12,9 @@ from typing import Any
 
 import numpy as np
 
-from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
-from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
+from memoryweave.api.constants import DEFAULT_EMBEDDING_MODEL, DEFAULT_MODEL
+from memoryweave.api.llm_provider import LLMProvider
+from memoryweave.api.memory_weave import MemoryWeaveAPI
 from memoryweave.components.retrieval_strategies.chunked_fabric_strategy import (
     ChunkedFabricStrategy,
 )
@@ -27,6 +28,7 @@ from memoryweave.factory.memory_factory import (
 from memoryweave.utils import _get_device
 
 logger = logging.getLogger(__name__)
+__all__ = ["ChunkedMemoryWeaveAPI"]
 
 
 class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):

@@ -10,22 +10,18 @@ retrieval quality.
 import logging
 import re
 import time
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from rank_bm25 import BM25Okapi  # Add this import
 
-from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
-from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
+from memoryweave.api.config import MemoryWeaveConfig
+from memoryweave.api.constants import DEFAULT_EMBEDDING_MODEL, DEFAULT_MODEL
+from memoryweave.api.llm_provider import LLMProvider
+from memoryweave.api.memory_weave import MemoryWeaveAPI
 from memoryweave.components.retrieval_strategies.hybrid_fabric_strategy import HybridFabricStrategy
-from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.text_chunker import TextChunker
-from memoryweave.factory.memory_factory import (
-    MemoryStoreConfig,
-    VectorSearchConfig,
-    create_memory_store_and_adapter,
-)
-from memoryweave.utils import _get_device
+from memoryweave.factory.memory_factory import MemoryStoreConfig, create_memory_store_and_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +40,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
     def __init__(
         self,
+        config: MemoryWeaveConfig | None = None,
         model_name: str = DEFAULT_MODEL,
         embedding_model_name: str = DEFAULT_EMBEDDING_MODEL,
         device: str = "auto",
@@ -60,104 +57,57 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         **model_kwargs,
     ):
         """Initialize the HybridMemoryWeaveAPI with optimized loading."""
-        # Initialize core attributes first
-        self.debug = debug
-        self.two_stage_retrieval = two_stage_retrieval
-        self.device = _get_device(device)
-        self.show_progress_bar = show_progress_bar
-
-        # Start with a much lighter initialization
-        self._initialize_core_components(
-            model_name,
-            embedding_model_name,
-            max_memories,
-            consolidation_interval,
-            llm_provider,
-            **model_kwargs,
-        )
-
-        # Store configuration for deferred initialization
-        self._deferred_config = {
-            "enable_category_management": enable_category_management,
-            "enable_personal_attributes": enable_personal_attributes,
-            "enable_semantic_coherence": enable_semantic_coherence,
-            "enable_dynamic_thresholds": enable_dynamic_thresholds,
-        }
-
-        # Initialize chunking parameters
-        self.adaptive_chunk_threshold = 800  # Character count that triggers chunking
-        self.max_chunks_per_memory = 3  # Maximum number of chunks per memory
-        self.importance_threshold = 0.6  # Threshold for keeping chunks
-        self.enable_auto_chunking = True  # Whether to automatically chunk large texts
-        self.chunked_memory_ids = set()  # Track which memories are chunked
-
-        # Initialize BM25 components
-        self._init_bm25_indexing()
-
-        # Initialize retrieval strategy
-        self._setup_hybrid_strategy()
-
-    def _initialize_core_components(
-        self,
-        model_name: str,
-        embedding_model_name: str,
-        max_memories: int,
-        consolidation_interval: int,
-        llm_provider: Optional[LLMProvider] = None,
-        **model_kwargs,
-    ):
-        """Initialize only the core components needed for basic functionality."""
-        # Initialize embedding model
-        logger.info(f"Loading embedding model: {embedding_model_name}")
-        self.embedding_model = _get_embedder(model_name=embedding_model_name, device=self.device)
-        embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
-
-        # Initialize text chunker (essential for hybrid approach)
+        # Initialize text chunker before parent init
         self.text_chunker = TextChunker()
         self.text_chunker.initialize(
             {
-                "chunk_size": 300,  # Larger chunks than the full chunked version
-                "chunk_overlap": 30,  # Less overlap to save memory
+                "chunk_size": 300,
+                "chunk_overlap": 30,
                 "min_chunk_size": 50,
                 "respect_paragraphs": True,
                 "respect_sentences": True,
             }
         )
 
-        # Configure and create memory store with optimized settings
-        store_config = MemoryStoreConfig(
-            type="hybrid",
-            vector_search=VectorSearchConfig(
-                type="numpy",
-                dimension=embedding_dim,
-            ),
-            chunk_size=300,
-            chunk_overlap=30,
-            min_chunk_size=50,
-            adaptive_threshold=800,
-            max_chunks_per_memory=3,
-            importance_threshold=0.6,
-        )
+        # Initialize chunking parameters
+        self.adaptive_chunk_threshold = 800
+        self.max_chunks_per_memory = 3
+        self.importance_threshold = 0.6
+        self.enable_auto_chunking = True
+        self.chunked_memory_ids = set()
 
-        # Create adapter (which includes the store)
+        # Store two_stage_retrieval parameter
+        self.two_stage_retrieval = two_stage_retrieval
 
-        # Store for direct access
-        self.hybrid_memory_store, self.hybrid_memory_adapter = create_memory_store_and_adapter(
-            store_config
-        )
+        # Create or update config
+        if config is None:
+            config = MemoryWeaveConfig(
+                model_name=model_name,
+                embedding_model_name=embedding_model_name,
+                device=device,
+                max_memories=max_memories,
+                enable_category_management=enable_category_management,
+                enable_personal_attributes=enable_personal_attributes,
+                enable_semantic_coherence=enable_semantic_coherence,
+                enable_dynamic_thresholds=enable_dynamic_thresholds,
+                consolidation_interval=consolidation_interval,
+                show_progress_bar=show_progress_bar,
+                debug=debug,
+                two_stage_retrieval=two_stage_retrieval,
+                memory_store=MemoryStoreConfig(store_type="hybrid"),
+                model_kwargs=model_kwargs,
+            )
+        else:
+            # Make sure we use a hybrid store
+            config.memory_store.store_type = "hybrid"
 
-        # Create LLM provider
-        self.llm_provider = llm_provider or LLMProvider(model_name, self.device, **model_kwargs)
-
-        # Basic history tracking
-        self.conversation_history = []
-        self.max_memories = max_memories
-        self.consolidation_interval = consolidation_interval
-        self.memories_since_consolidation = 0
-
-        # Override for parent's constructor
-        self._memory_store_override = self.hybrid_memory_store
-        self._memory_adapter_override = self.hybrid_memory_adapter
+        # Store deferred config
+        self._deferred_config = {
+            "enable_category_management": enable_category_management,
+            "enable_personal_attributes": enable_personal_attributes,
+            "enable_semantic_coherence": enable_semantic_coherence,
+            "enable_dynamic_thresholds": enable_dynamic_thresholds,
+        }
 
         # Initialize components dictionary for lazy loading
         self._components = {}
@@ -172,6 +122,32 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             "activation_manager": False,
         }
 
+        # Call parent's init
+        super().__init__(
+            config=config,
+            llm_provider=llm_provider,
+        )
+
+        # Initialize BM25 components
+        self._init_bm25_indexing()
+
+        # Setup hybrid strategy AFTER parent init
+        self._setup_hybrid_strategy()
+
+    def _create_memory_store(self, config: MemoryStoreConfig) -> tuple[Any, Any]:
+        """Override to create a hybrid memory store."""
+        # Ensure store type is 'hybrid'
+        config.store_type = "hybrid"
+
+        # Create the store and adapter
+        memory_adapter, memory_store = create_memory_store_and_adapter(config)
+
+        # Store hybrid-specific references
+        self.hybrid_memory_store = memory_store
+        self.hybrid_memory_adapter = memory_adapter
+
+        return memory_store, memory_adapter
+
     def _init_bm25_indexing(self):
         """Initialize BM25 indexing for keyword-based retrieval."""
         self.bm25_index = None
@@ -181,6 +157,142 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         self.bm25_update_batch_size = 50  # Add documents in batches for efficiency
         self.bm25_pending_docs = []
         self.bm25_pending_ids = []
+
+    def _setup_hybrid_strategy(self):
+        """Set up the hybrid fabric strategy to replace the standard strategy."""
+        # Create hybrid strategy
+        self.hybrid_strategy = HybridFabricStrategy(
+            memory_store=self.memory_store,
+            associative_linker=self.associative_linker,
+            temporal_context=self.temporal_context,
+            activation_manager=self.activation_manager,
+        )
+
+        # Initialize with optimized parameters
+        params = {
+            "confidence_threshold": 0.1,
+            "similarity_weight": 0.5,
+            "associative_weight": 0.2,
+            "temporal_weight": 0.2,
+            "activation_weight": 0.1,
+            "use_keyword_filtering": True,
+            "keyword_boost_factor": 0.3,
+            "max_chunks_per_memory": self.max_chunks_per_memory,
+            "prioritize_full_embeddings": True,
+            "min_results": 3,
+            "max_candidates": 50,
+            "debug": self.debug,
+            "use_two_stage": self.two_stage_retrieval,
+            "first_stage_k": 30,
+            "first_stage_threshold_factor": 0.7,
+            "use_batched_computation": True,
+            "batch_size": 200,
+            "max_associative_hops": 2,
+        }
+        self.hybrid_strategy.initialize(params)
+
+        # Replace the strategy
+        self.strategy = self.hybrid_strategy
+
+        # Update the retrieval orchestrator
+        if hasattr(self, "retrieval_orchestrator"):
+            self.retrieval_orchestrator.strategy = self.strategy
+
+    def _store_hybrid_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
+        """Store conversation messages efficiently with hybrid approach."""
+        try:
+            # IMPORTANT: Use the hybrid_memory_adapter explicitly
+            if not hasattr(self, "hybrid_memory_adapter") or self.hybrid_memory_adapter is None:
+                # Fall back to standard storage if hybrid not available
+                self._store_interaction(user_message, assistant_reply, timestamp)
+                logger.warning("Falling back to standard memory storage - hybrid not available")
+                return
+
+            # Use the hybrid adapter directly
+            memory_adapter = self.hybrid_memory_adapter
+
+            # Determine if each message warrants chunking
+            user_should_chunk = len(user_message) > self.adaptive_chunk_threshold
+            assistant_should_chunk = len(assistant_reply) > self.adaptive_chunk_threshold
+
+            # User message
+            user_metadata = {
+                "type": "user_message",
+                "created_at": timestamp,
+                "conversation_id": id(self.conversation_history),
+                "importance": 0.7,
+            }
+
+            if user_should_chunk:
+                # Create full embedding and chunks
+                user_embedding = self.embedding_model.encode(
+                    user_message, show_progress_bar=self.show_progress_bar
+                )
+                user_chunks = self.text_chunker.create_chunks(user_message, user_metadata)
+                selected_chunks, chunk_embeddings = self._select_important_chunks(
+                    user_chunks, user_embedding
+                )
+
+                # Add as hybrid memory using memory_adapter reference
+                user_mem_id = memory_adapter.add_hybrid(
+                    full_embedding=user_embedding,
+                    chunks=selected_chunks,
+                    chunk_embeddings=chunk_embeddings,
+                    original_content=user_message,
+                    metadata=user_metadata,
+                )
+                self.chunked_memory_ids.add(user_mem_id)
+            else:
+                # Add as regular memory
+                user_emb = self.embedding_model.encode(
+                    user_message, show_progress_bar=self.show_progress_bar
+                )
+                user_mem_id = memory_adapter.add(user_emb, user_message, user_metadata)
+
+            # Assistant message
+            assistant_metadata = {
+                "type": "assistant_message",
+                "created_at": timestamp,
+                "conversation_id": id(self.conversation_history),
+                "importance": 0.5,
+            }
+
+            if assistant_should_chunk:
+                # Create full embedding and selected chunks
+                assistant_embedding = self.embedding_model.encode(
+                    assistant_reply, show_progress_bar=self.show_progress_bar
+                )
+                assistant_chunks = self.text_chunker.create_chunks(
+                    assistant_reply, assistant_metadata
+                )
+                selected_chunks, chunk_embeddings = self._select_important_chunks(
+                    assistant_chunks, assistant_embedding
+                )
+
+                # Add as hybrid memory
+                assistant_mem_id = memory_adapter.add_hybrid(
+                    full_embedding=assistant_embedding,
+                    chunks=selected_chunks,
+                    chunk_embeddings=chunk_embeddings,
+                    original_content=assistant_reply,
+                    metadata=assistant_metadata,
+                )
+                self.chunked_memory_ids.add(assistant_mem_id)
+            else:
+                # Add as regular memory
+                assistant_emb = self.embedding_model.encode(
+                    assistant_reply, show_progress_bar=self.show_progress_bar
+                )
+                assistant_mem_id = memory_adapter.add(
+                    assistant_emb, assistant_reply, assistant_metadata
+                )
+
+            # Create associative link between messages
+            if self.associative_linker:
+                self.associative_linker.create_associative_link(user_mem_id, assistant_mem_id, 0.9)
+
+        except Exception as e:
+            logger.error(f"Error storing hybrid conversation in memory: {e}")
 
     def _update_bm25_index(self, text: str, memory_id: str):
         """
@@ -316,49 +428,50 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         return self._components.get(name)
 
-    @property
-    def category_manager(self):
-        return (
-            self._get_component("category_manager")
-            if self._deferred_config.get("enable_category_management")
-            else None
-        )
+    # TODO: Revisit the way we declare properties here as they are also on the parent class
+    # @property
+    # def category_manager(self):
+    #     return (
+    #         self._get_component("category_manager")
+    #         if self._deferred_config.get("enable_category_management")
+    #         else None
+    #     )
 
-    @property
-    def personal_attribute_manager(self):
-        return (
-            self._get_component("personal_attribute_manager")
-            if self._deferred_config.get("enable_personal_attributes")
-            else None
-        )
+    # @property
+    # def personal_attribute_manager(self):
+    #     return (
+    #         self._get_component("personal_attribute_manager")
+    #         if self._deferred_config.get("enable_personal_attributes")
+    #         else None
+    #     )
 
-    @property
-    def semantic_coherence_processor(self):
-        return (
-            self._get_component("semantic_coherence_processor")
-            if self._deferred_config.get("enable_semantic_coherence")
-            else None
-        )
+    # @property
+    # def semantic_coherence_processor(self):
+    #     return (
+    #         self._get_component("semantic_coherence_processor")
+    #         if self._deferred_config.get("enable_semantic_coherence")
+    #         else None
+    #     )
 
-    @property
-    def query_analyzer(self):
-        return self._get_component("query_analyzer")
+    # @property
+    # def query_analyzer(self):
+    #     return self._get_component("query_analyzer")
 
-    @property
-    def query_adapter(self):
-        return self._get_component("query_adapter")
+    # @property
+    # def query_adapter(self):
+    #     return self._get_component("query_adapter")
 
-    @property
-    def associative_linker(self):
-        return self._get_component("associative_linker")
+    # @property
+    # def associative_linker(self):
+    #     return self._get_component("associative_linker")
 
-    @property
-    def temporal_context(self):
-        return self._get_component("temporal_context")
+    # @property
+    # def temporal_context(self):
+    #     return self._get_component("temporal_context")
 
-    @property
-    def activation_manager(self):
-        return self._get_component("activation_manager")
+    # @property
+    # def activation_manager(self):
+    #     return self._get_component("activation_manager")
 
     def configure_two_stage_retrieval(
         self,
@@ -385,74 +498,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 f"first_stage_k={first_stage_k}, "
                 f"first_stage_threshold_factor={first_stage_threshold_factor}"
             )
-
-    def _setup_hybrid_strategy(self):
-        """Set up the hybrid fabric strategy to replace the standard strategy."""
-        # Create hybrid strategy
-        self.hybrid_strategy = HybridFabricStrategy(
-            memory_store=self.hybrid_memory_adapter,
-            associative_linker=self.associative_linker
-            if hasattr(self, "associative_linker")
-            else None,
-            temporal_context=self.temporal_context if hasattr(self, "temporal_context") else None,
-            activation_manager=self.activation_manager
-            if hasattr(self, "activation_manager")
-            else None,
-        )
-
-        # Initialize with optimized parameters
-        params = {
-            "confidence_threshold": 0.1,  # Lower threshold for better recall
-            "similarity_weight": 0.5,  # Strong emphasis on semantic similarity
-            "associative_weight": 0.2,  # Moderate weight for associative links
-            "temporal_weight": 0.2,  # Improved weight for temporal context
-            "activation_weight": 0.1,  # Moderate weight for activation
-            "use_keyword_filtering": True,  # Enable keyword filtering
-            "keyword_boost_factor": 0.3,  # Strong boost for keyword matches
-            "max_chunks_per_memory": self.max_chunks_per_memory,
-            "prioritize_full_embeddings": True,  # Prioritize full embeddings over chunks
-            "min_results": 3,  # Ensure reasonable number of results
-            "max_candidates": 50,  # Consider more candidates for better selection
-            "debug": self.debug,
-            # Two-stage configuration
-            "use_two_stage": self.two_stage_retrieval,  # Enable two-stage retrieval by default
-            "first_stage_k": 30,  # Get 30 candidates in first stage
-            "first_stage_threshold_factor": 0.7,  # Use 70% of confidence threshold in first stage
-            # Advanced optimization parameters
-            "use_batched_computation": True,  # Process large matrices in batches
-            "batch_size": 200,  # Reasonable batch size for most systems
-            "max_associative_hops": 2,  # Limit associative traversal depth
-        }
-        self.hybrid_strategy.initialize(params)
-
-        # Replace the strategy
-        self.strategy = self.hybrid_strategy
-
-        # Initialize retrieval orchestrator if needed
-        if not hasattr(self, "retrieval_orchestrator"):
-            from memoryweave.api.retrieval_orchestrator import RetrievalOrchestrator
-
-            # Create retrieval orchestrator with optimized settings
-            self.retrieval_orchestrator = RetrievalOrchestrator(
-                strategy=self.strategy,
-                activation_manager=self.activation_manager
-                if hasattr(self, "activation_manager")
-                else None,
-                temporal_context=self.temporal_context
-                if hasattr(self, "temporal_context")
-                else None,
-                semantic_coherence_processor=self.semantic_coherence_processor
-                if hasattr(self, "semantic_coherence_processor")
-                else None,
-                memory_store_adapter=self.hybrid_memory_adapter,
-                debug=self.debug,
-                max_workers=4,  # Reasonable parallelism for most systems
-                enable_cache=True,  # Enable caching for faster repeat queries
-                max_cache_size=50,  # Moderate cache size
-            )
-        else:
-            # Update existing orchestrator
-            self.retrieval_orchestrator.strategy = self.strategy
 
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """
@@ -515,7 +560,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             return mem_id
 
         # 4. Add to hybrid memory store
-        mem_id = self.hybrid_memory_adapter.add_hybrid(
+        mem_id = self.meory_adapter.memory_store.add_hybrid(
             full_embedding=full_embedding,
             chunks=selected_chunks,
             chunk_embeddings=chunk_embeddings,
@@ -621,12 +666,12 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         4. Balancing semantic importance with entity coverage
 
         Args:
-            chunks: List of chunk dictionaries
+            chunks: list of chunk dictionaries
             full_embedding: Embedding of full text
             query_embedding: Optional query embedding for relevance scoring
 
         Returns:
-            Tuple of (selected_chunks, chunk_embeddings)
+            tuple of (selected_chunks, chunk_embeddings)
         """
         if not chunks:
             return [], []
@@ -689,7 +734,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             score_components["entity_density"] = min(1.0, entity_density / 3)
 
             # 5. Check for structural indicators
-            # Lists and enumerations often contain important information
+            # lists and enumerations often contain important information
             has_list = bool(re.search(r"\n\s*[-*]\s+|\n\s*\d+\.\s+", text))
             # Headers often mark important sections
             has_header = bool(re.search(r"\n#+\s+|\n[A-Z][A-Z\s]+\n", text))
@@ -885,7 +930,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
                 chunk_embeddings.append(embedding)
 
             # Add as hybrid memory
-            mem_id = self.hybrid_memory_adapter.add_hybrid(
+            mem_id = self.hybrid_memory_adapter.memory_store.add_hybrid(
                 full_embedding=full_embedding,
                 chunks=chunks,
                 chunk_embeddings=chunk_embeddings,
@@ -1038,7 +1083,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
             **kwargs: Additional parameters
 
         Returns:
-            List of retrieved memories with relevance scores
+            list of retrieved memories with relevance scores
         """
 
         # Check cache first (simple LRU cache implementation)
@@ -1309,99 +1354,6 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
 
         return assistant_reply
 
-    def _store_hybrid_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
-        """
-        Store conversation messages efficiently with hybrid approach.
-
-        Args:
-            user_message: User's message
-            assistant_reply: Assistant's reply
-            timestamp: Timestamp when the interaction occurred
-        """
-        try:
-            # Determine if each message warrants chunking
-            user_should_chunk = len(user_message) > self.adaptive_chunk_threshold
-            assistant_should_chunk = len(assistant_reply) > self.adaptive_chunk_threshold
-
-            # Store user message
-            user_metadata = {
-                "type": "user_message",
-                "created_at": timestamp,
-                "conversation_id": id(self.conversation_history),
-                "importance": 0.7,
-            }
-
-            if user_should_chunk:
-                # Create full embedding and selected chunks
-                user_embedding = self.embedding_model.encode(
-                    user_message, show_progress_bar=self.show_progress_bar
-                )
-                user_chunks = self.text_chunker.create_chunks(user_message, user_metadata)
-                selected_chunks, chunk_embeddings = self._select_important_chunks(
-                    user_chunks, user_embedding
-                )
-
-                # Add as hybrid memory
-                user_mem_id = self.hybrid_memory_adapter.add_hybrid(
-                    full_embedding=user_embedding,
-                    chunks=selected_chunks,
-                    chunk_embeddings=chunk_embeddings,
-                    original_content=user_message,
-                    metadata=user_metadata,
-                )
-                self.chunked_memory_ids.add(user_mem_id)
-            else:
-                # Add as regular memory
-                user_emb = self.embedding_model.encode(
-                    user_message, show_progress_bar=self.show_progress_bar
-                )
-                user_mem_id = self.hybrid_memory_adapter.add(user_emb, user_message, user_metadata)
-
-            # Store assistant message
-            assistant_metadata = {
-                "type": "assistant_message",
-                "created_at": timestamp,
-                "conversation_id": id(self.conversation_history),
-                "importance": 0.5,
-            }
-
-            if assistant_should_chunk:
-                # Create full embedding and selected chunks
-                assistant_embedding = self.embedding_model.encode(
-                    assistant_reply, show_progress_bar=self.show_progress_bar
-                )
-                assistant_chunks = self.text_chunker.create_chunks(
-                    assistant_reply, assistant_metadata
-                )
-                selected_chunks, chunk_embeddings = self._select_important_chunks(
-                    assistant_chunks, assistant_embedding
-                )
-
-                # Add as hybrid memory
-                assistant_mem_id = self.hybrid_memory_adapter.add_hybrid(
-                    full_embedding=assistant_embedding,
-                    chunks=selected_chunks,
-                    chunk_embeddings=chunk_embeddings,
-                    original_content=assistant_reply,
-                    metadata=assistant_metadata,
-                )
-                self.chunked_memory_ids.add(assistant_mem_id)
-            else:
-                # Add as regular memory
-                assistant_emb = self.embedding_model.encode(
-                    assistant_reply, show_progress_bar=self.show_progress_bar
-                )
-                assistant_mem_id = self.hybrid_memory_adapter.add(
-                    assistant_emb, assistant_reply, assistant_metadata
-                )
-
-            # Create associative link between messages
-            if self.associative_linker:
-                self.associative_linker.create_associative_link(user_mem_id, assistant_mem_id, 0.9)
-
-        except Exception as e:
-            logger.error(f"Error storing hybrid conversation in memory: {e}")
-
     def configure_chunking(self, **kwargs) -> None:
         """
         Configure chunking parameters.
@@ -1494,7 +1446,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         Get detailed performance statistics for the HybridMemoryWeaveAPI.
 
         Returns:
-            Dictionary with performance metrics
+            dictionary with performance metrics
         """
         stats = {
             "memory_usage": {},
@@ -1566,11 +1518,11 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         Search memories using BM25 keyword matching.
 
         Args:
-            keywords: List of keywords to search for
+            keywords: list of keywords to search for
             limit: Maximum number of results to return
 
         Returns:
-            List of memories matching the keywords
+            list of memories matching the keywords
         """
         if self.bm25_index is None or not keywords:
             return []
