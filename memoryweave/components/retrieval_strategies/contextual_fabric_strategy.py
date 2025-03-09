@@ -627,7 +627,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         associative_results: dict[MemoryID, float],
         temporal_results: dict[MemoryID, float],
         activation_results: dict[MemoryID, float],
-        memory_store: Optional[StandardMemoryStore],
+        memory_store: StandardMemoryStore | None,
     ) -> list[dict[str, Any]]:
         """
         Combine results from different sources with enhanced temporal handling.
@@ -642,6 +642,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         Returns:
             Combined and sorted results
         """
+        # Create a combined results dictionary
         # Create a combined results dictionary
         combined_dict = {}
 
@@ -701,22 +702,32 @@ class ContextualFabricStrategy(RetrievalStrategy):
 
         # Add similarity results
         for result in similarity_results:
-            memory_id = result["memory_id"]
+            memory_id = result.get("memory_id")
+
+            # Make a copy of the result to avoid modifying the original
+            result_data = dict(result)
+
+            # Extract keys we'll handle separately
+            similarity_score = result_data.pop("memory_id", None)
+            similarity_score = result_data.pop("similarity_score", 0.0)
+            normalized_score = result_data.pop("normalized_score", similarity_score)
 
             if memory_id not in combined_dict:
                 combined_dict[memory_id] = {
                     "memory_id": memory_id,
-                    "similarity_score": result["similarity_score"],
-                    "normalized_score": result.get("normalized_score", result["similarity_score"]),
+                    "similarity_score": similarity_score,
+                    "normalized_score": normalized_score,
                     "associative_score": 0.0,
                     "temporal_score": 0.0,
                     "activation_score": 0.0,
-                    **result,
+                    **result_data,  # Include all remaining data
                 }
             else:
-                combined_dict[memory_id]["similarity_score"] = result["similarity_score"]
-                if "normalized_score" in result:
-                    combined_dict[memory_id]["normalized_score"] = result["normalized_score"]
+                combined_dict[memory_id]["similarity_score"] = similarity_score
+                combined_dict[memory_id]["normalized_score"] = normalized_score
+
+                # Update with any additional fields from result
+                combined_dict[memory_id].update(result_data)
 
         # Add associative results
         for memory_id, score in associative_results.items():
@@ -724,6 +735,12 @@ class ContextualFabricStrategy(RetrievalStrategy):
                 # Add new memory
                 try:
                     memory = memory_store.get(memory_id)
+                    memory_data = {}
+
+                    # Add metadata if available
+                    if hasattr(memory, "metadata"):
+                        memory_data.update(memory.metadata)
+
                     combined_dict[memory_id] = {
                         "memory_id": memory_id,
                         "similarity_score": 0.0,
@@ -731,11 +748,8 @@ class ContextualFabricStrategy(RetrievalStrategy):
                         "associative_score": score,
                         "temporal_score": 0.0,
                         "activation_score": 0.0,
+                        **memory_data,
                     }
-
-                    # Add metadata if available
-                    if hasattr(memory, "metadata"):
-                        combined_dict[memory_id].update(memory.metadata)
 
                 except (KeyError, AttributeError):
                     # Skip if memory not found or no metadata
@@ -750,6 +764,12 @@ class ContextualFabricStrategy(RetrievalStrategy):
                 # Add new memory
                 try:
                     memory = memory_store.get(memory_id)
+                    memory_data = {}
+
+                    # Add metadata if available
+                    if hasattr(memory, "metadata"):
+                        memory_data.update(memory.metadata)
+
                     combined_dict[memory_id] = {
                         "memory_id": memory_id,
                         "similarity_score": 0.0,
@@ -757,11 +777,8 @@ class ContextualFabricStrategy(RetrievalStrategy):
                         "associative_score": 0.0,
                         "temporal_score": score,
                         "activation_score": 0.0,
+                        **memory_data,
                     }
-
-                    # Add metadata if available
-                    if hasattr(memory, "metadata"):
-                        combined_dict[memory_id].update(memory.metadata)
 
                 except (KeyError, AttributeError):
                     # Skip if memory not found or no metadata
@@ -781,6 +798,12 @@ class ContextualFabricStrategy(RetrievalStrategy):
                 # Add new memory
                 try:
                     memory = memory_store.get(memory_id)
+                    memory_data = {}
+
+                    # Add metadata if available
+                    if hasattr(memory, "metadata"):
+                        memory_data.update(memory.metadata)
+
                     combined_dict[memory_id] = {
                         "memory_id": memory_id,
                         "similarity_score": 0.0,
@@ -788,11 +811,8 @@ class ContextualFabricStrategy(RetrievalStrategy):
                         "associative_score": 0.0,
                         "temporal_score": 0.0,
                         "activation_score": score,
+                        **memory_data,
                     }
-
-                    # Add metadata if available
-                    if hasattr(memory, "metadata"):
-                        combined_dict[memory_id].update(memory.metadata)
 
                 except (KeyError, AttributeError):
                     # Skip if memory not found or no metadata
@@ -914,3 +934,21 @@ class ContextualFabricStrategy(RetrievalStrategy):
             self.activation_weight = adapted_params["activation_weight"]
         if "max_associative_hops" in adapted_params:
             self.max_associative_hops = adapted_params["max_associative_hops"]
+        if "activation_boost_factor" in adapted_params:
+            self.activation_boost_factor = adapted_params["activation_boost_factor"]
+        if "min_results" in adapted_params:
+            self.min_results = adapted_params["min_results"]
+
+    def get_weight_distribution(self) -> dict[str, float]:
+        """
+        Get the current weight distribution used for combining results.
+
+        Returns:
+            Dictionary with weights for each retrieval dimension
+        """
+        return dict(
+            similarity=self.similarity_weight,
+            associative=self.associative_weight,
+            temporal=self.temporal_weight,
+            activation=self.activation_weight,
+        )

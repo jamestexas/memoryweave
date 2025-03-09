@@ -132,6 +132,11 @@ class HybridFabricStrategy(ContextualFabricStrategy):
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the strategy with configuration."""
         # First, initialize base class
+        # TODO: Validate these are present on root class..
+        # self.use_two_stage_by_default = True
+        # self.first_stage_k = 30
+        # self.first_stage_threshold_factor = 0.7
+
         super().initialize(config)
 
         # Then, set hybrid specific parameters
@@ -143,27 +148,32 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         )
 
         # Add two-stage parameters
-        self.use_two_stage_by_default = config.get("use_two_stage", True)
-        self.first_stage_k = config.get("first_stage_k", 30)
-        self.first_stage_threshold_factor = config.get("first_stage_threshold_factor", 0.7)
+        self.use_two_stage_by_default = config.get("use_two_stage", self.use_two_stage_by_default)
+        self.first_stage_k = config.get("first_stage_k", self.first_stage_k)
+        self.first_stage_threshold_factor = config.get(
+            "first_stage_threshold_factor", self.first_stage_threshold_factor
+        )
+        # sets the memory store
+        self._check_hybrid_support()
 
-        # Check if memory_store supports hybrid features
-        if self.memory_store is not None:
-            # Check for hybrid memory support via different methods
-            if hasattr(self.memory_store, "search_hybrid"):
-                self.supports_hybrid = True
-                if self.debug:
-                    self.logger.debug("Hybrid search support detected in memory store")
-            elif hasattr(self.memory_store, "memory_store") and hasattr(
-                self.memory_store.memory_store, "search_hybrid"
-            ):
-                self.supports_hybrid = True
-                if self.debug:
-                    self.logger.debug("Hybrid search support detected in nested memory store")
-            elif hasattr(self.memory_store, "search_chunks"):
-                self.supports_hybrid = True
-                if self.debug:
-                    self.logger.debug("Chunk search support detected - will use for hybrid search")
+    def _check_hybrid_support(self) -> None:
+        """Check if memory_store supports hybrid features."""
+        self.supports_hybrid = False  # Default to False
+
+        if self.memory_store is None:
+            return
+
+        if hasattr(self.memory_store, "search_hybrid"):
+            self.supports_hybrid = True
+            self.logger.debug("Hybrid search support detected in memory store")
+        elif hasattr(self.memory_store, "memory_store") and hasattr(
+            self.memory_store.memory_store, "search_hybrid"
+        ):
+            self.supports_hybrid = True
+            self.logger.debug("Hybrid search support detected in nested memory store")
+        elif hasattr(self.memory_store, "search_chunks"):
+            self.supports_hybrid = True
+            self.logger.debug("Chunk search support detected - will use for hybrid search")
 
     def retrieve(
         self,
@@ -826,9 +836,9 @@ class HybridFabricStrategy(ContextualFabricStrategy):
 
         return results
 
-    # Let's see this method from HybridFabricStrategy.py
     def _enhance_with_associative_context(
-        self, results: list[dict[str, Any]]
+        self,
+        results: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         """Enhance results with associative context from memory fabric."""
         if not self.associative_linker:
@@ -848,9 +858,10 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             # Get associative links for this memory
             links = self.associative_linker.get_associative_links(memory_id)
 
-            # Add strongly linked memories that aren't already in results
+            # Add linked memories that aren't already in results
+            # Use a lower threshold (0.5) to ensure more linked memories are included
             for linked_id, strength in links:
-                if strength > 0.7 and linked_id not in associative_memories:
+                if strength > 0.5 and linked_id not in associative_memories:
                     try:
                         # Get the memory
                         if self.memory_store:
