@@ -6,7 +6,7 @@ including protocols, data models, and base classes for retrieval components.
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Protocol, TypedDict
+from typing import Any, Protocol, TypedDict, runtime_checkable
 
 from memoryweave.interfaces.memory import EmbeddingVector, MemoryID
 
@@ -76,6 +76,7 @@ class RetrievalParameters(TypedDict, total=False):
     exclude_categories: list[int]
 
 
+@runtime_checkable
 class IRetrievalStrategy(Protocol):
     """Interface for memory retrieval strategies."""
 
@@ -90,6 +91,7 @@ class IRetrievalStrategy(Protocol):
         ...
 
 
+@runtime_checkable
 class IPostProcessor(Protocol):
     """Interface for post-processing retrieval results."""
 
@@ -104,6 +106,7 @@ class IPostProcessor(Protocol):
         ...
 
 
+@runtime_checkable
 class IRetrievalPipeline(Protocol):
     """Interface for retrieval pipeline."""
 

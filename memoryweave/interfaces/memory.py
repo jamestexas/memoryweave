@@ -6,7 +6,7 @@ including data models, protocols, and base classes for memory components.
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Protocol, TypedDict, Union
+from typing import Any, Protocol, TypedDict, Union, runtime_checkable
 
 import numpy as np
 
@@ -42,6 +42,7 @@ class MemoryType(Enum):
     EVENT = auto()
 
 
+@runtime_checkable
 class IMemoryStore(Protocol):
     """Interface for memory storage component."""
 
@@ -116,6 +117,7 @@ class IMemoryStore(Protocol):
         ...
 
 
+@runtime_checkable
 class IVectorStore(Protocol):
     """Interface for vector storage with similarity search capabilities."""
 
@@ -147,6 +149,7 @@ class IVectorStore(Protocol):
         ...
 
 
+@runtime_checkable
 class IActivationManager(Protocol):
     """Interface for managing memory activation levels."""
 
@@ -167,6 +170,7 @@ class IActivationManager(Protocol):
         ...
 
 
+@runtime_checkable
 class ICategoryManager(Protocol):
     """Interface for category management."""
 
@@ -195,6 +199,7 @@ class ICategoryManager(Protocol):
         ...
 
 
+@runtime_checkable
 class IMemoryEncoder(Protocol):
     """Interface for encoding content into memory embeddings."""
 

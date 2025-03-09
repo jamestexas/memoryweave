@@ -4,11 +4,12 @@ This module defines the core interfaces for query processing,
 including protocols, data models, and base classes for query components.
 """
 
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from memoryweave.interfaces.retrieval import Query, QueryType, RetrievalParameters
 
 
+@runtime_checkable
 class IQueryAnalyzer(Protocol):
     """Interface for query analysis."""
 
@@ -29,6 +30,7 @@ class IQueryAnalyzer(Protocol):
         ...
 
 
+@runtime_checkable
 class IQueryAdapter(Protocol):
     """Interface for adapting query parameters based on query type."""
 
@@ -41,6 +43,7 @@ class IQueryAdapter(Protocol):
         ...
 
 
+@runtime_checkable
 class IQueryExpander(Protocol):
     """Interface for expanding queries with additional keywords or concepts."""
 
