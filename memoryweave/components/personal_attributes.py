@@ -1,7 +1,41 @@
-from typing import Any
+from typing import Any, ClassVar
+
+from pydantic import ConfigDict, Field
 
 from memoryweave.components.base import RetrievalComponent
 from memoryweave.nlp.extraction import NLPExtractor
+
+
+class PersonalAttributes:
+    config = ConfigDict(extra="allow")  # We default to the below fields but they aren't required
+    preferences: dict[str, Any] = Field(default_factory=dict, description="Preferences")
+    demographics: dict[str, Any] = Field(default_factory=dict, description="Demographics")
+    traits: dict[str, Any] = Field(default_factory=dict, description="Traits")
+    relationships: dict[str, Any] = Field(default_factory=dict, description="Relationships")
+
+    def __getitem__(self, key: str) -> Any:
+        try:
+            return getattr(self, key)
+        except AttributeError as e:
+            raise KeyError(key) from e
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        if key in self.model_fields:
+            setattr(self, key, value)
+        else:
+            self.__dict__[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        if key in self.model_fields:
+            delattr(self, key)
+        else:
+            del self.__dict__[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.model_fields or key in self.__dict__
+
+    def __iter__(self):
+        return iter(self.model_dump_fields().keys())
 
 
 class PersonalAttributeManager(RetrievalComponent):
@@ -9,14 +43,23 @@ class PersonalAttributeManager(RetrievalComponent):
     Manages extraction and storage of personal attributes.
     """
 
-    def __init__(self):
-        self.nlp_extractor = NLPExtractor()  # Shared NLP instance for efficiency
-        self.personal_attributes = {
-            "preferences": {},
-            "demographics": {},
-            "traits": {},
-            "relationships": {},
-        }
+    personal_attributes: dict[str, Any] = Field(
+        description="Personal attributes",
+        default_factory=lambda: dict(
+            preferences={},
+            demographics={},
+            traits={},
+            relationships={},
+        ),
+    )
+    nlp_extractor: NLPExtractor = Field(
+        description="NLP extractor",
+        default_factory=NLPExtractor,
+    )
+    config: ClassVar[dict[str, Any]] = Field(
+        description="Configuration",
+        default_factory={},
+    )
 
     def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""

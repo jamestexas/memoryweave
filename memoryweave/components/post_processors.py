@@ -2,6 +2,8 @@
 import logging
 from typing import Any
 
+from pydantic import Field
+
 from memoryweave.components.base import PostProcessor
 
 logger = logging.getLogger(__name__)
@@ -12,8 +14,15 @@ class KeywordBoostProcessor(PostProcessor):
     Boosts relevance scores of results containing important keywords.
     """
 
-    def initialize(self, config: dict[str, Any]) -> None:
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Configuration for the keyword boost processor.",
+    )
+    keyword_boost_weight: float = 0.5
+
+    def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""
+        self.config = config or self.config  # Override if truthy
         self.keyword_boost_weight = config.get("keyword_boost_weight", 0.5)
 
     def process_results(
@@ -21,8 +30,7 @@ class KeywordBoostProcessor(PostProcessor):
     ) -> list[dict[str, Any]]:
         """Process retrieved results by boosting for keyword matches."""
         # Get important keywords from query analysis
-        keywords = context.get("important_keywords", set())
-        if not keywords:
+        if not (keywords := context.get("important_keywords", set())):
             return results
 
         # Apply keyword boost
@@ -53,30 +61,83 @@ class SemanticCoherenceProcessor(PostProcessor):
     ensuring that the set of retrieved memories forms a semantically coherent whole.
     """
 
+    coherence_threshold: float = Field(
+        default=0.2,
+        description="Threshold for pairwise coherence between results",
+    )
+    enable_query_type_filtering: bool = Field(
+        default=True,
+        description="Enable query type filtering to penalize type mismatches",
+    )
+
+    enable_pairwise_coherence: bool = Field(
+        default=True,
+        description="Enable pairwise coherence calculation",
+    )
+    enable_clustering: bool = Field(
+        default=False,
+        description="Enable clustering and outlier detection",
+    )
+    min_cluster_size: int = Field(
+        default=2,
+        description="Minimum size for a coherent cluster",
+    )
+    max_penalty: float = Field(
+        default=0.3,
+        description="Maximum penalty for incoherent results",
+    )
+    boost_coherent_results: bool = Field(
+        default=True,
+        description="Boost relevance scores for coherent result clusters",
+    )
+    coherence_boost_factor: float = Field(
+        default=0.2,
+        description="Boost factor for coherent result clusters",
+    )
+    top_k_outlier_detection: int = Field(
+        default=10,
+        description="Number of top results to use for outlier detection",
+    )
+    query_type_compatibility: dict[str, dict[str, float]] = Field(
+        description="Compatibility matrix for query types",
+        default_factory=lambda: dict(
+            personal=dict(personal=1.0, factual=0.5, temporal=0.7, conceptual=0.6),
+            factual=dict(personal=0.7, factual=1.0, temporal=0.8, conceptual=0.9),
+            temporal=dict(personal=0.8, factual=0.8, temporal=1.0, conceptual=0.7),
+            conceptual=dict(personal=0.6, factual=0.9, temporal=0.7, conceptual=1.0),
+            default=dict(personal=0.8, factual=0.8, temporal=0.8, conceptual=0.8),
+        ),
+    )
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Configuration for the keyword boost processor.",
+    )
+
     def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""
         # Ensure config is a dictionary even if None is passed
-        if config is None:
-            config = {}
-
-        self.coherence_threshold = config.get("coherence_threshold", 0.2)
-        self.enable_query_type_filtering = config.get("enable_query_type_filtering", True)
-        self.enable_pairwise_coherence = config.get("enable_pairwise_coherence", True)
-        self.enable_clustering = config.get("enable_clustering", False)
-        self.min_cluster_size = config.get("min_cluster_size", 2)
-        self.max_penalty = config.get("max_penalty", 0.3)
-        self.boost_coherent_results = config.get("boost_coherent_results", True)
-        self.coherence_boost_factor = config.get("coherence_boost_factor", 0.2)
-        self.top_k_outlier_detection = config.get("top_k_outlier_detection", 10)
-
-        # Dictionary of query type compatibility
-        self.query_type_compatibility = {
-            "personal": {"personal": 1.0, "factual": 0.5, "temporal": 0.7, "conceptual": 0.6},
-            "factual": {"personal": 0.7, "factual": 1.0, "temporal": 0.8, "conceptual": 0.9},
-            "temporal": {"personal": 0.8, "factual": 0.8, "temporal": 1.0, "conceptual": 0.7},
-            "conceptual": {"personal": 0.6, "factual": 0.9, "temporal": 0.7, "conceptual": 1.0},
-            "default": {"personal": 0.8, "factual": 0.8, "temporal": 0.8, "conceptual": 0.8},
-        }
+        config = config or self.config
+        self.coherence_threshold = config.get("coherence_threshold", self.coherence_threshold)
+        self.enable_query_type_filtering = config.get(
+            "enable_query_type_filtering", self.enable_query_type_filtering
+        )
+        self.enable_pairwise_coherence = config.get(
+            "enable_pairwise_coherence", self.enable_pairwise_coherence
+        )
+        self.enable_clustering = config.get("enable_clustering", self.enable_clustering)
+        self.min_cluster_size = config.get("min_cluster_size", self.min_cluster_size)
+        self.max_penalty = config.get("max_penalty", self.max_penalty)
+        self.boost_coherent_results = config.get(
+            "boost_coherent_results", self.boost_coherent_results
+        )
+        self.coherence_boost_factor = config.get(
+            "coherence_boost_factor", self.coherence_boost_factor
+        )
+        self.top_k_outlier_detection = config.get(
+            "top_k_outlier_detection", self.top_k_outlier_detection
+        )
+        if "query_type_compatibility" in config:
+            self.query_type_compatibility = config["query_type_compatibility"]
 
     def process_results(
         self,
@@ -87,59 +148,33 @@ class SemanticCoherenceProcessor(PostProcessor):
         """
         Process retrieved results checking semantic coherence.
 
-        This method:
-        1. Applies query type filtering to penalize type mismatches
-        2. Calculates pairwise coherence between results
-        3. Identifies and penalizes outlier results
-        4. Boosts coherent result clusters
-        5. Updates result scores based on coherence
-
-        Args:
-            results: List of retrieved results
-            query: Original query string
-            context: Context dictionary containing query analysis
-
-        Returns:
-            Updated list of results with adjusted relevance scores
+        This method applies query type filtering, pairwise coherence, and clustering.
         """
-        # Ensure we can do processing regardless of value here
-        if context is None:
-            context = {}
-
-        # Default to enabled if the processor was initialized
+        context = context or {}
         enable_semantic_coherence = context.get("enable_semantic_coherence", True)
         config_name = context.get("config_name", "unknown")
 
-        # Skip processing if semantic coherence is explicitly disabled
-        if enable_semantic_coherence is False:  # Only skip if explicitly set to False
+        if enable_semantic_coherence is False:
             logger.info(
                 f"SemanticCoherenceProcessor: Skipping - semantic coherence disabled for config {config_name}"
             )
-
-            # For benchmark differentiation, make a small copy change to mark results but don't
-            # affect scores when this component is not enabled
             processed_results = list(results)
             for r in processed_results:
                 r["semantic_coherence_skipped"] = True
-
             return processed_results
 
-        # Log that we're processing results
         logger.info(
             f"SemanticCoherenceProcessor: Processing {len(results)} results for config {config_name}"
         )
 
-        # Apply processor-specific parameters if provided in context
         if "processor_params" in context:
             processor_params = context["processor_params"]
-            # Override local parameters with those from context
             if "coherence_threshold" in processor_params:
                 original = self.coherence_threshold
                 self.coherence_threshold = processor_params["coherence_threshold"]
                 logger.info(
                     f"SemanticCoherenceProcessor: Override coherence_threshold {original} -> {self.coherence_threshold}"
                 )
-
             if "max_penalty" in processor_params:
                 original = self.max_penalty
                 self.max_penalty = processor_params["max_penalty"]
@@ -147,41 +182,32 @@ class SemanticCoherenceProcessor(PostProcessor):
                     f"SemanticCoherenceProcessor: Override max_penalty {original} -> {self.max_penalty}"
                 )
 
-        # Log active parameters for this processor
         logger.info(
             f"SemanticCoherenceProcessor: Active params: coherence_threshold={self.coherence_threshold}, "
-            + f"max_penalty={self.max_penalty}, enable_query_type_filtering={self.enable_query_type_filtering}, "
-            + f"enable_pairwise_coherence={self.enable_pairwise_coherence}"
+            f"max_penalty={self.max_penalty}, enable_query_type_filtering={self.enable_query_type_filtering}, "
+            f"enable_pairwise_coherence={self.enable_pairwise_coherence}"
         )
 
         if len(results) <= 1:
             logger.debug("SemanticCoherenceProcessor: Skipping, not enough results")
             return results
 
-        # Get query type from context
         query_type = context.get("primary_query_type", "default")
         logger.info(f"SemanticCoherenceProcessor: query_type={query_type}")
 
-        # Make a copy of results to modify
         processed_results = list(results)
 
-        # 1. Apply query type filtering if enabled
         if self.enable_query_type_filtering:
             logger.info("SemanticCoherenceProcessor: Applying query type filtering")
             processed_results = self._apply_query_type_filtering(processed_results, query_type)
-
-            # Log the score changes
             score_changes = sum(1 for r in processed_results if "type_coherence_applied" in r)
             logger.info(
                 f"SemanticCoherenceProcessor: Applied type filtering penalties to {score_changes}/{len(processed_results)} results"
             )
 
-        # 2. Calculate pairwise coherence if enabled
         if self.enable_pairwise_coherence and len(processed_results) > 1:
             logger.info("SemanticCoherenceProcessor: Applying pairwise coherence")
             processed_results = self._apply_pairwise_coherence(processed_results, context)
-
-            # Log coherence changes
             coherence_penalties = sum(
                 1 for r in processed_results if "coherence_penalty_applied" in r
             )
@@ -190,22 +216,17 @@ class SemanticCoherenceProcessor(PostProcessor):
                 f"SemanticCoherenceProcessor: Applied coherence penalties to {coherence_penalties} results, boosts to {coherence_boosts} results"
             )
 
-        # 3. Perform clustering and outlier detection if enabled
         if self.enable_clustering and len(processed_results) >= self.min_cluster_size:
             logger.info("SemanticCoherenceProcessor: Applying clustering")
             processed_results = self._apply_clustering(processed_results, context)
-
-            # Log clustering results
             outliers = sum(1 for r in processed_results if "outlier_penalty_applied" in r)
             cluster_boosts = sum(1 for r in processed_results if "cluster_boost_applied" in r)
             logger.info(
                 f"SemanticCoherenceProcessor: Found {outliers} outliers, applied cluster boosts to {cluster_boosts} results"
             )
 
-        # 4. Final sort by adjusted relevance score
         processed_results.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
 
-        # Log score changes
         if processed_results:
             original_avg = sum(
                 r.get("original_score", r.get("relevance_score", 0)) for r in processed_results
@@ -217,7 +238,6 @@ class SemanticCoherenceProcessor(PostProcessor):
                 f"SemanticCoherenceProcessor: Average score change: {original_avg:.4f} -> {final_avg:.4f}"
             )
 
-        # Add original scores for tracking if not already present
         for r in processed_results:
             if "original_score" not in r:
                 r["original_score"] = r.get("relevance_score", 0)
@@ -228,65 +248,37 @@ class SemanticCoherenceProcessor(PostProcessor):
         self, results: list[dict[str, Any]], query_type: str
     ) -> list[dict[str, Any]]:
         """Apply penalties for type mismatches between query and results."""
-        import logging
-
         logger = logging.getLogger(__name__)
-
-        # Ensure we always have an effect on results in benchmark scenarios
-        # In real-world use cases, we would be more selective based on types
-        # This change ensures the semantic coherence component has a measurable
-        # impact even on synthetic data without specific type labels
         logger.info(
             f"SemanticCoherenceProcessor._apply_query_type_filtering: Processing {len(results)} results for query_type={query_type}"
         )
-
-        # Get compatibility matrix for this query type
         compatibility = self.query_type_compatibility.get(
             query_type, self.query_type_compatibility["default"]
         )
-
         logger.info(
             f"SemanticCoherenceProcessor._apply_query_type_filtering: Using compatibility matrix for {query_type}: {compatibility}"
         )
-
-        # Apply a penalty to a percentage of results to ensure differentiation in benchmark
         penalty_count = 0
         for i, result in enumerate(results):
-            # For benchmark purposes, apply penalty to every other result
-            # This ensures the component has a measurable effect
             should_penalize = i % 2 == 0
-
-            # Get result type (defaulting to a random type if not specified)
             result_type = result.get("type", "unknown")
             if result_type == "unknown":
-                # For testing, choose from available types to ensure differentiation
                 result_type = list(compatibility.keys())[i % len(compatibility)]
                 result["assigned_type"] = result_type
-
-            # Get compatibility score
-            compat_score = compatibility.get(result_type, 0.7)  # Default to 0.7 if not specified
-
-            # Always apply some penalty in benchmark scenarios
+            compat_score = compatibility.get(result_type, 0.7)
             if should_penalize or compat_score < 1.0:
                 penalty = (1.0 - compat_score) * self.max_penalty
                 if should_penalize and penalty < 0.1:
-                    # Ensure minimum penalty to make component's effect visible
                     penalty = 0.1
-
                 original_score = result.get("relevance_score", 0)
                 result["relevance_score"] = max(0, original_score - penalty)
                 result["type_coherence_applied"] = True
                 penalty_count += 1
-
-                # Store original score for analysis
                 if "original_score" not in result:
                     result["original_score"] = original_score
-
-                # Log score changes
                 logger.info(
                     f"SemanticCoherenceProcessor: Applied type_coherence penalty {penalty:.4f} to result type={result_type}, score: {original_score:.4f} -> {result['relevance_score']:.4f}"
                 )
-
         logger.info(
             f"SemanticCoherenceProcessor: Applied penalties to {penalty_count}/{len(results)} results"
         )
@@ -296,47 +288,32 @@ class SemanticCoherenceProcessor(PostProcessor):
         self, results: list[dict[str, Any]], context: dict[str, Any]
     ) -> list[dict[str, Any]]:
         """Calculate and apply coherence scores between pairs of results."""
-        # This requires embeddings to calculate coherence
         embedding_model = context.get("embedding_model")
-
-        # Limit pairwise calculation to top-k most relevant results
         top_k = min(self.top_k_outlier_detection, len(results))
         top_results = sorted(results, key=lambda x: x.get("relevance_score", 0), reverse=True)[
             :top_k
         ]
-
-        # If we have embeddings in results, use those
         has_embeddings = all("embedding" in r and r["embedding"] is not None for r in top_results)
-
         if has_embeddings:
-            # Get embeddings from results
             embeddings = [r["embedding"] for r in top_results]
             coherence_scores = self._calculate_pairwise_coherence(embeddings)
         elif embedding_model:
-            # Generate embeddings from content
             try:
                 contents = [str(r.get("content", "")) for r in top_results]
                 embeddings = embedding_model.encode(contents)
                 coherence_scores = self._calculate_pairwise_coherence(embeddings)
             except Exception:
-                # If embedding fails, assign default coherence scores
                 coherence_scores = {i: 0.5 for i in range(len(top_results))}
         else:
-            # No way to calculate embeddings, assign default coherence scores
             coherence_scores = {i: 0.5 for i in range(len(top_results))}
 
-        # Apply coherence scores to results
         for i, result in enumerate(top_results):
             if i in coherence_scores:
                 coherence = coherence_scores[i]
-
-                # Apply penalty for incoherent results
                 if coherence < self.coherence_threshold:
                     penalty = (self.coherence_threshold - coherence) * self.max_penalty
                     result["relevance_score"] = max(0, result.get("relevance_score", 0) - penalty)
                     result["coherence_penalty_applied"] = True
-
-                # Apply boost for highly coherent results
                 elif self.boost_coherent_results and coherence > (1.0 - self.coherence_threshold):
                     boost = coherence * self.coherence_boost_factor
                     current_score = result.get("relevance_score", 0)
@@ -344,15 +321,11 @@ class SemanticCoherenceProcessor(PostProcessor):
                         1.0, current_score + boost * (1.0 - current_score)
                     )
                     result["coherence_boost_applied"] = True
-
-                # Store coherence score
                 result["coherence_score"] = coherence
 
-        # Update the original results list
         result_ids = {id(r) for r in top_results}
         for i, result in enumerate(results):
             if id(result) in result_ids:
-                # This result was processed, find its updated version
                 for updated in top_results:
                     if id(updated) == id(result):
                         results[i] = updated
@@ -365,37 +338,25 @@ class SemanticCoherenceProcessor(PostProcessor):
         Calculate coherence scores for each result based on similarity to other results.
 
         Args:
-            embeddings: List of embedding vectors
+            embeddings: list of embedding vectors
 
         Returns:
-            Dictionary mapping result index to coherence score
+            dictionary mapping result index to coherence score
         """
         import numpy as np
 
         if len(embeddings) <= 1:
             return {0: 1.0} if embeddings else {}
-
-        # Convert to numpy array if not already
         if not isinstance(embeddings, np.ndarray):
             embeddings = np.array(embeddings)
-
-        # Normalize embeddings
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-        norms[norms == 0] = 1e-10  # Avoid division by zero
+        norms[norms == 0] = 1e-10
         normalized_embeddings = embeddings / norms
-
-        # Calculate pairwise similarities
         similarities = np.dot(normalized_embeddings, normalized_embeddings.T)
-
-        # Exclude self-similarity
         np.fill_diagonal(similarities, 0)
-
-        # Calculate average similarity for each result (coherence score)
         coherence_scores = {}
         for i in range(len(embeddings)):
-            # Average similarity to all other results
             coherence_scores[i] = float(np.sum(similarities[i]) / (len(embeddings) - 1))
-
         return coherence_scores
 
     def _apply_clustering(
@@ -403,73 +364,46 @@ class SemanticCoherenceProcessor(PostProcessor):
     ) -> list[dict[str, Any]]:
         """
         Apply clustering to identify coherent groups and outliers.
-
-        This is a more sophisticated approach that uses clustering
-        algorithms to identify coherent groups of results.
         """
         try:
-            # This requires embeddings and sklearn
             import numpy as np
             from sklearn.cluster import DBSCAN
 
-            # Get embeddings
             embedding_model = context.get("embedding_model")
-
             if embedding_model:
-                # Generate embeddings from content
                 contents = [str(r.get("content", "")) for r in results]
                 embeddings = embedding_model.encode(contents)
             else:
-                # Try to get embeddings from results
                 embeddings = []
                 for r in results:
                     if "embedding" in r and r["embedding"] is not None:
                         embeddings.append(r["embedding"])
                     else:
-                        # If any result is missing embedding, can't proceed
                         return results
 
-            # Convert to numpy array
             embeddings = np.array(embeddings)
-
-            # Normalize embeddings
             norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-            norms[norms == 0] = 1e-10  # Avoid division by zero
+            norms[norms == 0] = 1e-10
             normalized_embeddings = embeddings / norms
-
-            # Calculate pairwise distances (cosine distance = 1 - cosine similarity)
             similarities = np.dot(normalized_embeddings, normalized_embeddings.T)
             distances = 1 - similarities
-
-            # Perform DBSCAN clustering
-            eps = 1 - self.coherence_threshold  # Convert coherence threshold to distance
+            eps = 1 - self.coherence_threshold
             min_samples = min(self.min_cluster_size, len(results) // 2)
             db = DBSCAN(eps=eps, min_samples=min_samples, metric="precomputed").fit(distances)
-
-            # Get cluster labels (-1 indicates outliers)
             labels = db.labels_
 
-            # Count clusters
-            len(set(labels)) - (1 if -1 in labels else 0)
-
-            # Apply adjustments based on clustering
             for i, result in enumerate(results):
                 if i < len(labels):
                     cluster_id = labels[i]
                     result["cluster_id"] = int(cluster_id)
-
                     if cluster_id == -1:
-                        # Outlier - apply penalty
                         penalty = self.max_penalty
                         result["relevance_score"] = max(
                             0, result.get("relevance_score", 0) - penalty
                         )
                         result["outlier_penalty_applied"] = True
                     else:
-                        # In a cluster - count cluster size
-                        cluster_size = np.sum(labels == cluster_id)
-
-                        # Boost based on cluster size - larger clusters are more coherent
+                        cluster_size = int((labels == cluster_id).sum())
                         if self.boost_coherent_results:
                             size_factor = min(cluster_size / len(results), 0.8)
                             boost = size_factor * self.coherence_boost_factor
@@ -478,13 +412,9 @@ class SemanticCoherenceProcessor(PostProcessor):
                                 1.0, current_score + boost * (1.0 - current_score)
                             )
                             result["cluster_boost_applied"] = True
-                            result["cluster_size"] = int(cluster_size)
-
-        except (ImportError, Exception) as e:
-            # If clustering fails, fall back to pairwise coherence
-            import logging
-
-            logging.warning(
+                            result["cluster_size"] = cluster_size
+        except Exception as e:
+            logger.warning(
                 f"Clustering failed with error: {str(e)}. Falling back to pairwise coherence."
             )
             if not any("coherence_score" in r for r in results):
@@ -617,13 +547,37 @@ class PersonalAttributeProcessor(PostProcessor):
     attribute memory entries for direct attribute questions.
     """
 
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Configuration for the personal attribute processor.",
+    )
+    attribute_boost_factor: float = Field(
+        default=0.6,
+        description="Boost factor for attribute extraction",
+    )
+    min_results: int = Field(
+        default=5,
+        description="Minimum number of results to return",
+    )
+    add_direct_responses: bool = Field(
+        default=True,
+        description="Generate synthetic responses for direct attribute questions",
+    )
+    min_relevance_threshold: float = Field(
+        default=0.3,
+        description="Minimum relevance score to consider for boosting",
+    )
+
     def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""
-        if config is None:
-            config = {}
-        self.attribute_boost_factor = config.get("attribute_boost_factor", 0.6)
-        self.add_direct_responses = config.get("add_direct_responses", True)
-        self.min_relevance_threshold = config.get("min_relevance_threshold", 0.3)
+        config = config or {}
+        self.attribute_boost_factor = config.get(
+            "attribute_boost_factor", self.attribute_boost_factor
+        )
+        self.add_direct_responses = config.get("add_direct_responses", self.add_direct_responses)
+        self.min_relevance_threshold = config.get(
+            "min_relevance_threshold", self.min_relevance_threshold
+        )
 
     def process_results(
         self,
