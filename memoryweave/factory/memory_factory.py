@@ -3,8 +3,10 @@ Factory for creating memory stores and adapters.
 """
 
 import logging
-from dataclasses import dataclass
 from typing import Any
+
+from pydantic import BaseModel, Field
+from sentence_transformers import SentenceTransformer
 
 from memoryweave.components.memory_encoding import MemoryEncoder
 from memoryweave.interfaces.memory import IMemoryStore
@@ -15,43 +17,95 @@ from memoryweave.storage.hybrid_adapter import HybridMemoryAdapter
 from memoryweave.storage.hybrid_store import HybridMemoryStore
 from memoryweave.storage.memory_store import StandardMemoryStore
 from memoryweave.storage.vector_search import create_vector_search_provider
+from memoryweave.utils import _get_device
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class VectorSearchConfig:
+class VectorSearchConfig(BaseModel):
     """Configuration for vector search."""
 
-    provider: str = "numpy"
-    dimension: int = 768
-    metric: str = "cosine"
-    use_quantization: bool = False
-    index_type: str | None = None
-    nprobe: int = 10
-    type: str = "faiss"
+    provider: str = Field(
+        "numpy",
+        description="Vector search provider (e.g., numpy, faiss).",
+    )
+    dimension: int = Field(
+        768,
+        description="Dimension of the embeddings for vector search.",
+    )
+    metric: str = Field(
+        "cosine",
+        description="Distance metric for the vector search (e.g., cosine).",
+    )
+    use_quantization: bool = Field(
+        False,
+        description="Enable quantization for indexing.",
+    )
+    index_type: str | None = Field(
+        None,
+        description="Optional index type (e.g., IVF, HNSW).",
+    )
+    nprobe: int = Field(
+        10,
+        description="Number of probes for the vector index.",
+    )
+    type: str = Field(
+        "faiss",
+        description="Library or approach for the vector search (e.g., faiss).",
+    )
 
 
-@dataclass
-class MemoryStoreConfig:
+class MemoryStoreConfig(BaseModel):
     """Configuration for memory store."""
 
-    store_type: str = "standard"
-    vector_search: VectorSearchConfig | None = None  # Vector search configuration
-    max_memories: int = 1000  # Maximum number of memories to store
-    embedding_dim: int = 768  # Dimension of the memory embeddings
-    type: str = "memory_store"  # hybrid / chunked / standard etc.
-
-    # NOTE: Below is only for Chunked memory store configurations
-    chunk_size: int = 1000  # Chunk size for chunked memory store
-    chunk_overlap: int = 100  # Overlap size for chunked memory store
-    min_chunk_size: int = 100  # Minimum chunk size for chunked memory store
-    max_chunks_per_memory: int = 10  # Maximum number of chunks per memory
-
-    # NOTE: Adaptive chunking configurations
-    adaptive_threshold: float = 0.5  # Threshold for adaptive chunking
-    adaptive_chunk_size: int = 1000  # Chunk size for adaptive chunking
-    importance_threshold: float = 0.5  # Threshold for importance-based chunking
+    store_type: str = Field(
+        default="standard",
+        description="Type of the memory store (standard, chunked, hybrid).",
+    )
+    vector_search: VectorSearchConfig | None = Field(
+        default=None,
+        description="Configuration for vector search.",
+    )
+    max_memories: int = Field(
+        1000,
+        description="Maximum number of memories to store.",
+    )
+    embedding_dim: int = Field(
+        default=768,
+        description="Embedding dimension for the memory store.",
+    )
+    type: str = Field(
+        default="memory_store",
+        description="High-level memory store type.",
+    )
+    chunk_size: int = Field(
+        default=1000,
+        description="Chunk size for chunked memory store.",
+    )
+    chunk_overlap: int = Field(
+        default=100,
+        description="Overlap size between chunks in chunked memory store.",
+    )
+    min_chunk_size: int = Field(
+        100,
+        description="Minimum chunk size for chunked memory store.",
+    )
+    max_chunks_per_memory: int = Field(
+        10,
+        description="Maximum number of chunks per memory.",
+    )
+    adaptive_threshold: float = Field(
+        0.5,
+        description="Threshold for adaptive chunking.",
+    )
+    adaptive_chunk_size: int = Field(
+        1000,
+        description="Adaptive chunk size for chunking.",
+    )
+    importance_threshold: float = Field(
+        0.5,
+        description="Threshold for importance-based chunking.",
+    )
 
 
 def create_memory_store_and_adapter(
@@ -69,8 +123,8 @@ def create_memory_store_and_adapter(
     # Create memory store
     store_type = config.store_type
 
-    # Create vector search provider
-    if config.vector_search:
+    # Create vector search provider if provided, else default to None (from the model default)
+    if (vector_search := config.vector_search) is not None:
         vector_search = create_vector_search_provider(
             provider=config.vector_search.provider,
             dimension=config.vector_search.dimension,
@@ -81,7 +135,8 @@ def create_memory_store_and_adapter(
             provider_type=config.vector_search.type,  # numpy / faiss / hybrid_bm25
         )
 
-    print(f"Creating memory store of type: {store_type}")
+    logger.debug(f"Creating memory store of type: {store_type}")
+    # Return the appropriate memory store and adapter based on the store type
     if config.store_type == "hybrid":
         memory_store = HybridMemoryStore()
         return memory_store, HybridMemoryAdapter(
@@ -91,8 +146,10 @@ def create_memory_store_and_adapter(
 
     elif config.store_type == "chunked":
         chunked_store = ChunkedMemoryStore()
-        return chunked_store, ChunkedMemoryAdapter(memory_store=chunked_store)
-
+        return chunked_store, ChunkedMemoryAdapter(
+            memory_store=chunked_store,
+        )
+    # Fall back to standard memory store
     memory_store = StandardMemoryStore()
     return memory_store, MemoryAdapter(
         memory_store=memory_store,
@@ -114,9 +171,6 @@ def create_memory_encoder(
     Returns:
         Configured MemoryEncoder component
     """
-    from sentence_transformers import SentenceTransformer
-
-    from memoryweave.utils import _get_device
 
     # Get device configuration
     device = _get_device(kwargs.pop("device", "auto"))
