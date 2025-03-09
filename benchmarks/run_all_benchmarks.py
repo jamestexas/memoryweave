@@ -1213,7 +1213,8 @@ class UnifiedRetrievalBenchmark:
                     info["memory_total"] = mem.total / (1024 * 1024 * 1024)  # GB
                     info["memory_available"] = mem.available / (1024 * 1024 * 1024)  # GB
                     info["cpu_count"] = psutil.cpu_count()
-            except Exception:  # noqa: S110
+            except Exception as e:
+                logger.debug(f"Error getting platform info: {e}")
                 pass
 
             return info
