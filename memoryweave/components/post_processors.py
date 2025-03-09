@@ -428,11 +428,20 @@ class AdaptiveKProcessor(PostProcessor):
     Adjusts the number of results based on query characteristics.
     """
 
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Configuration for the personal attribute processor.",
+    )
+    adaptive_k_factor: float = Field(
+        default=0.3,
+        description="Adaptive factor for adjusting the number of results",
+    )
+
     def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""
-        if config is None:
-            config = {}
-        self.adaptive_k_factor = config.get("adaptive_k_factor", 0.3)
+        self.config = config or self.config
+
+        self.adaptive_k_factor = config.get("adaptive_k_factor", self.adaptive_k_factor)
 
     def process_results(
         self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
@@ -472,15 +481,40 @@ class MinimumResultGuaranteeProcessor(PostProcessor):
     doesn't return enough results, ensuring that queries always receive a response.
     """
 
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Configuration for the personal attribute processor.",
+    )
+    min_results: int = Field(
+        default=1,
+        description="Minimum number of results to return",
+    )
+    fallback_threshold_factor: float = Field(
+        default=0.5,
+        description="Factor for lowering the threshold for fallback retrieval",
+    )
+    min_fallback_threshold: float = Field(
+        default=0.05,
+        description="Minimum threshold for fallback retrieval",
+    )
+    memory: Any = Field(
+        None,
+        description="Memory store for fallback retrieval",
+    )
+
     def initialize(self, config: dict[str, Any] | None = None) -> None:
         """Initialize with configuration."""
-        if config is None:
-            config = {}
 
-        self.min_results = config.get("min_results", 1)
-        self.fallback_threshold_factor = config.get("fallback_threshold_factor", 0.5)
-        self.min_fallback_threshold = config.get("min_fallback_threshold", 0.05)
-        self.memory = config.get("memory", None)
+        self.config = config or self.config
+
+        self.min_results = config.get("min_results", self.min_results)
+        self.fallback_threshold_factor = config.get(
+            "fallback_threshold_factor", self.fallback_threshold_factor
+        )
+        self.min_fallback_threshold = config.get(
+            "min_fallback_threshold", self.min_fallback_threshold
+        )
+        self.memory = config.get("memory", self.memory)
 
     def process_results(
         self, results: list[dict[str, Any]], query: str, context: dict[str, Any]
