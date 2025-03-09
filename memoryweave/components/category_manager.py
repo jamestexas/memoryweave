@@ -11,6 +11,7 @@ import time
 from typing import Any, Optional
 
 import numpy as np
+from pydantic import Field
 
 from memoryweave.components.base import MemoryComponent
 from memoryweave.interfaces.memory import EmbeddingVector, MemoryID
@@ -30,44 +31,38 @@ class CategoryManager(MemoryComponent):
     4. Category consolidation to merge similar categories
     """
 
-    def __init__(
-        self,
-        memory_store: Optional[StandardMemoryStore] = None,
-        core_manager: Optional["CategoryManager"] = None,
-        embedding_dim: int = 768,
-        vigilance_threshold: float = 0.8,
-        learning_rate: float = 0.2,
-        enable_category_consolidation: bool = True,
-        consolidation_threshold: float = 0.8,
-    ):
-        """Initialize the category manager."""
-        self.memory_store = memory_store
-        self.categories: dict[int, dict[str, Any]] = {}
-        self.memory_to_category: dict[MemoryID, int] = {}
-        self.next_category_id = 0
+    memory_store: Optional[StandardMemoryStore] = Field(default=None)
+    embedding_dim: int = Field(default=768)
+    vigilance_threshold: float = Field(default=0.8)
+    learning_rate: float = Field(default=0.2)
+    enable_category_consolidation: bool = Field(default=True)
+    consolidation_threshold: float = Field(default=0.8)
+    min_category_size: int = Field(default=3)
+    component_id: str = Field(default="category_manager")
 
-        # Default parameters
-        self.vigilance_threshold = vigilance_threshold
-        self.learning_rate = learning_rate
-        self.consolidation_threshold = consolidation_threshold
-        self.embedding_dim = embedding_dim
-        self.min_category_size = 3
-        self.component_id = "category_manager"
-        self.enable_category_consolidation = enable_category_consolidation
+    categories: dict[int, dict[str, Any]] = Field(default_factory=dict)
+    memory_to_category: dict[MemoryID, int] = Field(default_factory=dict)
+    next_category_id: int = Field(default=0)
+    core_manager: Optional["CategoryManager"] = Field(default=None)
 
-        # For new instances, set core_manager to self
-        # For instances created with a core_manager parameter, use that
-        self.core_manager = core_manager or self
-
-        # Statistics tracking
-        self.stats = {
+    stats: dict[str, Any] = Field(
+        default_factory=lambda: {
             "total_categorized": 0,
             "new_categories_created": 0,
             "memories_reassigned": 0,
             "categories_consolidated": 0,
             "last_consolidation": 0,
-            "num_categories": 0,  # Add explicitly for test compatibility
+            "num_categories": 0,
         }
+    )
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the category manager."""
+        super().__init__(**kwargs)
+
+        # For new instances, set core_manager to self
+        # For instances created with a core_manager parameter, use that
+        self.core_manager = self.core_manager or self
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
