@@ -6,7 +6,6 @@ full embeddings, selective chunks, and keyword filtering for optimal
 retrieval performance with minimal memory usage.
 """
 
-import inspect
 import logging
 from typing import Any, Optional
 
@@ -21,6 +20,7 @@ from memoryweave.components.retrieval_strategies.contextual_fabric_strategy impo
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
 from memoryweave.storage import HybridMemoryStore
+from memoryweave.utils import _load_module
 
 FORMAT = "%(message)s"
 logging.basicConfig(
@@ -44,7 +44,7 @@ def _nltk_extract_keywords(text: str) -> list[str] | None:
     Returns:
         list[str] | None: List of extracted keywords
     """
-    if inspect.find_spec("nltk") is None:
+    if _load_module("nltk"):
         logger.warning("[bold yellow]NLTK not found, skipping keyword extraction[/bold yellow]")
         return None
 
@@ -409,7 +409,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             list of extracted keywords
         """
         # Note we use None or an empty list if nothing is found. So we use this if we can and it works
-        if best_case_extract := _nltk_extract_keywords(text):
+        if best_case_extract := _nltk_extract_keywords(text) is not None:
             return best_case_extract
 
         # Fallback if NLTK is not available

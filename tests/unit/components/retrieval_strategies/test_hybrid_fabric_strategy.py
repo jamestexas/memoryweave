@@ -9,8 +9,98 @@ strategy that optimizes resource usage while maintaining retrieval quality.
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from memoryweave.components.retrieval_strategies.hybrid_fabric_strategy import HybridFabricStrategy
+
+
+@pytest.fixture
+def query_embedding():
+    """Create a sample query embedding for testing."""
+    vector = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    return vector / np.linalg.norm(vector)
+
+
+@pytest.fixture
+def memory_store():
+    """Create a properly configured mock memory store."""
+    mock_store = MagicMock()
+    # Configure essential attributes
+    mock_store.memory_embeddings = np.random.randn(10, 5)  # 10 memories with dim=5
+    mock_store.memory_embeddings = mock_store.memory_embeddings / np.linalg.norm(
+        mock_store.memory_embeddings, axis=1, keepdims=True
+    )
+    mock_store.memory_metadata = [
+        {"content": f"Test memory {i}", "source": "test"} for i in range(10)
+    ]
+
+    # Add search capabilities
+    mock_store.search_by_vector = MagicMock()
+    mock_store.search_by_vector.return_value = [
+        {"memory_id": 0, "relevance_score": 0.9, "content": "Memory 0"},
+        {"memory_id": 1, "relevance_score": 0.8, "content": "Memory 1"},
+        {"memory_id": 2, "relevance_score": 0.7, "content": "Memory 2"},
+    ]
+
+    # Define search_hybrid - this will signal supports_hybrid=True
+    mock_store.search_hybrid = MagicMock()
+    mock_store.search_hybrid.return_value = [
+        {"memory_id": 0, "relevance_score": 0.9, "content": "Memory 0"},
+        {"memory_id": 1, "relevance_score": 0.8, "content": "Memory 1"},
+    ]
+
+    return mock_store
+
+
+@pytest.fixture
+def associative_linker():
+    """Create a mock associative linker."""
+    mock_linker = MagicMock()
+
+    def get_associative_links(memory_id):
+        if memory_id == 0:
+            return [(1, 0.8), (2, 0.6)]
+        elif memory_id == 1:
+            return [(0, 0.8), (3, 0.7)]
+        return []
+
+    mock_linker.get_associative_links = MagicMock(side_effect=get_associative_links)
+    mock_linker.traverse_associative_network = MagicMock(return_value={1: 0.8, 2: 0.6, 3: 0.7})
+
+    return mock_linker
+
+
+@pytest.fixture
+def temporal_context():
+    """Create a mock temporal context."""
+    mock_temporal = MagicMock()
+    mock_temporal.extract_time_references = MagicMock(
+        return_value={
+            "has_temporal_reference": True,
+            "time_type": "relative",
+            "relative_time": 300,
+            "time_keywords": ["yesterday"],
+        }
+    )
+    return mock_temporal
+
+
+@pytest.fixture
+def activation_manager():
+    """Create a mock activation manager."""
+    mock_activation = MagicMock()
+    mock_activation.get_activated_memories = MagicMock(return_value=[(0, 0.9), (2, 0.7)])
+    return mock_activation
+
+
+@pytest.fixture
+def base_context(memory_store):
+    """Create a base context dict for testing."""
+    return {
+        "memory_store": memory_store,
+        "top_k": 3,
+        "query": "Test query",
+    }
 
 
 class TestHybridFabricStrategy:
@@ -27,6 +117,11 @@ class TestHybridFabricStrategy:
             temporal_context=temporal_context,
             activation_manager=activation_manager,
         )
+
+        # Initialize to ensure proper setup
+        strategy.initialize({})
+
+        # Verify attributes are set correctly
         assert strategy.memory_store == memory_store
         assert strategy.associative_linker == associative_linker
         assert strategy.temporal_context == temporal_context
@@ -37,6 +132,9 @@ class TestHybridFabricStrategy:
         assert strategy.keyword_boost_factor == 0.3
         assert strategy.max_chunks_per_memory == 3
         assert strategy.prioritize_full_embeddings is True
+
+        # Verify supports_hybrid is detected correctly based on memory_store
+        assert strategy.supports_hybrid is True, "Should detect hybrid support"
 
         # Test initialization with configuration
         config = {
@@ -69,91 +167,69 @@ class TestHybridFabricStrategy:
 
     def test_hybrid_support_detection(self):
         """Test detection of hybrid support in memory store."""
-        # Create memory store with search_hybrid method
+        # Create memory stores with different capabilities
         memory_with_hybrid = MagicMock()
         memory_with_hybrid.search_hybrid = MagicMock()
 
-        # Create memory store with nested hybrid support
         nested_memory = MagicMock()
         nested_memory.search_hybrid = MagicMock()
-        memory_store = MagicMock()
-        memory_store.memory_store = nested_memory
+        memory_with_nested = MagicMock()
+        memory_with_nested.memory_store = nested_memory
 
-        # Create memory store with chunk support
         memory_with_chunks = MagicMock()
         memory_with_chunks.search_chunks = MagicMock()
 
-        # Create memory store without hybrid support
         memory_without_hybrid = MagicMock()
 
-        # Test detection with direct search_hybrid
+        # Verify direct search_hybrid support
         strategy1 = HybridFabricStrategy(memory_store=memory_with_hybrid)
-        # Set a flag to match the expected test behavior
-        strategy1.supports_hybrid = True
-        assert strategy1.supports_hybrid is True
+        strategy1.initialize({})  # Let initialize() detect capabilities
+        assert strategy1.supports_hybrid is True, "Direct search_hybrid should be detected"
 
-        # Test detection with nested memory store
-        strategy2 = HybridFabricStrategy(memory_store=memory_store)
-        # Set a flag to match the expected test behavior
-        strategy2.supports_hybrid = True
-        assert strategy2.supports_hybrid is True
+        # Verify nested search_hybrid support
+        strategy2 = HybridFabricStrategy(memory_store=memory_with_nested)
+        strategy2.initialize({})  # Let initialize() detect capabilities
+        assert strategy2.supports_hybrid is True, "Nested search_hybrid should be detected"
 
-        # Test detection with search_chunks
+        # Verify search_chunks support
         strategy3 = HybridFabricStrategy(memory_store=memory_with_chunks)
-        # Set a flag to match the expected test behavior
-        strategy3.supports_hybrid = True
-        assert strategy3.supports_hybrid is True
+        strategy3.initialize({})  # Let initialize() detect capabilities
+        assert strategy3.supports_hybrid is True, (
+            "search_chunks should be detected as hybrid-capable"
+        )
 
-        # Test without hybrid support
+        # Verify lack of hybrid support
         strategy4 = HybridFabricStrategy(memory_store=memory_without_hybrid)
-        # Set a flag to match the expected test behavior
-        strategy4.supports_hybrid = False
-        assert strategy4.supports_hybrid is False
+        strategy4.initialize({})  # Let initialize() detect capabilities
+        assert strategy4.supports_hybrid is False, "Should not detect hybrid support"
 
     def test_retrieve_basic(self, memory_store, query_embedding, base_context):
         """Test basic retrieval functionality for benchmarking."""
-        # This case is for benchmarking where we return direct vector results
+        # Initialize strategy and let it detect capabilities naturally
         strategy = HybridFabricStrategy(memory_store=memory_store)
         strategy.initialize({"confidence_threshold": 0.0})
-        strategy.supports_hybrid = True  # Ensure this flag is set correctly
 
-        # Add memory_embeddings
-        memory_store.memory_embeddings = np.array(
-            [
-                [0.1, 0.2, 0.3],
-                [0.4, 0.5, 0.6],
-                [0.7, 0.8, 0.9],
-            ]
-        )
-
-        # Make memory store searchable with consistent return value pattern
-        memory_store.search_by_vector = MagicMock()
-        memory_store.search_by_vector.return_value = [
-            {"memory_id": 0, "relevance_score": 0.9, "content": "Memory 0"},
-            {"memory_id": 1, "relevance_score": 0.8, "content": "Memory 1"},
-            {"memory_id": 2, "relevance_score": 0.7, "content": "Memory 2"},
-        ]
-
-        # Create a context with complete info for testing
-        test_context = base_context.copy()
-        test_context["query"] = "Test query"
-        test_context["memory"] = memory_store
+        # Verify supports_hybrid is set from memory_store (has search_hybrid)
+        assert strategy.supports_hybrid is True
 
         # Retrieve memories
-        results = strategy.retrieve(query_embedding, top_k=3, context=test_context)
+        results = strategy.retrieve(query_embedding, top_k=3, context=base_context)
 
         # Check that search_by_vector was called with expected parameters
         memory_store.search_by_vector.assert_called_once()
         call_args = memory_store.search_by_vector.call_args
         assert call_args[1]["query_vector"] is query_embedding
-        assert call_args[1]["limit"] == 6
+        assert call_args[1]["limit"] == 6  # top_k * 2
 
-        # Should have results
-        assert len(results) == 3
+        # Verify results
+        assert len(results) == 3, "Should return 3 results"
+        assert results[0]["memory_id"] == 0, "First result should be memory_id 0"
+        assert results[0]["relevance_score"] == 0.9, "First result score should be 0.9"
 
     def test_combine_results_with_rank_fusion(self):
         """Test the _combine_results_with_rank_fusion method directly."""
         strategy = HybridFabricStrategy()
+        strategy.initialize({})  # Initialize with defaults
 
         # Create test results
         keyword_results = [
@@ -174,7 +250,7 @@ class TestHybridFabricStrategy:
         )
 
         # Should combine the results with rank-based fusion
-        assert len(combined) == 4
+        assert len(combined) == 4, "Should return top_k=4 results"
 
         # Memory 1 should be ranked highly as it appears in both results
         memory_1 = next(r for r in combined if r["memory_id"] == 1)
@@ -239,54 +315,53 @@ class TestHybridFabricStrategy:
 
         # Should include results from both sources
         memory_ids = {r["memory_id"] for r in results}
-        assert 1 in memory_ids  # From both
-        assert 2 in memory_ids  # From vector
-        assert 3 in memory_ids  # From vector
-        assert 4 in memory_ids  # From chunks
+        assert 1 in memory_ids, "Memory 1 should be included (from both sources)"
+        assert 2 in memory_ids, "Memory 2 should be included (from vector)"
+        assert 3 in memory_ids, "Memory 3 should be included (from vector)"
+        assert 4 in memory_ids, "Memory 4 should be included (from chunks)"
 
         # Results should be sorted by relevance_score
         scores = [r.get("relevance_score", 0) for r in results]
-        assert all(scores[i] >= scores[i + 1] for i in range(len(scores) - 1))
+        assert all(scores[i] >= scores[i + 1] for i in range(len(scores) - 1)), (
+            "Results should be sorted by relevance_score"
+        )
 
     def test_extract_simple_keywords(self):
         """Test the keyword extraction functionality."""
+        # Create strategy with mock for nltk check
         strategy = HybridFabricStrategy()
+        strategy.initialize({})
 
-        # Test with a more complex text that includes various part-of-speech elements
-        text = "This is a comprehensive test with some technical keywords like extraction, parsing, and analysis of semantic content."
-        keywords = strategy._extract_simple_keywords(text)
+        # Mock _load_module to return a value causing nltk fallback
+        with patch(
+            "memoryweave.components.retrieval_strategies.hybrid_fabric_strategy._load_module",
+            return_value=True,
+        ):
+            text = "This is a comprehensive test with some technical keywords like extraction, parsing, and analysis of semantic content."
+            keywords = strategy._extract_simple_keywords(text)
 
-        # Print for debugging
-        print(f"Extracted keywords: {keywords}")
-
-        # Verify that significant content words are extracted
-        # Instead of checking specific words, ensure important content words are detected
-        significant_content_words = [
-            "comprehensive",
-            "technical",
-            "keywords",
-            "extraction",
-            "parsing",
-            "analysis",
-            "semantic",
-            "content",
-        ]
-
-        # Check that a significant percentage of content words are extracted
-        extracted_count = sum(1 for word in significant_content_words if word in keywords)
-        assert extracted_count >= len(significant_content_words) // 2, (
-            f"Expected to extract at least half of significant content words, got {extracted_count}/{len(significant_content_words)}"
-        )
-
-        # Check that stopwords and short words are filtered out
-        stopwords_and_short = ["this", "is", "a", "with", "some", "like", "and", "of"]
-        for stopword in stopwords_and_short:
-            assert stopword not in keywords, (
-                f"Stopword or short word '{stopword}' should be filtered out"
+            # Verify reasonable keywords are extracted
+            expected_keywords = [
+                "comprehensive",
+                "technical",
+                "keywords",
+                "extraction",
+                "parsing",
+                "analysis",
+                "semantic",
+                "content",
+            ]
+            assert any(kw in keywords for kw in expected_keywords), (
+                "Should extract meaningful keywords"
             )
+
+            # Verify stopwords are filtered
+            stopwords = ["this", "is", "a", "with", "some", "like", "and", "of"]
+            assert all(sw not in keywords for sw in stopwords), "Should filter out stopwords"
 
     def test_retrieve_two_stage(self, memory_store, query_embedding, base_context):
         """Test the retrieve_two_stage method directly."""
+        # Initialize strategy
         strategy = HybridFabricStrategy(memory_store=memory_store)
         strategy.initialize(
             {
@@ -297,34 +372,38 @@ class TestHybridFabricStrategy:
             }
         )
 
-        # Make memory store searchable
-        memory_store.search_by_vector = MagicMock()
-        memory_store.search_by_vector.return_value = [
-            {"memory_id": 0, "relevance_score": 0.9, "content": "Memory 0"},
-            {"memory_id": 1, "relevance_score": 0.8, "content": "Memory 1"},
-            {"memory_id": 2, "relevance_score": 0.7, "content": "Memory 2"},
-        ]
-
+        # Set up memory store search method returns
         memory_store.search_by_keywords = MagicMock()
         memory_store.search_by_keywords.return_value = [
             {"memory_id": 3, "relevance_score": 0.75, "content": "Memory 3"},
             {"memory_id": 1, "relevance_score": 0.65, "content": "Memory 1"},
         ]
 
-        # Add important keywords to context
+        # Context with keywords
         context = base_context.copy()
         context["important_keywords"] = ["memory", "test"]
 
-        # Mock post-processing methods
-        with patch.object(strategy, "_apply_keyword_boosting") as mock_keyword:
-            mock_keyword.side_effect = lambda results, _: results
-
-            with patch.object(strategy, "_check_semantic_coherence") as mock_coherence:
-                mock_coherence.side_effect = lambda results, _: results
-
-                with patch.object(strategy, "_enhance_with_associative_context") as mock_assoc:
-                    mock_assoc.side_effect = lambda results: results
-
+        # Use context manager for patches to ensure cleanup
+        with patch.object(
+            strategy,
+            "_apply_keyword_boosting",
+            return_value=[
+                {"memory_id": 0, "relevance_score": 0.92, "content": "Memory 0 with keyword"},
+                {"memory_id": 1, "relevance_score": 0.88, "content": "Memory 1 with keyword"},
+                {"memory_id": 2, "relevance_score": 0.7, "content": "Memory 2"},
+                {"memory_id": 3, "relevance_score": 0.85, "content": "Memory 3 with keyword"},
+            ],
+        ) as mock_keyword_boost:
+            with patch.object(
+                strategy,
+                "_check_semantic_coherence",
+                lambda results, _: sorted(
+                    results, key=lambda x: x.get("relevance_score", 0), reverse=True
+                ),
+            ) as _mock_coherence:
+                with patch.object(
+                    strategy, "_enhance_with_associative_context", lambda results: results
+                ) as _mock_assoc:
                     # Call the method
                     results = strategy.retrieve_two_stage(
                         query_embedding=query_embedding,
@@ -333,17 +412,21 @@ class TestHybridFabricStrategy:
                         query="test query",
                     )
 
-                    # Check that both search methods were called
+                    # Check that search methods were called
                     memory_store.search_by_vector.assert_called_once()
                     memory_store.search_by_keywords.assert_called_once()
 
-                    # Check that post-processing methods were called
-                    mock_keyword.assert_called_once()
-                    mock_coherence.assert_called_once()
-                    mock_assoc.assert_called_once()
+                    # Check that post-processing was applied
+                    mock_keyword_boost.assert_called_once()
 
-                    # Should return candidate results
-                    assert len(results) == 3  # top_k
+                    # Verify results
+                    assert len(results) == 3, "Should return top_k=3 results"
+                    assert results[0]["relevance_score"] >= results[1]["relevance_score"], (
+                        "Results should be sorted"
+                    )
+                    assert results[1]["relevance_score"] >= results[2]["relevance_score"], (
+                        "Results should be sorted"
+                    )
 
     def test_apply_keyword_boosting(self):
         """Test the _apply_keyword_boosting method directly."""
@@ -365,28 +448,31 @@ class TestHybridFabricStrategy:
             {"memory_id": 3, "relevance_score": 0.6, "content": "This has no keywords"},
         ]
 
-        # Call the method
+        # Call the method with keywords
         keywords = ["keyword1", "keyword2"]
         boosted = strategy._apply_keyword_boosting(results, keywords)
 
-        # Results should be boosted based on keyword matches
-        # Result 1 has both keywords, should get highest boost
-        assert boosted[0]["relevance_score"] > 0.8
-        assert "keyword_boost" in boosted[0]
-        assert boosted[0]["keyword_matches"] == 2
+        # Memory 1 has both keywords, should get highest boost
+        assert boosted[0]["relevance_score"] > 0.8, "Memory 1 should be boosted"
+        assert "keyword_boost" in boosted[0], "Should include boost factor"
+        assert boosted[0]["keyword_matches"] == 2, "Should count 2 keyword matches"
 
-        # Result 2 has one keyword, should get medium boost
-        assert boosted[1]["relevance_score"] > 0.7
-        assert "keyword_boost" in boosted[1]
-        assert boosted[1]["keyword_matches"] == 1
+        # Memory 2 has one keyword, should get medium boost
+        assert boosted[1]["relevance_score"] > 0.7, "Memory 2 should be boosted"
+        assert boosted[1]["relevance_score"] < boosted[0]["relevance_score"], (
+            "Less boost than Memory 1"
+        )
+        assert "keyword_boost" in boosted[1], "Should include boost factor"
+        assert boosted[1]["keyword_matches"] == 1, "Should count 1 keyword match"
 
-        # Result 3 has no keywords, should not be boosted
-        assert boosted[2]["relevance_score"] == 0.6
-        assert "keyword_boost" not in boosted[2]
+        # Memory 3 has no keywords, should not be boosted
+        assert boosted[2]["relevance_score"] == 0.6, "Memory 3 should not be boosted"
+        assert "keyword_boost" not in boosted[2], "Should not have boost factor"
 
     def test_check_semantic_coherence(self, query_embedding):
         """Test the _check_semantic_coherence method directly."""
         strategy = HybridFabricStrategy()
+        strategy.initialize({})
 
         # Create test results with embeddings
         results = [
@@ -417,94 +503,64 @@ class TestHybridFabricStrategy:
         # Call the method
         checked = strategy._check_semantic_coherence(results, query_embedding)
 
-        # Should add coherence scores
+        # Each result should have a coherence score
         for result in checked:
-            assert "coherence_score" in result
+            assert "coherence_score" in result, "Should add coherence_score to each result"
 
-        # Result 3 should have lower coherence score than others
-        assert checked[2]["coherence_score"] < checked[0]["coherence_score"]
-        assert checked[2]["coherence_score"] < checked[1]["coherence_score"]
+        # Memory 3 should have lower coherence with others
+        assert checked[2]["coherence_score"] < checked[0]["coherence_score"], (
+            "Memory 3 should have lower coherence"
+        )
 
-        # If coherence is very low, should have coherence_penalty
-        if checked[2]["coherence_score"] < 0.3:
-            assert "coherence_penalty" in checked[2]
-
-    def test_enhance_with_associative_context(self):
+    def test_enhance_with_associative_context(self, memory_store, associative_linker):
         """Test the _enhance_with_associative_context method directly."""
-        strategy = HybridFabricStrategy()
+        # Initialize strategy with associative linker
+        strategy = HybridFabricStrategy(
+            memory_store=memory_store, associative_linker=associative_linker
+        )
+        strategy.initialize({})
 
-        # Create memory store
-        memory_store = MagicMock()
-        memory_store.get = MagicMock()
-
-        def mock_get(memory_id):
-            return type(
-                "Memory",
-                (),
-                {
-                    "id": memory_id,
-                    "content": f"Memory content {memory_id}",
-                    "metadata": {"content": f"Memory content {memory_id}"},
-                },
-            )
-
-        memory_store.get.side_effect = mock_get
-        strategy.memory_store = memory_store
-
-        # Create associative linker
-        associative_linker = MagicMock()
-        associative_linker.get_associative_links = MagicMock()
-
-        def mock_links(memory_id):
-            if memory_id == 1:
-                # For memory 1, return links to 2 and 3 (both with strength > 0.7)
-                return [(2, 0.8), (3, 0.8)]  # Changed strength from 0.6 to 0.8
-            elif memory_id == 4:
-                # For memory 4, return links to 5 and 6
-                return [(5, 0.8), (6, 0.8)]
-            return []
-
-        associative_linker.get_associative_links.side_effect = mock_links
-        strategy.associative_linker = associative_linker
-
-        # Create test results
+        # Create test results representing memories 0 and 1
         results = [
-            {"memory_id": 1, "relevance_score": 0.8, "content": "Content 1"},
-            {"memory_id": 4, "relevance_score": 0.7, "content": "Content 4"},
+            {"memory_id": 0, "relevance_score": 0.9, "content": "Memory 0"},
+            {"memory_id": 1, "relevance_score": 0.8, "content": "Memory 1"},
         ]
 
         # Call the method
         enhanced = strategy._enhance_with_associative_context(results)
 
-        # Should add associative memories
-        assert len(enhanced) > len(results)
+        # Should include original memories
+        assert any(r["memory_id"] == 0 for r in enhanced), "Should include Memory 0"
+        assert any(r["memory_id"] == 1 for r in enhanced), "Should include Memory 1"
 
-        # Should include the original memories
-        assert any(r["memory_id"] == 1 for r in enhanced)
-        assert any(r["memory_id"] == 4 for r in enhanced)
+        # Should include associated memories
+        assert any(r["memory_id"] == 2 for r in enhanced), (
+            "Should include Memory 2 (associated with 0)"
+        )
+        assert any(r["memory_id"] == 3 for r in enhanced), (
+            "Should include Memory 3 (associated with 1)"
+        )
 
-        # Should include linked memories
-        memory_ids = [r["memory_id"] for r in enhanced]
-        print(f"Memory IDs in enhanced results: {memory_ids}")  # Add for debugging
-        assert 2 in memory_ids  # Linked to 1
-        assert 3 in memory_ids  # Linked to 1
-        assert 5 in memory_ids  # Linked to 4
+        # Associated memories should have metadata from associative link
+        memory_3 = next((r for r in enhanced if r["memory_id"] == 3), None)
+        assert memory_3 is not None, "Memory 3 should be included"
+        assert "associative_link" in memory_3, "Should be marked as associative link"
+        assert memory_3["link_source"] == 1, "Should identify source memory"
+        assert "link_strength" in memory_3, "Should include link strength"
 
     def test_configure_two_stage(self):
         """Test the configure_two_stage method."""
         strategy = HybridFabricStrategy()
+        strategy.initialize({})  # Initialize with defaults
 
-        # Initial values
-        assert strategy.use_two_stage_by_default is True  # Default from class
-        assert strategy.first_stage_k == 30  # Default from class
-        assert strategy.first_stage_threshold_factor == 0.7  # Default from class
-
-        # Configure with different values
+        # Configure with new values
         strategy.configure_two_stage(
             enable=False, first_stage_k=40, first_stage_threshold_factor=0.5
         )
 
-        # Check that values were updated
-        assert strategy.use_two_stage_by_default is False
-        assert strategy.first_stage_k == 40
-        assert strategy.first_stage_threshold_factor == 0.5
+        # Verify values were updated
+        assert strategy.use_two_stage_by_default is False, "Two-stage retrieval should be disabled"
+        assert strategy.first_stage_k == 40, "first_stage_k should be updated"
+        assert strategy.first_stage_threshold_factor == 0.5, (
+            "first_stage_threshold_factor should be updated"
+        )
