@@ -46,23 +46,17 @@ class AssociativeMemoryLinker(MemoryComponent):
     multi-hop connections and cognitive-inspired memory access patterns.
     """
 
-    def __init__(self, memory_store: Optional[StandardMemoryStore] = None):
-        """Initialize the associative memory linker."""
-        self.memory_store = memory_store
-        self.similarity_threshold = 0.5
-        self.temporal_weight = 0.3
-        self.semantic_weight = 0.7
-        self.max_links_per_memory = 10
-        self.rebuild_frequency = 100  # Rebuild full graph every N new memories
-        self.memory_count = 0
-        self.component_id = ComponentName.ASSOCIATIVE_MEMORY_LINKER
-
-        # Initialize associative links storage with Pydantic model
-        self.links_store = AssociativeLinks()
-
-        # Track last full rebuild
-        self.last_rebuild_time = 0
-        self.memories_since_rebuild = 0
+    memory_store: Optional[StandardMemoryStore] = Field(default=None)
+    similarity_threshold: float = 0.5
+    temporal_weight: float = 0.3
+    semantic_weight: float = 0.7
+    max_links_per_memory: int = 10
+    rebuild_frequency: int = 100
+    memory_count: int = 0
+    component_id: str = Field(default=ComponentName.ASSOCIATIVE_MEMORY_LINKER)
+    links_store: AssociativeLinks = Field(default_factory=AssociativeLinks)
+    last_rebuild_time: float = Field(default=0)
+    memories_since_rebuild: int = 0
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
@@ -76,11 +70,11 @@ class AssociativeMemoryLinker(MemoryComponent):
                 - max_links_per_memory: Maximum number of links per memory (default: 10)
                 - rebuild_frequency: How often to rebuild the entire link structure (default: 100)
         """
-        self.similarity_threshold = config.get("similarity_threshold", 0.5)
-        self.temporal_weight = config.get("temporal_weight", 0.3)
-        self.semantic_weight = config.get("semantic_weight", 0.7)
-        self.max_links_per_memory = config.get("max_links_per_memory", 10)
-        self.rebuild_frequency = config.get("rebuild_frequency", 100)
+        self.similarity_threshold = config.get("similarity_threshold", self.similarity_threshold)
+        self.temporal_weight = config.get("temporal_weight", self.temporal_weight)
+        self.semantic_weight = config.get("semantic_weight", self.semantic_weight)
+        self.max_links_per_memory = config.get("max_links_per_memory", self.max_links_per_memory)
+        self.rebuild_frequency = config.get("rebuild_frequency", self.rebuild_frequency)
 
         # Set memory store if provided
         if "memory_store" in config:
@@ -593,15 +587,8 @@ class AssociativeNetworkVisualizer(Component):
     showing connections between memories and their strengths.
     """
 
-    def __init__(self, linker: Optional[AssociativeMemoryLinker] = None):
-        """
-        Initialize the visualizer.
-
-        Args:
-            linker: Optional associative memory linker to visualize
-        """
-        self.linker = linker
-        self.component_id = "associative_network_visualizer"
+    linker: Optional[AssociativeMemoryLinker] = None
+    component_id: str = "associative_network_visualizer"
 
     def initialize(self, config: dict[str, Any]) -> None:
         """

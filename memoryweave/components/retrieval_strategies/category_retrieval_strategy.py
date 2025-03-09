@@ -9,6 +9,7 @@ import logging
 from typing import Any, Optional
 
 import numpy as np
+from pydantic import Field
 
 from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.category_manager import CategoryManager
@@ -26,31 +27,31 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
     categories.
     """
 
-    def __init__(self, memory: Any, category_manager: Optional[CategoryManager] = None):
-        """
-        Initialize with memory and category manager.
+    memory: Any = Field(...)  # Memory component, needs to be provided
+    category_manager: Optional[CategoryManager] = Field(default=None)
+    confidence_threshold: float = Field(default=0.0)
+    max_categories: int = Field(default=3)
+    activation_boost: bool = Field(default=True)
+    category_selection_threshold: float = Field(default=0.5)
+    min_results: int = Field(default=5)
 
-        Args:
-            memory: The memory to retrieve from
-            category_manager: Optional category manager to use
-        """
-        self.memory = memory
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize with memory and category manager."""
+        super().__init__(**kwargs)
         # Use provided category_manager or get it from memory
-        self.category_manager = category_manager or getattr(memory, "category_manager", None)
+        if self.category_manager is None and hasattr(self.memory, "category_manager"):
+            self.category_manager = self.memory.category_manager
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
-        self.confidence_threshold = config.get("confidence_threshold", 0.0)
-        self.max_categories = config.get("max_categories", 3)
-        self.activation_boost = config.get("activation_boost", True)
-        self.category_selection_threshold = config.get("category_selection_threshold", 0.5)
-
-        # For testing/benchmarking, set minimum results
-        self.min_results = max(1, config.get("min_results", 5))
-
-        # Initialize category manager if not provided
-        if self.category_manager is None and hasattr(self.memory, "category_manager"):
-            self.category_manager = self.memory.category_manager
+        self.confidence_threshold = config.get("confidence_threshold", self.confidence_threshold)
+        self.max_categories = config.get("max_categories", self.max_categories)
+        self.activation_boost = config.get("activation_boost", self.activation_boost)
+        self.category_selection_threshold = config.get(
+            "category_selection_threshold",
+            self.category_selection_threshold,
+        )
+        self.min_results = max(1, config.get("min_results", self.min_results))
 
     def retrieve(
         self, query_embedding: np.ndarray, top_k: int, context: dict[str, Any]

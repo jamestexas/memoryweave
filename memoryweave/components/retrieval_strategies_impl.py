@@ -1,9 +1,10 @@
 # memoryweave/components/retrieval_strategies.py
 # Get logging setup
 import logging
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
+from pydantic import Field
 
 from memoryweave.components.base import RetrievalStrategy
 
@@ -15,27 +16,19 @@ class SimilarityRetrievalStrategy(RetrievalStrategy):
     Retrieves memories based purely on similarity to query embedding.
     """
 
-    def __init__(
-        self,
-        memory: Any,
-        vector_store: Any | None = None,
-        confidence_threshold: float = 0.0,
-        activation_boost: bool = True,
-        min_results: int = 5,  # Add min_results parameter
-    ):
-        self.memory = memory
-        self.vector_store = vector_store
-        self.confidence_threshold = confidence_threshold
-        self.activation_boost = activation_boost
-        self.min_results = min_results  # Initialize min_results attribute
+    memory: Any = Field(..., description="Memory to retrieve from")
+    vector_store: Any | None = Field(None, description="Optional vector store")
+    confidence_threshold: float = Field(0.0, description="Confidence threshold for retrieval")
+    activation_boost: bool = Field(True, description="Whether to apply activation boost")
+    min_results: int = Field(5, description="Minimum number of results to return")
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
         self.confidence_threshold = config.get("confidence_threshold", self.confidence_threshold)
-        self.activation_boost = config.get("activation_boost", True)
+        self.activation_boost = config.get("activation_boost", self.activation_boost)
 
         # Set minimum k for testing/benchmarking, but don't go below 1
-        self.min_results = max(1, config.get("min_results", 5))
+        self.min_results = max(1, config.get("min_results", self.min_results))
 
     def retrieve(
         self,
@@ -206,8 +199,7 @@ class TemporalRetrievalStrategy(RetrievalStrategy):
     Retrieves memories based on recency and activation.
     """
 
-    def __init__(self, memory: Any):
-        self.memory = memory
+    memory: Any = Field(..., description="Memory to retrieve from")
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
@@ -319,17 +311,22 @@ class HybridRetrievalStrategy(RetrievalStrategy):
     Hybrid retrieval combining similarity, recency, and keyword matching.
     """
 
-    def __init__(self, memory: Any):
-        self.memory = memory
+    memory: Any = Field(..., description="Memory to retrieve from")
+    relevance_weight: float = Field(0.7, description="Weight for relevance score")
+    recency_weight: float = Field(0.3, description="Weight for recency score")
+    confidence_threshold: float = Field(0.0, description="Confidence threshold for retrieval")
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
-        self.relevance_weight = config.get("relevance_weight", 0.7)
-        self.recency_weight = config.get("recency_weight", 0.3)
-        self.confidence_threshold = config.get("confidence_threshold", 0.0)
+        self.relevance_weight = config.get("relevance_weight", self.relevance_weight)
+        self.recency_weight = config.get("recency_weight", self.recency_weight)
+        self.confidence_threshold = config.get("confidence_threshold", self.confidence_threshold)
 
     def retrieve(
-        self, query_embedding: np.ndarray, top_k: int, context: dict[str, Any]
+        self,
+        query_embedding: np.ndarray,
+        top_k: int,
+        context: dict[str, Any],
     ) -> list[dict[str, Any]]:
         """Retrieve memories using hybrid approach."""
         # Get memory from context or instance
@@ -512,11 +509,25 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
     lower threshold in the first stage, then re-ranks in the second stage.
     """
 
+    memory: Any = Field(..., description="Memory to retrieve from")
+    base_strategy: Optional[RetrievalStrategy] = Field(
+        default=None, description="Base retrieval strategy to use in the first stage"
+    )
+    post_processors: list[Any] = Field(
+        default_factory=list,
+        description="list of post-processors to apply in second stage",
+    )
+    first_stage_k: int = Field(default=20, description="Number of candidates in first stage")
+    first_stage_threshold_factor: float = Field(
+        default=0.7, description="Threshold factor for first stage"
+    )
+    confidence_threshold: float = Field(
+        default=0.0, description="Confidence threshold for second stage"
+    )
+
     def __init__(
         self,
-        memory: Any,
-        base_strategy: RetrievalStrategy = None,
-        post_processors: list = None,
+        **kwargs,
     ):
         """
         Initialize the two-stage retrieval strategy.
@@ -524,18 +535,20 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
         Args:
             memory: Memory to retrieve from
             base_strategy: Base retrieval strategy to use (defaults to HybridRetrievalStrategy)
-            post_processors: List of post-processors to apply in second stage
+            post_processors: list of post-processors to apply in second stage
         """
-        self.memory = memory
-        self.base_strategy = base_strategy or HybridRetrievalStrategy(memory)
-        self.post_processors = post_processors or []
+        super().__init__(**kwargs)
+        if self.base_strategy is None and hasattr(self, "memory"):
+            self.base_strategy = HybridRetrievalStrategy(memory=self.memory)
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
         # First stage parameters
-        self.first_stage_k = config.get("first_stage_k", 20)
-        self.first_stage_threshold_factor = config.get("first_stage_threshold_factor", 0.7)
-        self.confidence_threshold = config.get("confidence_threshold", 0.0)
+        self.first_stage_k = config.get("first_stage_k", self.first_stage_k)
+        self.first_stage_threshold_factor = config.get(
+            "first_stage_threshold_factor", self.first_stage_threshold_factor
+        )
+        self.confidence_threshold = config.get("confidence_threshold", self.confidence_threshold)
 
         # Initialize base strategy if it's not already initialized
         if hasattr(self.base_strategy, "initialize"):
@@ -564,7 +577,7 @@ class TwoStageRetrievalStrategy(RetrievalStrategy):
             context: Context containing memory, query type, etc.
 
         Returns:
-            List of retrieved memory dicts
+            list of retrieved memory dicts
         """
         import logging
 
@@ -829,28 +842,34 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
     categories.
     """
 
-    def __init__(self, memory: Any):
-        """
-        Initialize with memory and category manager.
-
-        Args:
-            memory: The memory to retrieve from
-        """
-        self.memory = memory
-        # Will use the category_manager from memory
+    memory: Any = Field(..., description="Memory to retrieve from")
+    confidence_threshold: float = Field(0.0, description="Confidence threshold for retrieval")
+    max_categories: int = Field(3, description="Maximum number of categories to consider")
+    activation_boost: bool = Field(True, description="Whether to apply activation boost")
+    category_selection_threshold: float = Field(
+        0.5, description="Threshold for selecting categories"
+    )
+    min_results: int = Field(
+        5, description="Minimum number of results to return if no results pass threshold"
+    )
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
-        self.confidence_threshold = config.get("confidence_threshold", 0.0)
-        self.max_categories = config.get("max_categories", 3)
-        self.activation_boost = config.get("activation_boost", True)
-        self.category_selection_threshold = config.get("category_selection_threshold", 0.5)
+        self.confidence_threshold = config.get("confidence_threshold", self.confidence_threshold)
+        self.max_categories = config.get("max_categories", self.max_categories)
+        self.activation_boost = config.get("activation_boost", self.activation_boost)
+        self.category_selection_threshold = config.get(
+            "category_selection_threshold", self.category_selection_threshold
+        )
 
         # For testing/benchmarking, set minimum results
-        self.min_results = max(1, config.get("min_results", 5))
+        self.min_results = max(1, config.get("min_results", self.min_results))
 
     def retrieve(
-        self, query_embedding: np.ndarray, top_k: int, context: dict[str, Any]
+        self,
+        query_embedding: np.ndarray,
+        top_k: int,
+        context: dict[str, Any],
     ) -> list[dict[str, Any]]:
         """Retrieve memories using category-based retrieval."""
         import logging
@@ -1009,9 +1028,6 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
 
     def process_query(self, query: str, context: dict[str, Any]) -> dict[str, Any]:
         """Process a query to retrieve relevant memories using categories."""
-        import logging
-
-        logger = logging.getLogger(__name__)
 
         # Log which query is being processed
         logger.info(f"CategoryRetrievalStrategy: Processing query: {query}")

@@ -37,7 +37,7 @@ class TestAssociativeMemoryLinker:
     @pytest.fixture
     def linker(self, memory_store):
         """Create an associative memory linker for testing."""
-        linker = AssociativeMemoryLinker(memory_store)
+        linker = AssociativeMemoryLinker(memory_store=memory_store)
         # Make sure this threshold isn't too high
         linker.initialize(
             {

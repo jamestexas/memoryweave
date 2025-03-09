@@ -8,10 +8,12 @@ import numpy as np
 
 from memoryweave.components.category_manager import CategoryManager
 from memoryweave.components.retrieval_strategies import (
-    CategoryRetrievalStrategy,
     HybridRetrievalStrategy,
     SimilarityRetrievalStrategy,
     TemporalRetrievalStrategy,
+)
+from memoryweave.components.retrieval_strategies.category_retrieval_strategy import (
+    CategoryRetrievalStrategy,
 )
 from tests.utils.mock_models import MockMemory
 
@@ -30,9 +32,9 @@ class RetrievalStrategiesTest(unittest.TestCase):
         self._populate_test_memory()
 
         # Create retrieval strategies
-        self.similarity_strategy = SimilarityRetrievalStrategy(self.memory)
-        self.temporal_strategy = TemporalRetrievalStrategy(self.memory)
-        self.hybrid_strategy = HybridRetrievalStrategy(self.memory)
+        self.similarity_strategy = SimilarityRetrievalStrategy(memory=self.memory)
+        self.temporal_strategy = TemporalRetrievalStrategy(memory=self.memory)
+        self.hybrid_strategy = HybridRetrievalStrategy(memory=self.memory)
 
         # Initialize strategies
         self.similarity_strategy.initialize({"confidence_threshold": 0.0})
@@ -147,7 +149,7 @@ class CategoryRetrievalStrategyTest(unittest.TestCase):
         self._populate_categorized_memory()
 
         # Create CategoryRetrievalStrategy
-        self.category_strategy = CategoryRetrievalStrategy(self.memory)
+        self.category_strategy = CategoryRetrievalStrategy(memory=self.memory)
         self.category_strategy.initialize(
             {
                 "confidence_threshold": 0.0,
