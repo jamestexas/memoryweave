@@ -8,13 +8,13 @@ into memory representations with rich contextual information.
 from typing import Any, Optional
 
 import numpy as np
+from pydantic import Field
 
 from memoryweave.components.base import Component
 from memoryweave.components.context_enhancement import ContextualEmbeddingEnhancer
-from memoryweave.interfaces.memory import IMemoryEncoder
 
 
-class MemoryEncoder(Component, IMemoryEncoder):
+class MemoryEncoder(Component):
     """
     Encodes different types of content into memory representations.
 
@@ -22,18 +22,26 @@ class MemoryEncoder(Component, IMemoryEncoder):
     concepts) into memory embeddings with rich contextual information.
     """
 
-    def __init__(self, embedding_model: Any):
-        """
-        Initialize the memory encoder.
-
-        Args:
-            embedding_model: Model to use for creating embeddings
-        """
-        self.embedding_model = embedding_model
-        self.context_enhancer = ContextualEmbeddingEnhancer()
-        self.conversation_history = []
-        self.context_window_size = 3
-        self.use_episodic_markers = True
+    embedding_model: Any = Field(
+        default=...,
+        description="Model to use for creating embeddings",
+    )
+    context_enchancer: ContextualEmbeddingEnhancer = Field(
+        default_factory=ContextualEmbeddingEnhancer,
+        description="Contextual embedding enhancer",
+    )
+    conversation_history: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="History of interactions in the conversation",
+    )
+    context_window_size: int = Field(
+        default=3,
+        description="Size of context window for enriching embeddings",
+    )
+    use_episodic_markers: bool = Field(
+        default=True,
+        description="Whether to use episodic markers in encoding",
+    )
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
