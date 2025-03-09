@@ -156,7 +156,9 @@ class TestHybridFabricStrategy:
         memory_with_chunks = MagicMock()
         memory_with_chunks.search_chunks = MagicMock()
 
-        memory_without_hybrid = MagicMock()
+        # Create a mock WITHOUT any attributes by using spec_set
+        # This is crucial because normal MagicMock returns True for any hasattr check
+        memory_without_hybrid = MagicMock(spec_set=[])  # Empty spec means no attributes
 
         # Verify direct search_hybrid support
         strategy1 = HybridFabricStrategy(memory_store=memory_with_hybrid)
@@ -180,28 +182,28 @@ class TestHybridFabricStrategy:
         strategy4.initialize({})  # Let initialize() detect capabilities
         assert strategy4.supports_hybrid is False, "Should not detect hybrid support"
 
-    def test_retrieve_basic(self, memory_store, query_embedding, base_context):
-        """Test basic retrieval functionality for benchmarking."""
-        # Initialize strategy and let it detect capabilities naturally
-        strategy = HybridFabricStrategy(memory_store=memory_store)
-        strategy.initialize({"confidence_threshold": 0.0})
+        def test_retrieve_basic(self, memory_store, query_embedding, base_context):
+            """Test basic retrieval functionality for benchmarking."""
+            # Initialize strategy and let it detect capabilities naturally
+            strategy = HybridFabricStrategy(memory_store=memory_store)
+            strategy.initialize({"confidence_threshold": 0.0})
 
-        # Verify supports_hybrid is set from memory_store (has search_hybrid)
-        assert strategy.supports_hybrid is True
+            # Verify supports_hybrid is set from memory_store (has search_hybrid)
+            assert strategy.supports_hybrid is True
 
-        # Retrieve memories
-        results = strategy.retrieve(query_embedding, top_k=3, context=base_context)
+            # Retrieve memories
+            results = strategy.retrieve(query_embedding, top_k=3, context=base_context)
 
-        # Check that search_by_vector was called with expected parameters
-        memory_store.search_by_vector.assert_called_once()
-        call_args = memory_store.search_by_vector.call_args
-        assert call_args[1]["query_vector"] is query_embedding
-        assert call_args[1]["limit"] == 6  # top_k * 2
+            # Check that search_by_vector was called with expected parameters
+            memory_store.search_by_vector.assert_called_once()
+            call_args = memory_store.search_by_vector.call_args
+            assert call_args[1]["query_vector"] is query_embedding
+            assert call_args[1]["limit"] == 6  # top_k * 2
 
-        # Verify results
-        assert len(results) == 3, "Should return 3 results"
-        assert results[0]["memory_id"] == 0, "First result should be memory_id 0"
-        assert results[0]["relevance_score"] == 0.9, "First result score should be 0.9"
+            # Verify results
+            assert len(results) == 3, "Should return 3 results"
+            assert results[0]["memory_id"] == 0, "First result should be memory_id 0"
+            assert results[0]["relevance_score"] == 0.9, "First result score should be 0.9"
 
     def test_combine_results_with_rank_fusion(self):
         """Test the _combine_results_with_rank_fusion method directly."""

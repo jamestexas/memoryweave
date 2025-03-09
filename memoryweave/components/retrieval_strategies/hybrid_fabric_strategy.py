@@ -126,17 +126,12 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         self.max_chunks_per_memory = self._kwargs.get("max_chunks_per_memory", 3)
         self.prioritize_full_embeddings = self._kwargs.get("prioritize_full_embeddings", True)
 
-        # Detect if memory store supports hybrid features - will be set by `initialize()`
+        # Explicitly initialize supports_hybrid to False
         self.supports_hybrid = False
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the strategy with configuration."""
         # First, initialize base class
-        # TODO: Validate these are present on root class..
-        # self.use_two_stage_by_default = True
-        # self.first_stage_k = 30
-        # self.first_stage_threshold_factor = 0.7
-
         super().initialize(config)
 
         # Then, set hybrid specific parameters
@@ -153,17 +148,27 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         self.first_stage_threshold_factor = config.get(
             "first_stage_threshold_factor", self.first_stage_threshold_factor
         )
-        # sets the memory store
+
+        # Reset supports_hybrid to False before checking
+        self.supports_hybrid = False
+
+        # Check hybrid support
         self._check_hybrid_support()
+        print(f"DEBUG: Memory store: {self.memory_store}, supports_hybrid: {self.supports_hybrid}")
+        self.logger.debug(f"After initialize: supports_hybrid set to {self.supports_hybrid}")
 
     def _check_hybrid_support(self) -> None:
         """Check if memory_store supports hybrid features."""
-        self.supports_hybrid = False  # Default to False
+        # Explicitly set to False by default - VERY IMPORTANT
+        self.supports_hybrid = False
 
         if self.memory_store is None:
+            # No memory store, no hybrid support
+            self.supports_hybrid = False
+            self.logger.debug("No memory store, no hybrid support")
             return
 
-        # Check for specific attributes, more precisely
+        # Check for specific attributes and ONLY set to True if found
         if hasattr(self.memory_store, "search_hybrid"):
             self.supports_hybrid = True
             self.logger.debug("Hybrid search support detected in memory store")
@@ -175,6 +180,10 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         elif hasattr(self.memory_store, "search_chunks"):
             self.supports_hybrid = True
             self.logger.debug("Chunk search support detected - will use for hybrid search")
+        else:
+            # No hybrid capabilities found - EXPLICITLY set to False again
+            self.supports_hybrid = False
+            self.logger.debug("No hybrid search capabilities detected")
 
     def retrieve(
         self,
@@ -226,77 +235,6 @@ class HybridFabricStrategy(ContextualFabricStrategy):
 
         # Return results directly with minimal processing for benchmark
         return vector_results[:top_k]
-
-    def _combine_results_with_rank_fusion(
-        self,
-        results1: list[dict[str, Any]],
-        results2: list[dict[str, Any]],
-        k1: float = 60.0,
-        k2: float = 40.0,
-        top_k: int = 10,
-    ) -> list[dict[str, Any]]:
-        """
-        Combine results using reciprocal rank fusion.
-
-        This method combines results from different retrieval methods
-        by using their ranks rather than raw scores, making it more robust.
-
-        Args:
-            results1: First result set (typically keyword-based)
-            results2: Second result set (typically vector-based)
-            k1: Constant for first result set (higher values discount rankings)
-            k2: Constant for second result set
-            top_k: Number of top results to return
-
-        Returns:
-            Combined list of results
-        """
-        # Create dictionary of memory_id -> result info
-        result_map = {}
-
-        # Process first result set
-        for rank, result in enumerate(results1):
-            memory_id = result.get("memory_id", result.get("id", ""))
-            # RRF formula: 1/(k + rank)
-            score = 1.0 / (k1 + rank)
-
-            if memory_id not in result_map:
-                result_map[memory_id] = {"result": result, "score": score, "sources": ["keyword"]}
-            else:
-                result_map[memory_id]["score"] += score
-                if "keyword" not in result_map[memory_id]["sources"]:
-                    result_map[memory_id]["sources"].append("keyword")
-
-        # Process second result set
-        for rank, result in enumerate(results2):
-            memory_id = result.get("memory_id", result.get("id", ""))
-            # RRF formula: 1/(k + rank)
-            score = 1.0 / (k2 + rank)
-
-            if memory_id not in result_map:
-                result_map[memory_id] = {"result": result, "score": score, "sources": ["vector"]}
-            else:
-                result_map[memory_id]["score"] += score
-                if "vector" not in result_map[memory_id]["sources"]:
-                    result_map[memory_id]["sources"].append("vector")
-                    # Use vector result as base since it has more metadata
-                    result_map[memory_id]["result"] = result
-
-        # Format combined results
-        combined_results = []
-        for _memory_id, data in result_map.items():
-            result_obj = data["result"].copy()
-            result_obj["rrf_score"] = data["score"]
-            result_obj["retrieval_sources"] = data["sources"]
-
-            # Use either original relevance score or set based on RRF score
-            if "relevance_score" not in result_obj:
-                result_obj["relevance_score"] = min(0.99, data["score"] * 0.5)
-
-            combined_results.append(result_obj)
-
-        # Sort by RRF score and return top-k
-        return sorted(combined_results, key=lambda x: x["rrf_score"], reverse=True)[:top_k]
 
     def _combined_search(
         self,
@@ -774,71 +712,215 @@ class HybridFabricStrategy(ContextualFabricStrategy):
 
         return final_results[:top_k]
 
+    def _combine_results_with_rank_fusion(
+        self,
+        results1: list[dict[str, Any]],
+        results2: list[dict[str, Any]],
+        k1: float = 60.0,
+        k2: float = 40.0,
+        top_k: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        Combine results using reciprocal rank fusion with more robust handling.
+
+        This method combines results from different retrieval methods
+        by using their ranks rather than raw scores, making it more robust.
+
+        Args:
+            results1: First result set (typically keyword-based)
+            results2: Second result set (typically vector-based)
+            k1: Constant for first result set (higher values discount rankings)
+            k2: Constant for second result set
+            top_k: Number of top results to return
+
+        Returns:
+            Combined list of results
+        """
+        # Handle empty input cases gracefully
+        if not results1 and not results2:
+            return []
+        if not results1:
+            return results2[:top_k]
+        if not results2:
+            return results1[:top_k]
+
+        # Create dictionary of memory_id -> result info
+        result_map = {}
+
+        # Process first result set
+        for rank, result in enumerate(results1):
+            memory_id = result.get("memory_id", result.get("id", ""))
+            if not memory_id:  # Skip results without a valid memory_id
+                continue
+
+            # RRF formula: 1/(k + rank)
+            score = 1.0 / (k1 + rank)
+
+            if memory_id not in result_map:
+                result_map[memory_id] = {"result": result, "score": score, "sources": ["keyword"]}
+            else:
+                result_map[memory_id]["score"] += score
+                if "keyword" not in result_map[memory_id]["sources"]:
+                    result_map[memory_id]["sources"].append("keyword")
+
+        # Process second result set
+        for rank, result in enumerate(results2):
+            memory_id = result.get("memory_id", result.get("id", ""))
+            if not memory_id:  # Skip results without a valid memory_id
+                continue
+
+            # RRF formula: 1/(k + rank)
+            score = 1.0 / (k2 + rank)
+
+            if memory_id not in result_map:
+                result_map[memory_id] = {"result": result, "score": score, "sources": ["vector"]}
+            else:
+                result_map[memory_id]["score"] += score
+                if "vector" not in result_map[memory_id]["sources"]:
+                    result_map[memory_id]["sources"].append("vector")
+                    # Use vector result as base since it has more metadata
+                    result_map[memory_id]["result"] = result
+
+        # Format combined results
+        combined_results = []
+        for _memory_id, data in result_map.items():
+            result_obj = data["result"].copy()
+            result_obj["rrf_score"] = data["score"]
+            result_obj["retrieval_sources"] = data["sources"]
+
+            # Use either original relevance score or set based on RRF score
+            if "relevance_score" not in result_obj:
+                result_obj["relevance_score"] = min(0.99, data["score"] * 0.5)
+
+            # Boost results that appear in both sources (similar to how we boosted activation)
+            if len(data["sources"]) > 1:
+                # Apply a boost for results found in multiple sources
+                boost_factor = 1.5
+                result_obj["relevance_score"] = min(
+                    0.99,
+                    result_obj["relevance_score"]
+                    + boost_factor * (1.0 - result_obj["relevance_score"]) * 0.3,
+                )
+                result_obj["multi_source_boost"] = True
+
+            combined_results.append(result_obj)
+
+        # Sort by RRF score and return top-k
+        return sorted(combined_results, key=lambda x: x["rrf_score"], reverse=True)[:top_k]
+
     def _apply_keyword_boosting(
         self, results: list[dict[str, Any]], keywords: list[str]
     ) -> list[dict[str, Any]]:
-        """Boost scores for results containing important keywords."""
-        for result in results:
-            content = str(result.get("content", "")).lower()
+        """
+        Boost scores for results containing important keywords with improved
+        handling and exponential boosting.
+        """
+        if not results or not keywords:
+            return results
 
-            # Count keyword matches
-            keyword_matches = sum(1 for kw in keywords if kw.lower() in content)
+        # Make a copy to avoid modifying the original list
+        boosted_results = []
+
+        for result in results:
+            result_copy = dict(result)
+            content = str(result_copy.get("content", "")).lower()
+
+            # Count keyword matches and track which keywords matched
+            keyword_matches = 0
+            matched_keywords = []
+
+            for kw in keywords:
+                kw_lower = kw.lower()
+                if kw_lower in content:
+                    keyword_matches += 1
+                    matched_keywords.append(kw)
 
             if keyword_matches > 0:
                 # Calculate boost factor based on matches
-                boost = min(self.keyword_boost_factor * keyword_matches / len(keywords), 0.5)
+                # Use exponential formula for stronger boosting with multiple matches
+                match_ratio = keyword_matches / len(keywords)
+                boost = min(self.keyword_boost_factor * (match_ratio**1.5), 0.5)
 
-                # Apply boost
-                original_score = result.get("relevance_score", 0.5)
-                result["relevance_score"] = min(
+                # Apply boost with sensitivity to original score
+                original_score = result_copy.get("relevance_score", 0.5)
+                result_copy["relevance_score"] = min(
                     0.99, original_score + boost * (1.0 - original_score)
                 )
-                result["keyword_boost"] = boost
-                result["keyword_matches"] = keyword_matches
 
-        return results
+                # Store keyword matching metadata for debugging
+                result_copy["keyword_boost"] = boost
+                result_copy["keyword_matches"] = keyword_matches
+                result_copy["matched_keywords"] = matched_keywords
+
+            boosted_results.append(result_copy)
+
+        # Sort by boosted relevance score
+        return sorted(boosted_results, key=lambda x: x.get("relevance_score", 0), reverse=True)
 
     def _check_semantic_coherence(
         self, results: list[dict[str, Any]], query_embedding: np.ndarray
     ) -> list[dict[str, Any]]:
-        """Check coherence between results and penalize outliers."""
+        """
+        Check coherence between results and adjust ranking with improved handling
+        for edge cases.
+        """
         if len(results) <= 1:
             return results
 
-        # Get embeddings for contents if available
-        content_embeddings = []
-        has_embeddings = False
+        # Handle missing embeddings gracefully
+        results_with_embeddings = []
+        results_without_embeddings = []
 
         for result in results:
-            if "embedding" in result:
-                content_embeddings.append(result["embedding"])
-                has_embeddings = True
+            if "embedding" in result and result["embedding"] is not None:
+                results_with_embeddings.append(result)
+            else:
+                results_without_embeddings.append(result)
 
-        if not has_embeddings:
+        # If no embeddings available, return original results
+        if not results_with_embeddings:
             return results
 
+        # Get embeddings for calculation
+        embeddings = np.array([r["embedding"] for r in results_with_embeddings])
+
+        # Normalize embeddings
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        norms[norms == 0] = 1e-10  # Avoid division by zero
+        embeddings = embeddings / norms
+
         # Calculate pairwise similarities
-        similarities = np.dot(content_embeddings, np.array(content_embeddings).T)
+        similarities = np.dot(embeddings, embeddings.T)
 
         # For each result, calculate average similarity to others (coherence)
-        for i, result in enumerate(results):
-            if i < len(similarities):
-                # Remove self-similarity
-                other_similarities = np.concatenate([similarities[i, :i], similarities[i, i + 1 :]])
+        for i, result in enumerate(results_with_embeddings):
+            # Remove self-similarity
+            other_similarities = np.concatenate([similarities[i, :i], similarities[i, i + 1 :]])
 
-                # Calculate coherence score (average similarity to others)
-                coherence = float(np.mean(other_similarities))
+            # Calculate coherence score (average similarity to others)
+            coherence = float(np.mean(other_similarities)) if len(other_similarities) > 0 else 1.0
 
-                # Penalize if below threshold
-                if coherence < 0.3:  # Adjustable threshold
-                    penalty = (0.3 - coherence) * 0.5  # Adjust penalty factor as needed
-                    result["relevance_score"] = max(
-                        0.1, result.get("relevance_score", 0.5) - penalty
-                    )
-                    result["coherence_penalty"] = penalty
-                result["coherence_score"] = coherence
+            # Apply adjustment based on coherence
+            if coherence < 0.3:  # Low coherence
+                # Apply penalty proportional to incoherence
+                penalty = (0.3 - coherence) * 0.5
+                result["relevance_score"] = max(0.1, result.get("relevance_score", 0.5) - penalty)
+                result["coherence_penalty"] = penalty
+            elif coherence > 0.7:  # High coherence
+                # Apply boost for highly coherent results
+                boost = (coherence - 0.7) * 0.3
+                original_score = result.get("relevance_score", 0.5)
+                result["relevance_score"] = min(
+                    0.99, original_score + boost * (1.0 - original_score)
+                )
+                result["coherence_boost"] = boost
 
-        return results
+            # Store coherence score
+            result["coherence_score"] = coherence
+
+        # Combine results and sort
+        combined_results = results_with_embeddings + results_without_embeddings
+        return sorted(combined_results, key=lambda x: x.get("relevance_score", 0), reverse=True)
 
     def _enhance_with_associative_context(
         self,
@@ -857,41 +939,67 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             if memory_id is not None:
                 associative_memories.add(memory_id)
 
-        # For each result, find associative links
-        enhanced_results = list(results)  # Make a copy to avoid modifying during iteration
+        # Create a copy of the results list to avoid modifying during iteration
+        enhanced_results = list(results)
 
+        # For each result, find associative links
         for result in results:
             memory_id = result.get("memory_id")
-            if not memory_id:
+            if memory_id is None:
                 continue
 
             # Get associative links for this memory
             links = self.associative_linker.get_associative_links(memory_id)
 
+            # If no links are returned directly, try the traverse_associative_network method
+            if not links and hasattr(self.associative_linker, "traverse_associative_network"):
+                network_links = self.associative_linker.traverse_associative_network(
+                    start_id=memory_id,
+                    max_hops=2,  # Default max hops
+                    min_strength=0.3,  # Default minimum strength
+                )
+                links = [(linked_id, strength) for linked_id, strength in network_links.items()]
+
             # Add linked memories that aren't already in results
-            # Lower threshold from 0.5 to 0.3 to ensure more memories are included for tests
             for linked_id, strength in links:
-                if strength > 0.3 and linked_id not in associative_memories:
+                if linked_id not in associative_memories and strength > 0.3:
                     try:
-                        # Get the memory
+                        # Get the memory if possible
+                        memory_data = {}
                         if self.memory_store:
-                            memory = self.memory_store.get(linked_id)
+                            try:
+                                memory = self.memory_store.get(linked_id)
+                                if hasattr(memory, "content"):
+                                    memory_data["content"] = memory.content
+                                if hasattr(memory, "metadata"):
+                                    memory_data.update(memory.metadata)
+                            except Exception as e:
+                                # If we can't get the memory, still create a minimal result
+                                logger.debug(
+                                    f"Error retrieving associative memory {linked_id}: {e}"
+                                )
+                                pass
 
-                            # Create result dict
-                            associative_result = {
-                                "memory_id": linked_id,
-                                "content": memory.content,
-                                "relevance_score": 0.7 * strength,  # Scale by link strength
-                                "metadata": memory.metadata,
-                                "associative_link": True,
-                                "link_source": memory_id,
-                                "link_strength": strength,
-                            }
+                        # Create result dict with available data
+                        associative_result = {
+                            "memory_id": linked_id,
+                            "content": memory_data.get("content", f"Associated memory {linked_id}"),
+                            "relevance_score": 0.7 * strength,  # Scale by link strength
+                            "associative_link": True,
+                            "link_source": memory_id,
+                            "link_strength": strength,
+                        }
 
-                            enhanced_results.append(associative_result)
-                            associative_memories.add(linked_id)
+                        # Add additional metadata if available
+                        if memory_data:
+                            for key, value in memory_data.items():
+                                if key not in ("content", "memory_id"):
+                                    associative_result[key] = value
+
+                        enhanced_results.append(associative_result)
+                        associative_memories.add(linked_id)
                     except Exception as e:
-                        logger.debug(f"Error retrieving associative memory {linked_id}: {e}")
+                        self.logger.debug(f"Error retrieving associative memory {linked_id}: {e}")
                         # Skip if memory can't be retrieved
                         pass
 
