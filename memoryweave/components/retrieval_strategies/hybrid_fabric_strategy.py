@@ -6,6 +6,7 @@ full embeddings, selective chunks, and keyword filtering for optimal
 retrieval performance with minimal memory usage.
 """
 
+import inspect
 import logging
 from typing import Any, Optional
 
@@ -33,6 +34,48 @@ logging.basicConfig(
 logger = logging.getLogger("memoryweave")
 
 
+def _nltk_extract_keywords(text: str) -> list[str] | None:
+    """
+    Extract keywords from text using NLTK.
+
+    Args:
+        text (str): The text to extract keywords from
+
+    Returns:
+        list[str] | None: List of extracted keywords
+    """
+    if inspect.find_spec("nltk") is None:
+        logger.warning("[bold yellow]NLTK not found, skipping keyword extraction[/bold yellow]")
+        return None
+
+    logging.warning("[bold yellow]NLTK found, extracting keywords from text[/bold yellow]")
+    import nltk
+    from nltk.corpus import stopwords
+    from nltk.tokenize import word_tokenize
+
+    # Download required NLTK data if not already present
+    for resource in ["tokenizers/punkt", "corpora/stopwords", "taggers/averaged_perceptron_tagger"]:
+        try:
+            nltk.data.find(resource)
+        except LookupError:
+            resource_name = resource.split("/")[-1]
+            nltk.download(resource_name, quiet=True)
+
+    # Tokenize and part-of-speech tag
+    tokens = word_tokenize(text.lower())
+    tagged_tokens = nltk.pos_tag(tokens)
+
+    # Get English stopwords
+    stop_words = set(stopwords.words("english"))
+    # Extract content words (nouns, verbs, adjectives, adverbs) longer than 3 characters
+    important_tags = {"NN", "NNS", "NNP", "NNPS", "VB", "VBD", "VBG", "VBN", "VBP", "VBZ", "JJ", "JJR", "JJS", "RB", "RBR", "RBS"}  # fmt: skip
+    return [
+        word
+        for word, tag in tagged_tokens
+        if tag[:2] in important_tags and word not in stop_words and len(word) > 3
+    ]
+
+
 class HybridFabricStrategy(ContextualFabricStrategy):
     """
     A memory-efficient retrieval strategy combining multiple approaches.
@@ -46,10 +89,14 @@ class HybridFabricStrategy(ContextualFabricStrategy):
 
     def __init__(
         self,
+        use_two_stage_by_default: bool = True,
+        first_stage_k: int = 30,
+        first_stage_threshold_factor: float = 0.7,
         memory_store: Optional[Any] = None,
         associative_linker: Optional[AssociativeMemoryLinker] = None,
         temporal_context: Optional[TemporalContextBuilder] = None,
         activation_manager: Optional[ActivationManager] = None,
+        **kwargs,
     ):
         """
         Initialize the hybrid fabric strategy.
@@ -67,16 +114,20 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             activation_manager=activation_manager,
         )
         self.component_id = ComponentName.CONTEXTUAL_FABRIC_STRATEGY
+        self._kwargs = kwargs
+        # Hybrid specific parameters
+        self.use_two_stage_by_default: bool = use_two_stage_by_default
+        self.first_stage_k: int = first_stage_k
+        self.first_stage_threshold_factor: float = first_stage_threshold_factor
 
-        # Hybrid-specific parameters
-        self.use_keyword_filtering = True
-        self.keyword_boost_factor = 0.3
-        self.max_chunks_per_memory = 3
-        self.prioritize_full_embeddings = True
+        # Kwarg configurable options
+        self.use_keyword_filtering = self._kwargs.get("use_keyword_filtering", True)
+        self.keyword_boost_factor = self._kwargs.get("keyword_boost_factor", 0.3)
+        self.max_chunks_per_memory = self._kwargs.get("max_chunks_per_memory", 3)
+        self.prioritize_full_embeddings = self._kwargs.get("prioritize_full_embeddings", True)
 
-        # Detect if memory store supports hybrid features
+        # Detect if memory store supports hybrid features - will be set by `initialize()`
         self.supports_hybrid = False
-        # Will be set in initialize()
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the strategy with configuration."""
@@ -346,92 +397,45 @@ class HybridFabricStrategy(ContextualFabricStrategy):
 
     def _extract_simple_keywords(self, text: str) -> list[str]:
         """
-        Extract simple keywords from text for filtering.
+        Extract keywords from text using NLTK for better linguistic analysis.
 
-        This lightweight method extracts potential keywords without
-        requiring a full NLP pipeline, optimizing for memory efficiency.
+        This method uses part-of-speech tagging to identify significant content words
+        (nouns, verbs, adjectives) while filtering out stopwords and short words.
 
         Args:
             text: The text to extract keywords from
 
         Returns:
-            list of potential keywords
+            list of extracted keywords
         """
+        # Note we use None or an empty list if nothing is found. So we use this if we can and it works
+        if best_case_extract := _nltk_extract_keywords(text):
+            return best_case_extract
+
+        # Fallback if NLTK is not available
+        logging.warning("[bold orange]Falling back to simple keyword extraction[/bold orange]")
+
         # Simple stopwords list
         stopwords = {
-            "the",
-            "a",
-            "an",
-            "and",
-            "or",
-            "but",
-            "if",
-            "because",
-            "as",
-            "what",
-            "when",
-            "where",
-            "how",
-            "who",
-            "which",
-            "this",
-            "that",
-            "these",
-            "those",
-            "then",
-            "just",
-            "so",
-            "than",
-            "such",
-            "both",
-            "through",
-            "about",
-            "for",
-            "is",
-            "are",
-            "was",
-            "were",
-            "be",
-            "been",
-            "being",
-            "have",
-            "has",
-            "had",
-            "do",
-            "does",
-            "did",
-            "can",
-            "could",
-            "will",
-            "would",
-            "shall",
-            "should",
-            "may",
-            "might",
-            "must",
-            "to",
-            "in",
-            "on",
-            "at",
-            "by",
-            "with",
-            "from",
-        }
+            "the", "a", "an", "and", "or", "but", "if", "because", "as",
+            "what", "when", "where", "how", "who", "which", "this", "that",
+            "these", "those", "then", "just", "so", "than", "such", "both",
+            "through", "about", "for", "is", "are", "was", "were", "be",
+            "been", "being", "have", "has", "had", "do", "does", "did",
+            "can", "could", "will", "would", "shall", "should", "may",
+            "might", "must", "to", "in", "on", "at", "by", "with", "from",
+        }  # fmt: skip
 
-        # Tokenize the text
-        tokens = text.lower().split()
+        # Tokenize the text and remove punctuation
+        tokens = []
+        for word in text.lower().split():
+            # Remove punctuation
+            clean_word = "".join(c for c in word if c.isalnum())
+            if clean_word:
+                tokens.append(clean_word)
 
         # Filter out stopwords and short words
-        potential_keywords = [
-            token
-            for token in tokens
-            if token not in stopwords and len(token) > 3 and token.isalpha()
-        ]
-
-        # Limit to top keywords by length (longer words are often more specific)
-        potential_keywords.sort(key=len, reverse=True)
-
-        return potential_keywords[:10]  # Limit to 10 keywords
+        return [token for token in tokens if token not in stopwords and len(token) > 3]
 
     def _combine_results(
         self,
@@ -822,6 +826,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
 
         return results
 
+    # Let's see this method from HybridFabricStrategy.py
     def _enhance_with_associative_context(
         self, results: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
@@ -829,7 +834,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         if not self.associative_linker:
             return results
 
-        # Keep track of added associative memories to avoid duplicates
+        # Keep track of added associative memories
         associative_memories = set()
 
         # For each result, find associative links

@@ -126,3 +126,73 @@ def mock_category_manager():
     mock_cm.get_category_for_memory = get_category_for_memory
 
     return mock_cm
+
+
+@pytest.fixture
+def associative_linker():
+    """Create a mock associative linker."""
+    mock_linker = MagicMock()
+    mock_linker.traverse_associative_network.return_value = {
+        1: 0.9,  # Memory 1 with high strength
+        3: 0.7,  # Memory 3 with medium strength
+    }
+    return mock_linker
+
+
+@pytest.fixture
+def temporal_context():
+    """Create a mock temporal context."""
+    mock_context = MagicMock()
+    mock_context.extract_time_references.return_value = {
+        "has_temporal_reference": True,
+        "time_type": "relative",
+        "relative_time": 300,
+        "time_keywords": ["yesterday"],
+    }
+    return mock_context
+
+
+@pytest.fixture
+def activation_manager():
+    """Create a mock activation manager."""
+    mock_manager = MagicMock()
+    mock_manager.get_activated_memories.return_value = {
+        0: 0.9,  # Memory 0 with high activation
+        2: 0.7,  # Memory 2 with medium activation
+    }
+    return mock_manager
+
+
+@pytest.fixture
+def memory_store_with_arrays():
+    """Create a memory store with array data for vector operations."""
+    mock_store = MagicMock()
+    mock_store.memory_embeddings = np.array(
+        [
+            [0.1, 0.2, 0.3],  # Memory 0
+            [0.4, 0.5, 0.6],  # Memory 1
+            [0.7, 0.8, 0.9],  # Memory 2
+            [0.9, 0.8, 0.7],  # Memory 3
+            [0.6, 0.5, 0.4],  # Memory 4
+        ]
+    )
+
+    # Normalize for vector similarity
+    norms = np.linalg.norm(mock_store.memory_embeddings, axis=1, keepdims=True)
+    mock_store.memory_embeddings = mock_store.memory_embeddings / norms
+
+    mock_store.memory_metadata = [
+        {"content": "Memory content 0", "created_at": 100},
+        {"content": "Memory content 1", "created_at": 200},
+        {"content": "Memory content 2", "created_at": 300},
+        {"content": "Memory content 3", "created_at": 400},
+        {"content": "Memory content 4", "created_at": 500},
+    ]
+
+    # Add activation levels
+    mock_store.activation_levels = np.array([0.9, 0.5, 0.7, 0.3, 0.1])
+
+    # Add temporal markers
+    mock_store.temporal_markers = np.array([100, 200, 300, 400, 500])
+
+    return mock_store
