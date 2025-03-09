@@ -2,11 +2,8 @@
 import logging
 from typing import Any
 
-from rich.logging import RichHandler
-
 from memoryweave.components.base import PostProcessor
 
-logging.basicConfig(level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()])
 logger = logging.getLogger(__name__)
 
 

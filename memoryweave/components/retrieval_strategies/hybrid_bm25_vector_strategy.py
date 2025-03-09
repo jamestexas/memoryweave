@@ -12,7 +12,6 @@ import time
 from typing import Any
 
 import numpy as np
-from rich.logging import RichHandler
 from whoosh.analysis import StandardAnalyzer
 from whoosh.fields import ID, STORED, TEXT, Schema
 from whoosh.index import create_in
@@ -21,7 +20,6 @@ from whoosh.scoring import BM25F
 
 from memoryweave.components.base import RetrievalStrategy
 
-logging.basicConfig(level="INFO", handlers=[RichHandler(markup=True)])
 logger = logging.getLogger(__name__)
 
 

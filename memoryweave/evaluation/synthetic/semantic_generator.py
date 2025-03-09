@@ -16,15 +16,10 @@ from pathlib import Path
 from typing import Any, Optional, Union
 
 import numpy as np
-from rich.logging import RichHandler
 
-logging.basicConfig(
-    level="INFO",
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(markup=True)],
-)
 logger = logging.getLogger(__name__)
+
+
 if find_spec("sentence_transformers") is not None:
     from sentence_transformers import SentenceTransformer, util
 

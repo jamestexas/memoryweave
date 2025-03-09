@@ -4,16 +4,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from rich.logging import RichHandler
-
 from memoryweave.interfaces.memory import EmbeddingVector, Memory, MemoryID
 
-logging.basicConfig(
-    level="INFO",
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(markup=True)],
-)
 logger = logging.getLogger(__name__)
 
 

@@ -9,21 +9,12 @@ import logging
 from typing import Any, Optional
 
 import numpy as np
-from rich.logging import RichHandler
 
 from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.category_manager import CategoryManager
 from memoryweave.components.retrieval_strategies_impl import SimilarityRetrievalStrategy
 
-logger = logging.basicConfig(
-    level="INFO",
-    format="%(message)s",
-    handlers=[RichHandler(rich_tracebacks=True, markup=True)],
-)
 logger = logging.getLogger(__name__)
-
-# TODO: This is hacky but for now here we are:
-# Patch the SimilarityRetrievalStrategy to add category_id to results
 
 
 class CategoryRetrievalStrategy(RetrievalStrategy):

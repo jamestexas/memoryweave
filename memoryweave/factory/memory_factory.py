@@ -2,16 +2,21 @@
 Factory for creating memory stores and adapters.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 from memoryweave.components.memory_encoding import MemoryEncoder
 from memoryweave.interfaces.memory import IMemoryStore
 from memoryweave.storage.adapter import MemoryAdapter
+from memoryweave.storage.chunked_adapter import ChunkedMemoryAdapter
 from memoryweave.storage.chunked_store import ChunkedMemoryStore
+from memoryweave.storage.hybrid_adapter import HybridMemoryAdapter
 from memoryweave.storage.hybrid_store import HybridMemoryStore
 from memoryweave.storage.memory_store import StandardMemoryStore
 from memoryweave.storage.vector_search import create_vector_search_provider
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -51,7 +56,7 @@ class MemoryStoreConfig:
 
 def create_memory_store_and_adapter(
     config: MemoryStoreConfig,
-) -> tuple[IMemoryStore, MemoryAdapter]:
+) -> tuple[IMemoryStore, MemoryAdapter | HybridMemoryAdapter | ChunkedMemoryAdapter]:
     """
     Create a memory store and adapter from configuration.
 
@@ -63,19 +68,8 @@ def create_memory_store_and_adapter(
     """
     # Create memory store
     store_type = config.store_type
-    memory_store: IMemoryStore
-
-    if store_type == "standard":
-        memory_store = StandardMemoryStore()
-    elif store_type == "hybrid":
-        memory_store = HybridMemoryStore()
-    elif store_type == "chunked":
-        memory_store = ChunkedMemoryStore()
-    else:
-        raise ValueError(f"Unknown memory store type: {store_type}")
 
     # Create vector search provider
-    vector_search = None
     if config.vector_search:
         vector_search = create_vector_search_provider(
             provider=config.vector_search.provider,
@@ -87,10 +81,22 @@ def create_memory_store_and_adapter(
             provider_type=config.vector_search.type,  # numpy / faiss / hybrid_bm25
         )
 
-    # Create memory adapter
-    memory_adapter = MemoryAdapter(memory_store, vector_search)
+    print(f"Creating memory store of type: {store_type}")
+    if config.store_type == "hybrid":
+        memory_store = HybridMemoryStore()
+        return memory_store, HybridMemoryAdapter(
+            memory_store=memory_store,
+            vector_search=vector_search,
+        )
 
-    return memory_store, memory_adapter
+    elif config.store_type == "chunked":
+        return ChunkedMemoryAdapter(memory_store=ChunkedMemoryStore())
+
+    memory_store = StandardMemoryStore()
+    return memory_store, MemoryAdapter(
+        memory_store=memory_store,
+        vector_search=vector_search,
+    )
 
 
 def create_memory_encoder(

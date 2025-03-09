@@ -10,17 +10,10 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import numpy as np
-from rich.logging import RichHandler
 
 from memoryweave.components.base import Component
 from memoryweave.nlp.extraction import NLPExtractor
 
-logging.basicConfig(
-    level="INFO",
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True, markup=True)],
-)
 logger = logging.getLogger(__name__)
 
 

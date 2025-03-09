@@ -15,7 +15,6 @@ from memoryweave.utils.similarity import (
     fuzzy_string_match,
 )
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 

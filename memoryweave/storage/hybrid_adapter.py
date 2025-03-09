@@ -20,14 +20,14 @@ class HybridMemoryAdapter(MemoryAdapter):
     including efficient access to both full embeddings and selective chunks.
     """
 
-    def __init__(self, memory_store: HybridMemoryStore):
+    def __init__(self, memory_store: HybridMemoryStore, vector_search=None):
         """
         Initialize the hybrid memory adapter.
 
         Args:
             memory_store: HybridMemoryStore instance
         """
-        super().__init__(memory_store)
+        super().__init__(memory_store, vector_search=vector_search)
         self.hybrid_store = memory_store
         self._chunk_embeddings_cache = None
         self._chunk_metadata_cache = None

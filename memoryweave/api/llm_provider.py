@@ -1,14 +1,10 @@
 import logging
 
 import torch
-from rich.logging import RichHandler
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from memoryweave.utils import _get_device
 
-logging.basicConfig(
-    level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler(markup=True)]
-)
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "unsloth/Llama-3.2-3B-Instruct"

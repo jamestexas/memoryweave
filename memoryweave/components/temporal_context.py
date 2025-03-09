@@ -15,7 +15,6 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import numpy as np
-from rich.logging import RichHandler
 from scipy.cluster.hierarchy import fcluster, linkage
 
 from memoryweave.components.base import Component, MemoryComponent
@@ -23,7 +22,6 @@ from memoryweave.components.component_names import ComponentName
 from memoryweave.interfaces.memory import MemoryID
 from memoryweave.storage.base_store import StandardMemoryStore
 
-logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[RichHandler(markup=True)])
 logger = logging.getLogger(__name__)
 
 # Assuming you have these defined elsewhere:

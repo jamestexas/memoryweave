@@ -4,18 +4,11 @@ import logging
 from typing import Any
 
 import numpy as np
-from rich.logging import RichHandler
 
 from memoryweave.interfaces.memory import EmbeddingVector, Memory, MemoryID
 from memoryweave.storage.base_store import StandardMemoryStore
 from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
-logging.basicConfig(
-    level="INFO",
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(markup=True)],
-)
 logger = logging.getLogger(__name__)
 
 
@@ -335,3 +328,11 @@ class MemoryAdapter:
         """Clear all memories from the store."""
         self.memory_store.clear()
         self.invalidate_cache()
+
+    def __repr__(self) -> str:
+        """Return string representation of the adapter."""
+        return f"{self.__class__.__name__}(memory_store={self.memory_store}, vector_search={self._vector_search})"
+
+    def __str__(self) -> str:
+        """Return string representation of the adapter."""
+        return repr(self)

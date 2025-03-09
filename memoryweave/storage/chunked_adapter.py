@@ -199,3 +199,9 @@ class ChunkedMemoryAdapter(MemoryAdapter):
             Average chunk count
         """
         return self.chunked_store.get_average_chunks_per_memory()
+
+    def __repr__(self):
+        return super().__repr__() + " (ChunkedMemoryAdapter)"
+
+    def __str__(self):
+        return super().__str__() + " (ChunkedMemoryAdapter)"

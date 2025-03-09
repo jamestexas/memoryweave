@@ -10,7 +10,6 @@ import time
 from typing import Any, Optional
 
 import numpy as np
-from rich.logging import RichHandler
 
 from memoryweave.components.activation import ActivationManager
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
@@ -20,15 +19,7 @@ from memoryweave.components.retrieval_strategies.contextual_fabric_strategy impo
 )
 from memoryweave.components.temporal_context import TemporalContextBuilder
 
-FORMAT = "%(message)s"
-logging.basicConfig(
-    level="NOTSET",
-    format=FORMAT,
-    datefmt="[%X]",
-    handlers=[
-        RichHandler(markup=True),  # allow colors in terminal
-    ],
-)
+logger = logging.getLogger(__name__)
 
 
 class ChunkedFabricStrategy(ContextualFabricStrategy):

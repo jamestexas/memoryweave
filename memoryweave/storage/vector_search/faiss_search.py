@@ -5,16 +5,9 @@ from importlib.util import find_spec
 from typing import Any
 
 import numpy as np
-from rich.logging import RichHandler
 
 from memoryweave.storage.vector_search.base import IVectorSearchProvider
 
-logging.basicConfig(
-    level="INFO",
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(markup=True)],
-)
 logger = logging.getLogger(__name__)
 
 # Check if FAISS is available

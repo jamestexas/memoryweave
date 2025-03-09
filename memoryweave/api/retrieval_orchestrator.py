@@ -5,14 +5,7 @@ import time
 from importlib.util import find_spec
 
 import numpy as np
-from rich.logging import RichHandler
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(markup=True, rich_tracebacks=True, show_path=True)],
-)
 logger = logging.getLogger(__name__)
 
 

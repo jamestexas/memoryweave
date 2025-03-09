@@ -10,7 +10,6 @@ import logging
 from typing import Any, Optional
 
 import numpy as np
-from rich.logging import RichHandler
 
 from memoryweave.components.activation import ActivationManager
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
@@ -22,15 +21,6 @@ from memoryweave.components.temporal_context import TemporalContextBuilder
 from memoryweave.storage import HybridMemoryStore
 from memoryweave.utils import _load_module
 
-FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-logging.basicConfig(
-    level="NOTSET",
-    format=FORMAT,
-    datefmt="[%X]",
-    handlers=[
-        RichHandler(markup=True),  # allow colors in terminal
-    ],
-)
 logger = logging.getLogger(__name__)
 
 

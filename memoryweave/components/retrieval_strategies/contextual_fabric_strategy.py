@@ -12,7 +12,6 @@ from typing import Any, Optional
 
 import numpy as np
 from pydantic import BaseModel, Field
-from rich.logging import RichHandler
 
 from memoryweave.components.activation import ActivationManager
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
@@ -22,15 +21,7 @@ from memoryweave.components.temporal_context import TemporalContextBuilder
 from memoryweave.interfaces.memory import MemoryID
 from memoryweave.storage.memory_store import StandardMemoryStore
 
-FORMAT = "%(message)s"
-logging.basicConfig(
-    level="NOTset",
-    format=FORMAT,
-    datefmt="[%X]",
-    handlers=[
-        RichHandler(markup=True),  # allow colors in terminal
-    ],
-)
+logger = logging.getLogger(__name__)
 
 
 class MemoryResult(BaseModel):
