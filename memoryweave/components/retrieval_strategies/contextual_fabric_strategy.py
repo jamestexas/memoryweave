@@ -81,6 +81,28 @@ class MemoryResult(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+    # TODO: Remove this, as it's there for backward compatibility between strategy usage and tests for now
+    def __setitem__(self, key: str, value: Any) -> None:
+        """Support dictionary-style item assignment for backward compatibility."""
+        if key in self.__fields__:
+            setattr(self, key, value)
+        else:
+            raise KeyError(f"MemoryResult has no attribute '{key}'")
+
+    # Support dictionary-style access for backward compatibility
+    def __getitem__(self, key: str) -> Any:
+        """Support dictionary-style access for backward compatibility with tests."""
+        if key in self.__dict__:
+            return self.__dict__[key]
+        elif key in self.__fields__:
+            return getattr(self, key)
+        raise KeyError(f"MemoryResult has no attribute '{key}'")
+
+    # Support checking for keys (for 'in' operator) for backward compatibility
+    def __contains__(self, key: str) -> bool:
+        """Support 'in' operator for backward compatibility with tests."""
+        return key in self.__dict__ or key in self.__fields__
+
 
 class ContextualFabricStrategy(RetrievalStrategy):
     """

@@ -227,10 +227,10 @@ class TestContextualFabricStrategy:
 
         # Test behavior: Associative memories should rank higher with associations than without
         memory_1_with_associations = next(
-            (r for r in results_with_associations if r["memory_id"] == 1), None
+            (r for r in results_with_associations if r.memory_id == 1), None
         )
         memory_1_without_associations = next(
-            (r for r in results_without_associations if r["memory_id"] == 1), None
+            (r for r in results_without_associations if r.memory_id == 1), None
         )
 
         assert memory_1_with_associations is not None, (
@@ -239,8 +239,8 @@ class TestContextualFabricStrategy:
 
         # Either memory 1 should be absent in results_without_associations or its rank should be worse
         if memory_1_without_associations is not None:
-            with_rank = [r["memory_id"] for r in results_with_associations].index(1)
-            without_rank = [r["memory_id"] for r in results_without_associations].index(1)
+            with_rank = [r.memory_id for r in results_with_associations].index(1)
+            without_rank = [r.memory_id for r in results_without_associations].index(1)
             assert with_rank < without_rank, "Memory 1 should rank higher with associations"
 
     def test_retrieval_influenced_by_activation(
