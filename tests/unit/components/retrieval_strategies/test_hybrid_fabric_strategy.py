@@ -71,29 +71,6 @@ def associative_linker():
 
 
 @pytest.fixture
-def temporal_context():
-    """Create a mock temporal context."""
-    mock_temporal = MagicMock()
-    mock_temporal.extract_time_references = MagicMock(
-        return_value={
-            "has_temporal_reference": True,
-            "time_type": "relative",
-            "relative_time": 300,
-            "time_keywords": ["yesterday"],
-        }
-    )
-    return mock_temporal
-
-
-@pytest.fixture
-def activation_manager():
-    """Create a mock activation manager."""
-    mock_activation = MagicMock()
-    mock_activation.get_activated_memories = MagicMock(return_value=[(0, 0.9), (2, 0.7)])
-    return mock_activation
-
-
-@pytest.fixture
 def base_context(memory_store):
     """Create a base context dict for testing."""
     return {

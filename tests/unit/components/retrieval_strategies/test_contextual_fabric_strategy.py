@@ -244,12 +244,17 @@ class TestContextualFabricStrategy:
             assert with_rank < without_rank, "Memory 1 should rank higher with associations"
 
     def test_retrieval_influenced_by_activation(
-        self, memory_store, query_embedding, base_context, activation_manager
+        self,
+        memory_store,
+        query_embedding,
+        base_context,
+        activation_manager,
     ):
         """Test that memory retrieval is influenced by memory activation levels."""
         # Configure strategy to prioritize activated memories
         strategy = ContextualFabricStrategy(
-            memory_store=memory_store, activation_manager=activation_manager
+            memory_store=memory_store,
+            activation_manager=activation_manager,
         )
         strategy.initialize(
             {
@@ -424,17 +429,17 @@ class TestContextualFabricStrategy:
         with (
             patch.object(
                 balanced_strategy,
-                "_get_similarity_results",
+                "_retrieve_by_similarity",
                 return_value=test_data["similarity_results"],
             ),
             patch.object(
                 balanced_strategy,
-                "_get_associative_results",
+                "_retrieve_associative_results",
                 return_value=test_data["associative_results"],
             ),
             patch.object(
                 balanced_strategy,
-                "_get_temporal_results",
+                "_retrieve_temporal_results",
                 return_value=test_data["temporal_results"],
             ),
             patch.object(
@@ -444,17 +449,17 @@ class TestContextualFabricStrategy:
             ),
             patch.object(
                 similarity_biased_strategy,
-                "_get_similarity_results",
+                "_retrieve_by_similarity",
                 return_value=test_data["similarity_results"],
             ),
             patch.object(
                 similarity_biased_strategy,
-                "_get_associative_results",
+                "_retrieve_associative_results",
                 return_value=test_data["associative_results"],
             ),
             patch.object(
                 similarity_biased_strategy,
-                "_get_temporal_results",
+                "_retrieve_temporal_results",
                 return_value=test_data["temporal_results"],
             ),
             patch.object(
@@ -514,7 +519,7 @@ class TestContextualFabricStrategy:
 
         # Retrieve memories
         results = strategy.retrieve(query_embedding, top_k=3, context=base_context)
-
+        print(f"RESULTS ARE: {results}\n\n")
         # Check that metadata is included
         assert len(results) > 0
         for result in results:

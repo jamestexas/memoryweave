@@ -142,14 +142,16 @@ def associative_linker():
 @pytest.fixture
 def temporal_context():
     """Create a mock temporal context."""
-    mock_context = MagicMock()
-    mock_context.extract_time_references.return_value = {
-        "has_temporal_reference": True,
-        "time_type": "relative",
-        "relative_time": 300,
-        "time_keywords": ["yesterday"],
-    }
-    return mock_context
+    mock_temporal = MagicMock()
+    mock_temporal.extract_time_references = MagicMock(
+        return_value={
+            "has_temporal_reference": True,
+            "time_type": "relative",
+            "relative_time": 300,
+            "time_keywords": ["yesterday"],
+        }
+    )
+    return mock_temporal
 
 
 @pytest.fixture

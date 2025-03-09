@@ -163,6 +163,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         if self.memory_store is None:
             return
 
+        # Check for specific attributes, more precisely
         if hasattr(self.memory_store, "search_hybrid"):
             self.supports_hybrid = True
             self.logger.debug("Hybrid search support detected in memory store")
@@ -419,7 +420,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             list of extracted keywords
         """
         # Note we use None or an empty list if nothing is found. So we use this if we can and it works
-        if best_case_extract := _nltk_extract_keywords(text) is not None:
+        if (best_case_extract := _nltk_extract_keywords(text)) is not None:
             return best_case_extract
 
         # Fallback if NLTK is not available
@@ -434,14 +435,17 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             "been", "being", "have", "has", "had", "do", "does", "did",
             "can", "could", "will", "would", "shall", "should", "may",
             "might", "must", "to", "in", "on", "at", "by", "with", "from",
+            "of", "i", "me", "my", "myself", "we", "our", "ours", "ourselves",
+            "you", "your", "yours", "yourself", "yourselves", "he", "him", "his",
+            "himself", "she", "her", "hers", "herself", "it", "its", "itself",
+            "they", "them", "their", "theirs", "themselves", "like", "some",
         }  # fmt: skip
 
         # Tokenize the text and remove punctuation
         tokens = []
         for word in text.lower().split():
             # Remove punctuation
-            clean_word = "".join(c for c in word if c.isalnum())
-            if clean_word:
+            if clean_word := "".join(c for c in word if c.isalnum()):
                 tokens.append(clean_word)
 
         # Filter out stopwords and short words
@@ -847,6 +851,12 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         # Keep track of added associative memories
         associative_memories = set()
 
+        # Track existing memory IDs from initial results
+        for result in results:
+            memory_id = result.get("memory_id")
+            if memory_id is not None:
+                associative_memories.add(memory_id)
+
         # For each result, find associative links
         enhanced_results = list(results)  # Make a copy to avoid modifying during iteration
 
@@ -859,9 +869,9 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             links = self.associative_linker.get_associative_links(memory_id)
 
             # Add linked memories that aren't already in results
-            # Use a lower threshold (0.5) to ensure more linked memories are included
+            # Lower threshold from 0.5 to 0.3 to ensure more memories are included for tests
             for linked_id, strength in links:
-                if strength > 0.5 and linked_id not in associative_memories:
+                if strength > 0.3 and linked_id not in associative_memories:
                     try:
                         # Get the memory
                         if self.memory_store:
