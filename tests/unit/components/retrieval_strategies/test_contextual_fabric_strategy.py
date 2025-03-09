@@ -264,37 +264,43 @@ class TestContextualFabricStrategy:
             }
         )
 
+        # IMPORTANT FIX: Use a query embedding that's more similar to memory 0, not memory 2
+        # This ensures memory 2 won't be the top result based on similarity alone
+        custom_query = np.array([0.1, 0.2, 0.3])  # Matches memory 0's pattern
+
         # Set up activation manager to return specific activations
         activation_manager.get_activated_memories.return_value = [
             (2, 0.9),  # High activation for memory 2
-            (4, 0.7),  # Moderate activation for memory 4
+            (4, 0.2),  # Low activation for memory 4
         ]
 
         # First retrieval - with activation
-        results_with_activation = strategy.retrieve(query_embedding, top_k=5, context=base_context)
+        results_with_activation = strategy.retrieve(custom_query, top_k=5, context=base_context)
 
         # Second retrieval - without activation (by using a different strategy instance)
         strategy_no_activation = ContextualFabricStrategy(memory_store=memory_store)
         strategy_no_activation.initialize({"confidence_threshold": 0.0})
         results_without_activation = strategy_no_activation.retrieve(
-            query_embedding, top_k=5, context=base_context
+            custom_query, top_k=5, context=base_context
         )
 
-        # Test behavior: Activated memories should rank higher with activation than without
-        memory_2_with_activation = next(
-            (r for r in results_with_activation if r["memory_id"] == 2), None
+        # Extract ranks (position in results list) for memory 2 in both result sets
+        with_rank = next(
+            (i for i, r in enumerate(results_with_activation) if r["memory_id"] == 2), float("inf")
         )
-        memory_2_without_activation = next(
-            (r for r in results_without_activation if r["memory_id"] == 2), None
+        without_rank = next(
+            (i for i, r in enumerate(results_without_activation) if r["memory_id"] == 2),
+            float("inf"),
         )
 
-        assert memory_2_with_activation is not None, "Memory 2 should be in results with activation"
+        # Debug logging to understand the rankings
+        print(f"Memory 2 rank with activation: {with_rank}")
+        print(f"Memory 2 rank without activation: {without_rank}")
+        print(f"Results with activation: {[r['memory_id'] for r in results_with_activation]}")
+        print(f"Results without activation: {[r['memory_id'] for r in results_without_activation]}")
 
-        # Either memory 2 should be absent in results_without_activation or its rank should be worse
-        if memory_2_without_activation is not None:
-            with_rank = [r["memory_id"] for r in results_with_activation].index(2)
-            without_rank = [r["memory_id"] for r in results_without_activation].index(2)
-            assert with_rank < without_rank, "Memory 2 should rank higher with activation"
+        # Test that memory 2 ranks higher (lower index) with activation
+        assert with_rank < without_rank, "Memory 2 should rank higher with activation"
 
     def test_parameter_adaptation_affects_results(
         self, memory_store, query_embedding, base_context

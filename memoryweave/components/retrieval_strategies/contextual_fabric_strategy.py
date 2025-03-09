@@ -1131,38 +1131,55 @@ class ContextualFabricStrategy(RetrievalStrategy):
         activation_weight = weights["activation_weight"]
 
         # Calculate weighted scores for each memory
-        for memory_id, result in combined_dict.items():
-            # Use normalized score if available, otherwise raw similarity
+        for _memory_id, result in combined_dict.items():
+            # Extract raw scores
             similarity = result.get("normalized_score", result["similarity_score"])
+            associative_score = result["associative_score"]
+            temporal_score = result["temporal_score"]
+            activation_score = result["activation_score"]
 
-            # If similarity is very high, reduce influence of activation
-            if similarity > 0.7:
-                # For highly similar results, reduce activation influence
-                local_activation_weight = activation_weight * 0.5
-            else:
-                local_activation_weight = activation_weight
-
-            # Calculate contribution from each source
+            # Calculate base contributions
             similarity_contribution = similarity * similarity_weight
-            associative_contribution = result["associative_score"] * associative_weight
-            temporal_contribution = result["temporal_score"] * temporal_weight
+            associative_contribution = associative_score * associative_weight
+            temporal_contribution = temporal_score * temporal_weight
 
-            # Use separate method for activation contribution
-            activation_contribution = self._calculate_activation_contribution(
-                memory_id=memory_id,
-                activation_score=result["activation_score"],
-                base_weight=local_activation_weight,
-                similarity=similarity,
-            )
+            # Enhanced activation contribution calculation
+            if activation_score > 0:
+                # Progressive boosting for activation
+                if activation_score > 0.8:
+                    # Strong boost for high activation to significantly influence ranking
+                    boost_factor = 5.0
+                elif activation_score > 0.5:
+                    boost_factor = 3.0  # Medium boost
+                else:
+                    boost_factor = 1.0  # No extra boost for low activation
+
+                # Apply non-linear transformation to amplify high activation values
+                activation_impact = activation_score**2
+
+                # Calculate activation contribution with boost
+                activation_contribution = activation_impact * activation_weight * boost_factor
+
+                # For highly activated memories, ensure a minimum impact regardless of similarity
+                if activation_score > 0.7 and activation_weight > 0.5:
+                    # Ensure activated memories rise above certain similarity threshold
+                    min_activation_impact = 0.3 * activation_weight
+                    activation_contribution = max(activation_contribution, min_activation_impact)
+            else:
+                activation_contribution = 0.0
 
             # For temporal queries, don't downweight temporal contributions even if similarity is low
-            has_temporal_component = result["temporal_score"] > 0.5
+            has_temporal_component = temporal_score > 0.5
 
             # If similarity is low and this isn't a strong temporal match, reduce other contributions
             if similarity < 0.3 and not has_temporal_component:
                 scaling_factor = max(0.1, similarity / 0.3)
                 associative_contribution *= scaling_factor
                 # Note: We don't scale temporal_contribution here
+
+                # Don't scale down activation for highly activated memories
+                if activation_score <= 0.7:
+                    activation_contribution *= scaling_factor
 
             # Calculate combined score
             combined_score = (
@@ -1178,7 +1195,6 @@ class ContextualFabricStrategy(RetrievalStrategy):
             result["associative_contribution"] = associative_contribution
             result["temporal_contribution"] = temporal_contribution
             result["activation_contribution"] = activation_contribution
-            result["adjusted_activation_weight"] = local_activation_weight
 
             # Flag if below threshold
             result["below_threshold"] = combined_score < self.confidence_threshold
