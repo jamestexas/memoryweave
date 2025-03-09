@@ -14,7 +14,6 @@ import numpy as np
 
 from memoryweave.api.llm_provider import DEFAULT_MODEL, LLMProvider
 from memoryweave.api.memory_weave import DEFAULT_EMBEDDING_MODEL, MemoryWeaveAPI
-from memoryweave.benchmarks.utils.perf_timer import timer
 from memoryweave.components.retrieval_strategies.chunked_fabric_strategy import (
     ChunkedFabricStrategy,
 )
@@ -30,7 +29,6 @@ from memoryweave.utils import _get_device
 logger = logging.getLogger(__name__)
 
 
-@timer
 class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
     """
     Enhanced MemoryWeave API with chunking support for large contexts.
@@ -42,7 +40,6 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
     4. Improved conversation history handling
     """
 
-    @timer("init_chunked_memory_weave")
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
@@ -131,7 +128,6 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         # Setup the chunked fabric strategy
         self._setup_chunked_strategy()
 
-    @timer()
     def _setup_chunked_strategy(self):
         """Set up the chunked fabric strategy to replace the standard strategy."""
         # Create chunked strategy
@@ -165,7 +161,6 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
         if hasattr(self, "retrieval_orchestrator"):
             self.retrieval_orchestrator.strategy = self.strategy
 
-    @timer()
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """
         Store a memory with chunking for large texts.
@@ -396,7 +391,6 @@ class ChunkedMemoryWeaveAPI(MemoryWeaveAPI):
 
         return assistant_reply
 
-    @timer()
     def _store_chunked_interaction(self, user_message: str, assistant_reply: str, timestamp: float):
         """
         Store conversation messages as chunked memories when appropriate.
