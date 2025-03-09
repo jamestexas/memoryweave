@@ -8,12 +8,15 @@ signals without requiring explicit human feedback.
 
 import logging
 import time
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
+from pydantic import Field
 
 from memoryweave.components.base import Component
 from memoryweave.components.component_names import ComponentName
+
+logger = logging.getLogger(__name__)
 
 
 class DynamicContextAdapter(Component):
@@ -27,20 +30,38 @@ class DynamicContextAdapter(Component):
     - Adapts differently for various memory sizes and query types
     """
 
-    def __init__(self):
-        """Initialize the dynamic context adapter."""
-        self.logger = logging.getLogger(__name__)
-        self.component_id = ComponentName.DYNAMIC_CONTEXT_ADAPTER
+    component_id: ClassVar[ComponentName] = Field(
+        default=ComponentName.DYNAMIC_CONTEXT_ADAPTER,
+        description="Component name",
+    )
 
-        # Default parameters (will be initialized with config)
-        self.default_parameters = {}
+    default_parameters: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Default retrieval parameters (will use config during initialize)",
+    )
+    adapation_strenght: float = Field(
+        default=1.0,
+        description="Strength of adaptation (0.0-1.0)",
+    )
+    enable_logging: bool = Field(
+        default=False,
+        description="Enable logging of adaptation decisions",
+    )
+    enable_memory_size_adaptation: bool = Field(
+        default=True,
+        description="Enable adaptation based on memory size",
+    )
+    adaptation_history: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="History of adaptation decisions",
+    )
+    max_history_size: int = Field(default=20, description="Maximum history size")
 
-        # Configuration variables
-        self.adaptation_strength = 1.0
-        self.enable_logging = False
-        self.enable_memory_size_adaptation = True
-        self.adaptation_history = []
-        self.max_history_size = 20
+    adaptation_strength: float = 1.0
+    enable_logging: bool = True
+    enable_memory_size_adaptation: bool = True
+    max_history_size: int = 20
+    default_parameters: dict[str, Any] = Field(default_factory=dict)
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
@@ -50,17 +71,20 @@ class DynamicContextAdapter(Component):
             config: Configuration dictionary
         """
         # Set adaptation strength (0.0-1.0)
-        self.adaptation_strength = config.get("adaptation_strength", 1.0)
+        self.adaptation_strength = config.get("adaptation_strength", self.adaptation_strength)
 
         # Enable/disable features
-        self.enable_logging = config.get("enable_logging", False)
-        self.enable_memory_size_adaptation = config.get("enable_memory_size_adaptation", True)
+        self.enable_logging = config.get("enable_logging", self.enable_logging)
+        self.enable_memory_size_adaptation = config.get(
+            "enable_memory_size_adaptation",
+            self.enable_memory_size_adaptation,
+        )
 
         # History tracking
-        self.max_history_size = config.get("max_history_size", 20)
+        self.max_history_size = config.get("max_history_size", self.max_history_size)
 
         # Initialize default parameters from config
-        self.default_parameters = {
+        self.default_parameters = self.default_parameters or {
             # Core retrieval parameters
             "confidence_threshold": config.get("confidence_threshold", 0.1),
             "similarity_weight": config.get("similarity_weight", 0.5),
@@ -79,7 +103,7 @@ class DynamicContextAdapter(Component):
         }
 
         if self.enable_logging:
-            self.logger.info(
+            logger.info(
                 f"DynamicContextAdapter initialized with adaptation_strength={self.adaptation_strength}"
             )
 
@@ -542,15 +566,15 @@ class DynamicContextAdapter(Component):
         query_str = query if len(query) < 50 else query[:47] + "..."
 
         # Log basic info
-        self.logger.info(f"Dynamic adaptation for query: '{query_str}'")
-        self.logger.info(
+        logger.info(f"Dynamic adaptation for query: '{query_str}'")
+        logger.info(
             f"Memory size: {signals.get('memory_size', 'unknown')}, "
             f"Query type: {signals.get('query_type', 'unknown')}"
         )
 
         # Log key parameters
-        self.logger.info(f"Confidence threshold: {params['confidence_threshold']:.3f}")
-        self.logger.info(
+        logger.info(f"Confidence threshold: {params['confidence_threshold']:.3f}")
+        logger.info(
             f"Weights: sim={params['similarity_weight']:.2f}, "
             f"assoc={params['associative_weight']:.2f}, "
             f"temp={params['temporal_weight']:.2f}, "
@@ -559,9 +583,9 @@ class DynamicContextAdapter(Component):
 
         # Log optimization flags
         if params.get("use_progressive_filtering", False):
-            self.logger.info("Optimization: Using progressive filtering")
+            logger.info("Optimization: Using progressive filtering")
         if params.get("use_batched_computation", False):
-            self.logger.info("Optimization: Using batched computation")
+            logger.info("Optimization: Using batched computation")
 
     def _store_adaptation(
         self, query: str, signals: dict[str, Any], params: dict[str, Any]
