@@ -109,13 +109,23 @@ class ContextualFabricStrategy(RetrievalStrategy):
     memory access patterns.
     """
 
-    def __init__(
-        self,
-        memory_store: Optional[StandardMemoryStore] = None,
-        associative_linker: Optional[AssociativeMemoryLinker] = None,
-        temporal_context: Optional[TemporalContextBuilder] = None,
-        activation_manager: Optional[ActivationManager] = None,
-    ):
+    memory_store: Optional[StandardMemoryStore] = Field(default=None)
+    associative_linker: Optional[AssociativeMemoryLinker] = Field(default=None)
+    temporal_context: Optional[TemporalContextBuilder] = Field(default=None)
+    activation_manager: Optional[ActivationManager] = Field(default=None)
+    confidence_threshold: float = Field(default=0.1)
+    similarity_weight: float = Field(default=0.5)
+    associative_weight: float = Field(default=0.3)
+    temporal_weight: float = Field(default=0.1)
+    activation_weight: float = Field(default=0.1)
+    max_associative_hops: int = Field(default=2)
+    activation_boost_factor: float = Field(default=1.5)
+    min_results: int = Field(default=5)
+    max_candidates: int = Field(default=50)
+    debug: bool = Field(default=False)
+    component_id: str = Field(default=ComponentName.CONTEXTUAL_FABRIC_STRATEGY)
+
+    def __init__(self, **kwargs: Any) -> None:
         """
         Initialize the contextual fabric strategy.
 
@@ -125,26 +135,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
             temporal_context: Temporal context builder for time-based relevance
             activation_manager: Activation manager for memory accessibility
         """
-        self.memory_store = memory_store
-        self.associative_linker = associative_linker
-        self.temporal_context = temporal_context
-        self.activation_manager = activation_manager
-        self.component_id = ComponentName.CONTEXTUAL_FABRIC_STRATEGY
-
-        # Retrieval parameters
-        self.confidence_threshold = 0.1
-        self.similarity_weight = 0.5
-        self.associative_weight = 0.3
-        self.temporal_weight = 0.1
-        self.activation_weight = 0.1
-        self.max_associative_hops = 2
-        self.activation_boost_factor = 1.5
-        self.min_results = 5
-        self.max_candidates = 50
-
-        # Debug parameters
-        self.debug = False
-        self.logger = logging.getLogger(__name__)
+        super().__init__(**kwargs)
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
@@ -163,16 +154,18 @@ class ContextualFabricStrategy(RetrievalStrategy):
                 - max_candidates: Maximum number of candidate memories to consider (default: 50)
                 - debug: Enable debug logging (default: False)
         """
-        self.confidence_threshold = config.get("confidence_threshold", 0.1)
-        self.similarity_weight = config.get("similarity_weight", 0.5)
-        self.associative_weight = config.get("associative_weight", 0.3)
-        self.temporal_weight = config.get("temporal_weight", 0.1)
-        self.activation_weight = config.get("activation_weight", 0.1)
-        self.max_associative_hops = config.get("max_associative_hops", 2)
-        self.activation_boost_factor = config.get("activation_boost_factor", 1.5)
-        self.min_results = config.get("min_results", 5)
-        self.max_candidates = config.get("max_candidates", 50)
-        self.debug = config.get("debug", False)
+        self.confidence_threshold = config.get("confidence_threshold", self.confidence_threshold)
+        self.similarity_weight = config.get("similarity_weight", self.similarity_weight)
+        self.associative_weight = config.get("associative_weight", self.associative_weight)
+        self.temporal_weight = config.get("temporal_weight", self.temporal_weight)
+        self.activation_weight = config.get("activation_weight", self.activation_weight)
+        self.max_associative_hops = config.get("max_associative_hops", self.max_associative_hops)
+        self.activation_boost_factor = config.get(
+            "activation_boost_factor", self.activation_boost_factor
+        )
+        self.min_results = config.get("min_results", self.min_results)
+        self.max_candidates = config.get("max_candidates", self.max_candidates)
+        self.debug = config.get("debug", self.debug)
 
         # set components if provided in config
         if "memory_store" in config:
@@ -842,7 +835,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
             memory_store: Memory store for metadata
 
         Returns:
-            Dictionary of merged memory results keyed by memory_id
+            dictionary of merged memory results keyed by memory_id
         """
         # Create a combined results dictionary
         combined_dict = {}
@@ -997,11 +990,11 @@ class ContextualFabricStrategy(RetrievalStrategy):
         Calculate adaptive weights based on context.
 
         Args:
-            combined_dict: Dictionary of combined memory results
+            combined_dict: dictionary of combined memory results
             temporal_results: Results from temporal context
 
         Returns:
-            Dictionary of dimension weights
+            dictionary of dimension weights
         """
         # Start with the configured weights
         similarity_weight = self.similarity_weight
@@ -1109,8 +1102,8 @@ class ContextualFabricStrategy(RetrievalStrategy):
         Calculate contributions and final relevance scores.
 
         Args:
-            combined_dict: Dictionary of combined memory results
-            weights: Dictionary of dimension weights
+            combined_dict: dictionary of combined memory results
+            weights: dictionary of dimension weights
 
         Returns:
             Updated memory results with calculated scores
@@ -1200,7 +1193,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         Convert dictionary to sorted list and apply threshold filtering.
 
         Args:
-            combined_dict: Dictionary of memory results
+            combined_dict: dictionary of memory results
 
         Returns:
             Sorted list of memory results
@@ -1221,7 +1214,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         Apply diversity filtering to avoid returning too similar results.
 
         Args:
-            combined_results: List of memory results
+            combined_results: list of memory results
 
         Returns:
             Filtered list with increased diversity
