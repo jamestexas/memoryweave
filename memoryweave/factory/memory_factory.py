@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 from sentence_transformers import SentenceTransformer
 
+from memoryweave.api.config import VectorSearchConfig
 from memoryweave.components.memory_encoding import MemoryEncoder
 from memoryweave.interfaces.memory import IMemoryStore
 from memoryweave.storage.adapter import MemoryAdapter
@@ -20,39 +21,6 @@ from memoryweave.storage.vector_search import create_vector_search_provider
 from memoryweave.utils import _get_device
 
 logger = logging.getLogger(__name__)
-
-
-class VectorSearchConfig(BaseModel):
-    """Configuration for vector search."""
-
-    provider: str = Field(
-        "numpy",
-        description="Vector search provider (e.g., numpy, faiss).",
-    )
-    dimension: int = Field(
-        768,
-        description="Dimension of the embeddings for vector search.",
-    )
-    metric: str = Field(
-        "cosine",
-        description="Distance metric for the vector search (e.g., cosine).",
-    )
-    use_quantization: bool = Field(
-        False,
-        description="Enable quantization for indexing.",
-    )
-    index_type: str | None = Field(
-        None,
-        description="Optional index type (e.g., IVF, HNSW).",
-    )
-    nprobe: int = Field(
-        10,
-        description="Number of probes for the vector index.",
-    )
-    type: str = Field(
-        "faiss",
-        description="Library or approach for the vector search (e.g., faiss).",
-    )
 
 
 class MemoryStoreConfig(BaseModel):
@@ -180,6 +148,7 @@ def create_memory_encoder(
         if embedding_model_name is None:
             embedding_model_name = "sentence-transformers/paraphrase-MiniLM-L6-v2"
         embedding_model = SentenceTransformer(embedding_model_name, device=device, **kwargs)
+    context_enhancer_config = kwargs.get("context_enhancer_config", {})
 
     # Create and initialize the memory encoder
     encoder = MemoryEncoder(embedding_model=embedding_model)
@@ -187,7 +156,7 @@ def create_memory_encoder(
         {
             "context_window_size": kwargs.get("context_window_size", 3),
             "use_episodic_markers": kwargs.get("use_episodic_markers", True),
-            "context_enhancer": kwargs.get("context_enhancer_config", {}),
+            "context_enhancer": context_enhancer_config,
         }
     )
 

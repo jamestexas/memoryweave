@@ -109,33 +109,41 @@ class ContextualFabricStrategy(RetrievalStrategy):
     memory access patterns.
     """
 
-    memory_store: Optional[StandardMemoryStore] = Field(default=None)
-    associative_linker: Optional[AssociativeMemoryLinker] = Field(default=None)
-    temporal_context: Optional[TemporalContextBuilder] = Field(default=None)
-    activation_manager: Optional[ActivationManager] = Field(default=None)
-    confidence_threshold: float = Field(default=0.1)
-    similarity_weight: float = Field(default=0.5)
-    associative_weight: float = Field(default=0.3)
-    temporal_weight: float = Field(default=0.1)
-    activation_weight: float = Field(default=0.1)
-    max_associative_hops: int = Field(default=2)
-    activation_boost_factor: float = Field(default=1.5)
-    min_results: int = Field(default=5)
-    max_candidates: int = Field(default=50)
-    debug: bool = Field(default=False)
-    component_id: str = Field(default=ComponentName.CONTEXTUAL_FABRIC_STRATEGY)
+    memory_store: Optional[StandardMemoryStore] = None
+    associative_linker: Optional[AssociativeMemoryLinker] = None
+    temporal_context: Optional[TemporalContextBuilder] = None
+    activation_manager: Optional[ActivationManager] = None
+    component_id: str = ComponentName.CONTEXTUAL_FABRIC_STRATEGY
 
-    def __init__(self, **kwargs: Any) -> None:
-        """
-        Initialize the contextual fabric strategy.
+    confidence_threshold: float = 0.1
+    similarity_weight: float = 0.5
+    associative_weight: float = 0.3
+    temporal_weight: float = 0.1
+    activation_weight: float = 0.1
+    max_associative_hops: int = 2
+    activation_boost_factor: float = 1.5
+    min_results: int = 5
+    max_candidates: int = 50
+    debug: bool = False
 
-        Args:
-            memory_store: Memory store to retrieve from
-            associative_linker: Associative memory linker for traversing links
-            temporal_context: Temporal context builder for time-based relevance
-            activation_manager: Activation manager for memory accessibility
-        """
+    def __init__(
+        self,
+        memory_store=None,
+        associative_linker=None,
+        temporal_context=None,
+        activation_manager=None,
+        **kwargs,
+    ):
+        # Support legacy initialization
         super().__init__(**kwargs)
+        if memory_store is not None:
+            self.memory_store = memory_store
+        if associative_linker is not None:
+            self.associative_linker = associative_linker
+        if temporal_context is not None:
+            self.temporal_context = temporal_context
+        if activation_manager is not None:
+            self.activation_manager = activation_manager
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
@@ -204,7 +212,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
         # Extract time info from query.
         time_info = self.temporal_context.extract_time_references(query)
         if self.debug:
-            self.logger.debug(f"Found temporal reference: {time_info}")
+            logger.debug(f"Found temporal reference: {time_info}")
 
         # Helper function to extract a memory's creation time.
         def get_creation_time(memory: Any) -> float:
@@ -232,7 +240,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
                     if relevance > 0.2:
                         temporal_results[memory.id] = relevance
                         if self.debug:
-                            self.logger.debug(
+                            logger.debug(
                                 f"Temporal match for memory {memory.id} with score {relevance:.3f}"
                             )
 
@@ -249,34 +257,34 @@ class ContextualFabricStrategy(RetrievalStrategy):
                     ):
                         temporal_results[memory.id] = 0.9
                         if self.debug:
-                            self.logger.debug(f"Morning match for memory {memory.id}")
+                            logger.debug(f"Morning match for memory {memory.id}")
                     elif lower_type in ["today", "this day"] and time_diff < 24 * 3600:
                         temporal_results[memory.id] = 0.8
                         if self.debug:
-                            self.logger.debug(f"Today match for memory {memory.id}")
+                            logger.debug(f"Today match for memory {memory.id}")
                     elif lower_type == "yesterday" and 24 * 3600 < time_diff < 48 * 3600:
                         temporal_results[memory.id] = 0.8
                         if self.debug:
-                            self.logger.debug(f"Yesterday match for memory {memory.id}")
+                            logger.debug(f"Yesterday match for memory {memory.id}")
                     elif (
                         lower_type in ["recent", "just now", "a moment ago"]
                         and time_diff < 3 * 3600
                     ):
                         temporal_results[memory.id] = 0.9
                         if self.debug:
-                            self.logger.debug(f"Recent match for memory {memory.id}")
+                            logger.debug(f"Recent match for memory {memory.id}")
                     elif (
                         lower_type in ["last week", "a week ago"]
                         and 24 * 3600 < time_diff < 7 * 24 * 3600
                     ):
                         temporal_results[memory.id] = 0.7
                         if self.debug:
-                            self.logger.debug(f"Last week match for memory {memory.id}")
+                            logger.debug(f"Last week match for memory {memory.id}")
                     elif "ago" in lower_type and time_diff < 7 * 24 * 3600:
                         recency_score = 1.0 - (time_diff / (7 * 24 * 3600))
                         temporal_results[memory.id] = max(0.4, recency_score)
                         if self.debug:
-                            self.logger.debug(
+                            logger.debug(
                                 f"Generic ago match for memory {memory.id} with score {recency_score:.3f}"
                             )
 
@@ -297,7 +305,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
                         recency_score = 1.0 - min(1.0, time_diff / (30 * 24 * 3600))
                         temporal_results[memory.id] = max(0.3, recency_score)
                     if memory.id in temporal_results and self.debug:
-                        self.logger.debug(
+                        logger.debug(
                             f"Keyword match for memory {memory.id} with score {temporal_results[memory.id]:.3f}"
                         )
 
@@ -360,8 +368,8 @@ class ContextualFabricStrategy(RetrievalStrategy):
 
         # Log retrieval details if debug enabled
         if self.debug:
-            self.logger.debug(f"ContextualFabricStrategy: Retrieving for query: '{query_text}'")
-            self.logger.debug(
+            logger.debug(f"ContextualFabricStrategy: Retrieving for query: '{query_text}'")
+            logger.debug(
                 f"ContextualFabricStrategy: Using confidence threshold: {confidence_threshold}"
             )
 
@@ -393,9 +401,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
             activations = self.activation_manager.get_activated_memories(threshold=0.05)
             if activations:  # Check if we got activations
                 activation_results = dict(activations)
-                self.logger.debug(
-                    f"Got activations for memories: {list(activation_results.keys())}"
-                )
+                logger.debug(f"Got activations for memories: {list(activation_results.keys())}")
 
         # Step 5: Combine all sources
         combined_dict = self._combine_results(
@@ -418,26 +424,26 @@ class ContextualFabricStrategy(RetrievalStrategy):
 
         # Debug logging
         if self.debug:
-            self.logger.debug(f"ContextualFabricStrategy: Retrieved {len(memory_results)} results")
+            logger.debug(f"ContextualFabricStrategy: Retrieved {len(memory_results)} results")
             if memory_results:
-                self.logger.debug(
+                logger.debug(
                     f"ContextualFabricStrategy: Top 3 scores: {[r.relevance_score for r in memory_results[:3]]}"
                 )
                 top = memory_results[0]
-                self.logger.debug("Top result contributions:")
-                self.logger.debug(
+                logger.debug("Top result contributions:")
+                logger.debug(
                     f"- Similarity: {top.similarity_score:.3f} * {self.similarity_weight:.1f} = {top.similarity_contribution:.3f}"
                 )
-                self.logger.debug(
+                logger.debug(
                     f"- Associative: {top.associative_score:.3f} * {self.associative_weight:.1f} = {top.associative_contribution:.3f}"
                 )
-                self.logger.debug(
+                logger.debug(
                     f"- Temporal: {top.temporal_score:.3f} * {self.temporal_weight:.1f} = {top.temporal_contribution:.3f}"
                 )
-                self.logger.debug(
+                logger.debug(
                     f"- Activation: {top.activation_score:.3f} * {self.activation_weight:.1f} = {top.activation_contribution:.3f}"
                 )
-                self.logger.debug(f"- Total: {top.relevance_score:.3f}")
+                logger.debug(f"- Total: {top.relevance_score:.3f}")
 
         # Restore original parameters
         for key, value in original_weights.items():
@@ -467,7 +473,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
                 memory_result = MemoryResult(**result)
                 memory_results.append(memory_result)
             except Exception as e:
-                self.logger.warning(f"Error converting result to MemoryResult: {e}")
+                logger.warning(f"Error converting result to MemoryResult: {e}")
                 # Create a minimal valid result
                 memory_result = MemoryResult(
                     memory_id=result.get("memory_id", 0),
@@ -842,7 +848,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
 
         # Log if we have temporal results
         if self.debug and temporal_results:
-            self.logger.debug(f"Have {len(temporal_results)} temporal results")
+            logger.debug(f"Have {len(temporal_results)} temporal results")
 
         # Add similarity results
         for result in similarity_results:
@@ -948,7 +954,7 @@ class ContextualFabricStrategy(RetrievalStrategy):
 
                 # Debug logging for temporal matches
                 if self.debug and score > 0.5:
-                    self.logger.debug(f"High temporal score {score:.3f} for memory {memory_id}")
+                    logger.debug(f"High temporal score {score:.3f} for memory {memory_id}")
 
         # Add activation results
         for memory_id, score in activation_results.items():
@@ -1024,8 +1030,8 @@ class ContextualFabricStrategy(RetrievalStrategy):
                     activation_weight = self.activation_weight * ratio
 
                 if self.debug:
-                    self.logger.debug(f"Temporal results keys: {list(temporal_results.keys())}")
-                    self.logger.debug(f"Boosted temporal weight to {temporal_weight:.2f}")
+                    logger.debug(f"Temporal results keys: {list(temporal_results.keys())}")
+                    logger.debug(f"Boosted temporal weight to {temporal_weight:.2f}")
 
         # Scale weights for larger memory stores
         if memory_store_size > 100:

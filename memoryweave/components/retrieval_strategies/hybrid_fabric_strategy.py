@@ -92,19 +92,31 @@ class HybridFabricStrategy(ContextualFabricStrategy):
     supports_hybrid: bool = Field(default=False)
     component_id: str = Field(default=ComponentName.HYBRID_FABRIC_STRAETGY)
 
-    def __init__(self, **kwargs: Any) -> None:
-        """
-        Initialize the hybrid fabric strategy.
-
-        Args:
-            memory_store: Memory store or adapter with hybrid capabilities
-            associative_linker: Associative memory linker for traversing links
-            temporal_context: Temporal context builder for time-based relevance
-            activation_manager: Activation manager for memory accessibility
-        """
-        super().__init__(**kwargs)
-        if self.memory_store is None:
-            logger.debug("[bold red] MISSING MEMORY STORE [/bold red]")
+    def __init__(
+        self,
+        use_two_stage_by_default=True,
+        first_stage_k=30,
+        first_stage_threshold_factor=0.7,
+        memory_store=None,
+        associative_linker=None,
+        temporal_context=None,
+        activation_manager=None,
+        **kwargs,
+    ):
+        # Call parent constructor with remaining kwargs
+        super().__init__(
+            memory_store=memory_store,
+            associative_linker=associative_linker,
+            temporal_context=temporal_context,
+            activation_manager=activation_manager,
+            **kwargs,
+        )
+        # Set class-specific attributes
+        self.use_two_stage_by_default = use_two_stage_by_default
+        self.first_stage_k = first_stage_k
+        self.first_stage_threshold_factor = first_stage_threshold_factor
+        self.component_id = ComponentName.HYBRID_FABRIC_STRAETGY
+        self._kwargs = kwargs
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the strategy with configuration."""

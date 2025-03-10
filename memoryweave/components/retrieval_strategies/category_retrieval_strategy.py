@@ -35,12 +35,13 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
     category_selection_threshold: float = Field(default=0.5)
     min_results: int = Field(default=5)
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize with memory and category manager."""
+    def __init__(self, memory=None, category_manager=None, **kwargs):
+        # Support legacy initialization style
         super().__init__(**kwargs)
-        # Use provided category_manager or get it from memory
-        if self.category_manager is None and hasattr(self.memory, "category_manager"):
-            self.category_manager = self.memory.category_manager
+        if memory is not None:
+            self.memory = memory
+        if category_manager is not None:
+            self.category_manager = category_manager
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""

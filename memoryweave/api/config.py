@@ -8,13 +8,34 @@ from memoryweave.api.constants import DEFAULT_EMBEDDING_MODEL, DEFAULT_MODEL
 class VectorSearchConfig(BaseModel):
     """Configuration for vector search."""
 
-    type: str = Field("numpy", description="Vector search provider type")
-    dimension: int = Field(384, description="Dimension of embedding vectors")
-    provider: Optional[str] = Field(None, description="Custom provider name")
-    metric: str = Field("cosine", description="Distance metric")
-    use_quantization: bool = Field(False, description="Use vector quantization")
-    index_type: Optional[str] = Field(None, description="Index type for specific providers")
-    nprobe: int = Field(4, description="Number of probes for approximate search")
+    provider: str = Field(
+        "numpy",
+        description="Vector search provider (e.g., numpy, faiss).",
+    )
+    dimension: int = Field(
+        768,
+        description="Dimension of the embeddings for vector search.",
+    )
+    metric: str = Field(
+        "cosine",
+        description="Distance metric for the vector search (e.g., cosine).",
+    )
+    use_quantization: bool = Field(
+        False,
+        description="Enable quantization for indexing.",
+    )
+    index_type: str | None = Field(
+        None,
+        description="Optional index type (e.g., IVF, HNSW).",
+    )
+    nprobe: int = Field(
+        10,
+        description="Number of probes for the vector index.",
+    )
+    type: str = Field(
+        "faiss",
+        description="Library or approach for the vector search (e.g., faiss).",
+    )
 
 
 class MemoryStoreConfig(BaseModel):

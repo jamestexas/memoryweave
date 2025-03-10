@@ -3,7 +3,7 @@ import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from memoryweave.api.config import MemoryWeaveConfig, StrategyConfig
+from memoryweave.api.config import MemoryWeaveConfig, StrategyConfig, VectorSearchConfig
 from memoryweave.api.constants import DEFAULT_EMBEDDING_MODEL, DEFAULT_MODEL
 from memoryweave.api.llm_provider import LLMProvider
 from memoryweave.api.prompt_builder import PromptBuilder
@@ -21,11 +21,7 @@ from memoryweave.components.retrieval_strategies.contextual_fabric_strategy impo
 )
 from memoryweave.components.retriever import _get_embedder
 from memoryweave.components.temporal_context import TemporalContextBuilder
-from memoryweave.factory.memory_factory import (
-    MemoryStoreConfig,
-    VectorSearchConfig,
-    create_memory_store_and_adapter,
-)
+from memoryweave.factory.memory_factory import MemoryStoreConfig, create_memory_store_and_adapter
 from memoryweave.interfaces.retrieval import QueryType
 from memoryweave.storage.adapter import MemoryAdapter
 from memoryweave.storage.memory_store import StandardMemoryStore

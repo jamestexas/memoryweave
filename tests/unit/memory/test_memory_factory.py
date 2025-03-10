@@ -1,10 +1,10 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from memoryweave.api.config import VectorSearchConfig
 from memoryweave.components.memory_encoding import MemoryEncoder
 from memoryweave.factory.memory_factory import (
     MemoryStoreConfig,
-    VectorSearchConfig,
     create_memory_encoder,
     create_memory_store_and_adapter,
 )
