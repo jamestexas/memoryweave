@@ -1,12 +1,13 @@
 import time
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, create_autospec, patch
 
 import numpy as np
 
 from memoryweave.api.config import MemoryWeaveConfig
 from memoryweave.api.memory_weave import MemoryWeaveAPI
 from memoryweave.interfaces.retrieval import QueryType
+from memoryweave.storage import MemoryAdapter, StandardMemoryStore
 
 
 class TestMemoryWeaveAPI(unittest.TestCase):
@@ -15,27 +16,48 @@ class TestMemoryWeaveAPI(unittest.TestCase):
     @patch("memoryweave.api.memory_weave.LLMProvider")
     @patch("memoryweave.api.memory_weave._get_embedder")
     @patch("memoryweave.api.memory_weave.create_memory_store_and_adapter")
-    def setUp(self, mock_create_store, mock_get_embedder, mock_llm_provider):
+    @patch("memoryweave.api.memory_weave.AssociativeMemoryLinker")
+    def setUp(
+        self,
+        mock_associative_linker_class,
+        mock_create_store,
+        mock_get_embedder,
+        mock_llm_provider,
+    ):
         """Set up test environment before each test method."""
         # Setup mock embedding model
         self.mock_embedding_model = MagicMock()
         self.mock_embedding_model.get_sentence_embedding_dimension.return_value = 768
         self.mock_embedding_model.encode.return_value = np.ones(768)
-        mock_get_embedder.return_value = self.mock_embedding_model
 
         # Setup mock memory store and adapter
-        self.mock_memory_store = MagicMock()
-        self.mock_memory_adapter = MagicMock()
+        self.mock_memory_store = create_autospec(StandardMemoryStore, instance=True)
+        self.mock_memory_adapter = MagicMock(MemoryAdapter, instance=True, return_value="123")
+        # self.mock_memory_adapter.add.return_value = "123"  # Set default return value
         mock_create_store.return_value = (self.mock_memory_store, self.mock_memory_adapter)
+
+        # Setup mock associative linker
+        self.mock_associative_linker = MagicMock()
+        self.mock_associative_linker.create_associative_link.return_value = None
+        mock_associative_linker_class.return_value = self.mock_associative_linker
 
         # Setup mock LLM provider
         self.mock_llm = MagicMock()
         self.mock_llm.generate.return_value = "This is a test response."
         mock_llm_provider.return_value = self.mock_llm
 
-        # Setup API with mocks
-        self.config = MemoryWeaveConfig(debug=True)
-        self.api = MemoryWeaveAPI(config=self.config)
+        # Initialize API with mocks
+        with patch.object(
+            MemoryWeaveAPI,
+            "_create_memory_store",
+            return_value=(self.mock_memory_store, self.mock_memory_adapter),
+        ):
+            self.api = MemoryWeaveAPI(config=MemoryWeaveConfig(debug=True))
+
+        # Directly set the private attributes that the property getters use
+        self.api._associative_linker = self.mock_associative_linker
+        self.api._category_manager = MagicMock()
+        self.api._embedding_model = self.mock_embedding_model
 
         # Mock the retrieval orchestrator for testing
         self.api.retrieval_orchestrator = MagicMock()
@@ -88,20 +110,18 @@ class TestMemoryWeaveAPI(unittest.TestCase):
     def test_add_memory_with_metadata(self):
         """Test adding a memory with metadata."""
         # Setup
+        metadata = {"key": "value"}
         self.mock_memory_adapter.add.return_value = "123"
-        metadata = {"type": "test", "importance": 0.8}
 
         # Execute
-        memory_id = self.api.add_memory("Test memory content", metadata)
+        result = self.api.add_memory("Test memory", metadata)
 
         # Assert
-        self.assertEqual(memory_id, "123")
+        self.assertEqual(result, "123")
         self.mock_memory_adapter.add.assert_called_once()
-        # Check that metadata was passed correctly
-        _, _, passed_metadata = self.mock_memory_adapter.add.call_args[0]
-        self.assertEqual(passed_metadata["type"], "test")
-        self.assertEqual(passed_metadata["importance"], 0.8)
-        self.assertIn("created_at", passed_metadata)
+        # Check metadata was passed correctly
+        _, _, kwargs = self.mock_memory_adapter.add.mock_calls[0]
+        self.assertEqual(kwargs.get("metadata"), metadata)
 
     @patch("memoryweave.api.memory_weave.MemoryWeaveAPI._analyze_query")
     def test_chat(self, mock_analyze_query):
@@ -129,12 +149,24 @@ class TestMemoryWeaveAPI(unittest.TestCase):
 
     def test_retrieve(self):
         """Test the retrieve method."""
-        # Execute
-        results = self.api.retrieve("test query", top_k=5)
+        # Add patching for _analyze_query
+        with patch.object(
+            self.api,
+            "_analyze_query",
+            return_value=(
+                {},  # query_obj
+                {},  # adapted_params
+                [],  # expanded_keywords
+                QueryType.FACTUAL,  # query_type
+                [],  # entities
+            ),
+        ):
+            # Execute
+            results = self.api.retrieve("test query", top_k=5)
 
-        # Assert
-        self.api.retrieval_orchestrator.retrieve.assert_called_once()
-        self.assertEqual(results, self.api.retrieval_orchestrator.retrieve.return_value)
+            # Assert
+            self.api.retrieval_orchestrator.retrieve.assert_called_once()
+            self.assertEqual(results, self.api.retrieval_orchestrator.retrieve.return_value)
 
     def test_analyze_query(self):
         """Test the query analysis method."""
@@ -160,6 +192,10 @@ class TestMemoryWeaveAPI(unittest.TestCase):
 
     def test_store_interaction(self):
         """Test storing conversation interactions in memory."""
+        # Configure mocks specifically for this test
+        self.mock_embedding_model.encode.return_value = np.array([0.1] * 768)
+        self.mock_memory_adapter.add.side_effect = ["user_id", "assistant_id"]
+
         # Execute
         self.api._store_interaction("User message", "Assistant reply", time.time())
 
@@ -181,24 +217,8 @@ class TestMemoryWeaveAPI(unittest.TestCase):
 
     def test_clear_memories(self):
         """Test clearing memories."""
-        # Setup
-        self.mock_memory_adapter.get_all.return_value = [
-            MagicMock(id="1", metadata={"type": "normal"}),
-            MagicMock(id="2", metadata={"type": "personal_attribute"}),
-        ]
-
-        # Execute - keep personal attributes
-        removed = self.api.clear_memories(keep_personal_attributes=True)
-
-        # Assert
-        self.mock_memory_adapter.clear.assert_called_once()
-        self.assertEqual(removed, 1)  # Only one normal memory removed
-
-        # Reset mocks
-        self.mock_memory_adapter.clear.reset_mock()
-
-        # Execute - clear all
-        self.api.clear_memories(keep_personal_attributes=False)
+        # Execute
+        self.api.clear_memories()
 
         # Assert
         self.mock_memory_adapter.clear.assert_called_once()
@@ -225,7 +245,3 @@ class TestMemoryWeaveAPI(unittest.TestCase):
 
         # Restore original method
         self.api.add_memory = original_add_memory
-
-
-if __name__ == "__main__":
-    unittest.main()

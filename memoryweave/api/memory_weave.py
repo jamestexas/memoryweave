@@ -129,6 +129,14 @@ class MemoryWeaveAPI:
             "avg_results_count": 0,
         }
 
+        # Default attribute values:
+        self._temporal_context = None
+        self._associative_linker = None
+        self._activation_manager = None
+        self._query_adapter = None
+        self._query_analyzer = None
+        self._category_manager = None
+
     def _create_memory_store(
         self,
         config: MemoryStoreConfig,
@@ -180,28 +188,39 @@ class MemoryWeaveAPI:
     @property
     def associative_linker(self) -> AssociativeMemoryLinker:
         """Lazy-loaded associative linker property."""
-        if not hasattr(self, "_associative_linker"):
+        if self._associative_linker is None:
             self._associative_linker = AssociativeMemoryLinker(memory_store=self.memory_store)
         return self._associative_linker
+
+    @associative_linker.setter
+    def associative_linker(self, value):
+        """Setter for associative_linker (primarily for testing)."""
+        self._associative_linker = value
 
     @property
     def temporal_context(self) -> TemporalContextBuilder:
         """Lazy-loaded temporal context property."""
-        if not hasattr(self, "_temporal_context"):
+        if self._temporal_context is None:
+            logging.debug("Initializing TemporalContextBuilder")
             self._temporal_context = TemporalContextBuilder(memory_store=self.memory_store)
         return self._temporal_context
+
+    @temporal_context.setter
+    def temporal_context(self, value):
+        """Setter for temporal_context (primarily for testing)."""
+        self._temporal_context = value
 
     @property
     def activation_manager(self) -> ActivationManager:
         """Lazy-loaded activation manager property."""
-        if not hasattr(self, "_activation_manager"):
+        if self._activation_manager is None:
             self._activation_manager = ActivationManager()
         return self._activation_manager
 
     @property
     def query_analyzer(self) -> QueryAnalyzer:
         """Lazy-loaded query analyzer property."""
-        if not hasattr(self, "_query_analyzer"):
+        if self._query_analyzer is None:
             self._query_analyzer = QueryAnalyzer()
             self._query_analyzer.initialize(
                 {
@@ -219,7 +238,7 @@ class MemoryWeaveAPI:
     @property
     def query_adapter(self):
         """Lazy-loaded query adapter property."""
-        if not hasattr(self, "_query_adapter"):
+        if self._query_adapter is None:
             self._query_adapter = QueryTypeAdapter()
             self.query_adapter.initialize(
                 {
@@ -238,8 +257,7 @@ class MemoryWeaveAPI:
     @property
     def category_manager(self) -> CategoryManager | None:
         """Lazy-loaded category manager property."""
-        if not hasattr(self, "_category_manager"):
-            self._category_manager = None
+        if self._category_manager is None:
             if self.enable_category_management:
                 self._category_manager = CategoryManager()
                 self._category_manager.initialize(

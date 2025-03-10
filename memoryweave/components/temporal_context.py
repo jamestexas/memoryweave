@@ -15,12 +15,13 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import numpy as np
+from pydantic import Field
 from scipy.cluster.hierarchy import fcluster, linkage
 
 from memoryweave.components.base import Component, MemoryComponent
 from memoryweave.components.component_names import ComponentName
 from memoryweave.interfaces.memory import MemoryID
-from memoryweave.storage.base_store import StandardMemoryStore
+from memoryweave.storage import StandardMemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -281,26 +282,36 @@ class TemporalContextBuilder(Component):
     and how they relate to each other in time.
     """
 
-    def __init__(self, memory_store: Optional[StandardMemoryStore] = None):
-        """
-        Initialize the temporal context builder.
+    memory_store: Optional[StandardMemoryStore] = Field(
+        default=None,
+        description="Memory store for retrieving memory timestamps.",
+    )
+    temporal_window: int = 3600  # Default 1-hour window for episodic clustering
+    decay_half_life: int = 86400  # Default 1-day half-life for decay
+    recency_boost_factor: float = 2.0  # Boost factor for recent memories
+    recency_window: int = 86400  # Default 1-day window for recency boost
+    max_temporal_clusters: int = 100  # Max number of episodes to maintain
+    component_id: str = ComponentName.TEMPORAL_CONTEXT_BUILDER
 
-        Args:
-            memory_store: Optional memory store to work with
-        """
-        self.memory_store = memory_store
-        self.temporal_window = 3600  # Default 1-hour window for episodic clustering
-        self.decay_half_life = 86400  # Default 1-day half-life for decay
-        self.recency_boost_factor = 2.0  # Boost factor for recent memories
-        self.recency_window = 86400  # Default 1-day window for recency boost
-        self.max_temporal_clusters = 100  # Max number of episodes to maintain
-        self.component_id = ComponentName.TEMPORAL_CONTEXT_BUILDER
+    # Episodic clusters: {episode_id: {memory_ids, start_time, end_time, center_time}}
+    episodes: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Episodic clusters of memories.",
+    )
+    memory_to_episode: dict[MemoryID, str] = Field(
+        default_factory=dict,
+        description="Mapping of memory IDs to episode IDs.",
+    )
+    last_cluster_time: int = 0
+    temporal_patterns: defaultdict[str, list[Any]] = Field(
+        default_factory=lambda: defaultdict(list),  # Track temporal patterns
+        description="Temporal patterns extracted from queries.",
+    )
 
-        # Episodic clusters: {episode_id: {memory_ids, start_time, end_time, center_time}}
-        self.episodes: dict[str, dict[str, Any]] = {}
-        self.memory_to_episode: dict[MemoryID, str] = {}
-        self.last_cluster_time = 0
-        self.temporal_patterns = defaultdict(list)  # Track temporal patterns
+    def __init__(self, **kwargs):
+        """Initialize the temporal context builder."""
+        super().__init__(**kwargs)
+        self.initialize({})
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
@@ -314,11 +325,11 @@ class TemporalContextBuilder(Component):
                 - recency_window: Time window for recency boosting (default: 86400s)
                 - max_temporal_clusters: Maximum number of episodes (default: 100)
         """
-        self.temporal_window = config.get("temporal_window", 3600)
-        self.decay_half_life = config.get("decay_half_life", 86400)
-        self.recency_boost_factor = config.get("recency_boost_factor", 2.0)
-        self.recency_window = config.get("recency_window", 86400)
-        self.max_temporal_clusters = config.get("max_temporal_clusters", 100)
+        self.temporal_window = config.get("temporal_window", self.temporal_window)
+        self.decay_half_life = config.get("decay_half_life", self.decay_half_life)
+        self.recency_boost_factor = config.get("recency_boost_factor", self.recency_boost_factor)
+        self.recency_window = config.get("recency_window", self.recency_window)
+        self.max_temporal_clusters = config.get("max_temporal_clusters", self.max_temporal_clusters)
 
         # set memory store if provided
         if "memory_store" in config:
