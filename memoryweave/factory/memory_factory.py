@@ -182,7 +182,7 @@ def create_memory_encoder(
         embedding_model = SentenceTransformer(embedding_model_name, device=device, **kwargs)
 
     # Create and initialize the memory encoder
-    encoder = MemoryEncoder(embedding_model)
+    encoder = MemoryEncoder(embedding_model=embedding_model)
     encoder.initialize(
         {
             "context_window_size": kwargs.get("context_window_size", 3),

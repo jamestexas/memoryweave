@@ -26,7 +26,7 @@ class MemoryEncoder(Component):
         default=...,
         description="Model to use for creating embeddings",
     )
-    context_enchancer: ContextualEmbeddingEnhancer = Field(
+    context_enhancer: ContextualEmbeddingEnhancer = Field(
         default_factory=ContextualEmbeddingEnhancer,
         description="Contextual embedding enhancer",
     )

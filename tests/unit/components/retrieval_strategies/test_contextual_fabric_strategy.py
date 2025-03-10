@@ -19,7 +19,11 @@ class TestContextualFabricStrategy:
     """Tests for the ContextualFabricStrategy class."""
 
     def test_initialization(
-        self, memory_store, associative_linker, temporal_context, activation_manager
+        self,
+        memory_store,
+        associative_linker,
+        temporal_context,
+        activation_manager,
     ):
         """Test initialization with different configurations."""
         # Test default initialization

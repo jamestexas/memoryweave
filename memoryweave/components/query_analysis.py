@@ -1,6 +1,8 @@
 # memoryweave/components/query_analysis.py
 from typing import Any
 
+from pydantic import Field
+
 from memoryweave.components.base import RetrievalComponent
 from memoryweave.interfaces.retrieval import QueryType
 from memoryweave.nlp.extraction import NLPExtractor
@@ -11,8 +13,7 @@ class QueryAnalyzer(RetrievalComponent):
     Analyzes queries to determine type and extract important information.
     """
 
-    def __init__(self):
-        self.nlp_extractor = NLPExtractor()
+    nlp_extractor: NLPExtractor = Field(default_factory=NLPExtractor)
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""

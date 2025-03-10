@@ -6,7 +6,7 @@ A PostProcessor that dynamically adjusts confidence thresholds based on
 query characteristics and retrieval metrics to optimize memory retrieval performance.
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -50,7 +50,7 @@ class DynamicThresholdAdjuster(PostProcessor):
     """
 
     # Declare the expected configuration model
-    config_model = DynamicThresholdConfig
+    config_model: ClassVar[DynamicThresholdConfig] = DynamicThresholdConfig
 
     def __init__(self) -> None:
         self.min_threshold = 0.1

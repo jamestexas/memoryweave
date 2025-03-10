@@ -140,7 +140,7 @@ class HybridMemoryWeaveAPI(MemoryWeaveAPI):
         config.store_type = "hybrid"
 
         # Create the store and adapter
-        memory_adapter, memory_store = create_memory_store_and_adapter(config)
+        memory_store, memory_adapter = create_memory_store_and_adapter(config)
 
         # Store hybrid-specific references
         self.hybrid_memory_store = memory_store

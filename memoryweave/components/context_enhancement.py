@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 import numpy as np
+from pydantic import Field
 
 from memoryweave.components.base import Component, MemoryComponent
 from memoryweave.components.component_names import ComponentName
@@ -28,16 +29,18 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
     relationships between memories beyond pure semantic similarity.
     """
 
-    def __init__(self):
+    conversation_weight: float = Field(default=0.2)
+    temporal_weight: float = Field(default=0.15)
+    topical_weight: float = Field(default=0.25)
+    context_window_size: int = Field(default=5)
+    decay_factor: float = Field(default=0.8)
+    context_history: list[dict[str, Any]] = Field(default_factory=list)
+    max_history_items: int = Field(default=20)
+    component_id: str = Field(default=ComponentName.CONTEXTUAL_EMBEDDING_ENHANCER)
+
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize the contextual embedding enhancer."""
-        self.conversation_weight = 0.2
-        self.temporal_weight = 0.15
-        self.topical_weight = 0.25
-        self.context_window_size = 5
-        self.decay_factor = 0.8
-        self.context_history: list[dict[str, Any]] = []
-        self.max_history_items = 20
-        self.component_id = ComponentName.CONTEXTUAL_EMBEDDING_ENHANCER
+        super().__init__(**kwargs)
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
@@ -52,12 +55,12 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
                 - decay_factor: How quickly context importance decays (default: 0.8)
                 - max_history_items: Maximum number of history items to store (default: 20)
         """
-        self.conversation_weight = config.get("conversation_weight", 0.2)
-        self.temporal_weight = config.get("temporal_weight", 0.15)
-        self.topical_weight = config.get("topical_weight", 0.25)
-        self.context_window_size = config.get("context_window_size", 5)
-        self.decay_factor = config.get("decay_factor", 0.8)
-        self.max_history_items = config.get("max_history_items", 20)
+        self.conversation_weight = config.get("conversation_weight", self.conversation_weight)
+        self.temporal_weight = config.get("temporal_weight", self.temporal_weight)
+        self.topical_weight = config.get("topical_weight", self.topical_weight)
+        self.context_window_size = config.get("context_window_size", self.context_window_size)
+        self.decay_factor = config.get("decay_factor", self.decay_factor)
+        self.max_history_items = config.get("max_history_items", self.max_history_items)
 
     def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """
@@ -66,7 +69,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
         Args:
             data: Memory data to process
             context: Context information including:
-                - conversation_history: List of previous conversation turns
+                - conversation_history: list of previous conversation turns
                 - current_time: Current timestamp
                 - topics: Current or detected topics
 
@@ -144,7 +147,7 @@ class ContextualEmbeddingEnhancer(MemoryComponent):
         Extract context embedding from conversation history.
 
         Args:
-            conversation_history: List of previous conversation turns with embeddings
+            conversation_history: list of previous conversation turns with embeddings
 
         Returns:
             Context embedding extracted from conversation history
@@ -362,10 +365,10 @@ class ContextSignalExtractor(Component):
         Extract signals from conversation history.
 
         Args:
-            conversation_history: List of conversation turns
+            conversation_history: list of conversation turns
 
         Returns:
-            Dictionary of extracted signals
+            dictionary of extracted signals
         """
         signals = {
             "topics": set(),
@@ -407,10 +410,10 @@ class ContextSignalExtractor(Component):
         Extract temporal signals from a list of timestamps.
 
         Args:
-            timestamps: List of timestamps
+            timestamps: list of timestamps
 
         Returns:
-            Dictionary of temporal signals
+            dictionary of temporal signals
         """
         if not timestamps:
             return {"pattern": "none", "frequency": 0, "recency": 0}
@@ -451,7 +454,7 @@ class ContextSignalExtractor(Component):
             content: Text content to analyze
 
         Returns:
-            Dictionary of content signals
+            dictionary of content signals
         """
         # Basic content analysis
         word_count = len(content.split())

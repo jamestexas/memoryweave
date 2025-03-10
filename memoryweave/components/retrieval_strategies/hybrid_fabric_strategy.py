@@ -10,6 +10,7 @@ import logging
 from typing import Any, Optional
 
 import numpy as np
+from pydantic import Field
 
 from memoryweave.components.activation import ActivationManager
 from memoryweave.components.associative_linking import AssociativeMemoryLinker
@@ -32,7 +33,7 @@ def _nltk_extract_keywords(text: str) -> list[str] | None:
         text (str): The text to extract keywords from
 
     Returns:
-        list[str] | None: List of extracted keywords
+        list[str] | None: list of extracted keywords
     """
     if _load_module("nltk"):
         logger.warning("[bold yellow]NLTK not found, skipping keyword extraction[/bold yellow]")
@@ -77,17 +78,21 @@ class HybridFabricStrategy(ContextualFabricStrategy):
     4. Optimizing memory usage throughout retrieval
     """
 
-    def __init__(
-        self,
-        use_two_stage_by_default: bool = True,
-        first_stage_k: int = 30,
-        first_stage_threshold_factor: float = 0.7,
-        memory_store: Optional[HybridMemoryStore] = None,
-        associative_linker: Optional[AssociativeMemoryLinker] = None,
-        temporal_context: Optional[TemporalContextBuilder] = None,
-        activation_manager: Optional[ActivationManager] = None,
-        **kwargs,
-    ):
+    memory_store: Optional[HybridMemoryStore] = Field(default=None)
+    associative_linker: Optional[AssociativeMemoryLinker] = Field(default=None)
+    temporal_context: Optional[TemporalContextBuilder] = Field(default=None)
+    activation_manager: Optional[ActivationManager] = Field(default=None)
+    use_two_stage_by_default: bool = Field(default=True)
+    first_stage_k: int = Field(default=30)
+    first_stage_threshold_factor: float = Field(default=0.7)
+    use_keyword_filtering: bool = Field(default=True)
+    keyword_boost_factor: float = Field(default=0.3)
+    max_chunks_per_memory: int = Field(default=3)
+    prioritize_full_embeddings: bool = Field(default=True)
+    supports_hybrid: bool = Field(default=False)
+    component_id: str = Field(default=ComponentName.HYBRID_FABRIC_STRAETGY)
+
+    def __init__(self, **kwargs: Any) -> None:
         """
         Initialize the hybrid fabric strategy.
 
@@ -97,26 +102,9 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             temporal_context: Temporal context builder for time-based relevance
             activation_manager: Activation manager for memory accessibility
         """
-        if memory_store is None:
+        super().__init__(**kwargs)
+        if self.memory_store is None:
             logger.debug("[bold red] MISSING MEMORY STORE [/bold red]")
-        super().__init__(
-            memory_store=memory_store,
-            associative_linker=associative_linker,
-            temporal_context=temporal_context,
-            activation_manager=activation_manager,
-        )
-        self.component_id = ComponentName.HYBRID_FABRIC_STRAETGY
-        self._kwargs = kwargs
-        # Hybrid specific parameters
-        self.use_two_stage_by_default: bool = use_two_stage_by_default
-        self.first_stage_k: int = first_stage_k
-        self.first_stage_threshold_factor: float = first_stage_threshold_factor
-
-        # Kwarg configurable options
-        self.use_keyword_filtering = self._kwargs.get("use_keyword_filtering", True)
-        self.keyword_boost_factor = self._kwargs.get("keyword_boost_factor", 0.3)
-        self.max_chunks_per_memory = self._kwargs.get("max_chunks_per_memory", 3)
-        self.prioritize_full_embeddings = self._kwargs.get("prioritize_full_embeddings", True)
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize the strategy with configuration."""
@@ -138,20 +126,14 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             "first_stage_threshold_factor", self.first_stage_threshold_factor
         )
 
-        # # Reset supports_hybrid to False before checking
-        # self.supports_hybrid = False
-
         # Check hybrid support
-        print(f"DEBUG: Memory store: {self.memory_store}")
-        self._check_hybrid_support()
-        print(f"DEBUG: Memory store: {self.memory_store}, supports_hybrid: {self.supports_hybrid}")
-        logger.debug(f"After initialize: supports_hybrid set to {self.supports_hybrid}")
-
-    def _check_hybrid_support(self) -> None:
-        """Check if memory_store supports hybrid features."""
-        # Explicitly set to False by default - VERY IMPORTANT
+        logger.debug(f"Memory store: {self.memory_store}")
+        # TODO: This really shouldn't be here given this a hybrid class but for now :~)
         self.supports_hybrid = True
-        logger.debug("Using hybrid retrieval capabilities")
+        logger.debug(
+            f"DEBUG: Memory store: {self.memory_store}, supports_hybrid: {self.supports_hybrid}"
+        )
+        logger.debug(f"After initialize: supports_hybrid set to {self.supports_hybrid}")
 
     def retrieve(
         self,
@@ -170,7 +152,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             query: Optional query text (will use from context if not provided)
 
         Returns:
-            List of retrieved memory dicts with relevance scores
+            list of retrieved memory dicts with relevance scores
         """
         # Get query from context if not provided directly
         query = query or context.get("query", "")
@@ -564,7 +546,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             query: Query text
 
         Returns:
-            Tuple of (query_obj, adapted_params, expanded_keywords, query_type, entities)
+            tuple of (query_obj, adapted_params, expanded_keywords, query_type, entities)
         """
         # If you have access to the query analyzer
         if hasattr(self, "query_analyzer") and self.query_analyzer:
@@ -611,7 +593,7 @@ class HybridFabricStrategy(ContextualFabricStrategy):
             query: Optional query string
 
         Returns:
-            List of retrieved memory dicts
+            list of retrieved memory dicts
         """
         # Get query and params
         query = query or context.get("query", "")

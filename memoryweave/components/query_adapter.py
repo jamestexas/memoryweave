@@ -8,6 +8,8 @@ query type analysis.
 import logging
 from typing import Any
 
+from pydantic import Field
+
 from memoryweave.components.base import RetrievalComponent
 from memoryweave.interfaces.retrieval import QueryType
 
@@ -23,19 +25,41 @@ class QueryTypeAdapter(RetrievalComponent):
     the retrieval strategies.
     """
 
-    def __init__(self):
-        self.adaptation_strength = 1.0  # How strongly to adapt (0.0-1.0)
-        self.use_recommendations = True
-        self.config_name = None  # Will be set by benchmark
+    adaptation_strength: float = Field(1.0, description="How strongly to adapt (0.0-1.0)")
+    use_recommendations: bool = Field(True, description="Whether to use recommendations")
+    default_confidence_threshold: float = Field(0.3, description="Default confidence threshold")
+    default_adaptive_k_factor: float = Field(0.3, description="Default adaptive k factor")
+    default_first_stage_k: int = Field(20, description="Default first stage k")
+    default_first_stage_threshold_factor: float = Field(
+        0.7,
+        description="Default first stage threshold factor",
+    )
+    default_keyword_boost_weight: float = Field(
+        0.5,
+        description="Default keyword boost weight",
+    )
+    config_name: str | None = None
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
-        self.adaptation_strength = config.get("adaptation_strength", 1.0)
-        self.use_recommendations = config.get("use_recommendations", True)
-        self.default_confidence_threshold = config.get("confidence_threshold", 0.3)
-        self.default_adaptive_k_factor = config.get("adaptive_k_factor", 0.3)
-        self.default_first_stage_k = config.get("first_stage_k", 20)
-        self.default_first_stage_threshold_factor = config.get("first_stage_threshold_factor", 0.7)
+        self.adaptation_strength = config.get("adaptation_strength", self.adaptation_strength)
+        self.use_recommendations = config.get("use_recommendations", self.use_recommendations)
+        self.default_confidence_threshold = config.get(
+            "confidence_threshold",
+            self.default_confidence_threshold,
+        )
+        self.default_adaptive_k_factor = config.get(
+            "adaptive_k_factor",
+            self.default_adaptive_k_factor,
+        )
+        self.default_first_stage_k = config.get(
+            "first_stage_k",
+            self.default_first_stage_k,
+        )
+        self.default_first_stage_threshold_factor = config.get(
+            "first_stage_threshold_factor",
+            self.default_first_stage_threshold_factor,
+        )
         self.default_keyword_boost_weight = config.get("keyword_boost_weight", 0.5)
 
     def process(self, input_data: Any) -> Any:
