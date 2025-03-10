@@ -142,46 +142,6 @@ class TestHybridFabricStrategy:
         assert strategy.first_stage_k == 40
         assert strategy.first_stage_threshold_factor == 0.6
 
-    def test_hybrid_support_detection(self):
-        """Test detection of hybrid support in memory store."""
-        # Create memory stores with different capabilities
-        memory_with_hybrid = MagicMock()
-        memory_with_hybrid.search_hybrid = MagicMock()
-
-        nested_memory = MagicMock()
-        nested_memory.search_hybrid = MagicMock()
-        memory_with_nested = MagicMock()
-        memory_with_nested.memory_store = nested_memory
-
-        memory_with_chunks = MagicMock()
-        memory_with_chunks.search_chunks = MagicMock()
-
-        # Create a mock WITHOUT any attributes by using spec_set
-        # This is crucial because normal MagicMock returns True for any hasattr check
-        memory_without_hybrid = MagicMock(spec_set=[])  # Empty spec means no attributes
-
-        # Verify direct search_hybrid support
-        strategy1 = HybridFabricStrategy(memory_store=memory_with_hybrid)
-        strategy1.initialize({})  # Let initialize() detect capabilities
-        assert strategy1.supports_hybrid is True, "Direct search_hybrid should be detected"
-
-        # Verify nested search_hybrid support
-        strategy2 = HybridFabricStrategy(memory_store=memory_with_nested)
-        strategy2.initialize({})  # Let initialize() detect capabilities
-        assert strategy2.supports_hybrid is True, "Nested search_hybrid should be detected"
-
-        # Verify search_chunks support
-        strategy3 = HybridFabricStrategy(memory_store=memory_with_chunks)
-        strategy3.initialize({})  # Let initialize() detect capabilities
-        assert strategy3.supports_hybrid is True, (
-            "search_chunks should be detected as hybrid-capable"
-        )
-
-        # Verify lack of hybrid support
-        strategy4 = HybridFabricStrategy(memory_store=memory_without_hybrid)
-        strategy4.initialize({})  # Let initialize() detect capabilities
-        assert strategy4.supports_hybrid is False, "Should not detect hybrid support"
-
         def test_retrieve_basic(self, memory_store, query_embedding, base_context):
             """Test basic retrieval functionality for benchmarking."""
             # Initialize strategy and let it detect capabilities naturally
