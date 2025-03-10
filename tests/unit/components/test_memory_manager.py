@@ -4,6 +4,8 @@ Unit tests for the MemoryManager component.
 
 import unittest
 
+from pydantic import Field
+
 from memoryweave.components.base import Component
 from memoryweave.components.memory_manager import MemoryManager
 
@@ -11,10 +13,13 @@ from memoryweave.components.memory_manager import MemoryManager
 class MockComponent(Component):
     """Mock component for testing."""
 
-    def __init__(self):
-        self.initialize_called = False
-        self.process_query_called = False
-        self.process_query_result = {}
+    initialize_called: bool = False
+    process_query_called: bool = False
+    process_query_result: dict = Field(default_factory=dict)
+    config: dict = Field(default_factory=dict)
+    initialize_called: bool = False
+    last_query: str | None = None
+    last_context: dict | None = None
 
     def initialize(self, config):
         """Initialize the component."""
