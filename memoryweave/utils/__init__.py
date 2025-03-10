@@ -9,6 +9,8 @@ import importlib
 import logging
 import sys
 
+import torch
+
 from memoryweave.utils.similarity import (
     cosine_similarity_batched,
     embed_text_batch,
@@ -37,9 +39,7 @@ def _load_module(module_name: str) -> bool:
     return result
 
 
-def _get_device(self, device: str = "auto") -> str:
-    import torch
-
+def _get_device(device: str = "auto") -> str:
     """Choose appropriate device."""
     if device != "auto":
         return device
