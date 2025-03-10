@@ -1,6 +1,6 @@
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from memoryweave.api.constants import DEFAULT_EMBEDDING_MODEL, DEFAULT_MODEL
 
@@ -36,6 +36,7 @@ class VectorSearchConfig(BaseModel):
         "faiss",
         description="Library or approach for the vector search (e.g., faiss).",
     )
+    config = ConfigDict(extra="allow")
 
 
 class MemoryStoreConfig(BaseModel):

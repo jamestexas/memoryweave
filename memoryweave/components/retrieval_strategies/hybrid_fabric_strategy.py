@@ -147,6 +147,15 @@ class HybridFabricStrategy(ContextualFabricStrategy):
         )
         logger.debug(f"After initialize: supports_hybrid set to {self.supports_hybrid}")
 
+    def _check_hybrid_support(self) -> None:
+        """Check if memory_store supports hybrid features."""
+        # Check for hybrid capabilities instead of always setting to True
+        self.supports_hybrid = False  # Start with False
+
+        if hasattr(self.memory_store, "search_hybrid") or hasattr(self.memory_store, "is_hybrid"):
+            self.supports_hybrid = True
+            logger.debug("Using hybrid retrieval capabilities")
+
     def retrieve(
         self,
         query_embedding: np.ndarray,

@@ -6,10 +6,11 @@ to improve retrieval results, focusing on semantic coherence within categories.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Annotated, Any
+from unittest.mock import MagicMock
 
 import numpy as np
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from memoryweave.components.base import RetrievalStrategy
 from memoryweave.components.category_manager import CategoryManager
@@ -27,21 +28,21 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
     categories.
     """
 
-    memory: Any = Field(...)  # Memory component, needs to be provided
-    category_manager: Optional[CategoryManager] = Field(default=None)
+    memory: Any = Field(default=None)  # Change to default=None instead of ...
+    category_manager: Annotated[CategoryManager | MagicMock, Field(default=None)] | None = Field(
+        default=None
+    )
     confidence_threshold: float = Field(default=0.0)
     max_categories: int = Field(default=3)
     activation_boost: bool = Field(default=True)
     category_selection_threshold: float = Field(default=0.5)
     min_results: int = Field(default=5)
 
-    def __init__(self, memory=None, category_manager=None, **kwargs):
-        # Support legacy initialization style
-        super().__init__(**kwargs)
-        if memory is not None:
-            self.memory = memory
-        if category_manager is not None:
-            self.category_manager = category_manager
+    @model_validator(mode="after")
+    def check_memory_provided(self):
+        if self.memory is None:
+            raise ValueError("memory is required and must be provided")
+        return self
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
@@ -61,7 +62,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
 
         # Helper function for similarity retrieval fallback
         def similarity_fallback():
-            similarity_strategy = SimilarityRetrievalStrategy(memory)
+            similarity_strategy = SimilarityRetrievalStrategy(memory=memory)
             if hasattr(similarity_strategy, "initialize"):
                 similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
 

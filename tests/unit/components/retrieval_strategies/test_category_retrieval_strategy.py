@@ -11,7 +11,9 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from memoryweave.components.retrieval_strategies_impl import CategoryRetrievalStrategy
+from memoryweave.components.retrieval_strategies.category_retrieval_strategy import (
+    CategoryRetrievalStrategy,
+)
 
 
 # Define fixtures needed for the tests
@@ -76,7 +78,7 @@ class TestCategoryRetrievalStrategy:
     def test_initialization(self, memory_store):
         """Test strategy initialization with default and custom parameters."""
         # Test with default parameters
-        strategy = CategoryRetrievalStrategy(memory=memory_store)
+        strategy: CategoryRetrievalStrategy = CategoryRetrievalStrategy(memory=memory_store)
         strategy.initialize({})
 
         assert strategy.confidence_threshold == 0.0
@@ -114,7 +116,10 @@ class TestCategoryRetrievalStrategy:
         memory_store.category_manager = mock_category_manager
 
         # Initialize strategy
-        strategy = CategoryRetrievalStrategy(memory=memory_store)
+        strategy = CategoryRetrievalStrategy(
+            memory=memory_store,
+            category_manager=mock_category_manager,
+        )
         strategy.initialize({"confidence_threshold": 0.0})
 
         # Set up dot product result when similarity is calculated
@@ -141,7 +146,10 @@ class TestCategoryRetrievalStrategy:
         memory_store.category_manager = mock_category_manager
 
         # Initialize strategy
-        strategy = CategoryRetrievalStrategy(memory=memory_store)
+        strategy = CategoryRetrievalStrategy(
+            memory=memory_store,
+            category_manager=mock_category_manager,
+        )
         strategy.initialize({"confidence_threshold": 0.0, "max_categories": 2})
 
         # Create context with adapted parameters
@@ -207,7 +215,10 @@ class TestCategoryRetrievalStrategy:
         memory_store.category_manager = mock_category_manager
 
         # Initialize strategy
-        strategy = CategoryRetrievalStrategy(memory=memory_store)
+        strategy = CategoryRetrievalStrategy(
+            memory=memory_store,
+            category_manager=mock_category_manager,
+        )
         strategy.initialize({"category_selection_threshold": 0.9})  # Higher than any similarity
 
         # Configure mock to return low similarities
@@ -232,7 +243,10 @@ class TestCategoryRetrievalStrategy:
         memory_store.category_manager = mock_category_manager
 
         # Configure strategy with high confidence threshold
-        strategy = CategoryRetrievalStrategy(memory=memory_store)
+        strategy = CategoryRetrievalStrategy(
+            memory=memory_store,
+            category_manager=mock_category_manager,
+        )
         strategy.initialize(
             {
                 "confidence_threshold": 0.9,  # Very high to force fallback
@@ -261,7 +275,10 @@ class TestCategoryRetrievalStrategy:
         memory_store.category_manager = mock_category_manager
 
         # Initialize strategy
-        strategy = CategoryRetrievalStrategy(memory=memory_store)
+        strategy = CategoryRetrievalStrategy(
+            memory=memory_store,
+            category_manager=mock_category_manager,
+        )
         strategy.initialize({"confidence_threshold": 0.0})
 
         # Make get_category_similarities raise an exception
@@ -290,7 +307,10 @@ class TestCategoryRetrievalStrategy:
         memory_store.category_manager = mock_category_manager
 
         # Initialize strategy
-        strategy = CategoryRetrievalStrategy(memory=memory_store)
+        strategy = CategoryRetrievalStrategy(
+            memory=memory_store,
+            category_manager=mock_category_manager,
+        )
         strategy.initialize({"confidence_threshold": 0.0})
 
         # Create context with query embedding
@@ -339,7 +359,10 @@ class TestCategoryRetrievalStrategy:
         memory_store.embedding_dim = 3
 
         # Initialize strategy
-        strategy = CategoryRetrievalStrategy(memory=memory_store)
+        strategy = CategoryRetrievalStrategy(
+            memory=memory_store,
+            category_manager=mock_category_manager,
+        )
         strategy.initialize({"confidence_threshold": 0.0, "min_results": 1})
 
         # Context without query embedding

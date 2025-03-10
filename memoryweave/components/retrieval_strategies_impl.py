@@ -1021,7 +1021,7 @@ class CategoryRetrievalStrategy(RetrievalStrategy):
                 f"Category retrieval failed with error: {str(e)}. Falling back to similarity retrieval."
             )
 
-            similarity_strategy = SimilarityRetrievalStrategy(memory)
+            similarity_strategy = SimilarityRetrievalStrategy(memory=memory)
             if hasattr(similarity_strategy, "initialize"):
                 similarity_strategy.initialize({"confidence_threshold": self.confidence_threshold})
             return similarity_strategy.retrieve(query_embedding, top_k, context)
