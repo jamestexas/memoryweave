@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import numpy as np
+from pydantic import Field
 
 from memoryweave.components.base import Component
 from memoryweave.nlp.extraction import NLPExtractor
@@ -28,17 +29,34 @@ class QueryContextBuilder(Component):
     - Including conversation history if available
     """
 
-    def __init__(self):
-        """Initialize the query context builder."""
-        self.nlp_extractor = NLPExtractor()
-
-        # Default configuration
-        self.max_history_turns = 3
-        self.max_history_tokens = 1000
-        self.include_entities = True
-        self.include_temporal_markers = True
-        self.include_conversation_history = True
-        self.extract_implied_timeframe = True
+    nlp_extractor: NLPExtractor = Field(
+        default_factory=NLPExtractor,
+        description="NLP extractor for entity and keyword extraction",
+    )
+    max_history_turns: int = Field(
+        3,
+        description="Maximum conversation turns to include in context",
+    )
+    max_history_tokens: int = Field(
+        1000,
+        description="Maximum tokens in conversation history",
+    )
+    include_entities: bool = Field(
+        True,
+        description="Whether to extract entities from the query",
+    )
+    include_temporal_markers: bool = Field(
+        True,
+        description="Whether to extract temporal markers from the query",
+    )
+    include_conversation_history: bool = Field(
+        True,
+        description="Whether to include conversation history in context",
+    )
+    extract_implied_timeframe: bool = Field(
+        True,
+        description="Whether to infer implied timeframes from queries",
+    )
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
