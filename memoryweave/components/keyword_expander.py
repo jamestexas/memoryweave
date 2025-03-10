@@ -10,6 +10,7 @@ import copy
 from typing import Any, Optional
 
 import numpy as np
+from pydantic import Field
 
 from memoryweave.components.base import Component
 from memoryweave.interfaces.retrieval import Query
@@ -26,26 +27,13 @@ class KeywordExpander(Component):
     - Support for word embeddings-based expansion
     """
 
-    def __init__(self, word_embeddings: Optional[dict[str, list[float]]] = None):
-        """
-        Initialize the keyword expander component.
-
-        Args:
-            word_embeddings: Optional dictionary mapping words to embedding vectors
-        """
-        self.enable_expansion = True
-        self.max_expansions_per_keyword = 5
-        self.min_similarity = 0.7
-        self.synonyms = {}
-        self.initialize_synonym_map()
-
-        # Word embedding support
-        self._word_embeddings = word_embeddings or {}
-        self._use_embeddings = bool(self._word_embeddings)
-
-        # Common irregular plurals
-        self.irregular_plurals = {
-            # singular: plural
+    word_embeddings: Optional[dict[str, list[float]]] = Field(default_factory=dict)
+    enable_expansion: bool = Field(default=True)
+    max_expansions_per_keyword: int = Field(default=5)
+    min_similarity: float = Field(default=0.7)
+    synonyms: dict[str, list[str]] = Field(default_factory=dict)
+    irregular_plurals: dict[str, str] = Field(
+        default_factory=lambda: {
             "child": "children",
             "person": "people",
             "man": "men",
@@ -81,15 +69,27 @@ class KeywordExpander(Component):
             "bacterium": "bacteria",
             "medium": "media",
         }
+    )
+    plural_to_singular: dict[str, str] = Field(default_factory=dict)
+    word_relationships: Optional[dict[str, list[str]]] = Field(default_factory=dict)
+    use_embeddings: bool = Field(default=False)
 
-        # Add reverse mapping for plural to singular
+    def __init__(self, **kwargs: Any) -> None:
+        """
+        Initialize the keyword expander component.
+
+        Args:
+            word_embeddings: Optional dictionary mapping words to embedding vectors
+        """
+        super().__init__(**kwargs)
+        self.use_embeddings = bool(self.word_embeddings)
+        self.initialize_synonym_map()
         self.plural_to_singular = {v: k for k, v in self.irregular_plurals.items()}
 
     def initialize_synonym_map(self):
         """Initialize the synonym map with common synonyms and related terms."""
         # General synonyms and related terms
         self.synonyms = {
-            # For compatibility with existing tests
             "happy": ["joyful", "glad", "pleased"],
             "car": ["vehicle", "automobile", "auto"],
             "computer": ["pc", "laptop", "desktop"],
@@ -97,10 +97,12 @@ class KeywordExpander(Component):
 
     def initialize(self, config: dict[str, Any]) -> None:
         """Initialize with configuration."""
-        self.enable_expansion = config.get("enable_expansion", True)
-        self.max_expansions_per_keyword = config.get("max_expansions_per_keyword", 5)
-        self.min_similarity = config.get("min_similarity", 0.7)
-        self._use_embeddings = config.get("use_embeddings", self._use_embeddings)
+        self.enable_expansion = config.get("enable_expansion", self.enable_expansion)
+        self.max_expansions_per_keyword = config.get(
+            "max_expansions_per_keyword", self.max_expansions_per_keyword
+        )
+        self.min_similarity = config.get("min_similarity", self.min_similarity)
+        self.use_embeddings = config.get("use_embeddings", self.use_embeddings)
 
         # Add custom synonyms if provided
         custom_synonyms = config.get("custom_synonyms", {})
@@ -109,10 +111,10 @@ class KeywordExpander(Component):
 
         # Add word relationships if provided
         if "word_relationships" in config:
+            if not hasattr(self, "word_relationships") or self.word_relationships is None:
+                self.word_relationships = {}
             for word, related in config["word_relationships"].items():
-                if not hasattr(self, "_word_relationships"):
-                    self._word_relationships = {}
-                self._word_relationships[word] = related
+                self.word_relationships[word] = related
 
     def process(self, data: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """
@@ -204,7 +206,7 @@ class KeywordExpander(Component):
                 expanded.add(plural)
 
             # Try embedding-based expansion if enabled
-            if self._use_embeddings and keyword_lowercase in self._word_embeddings:
+            if self.use_embeddings and keyword_lowercase in self.word_embeddings:
                 embedding_results = self._find_related_by_embedding(
                     keyword_lowercase, self.max_expansions_per_keyword, self.min_similarity
                 )
@@ -219,11 +221,8 @@ class KeywordExpander(Component):
                     expanded.add(synonym)
 
             # Use word relationships if available
-            if (
-                hasattr(self, "_word_relationships")
-                and keyword_lowercase in self._word_relationships
-            ):
-                related = self._word_relationships[keyword_lowercase]
+            if hasattr(self, "word_relationships") and keyword_lowercase in self.word_relationships:
+                related = self.word_relationships[keyword_lowercase]
                 for term in related[: self.max_expansions_per_keyword]:
                     expanded.add(term)
 
@@ -268,16 +267,16 @@ class KeywordExpander(Component):
             min_similarity: Minimum similarity threshold
 
         Returns:
-            List of related keywords
+            list of related keywords
         """
-        if not self._word_embeddings or keyword not in self._word_embeddings:
+        if not self.word_embeddings or keyword not in self.word_embeddings:
             return []
 
-        keyword_vec = self._word_embeddings[keyword]
+        keyword_vec = self.word_embeddings[keyword]
         similarities = {}
 
         # Compute similarities with all other words
-        for word, vec in self._word_embeddings.items():
+        for word, vec in self.word_embeddings.items():
             if word != keyword:
                 similarity = self._cosine_similarity(keyword_vec, vec)
                 if similarity >= min_similarity:

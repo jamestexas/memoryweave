@@ -161,7 +161,7 @@ class KeywordExpanderTest(unittest.TestCase):
         }
 
         # Create expander with embeddings
-        expander_with_embeddings = KeywordExpander(word_embeddings)
+        expander_with_embeddings = KeywordExpander(word_embeddings=word_embeddings)
         expander_with_embeddings.initialize({"use_embeddings": True, "min_similarity": 0.7})
 
         # Test expansion
