@@ -1,4 +1,4 @@
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,51 +9,61 @@ class VectorSearchConfig(BaseModel):
     """Configuration for vector search."""
 
     provider: str = Field(
-        "numpy",
-        description="Vector search provider (e.g., numpy, faiss).",
+        default="numpy", description="Vector search provider (e.g., numpy, faiss)."
     )
     dimension: int = Field(
-        768,
-        description="Dimension of the embeddings for vector search.",
+        default=768, description="Dimension of the embeddings for vector search."
     )
     metric: str = Field(
-        "cosine",
-        description="Distance metric for the vector search (e.g., cosine).",
+        default="cosine", description="Distance metric for the vector search (e.g., cosine)."
     )
-    use_quantization: bool = Field(
-        False,
-        description="Enable quantization for indexing.",
+    use_quantization: bool = Field(default=False, description="Enable quantization for indexing.")
+    index_type: Optional[str] = Field(
+        default=None, description="Optional index type (e.g., IVF, HNSW)."
     )
-    index_type: str | None = Field(
-        None,
-        description="Optional index type (e.g., IVF, HNSW).",
-    )
-    nprobe: int = Field(
-        10,
-        description="Number of probes for the vector index.",
-    )
+    nprobe: int = Field(default=10, description="Number of probes for the vector index.")
     type: str = Field(
-        "faiss",
-        description="Library or approach for the vector search (e.g., faiss).",
+        default="faiss", description="Library or approach for the vector search (e.g., faiss)."
     )
-    config = ConfigDict(extra="allow")
+
+    # Define model configuration directly
+    model_config = ConfigDict(extra="allow")
 
 
 class MemoryStoreConfig(BaseModel):
     """Configuration for memory store."""
 
-    store_type: Literal["standard", "hybrid", "chunked"] = Field(
-        "standard", description="Memory store type"
+    store_type: str = Field(
+        default="standard", description="Type of memory store (standard, hybrid, chunked)."
     )
-    vector_search: Optional[VectorSearchConfig] = None
+    vector_search: Optional[VectorSearchConfig] = Field(
+        default=None, description="Vector search configuration."
+    )
+    max_memories: int = Field(default=1000, description="Maximum number of memories to store.")
+    embedding_dim: int = Field(default=768, description="Dimension of the memory embeddings.")
+    type: str = Field(
+        default="memory_store", description="Type of memory store (hybrid/chunked/standard)."
+    )
 
-    # Chunking parameters
-    chunk_size: int = Field(300, description="Target chunk size")
-    chunk_overlap: int = Field(30, description="Overlap between chunks")
-    min_chunk_size: int = Field(50, description="Minimum chunk size")
-    adaptive_threshold: int = Field(800, description="Character count that triggers chunking")
-    max_chunks_per_memory: int = Field(3, description="Maximum chunks per memory")
-    importance_threshold: float = Field(0.6, description="Threshold for keeping chunks")
+    # Chunked memory store configurations
+    chunk_size: int = Field(default=1000, description="Chunk size for chunked memory store.")
+    chunk_overlap: int = Field(default=100, description="Overlap size for chunked memory store.")
+    min_chunk_size: int = Field(
+        default=100, description="Minimum chunk size for chunked memory store."
+    )
+    max_chunks_per_memory: int = Field(
+        default=10, description="Maximum number of chunks per memory."
+    )
+
+    # Adaptive chunking configurations
+    adaptive_threshold: float = Field(default=0.5, description="Threshold for adaptive chunking.")
+    adaptive_chunk_size: int = Field(default=1000, description="Chunk size for adaptive chunking.")
+    importance_threshold: float = Field(
+        default=0.5, description="Threshold for importance-based chunking."
+    )
+
+    # Define model configuration
+    model_config = ConfigDict(extra="allow")
 
 
 class StrategyConfig(BaseModel):
