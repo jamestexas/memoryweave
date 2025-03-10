@@ -161,7 +161,7 @@ class TestCategoryManager:
             enable_category_consolidation=True,
             consolidation_threshold=0.5,
         )
-        manager = CategoryManager(core_manager)
+        manager = CategoryManager(core_manager=core_manager)
 
         # Create clearly distinct embeddings
         cat_group = [
