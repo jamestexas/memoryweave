@@ -47,7 +47,7 @@ def mock_memory_store():
 
 def test_init(mock_memory_store):
     """Test initialization of the strategy."""
-    strategy = SimilarityRetrievalStrategy(mock_memory_store)
+    strategy = SimilarityRetrievalStrategy(memory=mock_memory_store)
     assert strategy.memory is mock_memory_store, "Memory store should be assigned correctly"
     for attr in ("confidence_threshold", "activation_boost", "min_results"):
         assert hasattr(strategy, attr), f"Strategy missing attribute: {attr}"
@@ -55,7 +55,7 @@ def test_init(mock_memory_store):
 
 def test_initialize(mock_memory_store):
     """Test initializing the strategy with configuration."""
-    strategy = SimilarityRetrievalStrategy(mock_memory_store)
+    strategy = SimilarityRetrievalStrategy(memory=mock_memory_store)
     config = {
         "confidence_threshold": 0.7,
         "activation_boost": False,
@@ -69,7 +69,7 @@ def test_initialize(mock_memory_store):
 
 def test_retrieve_basic(mock_memory_store):
     """Test basic retrieval functionality."""
-    strategy = SimilarityRetrievalStrategy(mock_memory_store)
+    strategy = SimilarityRetrievalStrategy(memory=mock_memory_store)
     query_embedding = np.array([0.1, 0.2, 0.3])
     context = {"memory": mock_memory_store}
     results = strategy.retrieve(query_embedding, 3, context)
@@ -90,7 +90,7 @@ def test_retrieve_basic(mock_memory_store):
 
 def test_retrieve_with_parameters(mock_memory_store):
     """Test retrieval with custom parameters."""
-    strategy = SimilarityRetrievalStrategy(mock_memory_store)
+    strategy = SimilarityRetrievalStrategy(memory=mock_memory_store)
     strategy.initialize({"confidence_threshold": 0.3})
     query_embedding = np.array([0.1, 0.2, 0.3])
     context = {
@@ -111,7 +111,7 @@ def test_retrieve_with_parameters(mock_memory_store):
 
 def test_process_query(mock_memory_store):
     """Test the process_query method."""
-    strategy = SimilarityRetrievalStrategy(mock_memory_store)
+    strategy = SimilarityRetrievalStrategy(memory=mock_memory_store)
     query = "test query"
     query_embedding = np.array([0.1, 0.2, 0.3])
     context = {"query_embedding": query_embedding, "memory": mock_memory_store, "top_k": 3}
