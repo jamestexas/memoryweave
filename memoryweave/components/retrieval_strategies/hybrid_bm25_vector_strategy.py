@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 import numpy as np
+from pydantic import Field
 from whoosh.analysis import StandardAnalyzer
 from whoosh.fields import ID, STORED, TEXT, Schema
 from whoosh.index import create_in
@@ -33,43 +34,52 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
     3. Configurable weighting to balance between the two approaches
     """
 
-    def __init__(self, memory: Any):
+    memory: Any = Field(...)  # Memory component, needs to be provided
+    b: float = Field(default=0.75)
+    k1: float = Field(default=1.2)
+    vector_weight: float = Field(default=0.2)
+    bm25_weight: float = Field(default=0.8)
+    confidence_threshold: float = Field(default=0.0)
+    activation_boost: bool = Field(default=True)
+    enable_dynamic_weighting: bool = Field(default=True)
+    keyword_weight_bias: float = Field(default=0.7)
+    min_results: int = Field(default=5)
+    index_initialized: bool = Field(default=False, init=False)
+    memory_lookup: dict[str, int] = Field(default_factory=dict, init=False)
+    stats: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "index_size": 0,
+            "query_times": [],
+            "avg_query_time": 0.0,
+            "hybrid_calls": 0,
+        },
+        init=False,
+    )
+    temp_dir: tempfile.TemporaryDirectory = Field(
+        default_factory=tempfile.TemporaryDirectory,
+        init=False,
+    )
+    index_dir: str = Field(default="", init=False)
+    analyzer: StandardAnalyzer = Field(default_factory=StandardAnalyzer, init=False)
+    schema: Schema = Field(default=None, init=False)
+    index: Any = Field(default=None, init=False)
+
+    def __init__(self, **kwargs: Any) -> None:
         """
         Initialize the hybrid BM25 + vector retrieval strategy.
 
         Args:
             memory: The memory to retrieve from
         """
-        self.memory = memory
-
-        # BM25 index parameters
-        self.b = 0.75  # Length normalization parameter
-        self.k1 = 1.2  # Term frequency scaling parameter
-
-        # Create temporary directory for index
+        super().__init__(**kwargs)
         self.temp_dir = tempfile.TemporaryDirectory()
         self.index_dir = self.temp_dir.name
-
-        # Initialize BM25 index
-        self.analyzer = StandardAnalyzer()
         self.schema = Schema(
             id=ID(stored=True, unique=True),
             content=TEXT(analyzer=self.analyzer, stored=True),
             metadata=STORED,
         )
-
-        # Create the index
         self.index = create_in(self.index_dir, self.schema)
-        self.memory_lookup: dict[str, int] = {}
-        self.index_initialized = False
-
-        # Statistics for monitoring
-        self.stats: dict[str, Any] = {
-            "index_size": 0,
-            "query_times": [],
-            "avg_query_time": 0.0,
-            "hybrid_calls": 0,
-        }
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
@@ -79,23 +89,23 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             config: Configuration dictionary
         """
         # Vector retrieval parameters
-        self.vector_weight = config.get("vector_weight", 0.2)  # Default to favoring BM25
-        self.bm25_weight = config.get("bm25_weight", 0.8)  # Give BM25 more weight by default
-        self.confidence_threshold = config.get("confidence_threshold", 0.0)
-        self.activation_boost = config.get("activation_boost", True)
+        self.vector_weight = config.get("vector_weight", self.vector_weight)
+        self.bm25_weight = config.get("bm25_weight", self.bm25_weight)
+        self.confidence_threshold = config.get("confidence_threshold", self.confidence_threshold)
+        self.activation_boost = config.get("activation_boost", self.activation_boost)
 
         # Dynamic weighting parameters
-        self.enable_dynamic_weighting = config.get("enable_dynamic_weighting", True)
-        self.keyword_weight_bias = config.get(
-            "keyword_weight_bias", 0.7
-        )  # How much to bias toward BM25 for keyword-rich queries
+        self.enable_dynamic_weighting = config.get(
+            "enable_dynamic_weighting", self.enable_dynamic_weighting
+        )
+        self.keyword_weight_bias = config.get("keyword_weight_bias", self.keyword_weight_bias)
 
         # BM25 parameters
-        self.b = config.get("bm25_b", 0.75)
-        self.k1 = config.get("bm25_k1", 1.2)
+        self.b = config.get("bm25_b", self.b)
+        self.k1 = config.get("bm25_k1", self.k1)
 
         # Set minimum k for testing/benchmarking, but don't go below 1
-        self.min_results = max(1, config.get("min_results", 5))
+        self.min_results = max(1, config.get("min_results", self.min_results))
 
         # Initialize BM25 index if not already done
         if not self.index_initialized and hasattr(self.memory, "memory_metadata"):
@@ -163,7 +173,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             top_k: Maximum number of results to return
 
         Returns:
-            Dictionary mapping memory IDs to relevance scores
+            dictionary mapping memory IDs to relevance scores
         """
         import logging
 
@@ -297,7 +307,7 @@ class HybridBM25VectorStrategy(RetrievalStrategy):
             context: Context containing query, memory, etc.
 
         Returns:
-            List of retrieved memory dicts with relevance scores
+            list of retrieved memory dicts with relevance scores
         """
         # Start timing and get basic parameters
         memory, params = self._prepare_retrieval(context)
