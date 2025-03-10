@@ -25,6 +25,7 @@ class VectorSearchConfig(BaseModel):
     type: str = Field(
         default="faiss", description="Library or approach for the vector search (e.g., faiss)."
     )
+    type: str = Field(default="numpy", description="Vector search provider (e.g., numpy, faiss).")
 
     # Define model configuration directly
     model_config = ConfigDict(extra="allow")
@@ -131,6 +132,7 @@ class MemoryWeaveConfig(BaseModel):
 
     # Additional parameters
     model_kwargs: dict[str, Any] = Field(default_factory=dict)
+    strategy_config: StrategyConfig | None = Field(default=None)
 
 
 __all__ = [

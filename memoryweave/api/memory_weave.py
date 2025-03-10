@@ -3,6 +3,8 @@ import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from sentence_transformers import SentenceTransformer
+
 from memoryweave.api.config import MemoryWeaveConfig, StrategyConfig, VectorSearchConfig
 from memoryweave.api.constants import DEFAULT_EMBEDDING_MODEL, DEFAULT_MODEL
 from memoryweave.api.llm_provider import LLMProvider
@@ -52,6 +54,7 @@ class MemoryWeaveAPI:
         debug: bool = False,
         llm_provider: LLMProvider | None = None,
         prompt_builder: PromptBuilder | None = None,
+        strategy_config: StrategyConfig | None = None,
         **model_kwargs,
     ):
         """Initialize MemoryWeave with an LLM, embeddings, and memory components."""
@@ -71,6 +74,7 @@ class MemoryWeaveAPI:
                 show_progress_bar=show_progress_bar,
                 debug=debug,
                 model_kwargs=model_kwargs,
+                strategy_config=strategy_config or StrategyConfig(),
             )
 
         # Store basic parameters
@@ -80,6 +84,13 @@ class MemoryWeaveAPI:
         self.max_memories = config.max_memories
         self.consolidation_interval = config.consolidation_interval
         self.memories_since_consolidation = 0
+        self.strategy_config = config.strategy_config
+
+        # Feature flags
+        self.enable_category_management = config.enable_category_management
+        self.enable_personal_attributes = config.enable_personal_attributes
+        self.enable_semantic_coherence = config.enable_semantic_coherence
+        self.enable_dynamic_thresholds = config.enable_dynamic_thresholds
 
         # Configure logging
         if self.debug:
@@ -98,25 +109,16 @@ class MemoryWeaveAPI:
         self.streaming_handler = StreamingHandler(self.llm_provider)
 
         # Initialize embedding model
+        self.embedding_model_name = config.embedding_model_name
         logger.info(f"Loading embedding model: {config.embedding_model_name}")
         self.embedding_model = _get_embedder(
-            model_name=config.embedding_model_name, device=self.device
+            model_name=config.embedding_model_name,
+            device=self.device,
         )
-        embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
 
         # Create memory store and adapter - EXTENSION POINT
         self.memory_store, self.memory_adapter = self._create_memory_store(config.memory_store)
         self.memory_store_adapter = self.memory_adapter  # For backward compatibility
-
-        # Initialize components with the memory store
-        self._initialize_components(
-            embedding_dim=embedding_dim,
-            enable_category_management=config.enable_category_management,
-            enable_personal_attributes=config.enable_personal_attributes,
-            enable_semantic_coherence=config.enable_semantic_coherence,
-            debug=config.debug,
-            strategy_config=config.strategy,
-        )
 
         # Conversation tracking
         self.conversation_history = []
@@ -127,111 +129,203 @@ class MemoryWeaveAPI:
             "avg_results_count": 0,
         }
 
-    def _create_memory_store(self, config: MemoryStoreConfig) -> tuple[Any, Any]:
+    def _create_memory_store(
+        self,
+        config: MemoryStoreConfig,
+    ) -> tuple[StandardMemoryStore, MemoryAdapter]:
         """
         Create the memory store and adapter.
 
-        This is the main extension point for subclasses. Override this method
-        to provide specialized memory store implementations.
-
         Args:
-            config: Configuration for the memory store
+            config: Memory store configuration
 
         Returns:
             tuple of (memory_store, memory_adapter)
         """
-        # Create store and adapter
-        memory_adapter, memory_store = create_memory_store_and_adapter(config)
-        print(f"DEBUG: Memory store: {memory_store}")
+        # If vector_search is provided in the config, use it
+        if config.vector_search:
+            # Create adapter (which includes the store)
+            memory_adapter, memory_store = create_memory_store_and_adapter(config)
+        else:
+            # Create a default config with vector search
+            embedding_dim = (
+                config.embedding_dim or self.embedding_model.get_sentence_embedding_dimension()
+            )
+
+            store_config = MemoryStoreConfig(
+                store_type=config.store_type,
+                vector_search=VectorSearchConfig(type="numpy", dimension=embedding_dim),
+                max_memories=config.max_memories,
+                embedding_dim=config.embedding_dim,
+            )
+            memory_adapter, memory_store = create_memory_store_and_adapter(store_config)
+
         return memory_store, memory_adapter
 
-    def _initialize_components(
-        self,
-        embedding_dim: int,
-        enable_category_management: bool,
-        enable_personal_attributes: bool,
-        enable_semantic_coherence: bool,
-        debug: bool,
-        strategy_config: StrategyConfig,
-    ):
-        """Initialize all components that depend on the memory store."""
-        # Initialize associative linker
-        self.associative_linker = AssociativeMemoryLinker(self.memory_store)
+    @property
+    def embedding_model(self) -> SentenceTransformer:
+        if not hasattr(self, "_embedding_model"):
+            self._embedding_model = _get_embedder(
+                model_name=self.embedding_model_name,
+                device=self.device,
+                show_progress_bar=self.debug,
+            )
+        return self._embedding_model
 
-        # Initialize temporal context builder
-        self.temporal_context = TemporalContextBuilder(self.memory_store)
+    @embedding_model.setter
+    def embedding_model(self, value):
+        """Setter for embedding_model (primarily for testing)."""
+        self._embedding_model = value
 
-        # Initialize activation manager
-        self.activation_manager = ActivationManager()
+    @property
+    def associative_linker(self) -> AssociativeMemoryLinker:
+        """Lazy-loaded associative linker property."""
+        if not hasattr(self, "_associative_linker"):
+            self._associative_linker = AssociativeMemoryLinker(memory_store=self.memory_store)
+        return self._associative_linker
 
-        # Initialize query components
-        self.query_analyzer = QueryAnalyzer()
-        self.query_analyzer.initialize(
-            {
-                "min_keyword_length": 3,
-                "max_keywords": 10,
-            }
-        )
+    @property
+    def temporal_context(self) -> TemporalContextBuilder:
+        """Lazy-loaded temporal context property."""
+        if not hasattr(self, "_temporal_context"):
+            self._temporal_context = TemporalContextBuilder(memory_store=self.memory_store)
+        return self._temporal_context
 
-        self.query_adapter = QueryTypeAdapter()
-        self.query_adapter.initialize(
-            {
-                "apply_keyword_boost": True,
-                "scale_params_by_length": True,
-            }
-        )
+    @property
+    def activation_manager(self) -> ActivationManager:
+        """Lazy-loaded activation manager property."""
+        if not hasattr(self, "_activation_manager"):
+            self._activation_manager = ActivationManager()
+        return self._activation_manager
 
-        # Initialize optional components
-        self.category_manager = None
-        if enable_category_management:
-            self.category_manager = CategoryManager()
-            self.category_manager.initialize(
+    @property
+    def query_analyzer(self) -> QueryAnalyzer:
+        """Lazy-loaded query analyzer property."""
+        if not hasattr(self, "_query_analyzer"):
+            self._query_analyzer = QueryAnalyzer()
+            self._query_analyzer.initialize(
                 {
-                    "vigilance_threshold": 0.85,
-                    "embedding_dim": embedding_dim,
+                    "min_keyword_length": 3,
+                    "max_keywords": 10,
+                }
+            )
+        return self._query_analyzer
+
+    @query_analyzer.setter
+    def query_analyzer(self, value):
+        """Setter for query_analyzer (primarily for testing)."""
+        self._query_analyzer = value
+
+    @property
+    def query_adapter(self):
+        """Lazy-loaded query adapter property."""
+        if not hasattr(self, "_query_adapter"):
+            self._query_adapter = QueryTypeAdapter()
+            self.query_adapter.initialize(
+                {
+                    "apply_keyword_boost": True,
+                    "scale_params_by_length": True,
                 }
             )
 
-        # Initialize personal attribute manager
-        self.personal_attribute_manager = None
-        if enable_personal_attributes:
-            self.personal_attribute_manager = PersonalAttributeManager()
-            self.personal_attribute_manager.initialize()
+        return self._query_adapter
 
-        # Initialize semantic coherence processor
-        self.semantic_coherence_processor = None
-        if enable_semantic_coherence:
-            self.semantic_coherence_processor = SemanticCoherenceProcessor()
-            self.semantic_coherence_processor.initialize()
+    @query_adapter.setter
+    def query_adapter(self, value):
+        """Setter for query_adapter (primarily for testing)."""
+        self._query_adapter = value
 
-        # Initialize retrieval strategy
-        self.strategy = ContextualFabricStrategy(
-            memory_store=self.memory_store,
-            associative_linker=self.associative_linker,
-            temporal_context=self.temporal_context,
-            activation_manager=self.activation_manager,
-        )
-        self.strategy.initialize(
-            {
-                "confidence_threshold": strategy_config.confidence_threshold,
-                "similarity_weight": strategy_config.similarity_weight,
-                "associative_weight": strategy_config.associative_weight,
-                "temporal_weight": strategy_config.temporal_weight,
-                "activation_weight": strategy_config.activation_weight,
-                "max_associative_hops": strategy_config.max_associative_hops,
-                "debug": debug,
-            }
-        )
+    @property
+    def category_manager(self) -> CategoryManager | None:
+        """Lazy-loaded category manager property."""
+        if not hasattr(self, "_category_manager"):
+            self._category_manager = None
+            if self.enable_category_management:
+                self._category_manager = CategoryManager()
+                self._category_manager.initialize(
+                    {
+                        "vigilance_threshold": 0.85,
+                        "embedding_dim": self.embedding_model.get_sentence_embedding_dimension(),
+                    }
+                )
+        return self._category_manager
 
-        # Initialize retrieval orchestrator
-        self.retrieval_orchestrator = RetrievalOrchestrator(
-            strategy=self.strategy,
-            activation_manager=self.activation_manager,
-            temporal_context=self.temporal_context,
-            semantic_coherence_processor=self.semantic_coherence_processor,
-            memory_store_adapter=self.memory_adapter,
-            debug=debug,
-        )
+    @property
+    def personal_attribute_manager(self) -> PersonalAttributeManager | None:
+        """Lazy-loaded personal attribute manager property."""
+        if not hasattr(self, "_personal_attribute_manager"):
+            self._personal_attribute_manager = None
+            if self.enable_personal_attributes:
+                self._personal_attribute_manager = PersonalAttributeManager()
+                self._personal_attribute_manager.initialize()
+        return self._personal_attribute_manager
+
+    @personal_attribute_manager.setter
+    def personal_attribute_manager(self, value):
+        """Setter for personal_attribute_manager (primarily for testing)."""
+        self._personal_attribute_manager = value
+
+    @property
+    def semantic_coherence_processor(self) -> SemanticCoherenceProcessor | None:
+        """Lazy-loaded semantic coherence processor property."""
+        if not hasattr(self, "_semantic_coherence_processor"):
+            self._semantic_coherence_processor = None
+            if self.enable_semantic_coherence:
+                self._semantic_coherence_processor = SemanticCoherenceProcessor()
+                self._semantic_coherence_processor.initialize()
+        return self._semantic_coherence_processor
+
+    @semantic_coherence_processor.setter
+    def semantic_coherence_processor(self, value):
+        """Setter for semantic_coherence_processor (primarily for testing)."""
+        self._semantic_coherence_processor = value
+
+    @property
+    def strategy(self):
+        """Lazy-loaded retrieval strategy property."""
+        if not hasattr(self, "_strategy"):
+            self._strategy = ContextualFabricStrategy(
+                memory_store=self.memory_store,
+                associative_linker=self.associative_linker,
+                temporal_context=self.temporal_context,
+                activation_manager=self.activation_manager,
+            )
+            self.strategy.initialize(
+                {
+                    "confidence_threshold": self.strategy_config.confidence_threshold,
+                    "similarity_weight": self.strategy_config.similarity_weight,
+                    "associative_weight": self.strategy_config.associative_weight,
+                    "temporal_weight": self.strategy_config.temporal_weight,
+                    "activation_weight": self.strategy_config.activation_weight,
+                    "max_associative_hops": self.strategy_config.max_associative_hops,
+                    "debug": self.debug,
+                }
+            )
+        return self._strategy
+
+    @strategy.setter
+    def strategy(self, value):
+        """Setter for strategy (primarily for testing)."""
+        self._strategy = value
+
+    @property
+    def retrieval_orchestrator(self) -> RetrievalOrchestrator:
+        """Lazy-loaded retrieval orchestrator property."""
+        if not hasattr(self, "_retrieval_orchestrator"):
+            self._retrieval_orchestrator = RetrievalOrchestrator(
+                strategy=self.strategy,
+                activation_manager=self.activation_manager,
+                temporal_context=self.temporal_context,
+                semantic_coherence_processor=self.semantic_coherence_processor,
+                memory_store_adapter=self.memory_adapter,
+                debug=self.debug,
+            )
+        return self._retrieval_orchestrator
+
+    @retrieval_orchestrator.setter
+    def retrieval_orchestrator(self, value):
+        """Setter for retrieval_orchestrator (primarily for testing)."""
+        self._retrieval_orchestrator = value
 
     @property
     def prompt_builder(self) -> PromptBuilder:
@@ -239,6 +333,11 @@ class MemoryWeaveAPI:
         if self._prompt_builder is None:
             self._prompt_builder = PromptBuilder()
         return self._prompt_builder
+
+    @prompt_builder.setter
+    def prompt_builder(self, value):
+        """Setter for prompt_builder (primarily for testing)."""
+        self._prompt_builder = value
 
     def add_memory(self, text: str, metadata: dict[str, Any] = None) -> str:
         """Store a memory with consistent handling of metadata."""
@@ -436,37 +535,6 @@ class MemoryWeaveAPI:
 
         return memories
 
-    # Helper methods
-
-    def _create_memory_store(
-        self,
-        embedding_dim: int,
-    ) -> tuple[StandardMemoryStore, MemoryAdapter]:
-        """
-        Create the memory store and adapter.
-
-        This is the main extension point for subclasses. Override this method
-        to provide specialized memory store implementations.
-
-        Args:
-            embedding_dim: Dimension of the embedding vectors
-
-        Returns:
-            tuple of (memory_store, memory_adapter)
-        """
-        # Default implementation creates a standard memory store
-        store_config = MemoryStoreConfig(
-            type="standard",
-            vector_search=VectorSearchConfig(
-                type="numpy",
-                dimension=embedding_dim,
-            ),
-        )
-
-        # Create adapter (which includes the store)
-        memory_adapter, memory_store = create_memory_store_and_adapter(store_config)
-        return memory_store, memory_adapter
-
     def _analyze_query(self, user_message: str):
         """Analyze query to extract type, keywords, and parameters."""
         try:
@@ -551,7 +619,7 @@ class MemoryWeaveAPI:
             assistant_emb = self.embedding_model.encode(
                 assistant_reply, show_progress_bar=self.show_progress_bar
             )
-
+            convo_id = id(self.conversation_history)
             # Store user message
             user_mem_id = self.memory_adapter.add(
                 user_emb,
@@ -559,7 +627,7 @@ class MemoryWeaveAPI:
                 {
                     "type": "user_message",
                     "created_at": timestamp,
-                    "conversation_id": id(self.conversation_history),
+                    "conversation_id": convo_id,
                     "importance": 0.7,
                 },
             )
@@ -571,14 +639,18 @@ class MemoryWeaveAPI:
                 {
                     "type": "assistant_message",
                     "created_at": timestamp,
-                    "conversation_id": id(self.conversation_history),
+                    "conversation_id": convo_id,
                     "importance": 0.5,
                 },
             )
 
             # Create associative link between messages
             if self.associative_linker:
-                self.associative_linker.create_associative_link(user_mem_id, assistant_mem_id, 0.9)
+                self.associative_linker.create_associative_link(
+                    source_id=user_mem_id,
+                    target_id=assistant_mem_id,
+                    strength=0.9,
+                )
 
         except Exception as e:
             logger.error(f"Error storing conversation in memory: {e}")
